@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import Image from "next/image";
 import { AnimatePresence, motion } from "framer-motion";
 import { PiCheck } from "react-icons/pi";
@@ -15,6 +15,7 @@ import {
   ArrowUpRight01Icon,
   CoinsSwapIcon,
   Coins01Icon,
+  InformationCircleIcon,
 } from "hugeicons-react";
 import { CrossChainBalanceSkeleton } from "../BalanceSkeleton";
 import {
@@ -63,7 +64,9 @@ interface WalletViewProps {
   onRefreshBalance: () => void;
   isRefreshing?: boolean;
   showEarnUi?: boolean;
+  showEarnAction?: boolean;
   onEarn?: () => void;
+  onEarnUnavailable?: () => void;
   walletBalanceUsd?: number;
   onSelectTransaction?: (tx: TransactionHistory) => void;
   onViewReferrals?: () => void;
@@ -93,7 +96,9 @@ export const WalletView: React.FC<WalletViewProps> = ({
   onRefreshBalance,
   isRefreshing = false,
   showEarnUi = false,
+  showEarnAction = false,
   onEarn,
+  onEarnUnavailable,
   walletBalanceUsd = 0,
   onSelectTransaction,
   onViewReferrals,
@@ -102,12 +107,6 @@ export const WalletView: React.FC<WalletViewProps> = ({
   const { isEmbed } = useEmbed();
   const [walletTab, setWalletTab] = useState<WalletTab>("balances");
   const [isAddressCopied, setIsAddressCopied] = useState(false);
-
-  useEffect(() => {
-    if (showEarnUi && selectedNetwork.chain.name !== "Starknet") {
-      setWalletTab("balances");
-    }
-  }, [showEarnUi, selectedNetwork.chain.name]);
 
   const handleCopyInCard = async () => {
     handleCopyAddress();
@@ -437,18 +436,27 @@ export const WalletView: React.FC<WalletViewProps> = ({
                     </span>
                   </button>
                 )}
-                {!isInjectedWallet && showEarnUi && (
+                {!isInjectedWallet && showEarnAction && (
                   <button
                     type="button"
-                    title="Earn yield on USDC via Vesu"
-                    onClick={onEarn}
+                    title={
+                      showEarnUi
+                        ? "Earn yield on USDC via Vesu"
+                        : "Earn is currently not available on this network."
+                    }
+                    onClick={() =>
+                      showEarnUi ? onEarn?.() : onEarnUnavailable?.()
+                    }
                     className="group flex flex-1 flex-col items-center gap-2"
                   >
                     <span className="flex size-[60px] items-center justify-center rounded-full bg-accent-gray text-gray-900 transition-all group-hover:scale-[0.98] group-hover:bg-[#EBEBEF] group-active:scale-95 dark:bg-white/5 dark:text-white dark:group-hover:bg-white/10">
                       <Coins01Icon className="size-6" strokeWidth={2} />
                     </span>
-                    <span className="text-sm font-medium text-text-body dark:text-white">
+                    <span className="flex items-center gap-1 text-sm font-medium text-text-body dark:text-white">
                       Earn
+                      {!showEarnUi && (
+                        <InformationCircleIcon className="size-4 text-text-secondary dark:text-white/50" />
+                      )}
                     </span>
                   </button>
                 )}

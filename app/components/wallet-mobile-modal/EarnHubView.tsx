@@ -2,12 +2,17 @@
 
 import React, { useEffect, useMemo } from "react";
 import { ArrowLeft02Icon, Cancel01Icon, Setting07Icon } from "hugeicons-react";
+import { useWallets } from "@privy-io/react-auth";
 import {
   EARN_TOKENS,
   useEarnHandler,
   type EarnActivityEntry,
   type EarnToken,
 } from "../../hooks/useEarnHandler";
+import { useEarnSourcePosition } from "../../hooks/useEarnSourcePosition";
+import { useNetwork } from "../../context/NetworksContext";
+import { isEvmEarnFlow } from "../../lib/earnFeature";
+import { EARN_STARKNET_DISCLOSURE } from "../../lib/earnChains";
 import { EarnDisclosureBanner } from "../EarnDisclosureBanner";
 import { EarnActivityPanel } from "../EarnActivityPanel";
 
@@ -74,7 +79,21 @@ export const EarnHubView: React.FC<EarnHubViewProps> = ({
   onWithdraw,
   onSelectActivity,
 }) => {
+  const { selectedNetwork } = useNetwork();
+  const { wallets } = useWallets();
   const { positions, refreshAllPositions } = useEarnHandler();
+
+  const chainName = selectedNetwork.chain.name;
+  const isEvmFlow = isEvmEarnFlow(chainName);
+  const evmAddress = wallets
+    .find((w) => w.walletClientType === "privy")
+    ?.address?.toLowerCase();
+
+  const sourcePosition = useEarnSourcePosition(
+    isEvmFlow ? evmAddress : undefined,
+    chainName,
+    "USDC",
+  );
 
   useEffect(() => {
     void refreshAllPositions();
@@ -84,20 +103,34 @@ export const EarnHubView: React.FC<EarnHubViewProps> = ({
     return () => clearInterval(id);
   }, [refreshAllPositions]);
 
-  const suppliedTokens = useMemo<EarnToken[]>(
-    () =>
-      EARN_TOKENS.filter(
-        (t) => safeBigInt(positions[t]?.suppliedBaseUnits) > BigInt("0"),
-      ),
-    [positions],
-  );
+  const suppliedTokens = useMemo<EarnToken[]>(() => {
+    if (isEvmFlow) {
+      return sourcePosition &&
+        safeBigInt(sourcePosition.suppliedBaseUnits) > BigInt("0")
+        ? (["USDC"] as EarnToken[])
+        : [];
+    }
+    return EARN_TOKENS.filter(
+      (t) => safeBigInt(positions[t]?.suppliedBaseUnits) > BigInt("0"),
+    );
+  }, [isEvmFlow, sourcePosition, positions]);
 
-  const hasWithdrawableBalance = suppliedTokens.length > 0;
+  const hasEvmSourcePosition =
+    isEvmFlow &&
+    sourcePosition != null &&
+    safeBigInt(sourcePosition.suppliedBaseUnits) > BigInt("0");
+
+  const hasWithdrawableBalance =
+    suppliedTokens.length > 0 || hasEvmSourcePosition;
 
   const primaryToken = suppliedTokens[0] ?? null;
   const primaryPosition = primaryToken ? positions[primaryToken] : null;
-  const primarySupplied = safeBigInt(primaryPosition?.suppliedBaseUnits);
-  const primaryApy = primaryPosition?.supplyApy ?? null;
+  const primarySupplied = isEvmFlow
+    ? safeBigInt(sourcePosition?.suppliedBaseUnits)
+    : safeBigInt(primaryPosition?.suppliedBaseUnits);
+  const primaryApy = isEvmFlow
+    ? (sourcePosition?.supplyApy ?? null)
+    : (primaryPosition?.supplyApy ?? null);
   const { monthly, yearly } = projectEarnings(primarySupplied, primaryApy);
 
   return (
@@ -172,7 +205,15 @@ export const EarnHubView: React.FC<EarnHubViewProps> = ({
           </div>
         ) : (
           <p className="text-sm text-text-secondary dark:text-white/50">
-            No funds in Earn yet. Deposit USDC or USDT to start earning.
+            {isEvmFlow
+              ? "No funds in Earn yet. Deposit USDC to bridge to Vesu on Starknet."
+              : "No funds in Earn yet. Deposit USDC or USDT to start earning."}
+          </p>
+        )}
+
+        {isEvmFlow && primarySupplied > BigInt("0") && (
+          <p className="text-xs text-text-secondary dark:text-white/50">
+            {EARN_STARKNET_DISCLOSURE}
           </p>
         )}
 
@@ -204,6 +245,8 @@ export const EarnHubView: React.FC<EarnHubViewProps> = ({
         <EarnActivityPanel
           showDisclosureBanner={false}
           onSelectActivity={onSelectActivity}
+          chainName={chainName}
+          includeLegacyUntaggedDeposits={hasEvmSourcePosition}
         />
       </div>
     </div>

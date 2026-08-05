@@ -40,10 +40,11 @@ import { FundWalletForm } from "./FundWalletForm";
 import { TransferForm } from "./TransferForm";
 import { EarnWalletForm } from "./EarnWalletForm";
 import { EarnConsentModal } from "./EarnConsentModal";
+import { EarnUnavailableModal } from "./EarnUnavailableModal";
 import { CopyAddressWarningModal } from "./CopyAddressWarningModal";
 import ProfileView from "./ProfileView";
 import { useEarnAccess } from "../hooks/useEarnAccess";
-import { isEarnUiVisible } from "../lib/earnFeature";
+import { isEarnActionVisible, isEarnUiVisible } from "../lib/earnFeature";
 import { isReferralEnabled } from "../utils";
 import { isBridgeUiVisible } from "../lib/bridgeFeature";
 import { BridgeForm } from "./bridge/BridgeForm";
@@ -69,6 +70,8 @@ export const MobileDropdown = ({
   const [isNetworkListOpen, setIsNetworkListOpen] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [isWarningModalOpen, setIsWarningModalOpen] = useState(false);
+  const [isEarnUnavailableModalOpen, setIsEarnUnavailableModalOpen] =
+    useState(false);
 
   const { selectedNetwork, setSelectedNetwork } = useNetwork();
   const { currentStep } = useStep();
@@ -287,6 +290,7 @@ export const MobileDropdown = ({
   const { client } = useSmartWallets();
 
   const showEarnUi = isEarnUiVisible(selectedNetwork.chain.name);
+  const showEarnAction = isEarnActionVisible(selectedNetwork.chain.name);
   const {
     isConsentModalOpen: isEarnConsentModalOpen,
     requestEarnAccess,
@@ -367,9 +371,13 @@ export const MobileDropdown = ({
                           onRefreshBalance={refreshBalance}
                           isRefreshing={isRefreshing}
                           showEarnUi={showEarnUi}
+                          showEarnAction={showEarnAction}
                           walletBalanceUsd={walletBalanceUsd}
                           onEarn={() =>
                             requestEarnAccess("earn-hub", onEarnAccessAction)
+                          }
+                          onEarnUnavailable={() =>
+                            setIsEarnUnavailableModalOpen(true)
                           }
                           onSelectTransaction={(tx) => {
                             setSelectedTransaction(tx);
@@ -499,6 +507,11 @@ export const MobileDropdown = ({
               isOpen={isEarnConsentModalOpen}
               onClose={dismissEarnConsent}
               onAccepted={() => handleEarnConsentAccepted(onEarnAccessAction)}
+            />
+
+            <EarnUnavailableModal
+              isOpen={isEarnUnavailableModalOpen}
+              onClose={() => setIsEarnUnavailableModalOpen(false)}
             />
 
             <CopyAddressWarningModal

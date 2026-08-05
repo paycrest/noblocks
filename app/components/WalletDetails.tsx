@@ -63,7 +63,8 @@ import { useCNGNRate } from "../hooks/useCNGNRate";
 import { EarnConsentModal } from "./EarnConsentModal";
 import { EarnUnavailableModal } from "./EarnUnavailableModal";
 import { useEarnAccess } from "../hooks/useEarnAccess";
-import { isEarnEnabled, isEarnUiVisible } from "../lib/earnFeature";
+import { isEarnEnabled, isEarnActionVisible, isEarnUiVisible, isEvmEarnFlow } from "../lib/earnFeature";
+import { EarnSourcePositionCard } from "./EarnSourcePositionCard";
 import { isReferralEnabled, formatTokenAmount } from "../utils";
 import { isBridgeUiVisible } from "../lib/bridgeFeature";
 import { BridgeForm } from "./bridge/BridgeForm";
@@ -101,10 +102,10 @@ const EarnUnavailableTooltip = ({
         />
         <div className="relative rounded-2xl border border-border-light bg-white p-2.5 pr-9 shadow-lg dark:border-white/10 dark:bg-[#2c2c2c]">
           <p className="text-[11px] font-medium leading-5 text-text-body dark:text-white">
-            Earn is currently available on Starknet.
+            Earn is currently not available on this network.
           </p>
           <p className="mt-[3px] text-[10px] leading-[13px] text-text-secondary dark:text-white/50">
-            Switch your wallet to Starknet to start earning on your USDC.
+            Switch your wallet to another network to start earning on your USDC.
           </p>
           <button
             type="button"
@@ -250,6 +251,11 @@ export const WalletDetails = () => {
   }, [activeWallet?.address, fetchTransactions, resolveAuth]);
 
   const showEarnUi = isEarnUiVisible(selectedNetwork.chain.name);
+  const showEarnAction = isEarnActionVisible(selectedNetwork.chain.name);
+  const isEvmEarn = isEvmEarnFlow(selectedNetwork.chain.name);
+  const embeddedEvmAddress = wallets
+    .find((w) => w.walletClientType === "privy")
+    ?.address?.toLowerCase();
 
   const onEarnAccessAction = (action: "earn-modal" | "earn-tab" | "earn-hub") => {
     if (action === "earn-hub" || action === "earn-modal") {
@@ -594,7 +600,7 @@ export const WalletDetails = () => {
                                 </span>
                               </button>
                             )}
-                            {!isInjectedWallet && isEarnEnabled() && (
+                            {!isInjectedWallet && showEarnAction && (
                               <div
                                 className="relative flex flex-1 flex-col items-center"
                                 onMouseEnter={() =>
@@ -607,7 +613,7 @@ export const WalletDetails = () => {
                                   title={
                                     showEarnUi
                                       ? "Earn yield on USDC via Vesu"
-                                      : "Earn is currently available on Starknet"
+                                      : "Earn is currently not available on this network."
                                   }
                                   onClick={() => {
                                     if (showEarnUi) {
@@ -897,6 +903,12 @@ export const WalletDetails = () => {
                                     </div>
                                   );
                                 })
+                              )}
+                              {isEvmEarn && embeddedEvmAddress && (
+                                <EarnSourcePositionCard
+                                  evmAddress={embeddedEvmAddress}
+                                  sourceChain={selectedNetwork.chain.name}
+                                />
                               )}
                             </motion.div>
                           ) : (

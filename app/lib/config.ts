@@ -68,6 +68,7 @@ const config: Config = {
   moralisBaseUrl:
     process.env.MORALIS_BASE_URL || "https://api.moralis-streams.com",
   earnEnabled: process.env.NEXT_PUBLIC_EARN_ENABLED === "true",
+  evmEarnEnabled: process.env.NEXT_PUBLIC_EVM_EARN_ENABLED === "true",
   tronEnabled: process.env.NEXT_PUBLIC_TRON_ENABLED === "true",
   referralEnabled: (process.env.NEXT_PUBLIC_REFERRAL_ENABLED || "").trim().toLowerCase() !== "false",
   bridgeEnabled: process.env.NEXT_PUBLIC_BRIDGE_ENABLED === "true",
@@ -81,6 +82,10 @@ const config: Config = {
   fantasyCampaignEnded:
     process.env.NEXT_PUBLIC_FANTASY_CAMPAIGN_ENDED === "true",
   embedEnabled: process.env.NEXT_PUBLIC_EMBED_ENABLED === "true",
+  /** Server-side LayerSwap API key (EVM earn bridge). */
+  layerswapApiKey: (process.env.LAYERSWAP_API_KEY || "").trim(),
+  layerswapApiBaseUrl:
+    (process.env.LAYERSWAP_API_BASE_URL || "https://api.layerswap.io").trim(),
 };
 
 export default config;

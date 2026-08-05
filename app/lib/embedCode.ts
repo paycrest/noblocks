@@ -47,19 +47,8 @@ export async function computeEmbedCode(
   const encoder = new TextEncoder();
   const data = encoder.encode(normalized);
 
-  let hashBytes: Uint8Array;
-  if (typeof crypto !== "undefined" && crypto.subtle) {
-    // Browser or Node 15+ with Web Crypto
-    const hashBuffer = await crypto.subtle.digest("SHA-256", data);
-    hashBytes = new Uint8Array(hashBuffer);
-  } else {
-    // Fallback for older Node versions
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const nodeCrypto = require("crypto") as typeof import("crypto");
-    const hash = nodeCrypto.createHash("sha256");
-    hash.update(normalized);
-    hashBytes = new Uint8Array(hash.digest());
-  }
+  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+  const hashBytes = new Uint8Array(hashBuffer);
 
   const hashArray = Array.from(hashBytes);
   const hashHex = hashArray

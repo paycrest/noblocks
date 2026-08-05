@@ -13,24 +13,43 @@
 -- returns any existing row for the transaction_id the user cannot retry it
 -- either. Nothing else reclaims these.
 --
--- SCOPE: `tx_hash IS NULL` only. A row that recorded a hash reached the transfer
--- and is not stranded. The residual risk is the narrow window where the transfer
--- was broadcast but the status update had not yet persisted the hash — the route
--- already logs that case as "MANUAL REVIEW NEEDED", and it is milliseconds wide
--- against a 30-minute threshold. Freeing quota there slightly over-credits an
--- identity; the alternative (never reclaiming) permanently under-credits one for
--- an outage that was not the user's doing, which is the worse failure.
+-- SCOPE — why a null tx_hash is not sufficient on its own:
+-- `tx_hash` is only persisted *after* writeContract returns, so a row can have a
+-- null hash and still have had its transfer broadcast. Reaping on a null hash
+-- alone would release quota for a claim that was actually paid, letting the
+-- identity claim beyond its cap. `transfer_attempted_at` closes that: the route
+-- stamps it immediately BEFORE broadcasting, and aborts the claim if the stamp
+-- cannot be persisted. So:
+--
+--   transfer_attempted_at IS NULL  → provably never broadcast → safe to release
+--   stamped, tx_hash IS NULL       → may or may not have been paid → left alone
+--                                    for manual reconciliation (the route logs
+--                                    "MANUAL REVIEW NEEDED" for this case)
+--   tx_hash present                → paid, not stranded
+--
+-- Deliberately conservative: a stamped-but-hashless row keeps consuming its
+-- reservation until a human resolves it. Wrongly releasing quota for a real
+-- payout is worse than holding a slot for an outage that already needs review.
 --
 -- The rows are marked 'failed' rather than deleted: they record a claim attempt,
 -- and 'failed' is the status the quota function already treats as released.
 
 create extension if not exists pg_cron;
 
+-- Set immediately before the on-chain broadcast; see app/api/blockfest/cashback/route.ts.
+alter table public.blockfest_cashback_claims
+  add column if not exists transfer_attempted_at timestamptz;
+
+comment on column public.blockfest_cashback_claims.transfer_attempted_at is
+  'Stamped immediately before the cashback transfer is broadcast. NULL proves no '
+  'broadcast was attempted, which is what makes a stranded pending row safe to '
+  'reap. Never cleared.';
+
 -- Supports the sweep's predicate; the partial WHERE keeps it to the handful of
 -- rows that are actually in flight at any moment.
 create index if not exists idx_cashback_claims_pending_reap
   on public.blockfest_cashback_claims (created_at)
-  where status = 'pending' and tx_hash is null;
+  where status = 'pending' and tx_hash is null and transfer_attempted_at is null;
 
 -- cron.schedule upserts by job name: re-running this migration updates the
 -- existing job in place rather than creating a duplicate.
@@ -43,6 +62,7 @@ select cron.schedule(
          updated_at = now()
    where status     = 'pending'
      and tx_hash is null
+     and transfer_attempted_at is null
      and created_at < now() - interval '30 minutes';
   $$
 );

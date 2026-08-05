@@ -489,6 +489,28 @@ export const POST = withRateLimit(async (request: NextRequest) => {
       // Parse amount with proper decimals
       const amountInWei = parseUnits(finalAdjustedCashback, token.decimals);
 
+      // Mark the claim as about to broadcast. tx_hash only exists after
+      // writeContract returns, so without this a row killed mid-transfer is
+      // indistinguishable from one that never started — and the reaper
+      // (20260804120100) would release quota for a payout that really happened.
+      // Abort rather than broadcast if the stamp can't be persisted: an
+      // unstamped row is one the reaper is entitled to reclaim.
+      const { error: attemptError } = await supabaseAdmin
+        .from("blockfest_cashback_claims")
+        .update({
+          transfer_attempted_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", pendingClaim.id);
+
+      if (attemptError) {
+        console.error(
+          "Failed to record transfer attempt, aborting before broadcast:",
+          attemptError,
+        );
+        throw new Error("Unable to record transfer attempt");
+      }
+
       // Execute transfer
       const txHash = await walletClient.writeContract({
         address: token.address as `0x${string}`,

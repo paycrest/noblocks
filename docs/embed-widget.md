@@ -305,6 +305,55 @@ picks the wallet up without a reload.
 
 The returned `unbind()` removes all listeners.
 
+## Onchain Attribution
+
+Every transaction submitted through the widget includes an onchain attribution
+code that identifies the embedding partner. This allows Paycrest to track
+volume and activity by partner without relying solely on middleware analytics.
+
+### How it works
+
+When your origin is allowlisted and the widget loads in your iframe, we derive
+a deterministic embed code from your origin:
+
+```
+embedCode = "e_" + first 8 hex chars of sha256(normalizedOrigin)
+```
+
+For example:
+- `https://app.partner.com` → `e_233809b4`
+- `https://App.Partner.COM/` → `e_233809b4` (same code, normalization is case-insensitive and strips trailing slashes)
+
+This code is appended to the calldata of every transaction:
+
+- **Base mainnet**: `bc_julg9gbq,<embedCode>` (Base builder code + comma + embed code)
+- **Other chains**: `<embedCode>` only
+
+The code is stable across sessions and can be reproduced at query time by
+hashing the allowlisted origin. No new database tables or attribution keys are
+needed — the code is derived deterministically.
+
+### What this means for partners
+
+- **Volume tracking**: Paycrest can attribute transaction volume to your partner
+  integration by parsing calldata or matching against the allowlist.
+- **No action required**: Attribution happens automatically when you embed the
+  widget. You don't need to pass any additional parameters.
+- **Privacy**: The embed code is a one-way hash of your origin. It cannot be
+  reversed to reveal your domain, but it can be reproduced if someone knows
+  your origin and the algorithm.
+
+### Important: Do not strip the referrer
+
+The embed code is derived from `document.referrer`, which the browser sets to
+the embedding page's origin. If your page sets `Referrer-Policy: no-referrer`
+or the iframe has `referrerpolicy="no-referrer"`, the referrer will be empty
+and **attribution will not work**.
+
+Use the default browser policy (`strict-origin-when-cross-origin`) or
+`origin-when-cross-origin`. The widget already documents this in the Quick
+start notes.
+
 ## Configuration (Noblocks operators)
 
 - `NEXT_PUBLIC_EMBED_ENABLED`: feature flag; when not `"true"`, `/widget`

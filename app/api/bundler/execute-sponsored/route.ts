@@ -17,6 +17,7 @@ export async function POST(request: NextRequest) {
     const rpcUrl = parseRpcUrl(chainId);
     const eip7702Authorization = body?.eip7702Authorization;
     const delegationContractAddress = body?.delegationContractAddress;
+    const embedCode = typeof body?.embedCode === "string" ? body.embedCode : undefined;
 
     if (!accountAddress || typeof accountAddress !== "string" || !/^0x[0-9a-fA-F]{40}$/.test(accountAddress)) {
       return NextResponse.json({ error: "accountAddress (0x + 40 hex) is required" }, { status: 400 });
@@ -69,6 +70,7 @@ export async function POST(request: NextRequest) {
       callData: callData as `0x${string}`,
       eip7702Authorization: eip7702Authorization ?? undefined,
       gasLimit,
+      embedCode,
     });
 
     return NextResponse.json({

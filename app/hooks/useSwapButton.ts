@@ -48,6 +48,12 @@ interface UseSwapButtonProps {
     segments?: LiquiditySegment[];
     noLiquidity: boolean;
   };
+  /**
+   * Pre-computed insufficient-balance flag from TransactionForm (which guards
+   * against loading state). When provided, useSwapButton uses it directly
+   * instead of recomputing against a potentially-zero balance.
+   */
+  hasInsufficientBalance?: boolean;
 }
 
 /** Unknown segments must not block, so an absent list passes. */
@@ -75,6 +81,7 @@ export function useSwapButton({
   isSwapped = false,
   networkName = "",
   amountBounds,
+  hasInsufficientBalance: hasInsufficientBalanceProp,
 }: UseSwapButtonProps) {
   const { authenticated } = usePrivy();
   const { isInjectedWallet, injectedReady, injectedRequested, injectedStatus } =
@@ -121,8 +128,15 @@ export function useSwapButton({
 
   const totalRequired = Number(amountSent) || 0;
 
-  // Skip balance check in onramp mode (isSwapped = true)
-  const hasInsufficientBalance = isSwapped ? false : totalRequired > balance;
+  // Use the caller's pre-computed flag when provided (TransactionForm guards
+  // against loading state). Fall back to a local recomputation only when the
+  // caller doesn't supply one — this keeps legacy callers working.
+  const hasInsufficientBalance =
+    hasInsufficientBalanceProp !== undefined
+      ? hasInsufficientBalanceProp
+      : isSwapped
+        ? false
+        : totalRequired > balance;
 
   // Check recipient based on mode: valid walletAddress for onramp, recipientName for offramp
   const hasRecipient = isSwapped

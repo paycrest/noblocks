@@ -296,6 +296,7 @@ export function MainPageContent() {
   const failedProviders = useRef<Set<string>>(new Set());
   const autoSelectedNetworkSessionRef = useRef<string | null>(null);
   const noProviderEventGuard = useRef<Set<string>>(new Set());
+  const rateRequestSeqRef = useRef(0);
 
   const [isUserVerified, setIsUserVerified] = useState(false);
   const [rateError, setRateError] = useState<string | null>(null);
@@ -726,6 +727,10 @@ export function MainPageContent() {
     function handleRateFetch() {
       // Debounce rate fetching
       let timeoutId: NodeJS.Timeout;
+      // Request sequence: incremented per effect run; stale async completions
+      // (from a prior run where skipMarketForInsufficientBalance was false)
+      // must not update state after the form becomes unfundable.
+      let requestSeq = ++rateRequestSeqRef.current;
 
       if (!currency) return;
 
@@ -806,9 +811,14 @@ export function MainPageContent() {
             network: normalizeNetworkForRateFetch(selectedNetwork.chain.name),
             side: isOnrampRate ? "buy" : "sell",
           });
+          // Ignore stale responses: if the effect re-ran (e.g. skipMarketForInsufficientBalance
+          // flipped true), this request is no longer relevant.
+          if (requestSeq !== rateRequestSeqRef.current) return;
           setRate(rate.data);
           setRateError(null); // Clear error on success
         } catch (error) {
+          // Ignore stale errors: same rationale as above.
+          if (requestSeq !== rateRequestSeqRef.current) return;
           if (error instanceof Error) {
             if (
               shouldUseProvider &&
@@ -877,7 +887,10 @@ export function MainPageContent() {
             },
           });
         } finally {
-          setIsFetchingRate(false);
+          // Only clear the loading flag if this is still the active request.
+          if (requestSeq === rateRequestSeqRef.current) {
+            setIsFetchingRate(false);
+          }
         }
       };
 

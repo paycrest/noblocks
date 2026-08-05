@@ -996,6 +996,7 @@ export const TransactionForm = ({
           : liquidity.segments,
       noLiquidity: hasInsufficientBalance ? false : noLiquidity,
     },
+    hasInsufficientBalance,
   });
 
   const [isPhoneVerificationOpen, setIsPhoneVerificationOpen] = useState(false);

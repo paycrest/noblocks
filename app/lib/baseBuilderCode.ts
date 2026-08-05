@@ -10,7 +10,7 @@ export const BASE_MAINNET_CHAIN_ID = 8453;
  * - Codes: "bc_julg9gbq" (11 bytes)
  * - Length byte: 0x0b (11)
  * - Schema byte: 0x00
- * - Marker: 0x8021 repeated 16 times
+ * - Marker: 0x8021 repeated 8 times (16 bytes)
  *
  * Total: 29 bytes
  */

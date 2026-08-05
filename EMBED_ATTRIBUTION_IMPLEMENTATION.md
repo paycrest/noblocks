@@ -90,26 +90,52 @@ embedCode = "e_" + first 8 hex chars of sha256(normalizedOrigin)
 
 ### Onchain Calldata Format
 
-**Base mainnet (chainId 8453):**
-```
-<original_calldata><BASE_BUILDER_CODE_SUFFIX><0x2c><embedCode_hex>
-```
-Where:
-- `BASE_BUILDER_CODE_SUFFIX` = `0x62635f6a756c67396762710b008021...` (bc_julg9gbq + metadata)
-- `0x2c` = comma separator (ASCII)
-- `embedCode_hex` = hex-encoded embed code (e.g., `655f3233333830396234` for `e_233809b4`)
+The embed code is **not** appended after `BASE_BUILDER_CODE_SUFFIX`. A single
+complete ERC-8021 schema 0 suffix is rebuilt from the full code list, so there is
+exactly one length/schema/marker trailer per transaction:
 
-**Other chains:**
+```text
+<original_calldata><codes ASCII hex><length byte><0x00 schema byte><0x8021 x 8>
 ```
-<original_calldata><embedCode_hex>
+
+Where:
+- `codes` is a comma-separated ASCII list, hex-encoded
+- `length byte` is the byte length of `codes` (max 255)
+- `schema byte` is `0x00` (schema 0)
+- the marker is `0x8021` repeated 8 times (16 bytes)
+
+**Base mainnet (chainId 8453):** `codes` = `bc_julg9gbq,<embedCode>`
+
+```text
+62635f6a756c67396762712c655f3233333830396234 16 00 80218021802180218021802180218021
 ```
+
+**Other chains:** `codes` = `<embedCode>` only — the length, schema, and marker
+bytes are still present:
+
+```text
+655f3233333830396234 0a 00 80218021802180218021802180218021
+```
+
+Without an embed code, Base still gets the precomputed single-code
+`BASE_BUILDER_CODE_SUFFIX` (`codes` = `bc_julg9gbq`) and other chains get nothing.
 
 ### Aggregator Parser Requirements
 
-The aggregator must be updated to parse the multi-code format:
-1. Strip the existing 15-byte metadata from `BASE_BUILDER_CODE_SUFFIX`
-2. Parse the remaining suffix as comma-separated codes
-3. Match embed codes against the `embed_allowed_origins` allowlist by hashing
+The aggregator parses the suffix backwards from the end of the outer transaction
+calldata:
+1. Verify the trailing 16-byte marker `0x8021` repeated 8 times
+2. Read the schema byte (`0x00`); ignore suffixes with any other schema
+3. Read the length byte and take that many preceding bytes as the ASCII `codes`
+4. Split `codes` on `,` and match embed codes against the `embed_allowed_origins`
+   allowlist by hashing each allowlisted origin
+
+Do not strip or append bytes relative to `BASE_BUILDER_CODE_SUFFIX` — that
+constant is only the precomputed encoding of the single code `bc_julg9gbq`, and a
+multi-code suffix is a different byte string, not that constant plus an extra
+code. See `EncodeERC8021Suffix` / `ParseERC8021Codes` in
+`aggregator/services/builder_code.go`, which produce and consume byte-identical
+output.
 
 ## Backward Compatibility
 

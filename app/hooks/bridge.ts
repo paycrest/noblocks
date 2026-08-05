@@ -466,6 +466,7 @@ export function useBridgeExecute({
               getAccessToken,
               embeddedWallet,
               signDelegationAuthorization,
+              embedCode: embedCodeRef.current,
             });
 
             setTxHash(evmHash);
@@ -538,6 +539,7 @@ export function useBridgeExecute({
             embeddedWallet,
             signDelegationAuthorization,
             gasLimit,
+            embedCode: embedCodeRef.current,
           });
 
           setTxHash(evmHash);

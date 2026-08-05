@@ -1,4 +1,4 @@
-import { computeEmbedCode, normalizeOrigin } from '../app/lib/embedCode';
+import { computeEmbedCode, isValidEmbedCode, normalizeOrigin } from '../app/lib/embedCode';
 
 describe('embedCode', () => {
   describe('normalizeOrigin', () => {
@@ -57,6 +57,33 @@ describe('embedCode', () => {
       // sha256('https://app.partner.com') = 233809b4... → first 8 hex chars
       const code = await computeEmbedCode('https://app.partner.com');
       expect(code).toBe('e_233809b4');
+    });
+  });
+
+  describe('isValidEmbedCode', () => {
+    it('accepts a derived code', async () => {
+      const code = await computeEmbedCode('https://app.partner.com');
+      expect(isValidEmbedCode(code)).toBe(true);
+      expect(isValidEmbedCode('e_233809b4')).toBe(true);
+    });
+
+    it('rejects codes with the wrong shape', () => {
+      expect(isValidEmbedCode('e_233809B4')).toBe(false); // uppercase hex
+      expect(isValidEmbedCode('e_233809b')).toBe(false); // too short
+      expect(isValidEmbedCode('e_233809b44')).toBe(false); // too long
+      expect(isValidEmbedCode('e_2338zzzz')).toBe(false); // non-hex
+      expect(isValidEmbedCode('233809b4')).toBe(false); // missing prefix
+      expect(isValidEmbedCode('bc_julg9gbq')).toBe(false); // builder code, not an embed code
+      expect(isValidEmbedCode('e_233809b4,bc_julg9gbq')).toBe(false); // injected extra code
+      expect(isValidEmbedCode('e_233809b4\n')).toBe(false); // trailing newline
+      expect(isValidEmbedCode('')).toBe(false);
+    });
+
+    it('rejects non-string values', () => {
+      expect(isValidEmbedCode(undefined)).toBe(false);
+      expect(isValidEmbedCode(null)).toBe(false);
+      expect(isValidEmbedCode(12345678)).toBe(false);
+      expect(isValidEmbedCode({ toString: () => 'e_233809b4' })).toBe(false);
     });
   });
 });

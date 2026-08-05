@@ -59,6 +59,25 @@ export async function computeEmbedCode(
 }
 
 /**
+ * Shape of a derived embed code: `e_` followed by 8 lowercase hex chars.
+ * Kept next to computeEmbedCode so the validator and the derivation stay in sync.
+ */
+export const EMBED_CODE_PATTERN = /^e_[0-9a-f]{8}$/;
+
+/**
+ * Whether a value is a well-formed embed code.
+ *
+ * Use at trust boundaries that accept a code from the client (e.g. the sponsored
+ * bundler route): the code is appended to calldata the sponsor pays gas for, so an
+ * unvalidated value lets a caller pad calldata or attribute their transaction to an
+ * arbitrary code. This checks shape only — it does not prove the caller is the origin
+ * the code was derived from, which is not verifiable for wildcard allowlist entries.
+ */
+export function isValidEmbedCode(value: unknown): value is string {
+  return typeof value === "string" && EMBED_CODE_PATTERN.test(value);
+}
+
+/**
  * Encode an embed code as hex bytes suitable for calldata appending.
  * Returns the hex string (without 0x prefix) for the given embed code.
  *

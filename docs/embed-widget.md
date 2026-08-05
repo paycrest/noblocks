@@ -305,18 +305,24 @@ picks the wallet up without a reload.
 
 The returned `unbind()` removes all listeners.
 
-## Onchain Attribution
+## On-chain Attribution
 
-Every transaction submitted through the widget includes an onchain attribution
-code that identifies the embedding partner. This allows Paycrest to track
-volume and activity by partner without relying solely on middleware analytics.
+Supported EVM contract transactions submitted through the widget carry an
+on-chain attribution code that identifies the embedding partner. This allows
+Paycrest to track volume and activity by partner without relying solely on
+middleware analytics.
+
+The suffix is appended to EVM contract calls that already carry calldata. It is
+not applied to bare native transfers (empty calldata is left untouched, since
+appending bytes can revert a transfer to a contract address), to Starknet
+orders, or to onramp orders created through the API.
 
 ### How it works
 
 When your origin is allowlisted and the widget loads in your iframe, we derive
 a deterministic embed code from your origin:
 
-```
+```text
 embedCode = "e_" + first 8 hex chars of sha256(normalizedOrigin)
 ```
 
@@ -324,7 +330,7 @@ For example:
 - `https://app.partner.com` → `e_233809b4`
 - `https://App.Partner.COM/` → `e_233809b4` (same code, normalization is case-insensitive and strips trailing slashes)
 
-This code is appended to the calldata of every transaction:
+This code is appended to the calldata of supported EVM contract transactions:
 
 - **Base mainnet**: `bc_julg9gbq,<embedCode>` (Base builder code + comma + embed code)
 - **Other chains**: `<embedCode>` only
@@ -339,9 +345,11 @@ needed — the code is derived deterministically.
   integration by parsing calldata or matching against the allowlist.
 - **No action required**: Attribution happens automatically when you embed the
   widget. You don't need to pass any additional parameters.
-- **Privacy**: The embed code is a one-way hash of your origin. It cannot be
-  reversed to reveal your domain, but it can be reproduced if someone knows
-  your origin and the algorithm.
+- **Privacy**: The embed code is an unsalted 32-bit prefix of a SHA-256 hash of
+  your origin. It does not directly encode your domain, but it is not a secret:
+  anyone who knows or guesses a candidate origin can hash it and check for a
+  match, and the short prefix means unrelated origins can collide. Treat it as a
+  public identifier, not as a way to keep your domain private.
 
 ### Important: Do not strip the referrer
 

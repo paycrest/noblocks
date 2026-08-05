@@ -281,13 +281,25 @@ function EmbedProviderContent({ children }: { children: ReactNode }) {
   // We don't check the allowlist here because the middleware already blocks
   // non-allowlisted origins from framing /widget. If parentOrigin is set, it's
   // allowlisted by definition.
+  //
+  // Gated on isEmbed as well as parentOrigin: this provider stays mounted across
+  // route changes, and parentOrigin is only ever set (never cleared), so without
+  // the isEmbed check a transaction on a non-embed route would keep appending the
+  // previous partner's attribution code.
   useEffect(() => {
-    if (!parentOrigin) {
+    if (!isEmbed || !parentOrigin) {
       setEmbedCode(null);
       return;
     }
-    computeEmbedCode(parentOrigin).then(setEmbedCode);
-  }, [parentOrigin]);
+    // Ignore a resolution that lands after the origin changed or embed mode ended.
+    let active = true;
+    computeEmbedCode(parentOrigin).then((code) => {
+      if (active) setEmbedCode(code);
+    });
+    return () => {
+      active = false;
+    };
+  }, [isEmbed, parentOrigin]);
 
   const postToHost = useCallback(
     (event: string, payload?: unknown) => {

@@ -139,11 +139,10 @@ export function useSwapButton({
     if (isInjectedConnecting) return false;
 
     // A corridor with no fillable offers stays disabled even when the wallet
-    // is underfunded: the `hasInsufficientBalance` branch below enables
-    // "Fund wallet" unconditionally on the theory that funding fixes
-    // whatever is wrong, but funding does nothing here — no provider exists
-    // for this corridor at any amount.
-    if (amountBounds?.noLiquidity) return false;
+    // is underfunded — but only when funds are not the clearer constraint.
+    // Underfunded amounts are short-circuited to Fund wallet / Insufficient
+    // balance; market limits apply once the amount is fundable.
+    if (amountBounds?.noLiquidity && !hasInsufficientBalance) return false;
 
     // Phone / next-tier KYC from the main CTA must work before the user picks a
     // recipient; otherwise the verify label appears on a permanently disabled button.
@@ -160,14 +159,17 @@ export function useSwapButton({
     }
 
     if (!receiveDestinationExplicitlySelected) return false;
-    if (!rate) return false;
+
+    // Underfunded: fund / show shortfall without requiring a live rate quote
+    // (market + rates are paused for those amounts).
     if (isInjectedWallet && hasInsufficientBalance) {
       return false;
     }
-
     if (hasInsufficientBalance && !isInjectedWallet && authenticated) {
       return true;
     }
+
+    if (!rate) return false;
 
     if (!isCurrencySelected || !isAmountValid) {
       return false;

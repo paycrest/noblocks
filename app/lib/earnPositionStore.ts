@@ -21,6 +21,18 @@ export interface PendingEarnBridgeJob {
   /** @deprecated Use receiveAmountBaseUnits — kept for in-flight jobs in localStorage. */
   amountBaseUnits?: string;
   createdAt: number;
+  /** When true, depositFromEvm owns Vesu deposit for this job (tracker skips). */
+  claimedByLiveFlow?: boolean;
+}
+
+/** Stale live-flow claims fall back to the background tracker. */
+export const LIVE_FLOW_CLAIM_STALE_MS = 5 * 60 * 1000;
+
+export function isStaleLiveFlowClaim(job: PendingEarnBridgeJob): boolean {
+  return (
+    Boolean(job.claimedByLiveFlow) &&
+    Date.now() - job.createdAt > LIVE_FLOW_CLAIM_STALE_MS
+  );
 }
 
 export function pendingBridgeReceiveBaseUnits(
@@ -133,4 +145,81 @@ export function savePendingEarnBridges(jobs: PendingEarnBridgeJob[]): void {
   } catch {
     // ignore
   }
+}
+
+export function upsertPendingEarnBridge(job: PendingEarnBridgeJob): void {
+  const jobs = loadPendingEarnBridges();
+  const idx = jobs.findIndex((j) => j.swapId === job.swapId);
+  if (idx >= 0) jobs[idx] = job;
+  else jobs.push(job);
+  savePendingEarnBridges(jobs);
+}
+
+export function patchPendingEarnBridge(
+  swapId: string,
+  patch: Partial<PendingEarnBridgeJob>,
+): void {
+  savePendingEarnBridges(
+    loadPendingEarnBridges().map((j) =>
+      j.swapId === swapId ? { ...j, ...patch } : j,
+    ),
+  );
+}
+
+export function addEarnSourcePosition(
+  evmAddress: string,
+  params: {
+    sourceChain: EvmEarnSourceChain | "Starknet";
+    starknetAddress: string;
+    deltaBaseUnits: bigint;
+    supplyApy?: number | null;
+  },
+  token: string,
+): void {
+  const { sourceChain, starknetAddress, deltaBaseUnits, supplyApy = null } =
+    params;
+  if (deltaBaseUnits <= BigInt(0)) return;
+
+  const existing = readEarnSourcePosition(evmAddress, sourceChain, token);
+  const prev = existing ? BigInt(existing.suppliedBaseUnits) : BigInt(0);
+  const next = prev + deltaBaseUnits;
+
+  writeEarnSourcePosition(
+    evmAddress,
+    {
+      sourceChain,
+      starknetAddress: existing?.starknetAddress ?? starknetAddress,
+      suppliedBaseUnits: next.toString(),
+      suppliedFormatted: (Number(next) / 1e6).toFixed(6),
+      supplyApy: existing?.supplyApy ?? supplyApy,
+    },
+    token,
+  );
+}
+
+export function subtractEarnSourcePosition(
+  evmAddress: string,
+  sourceChain: string,
+  token: string,
+  deltaBaseUnits: bigint,
+): void {
+  const existing = readEarnSourcePosition(evmAddress, sourceChain, token);
+  if (!existing) return;
+
+  const prev = BigInt(existing.suppliedBaseUnits);
+  const next = prev > deltaBaseUnits ? prev - deltaBaseUnits : BigInt(0);
+  if (next <= BigInt(0)) {
+    clearEarnSourcePosition(evmAddress, sourceChain, token);
+    return;
+  }
+
+  writeEarnSourcePosition(
+    evmAddress,
+    {
+      ...existing,
+      suppliedBaseUnits: next.toString(),
+      suppliedFormatted: (Number(next) / 1e6).toFixed(6),
+    },
+    token,
+  );
 }

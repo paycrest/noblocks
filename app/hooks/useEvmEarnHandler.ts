@@ -23,15 +23,17 @@ import { executeBatchCalls } from "../lib/bridge";
 import { useDelegationContractAuth } from "./useEIP7702Account";
 import { getRpcUrl } from "../utils";
 import {
+  addEarnSourcePosition,
   clearEarnSourcePosition,
   loadPendingEarnBridges,
+  patchPendingEarnBridge,
   pendingBridgeReceiveBaseUnits,
   savePendingEarnBridges,
-  writeEarnSourcePosition,
+  subtractEarnSourcePosition,
+  upsertPendingEarnBridge,
   type PendingEarnBridgeJob,
 } from "../lib/earnPositionStore";
 
-const USDC_DECIMALS = 6;
 const USDC_FACTOR = BigInt("1000000");
 
 function humanToBaseUnits(amount: number): bigint {
@@ -125,11 +127,13 @@ export function useEvmEarnHandler() {
   );
 
   const pollSwapUntilComplete = useCallback(
-    async (swapId: string) => {
+    async (swapId: string, accessToken: string) => {
+      if (!walletId) throw new Error("Starknet wallet not ready");
       for (let i = 0; i < 120; i++) {
         await new Promise((r) => setTimeout(r, 10_000));
         const res = await fetch(
-          `/api/earn/layerswap/swap/status?id=${encodeURIComponent(swapId)}`,
+          `/api/earn/layerswap/swap/status?id=${encodeURIComponent(swapId)}&walletId=${encodeURIComponent(walletId)}`,
+          { headers: { Authorization: `Bearer ${accessToken}` } },
         );
         const data = await res.json();
         if (!res.ok) continue;
@@ -143,7 +147,7 @@ export function useEvmEarnHandler() {
       }
       throw new Error("Bridge timed out");
     },
-    [],
+    [walletId],
   );
 
   const depositFromEvm = useCallback(
@@ -155,7 +159,7 @@ export function useEvmEarnHandler() {
         throw new Error("Earn is not supported on this network");
       }
       await ensureWalletExists();
-      if (!starknetAddress) {
+      if (!starknetAddress || !walletId) {
         throw new Error("Starknet wallet not ready");
       }
 
@@ -164,13 +168,17 @@ export function useEvmEarnHandler() {
 
       const createRes = await fetch("/api/earn/layerswap/swap", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
         body: JSON.stringify({
           sourceChain,
           amount: amountHuman,
           destinationAddress: starknetAddress,
           sourceAddress: evmAddress,
           refundAddress: evmAddress,
+          walletId,
         }),
       });
       const created = await createRes.json();
@@ -185,24 +193,6 @@ export function useEvmEarnHandler() {
         throw new Error("Invalid LayerSwap response");
       }
 
-      const chain = selectedNetwork.chain as Chain;
-      const rpcUrl = getRpcUrl(chain.name);
-      const calls = await buildLayerswapDepositBatchCalls({
-        chain,
-        rpcUrl: rpcUrl ?? "",
-        fromAddress: evmAddress,
-        tokenAmountBaseUnits: humanToBaseUnits(amountHuman),
-        depositActions,
-      });
-      const txHash = await executeBatchCalls({
-        chain,
-        calls,
-        getAccessToken,
-        embeddedWallet,
-        signDelegationAuthorization,
-        gasLimit: 800_000,
-      });
-
       const receiveAmount = created.quote?.receive_amount ?? amountHuman;
       const receiveBaseUnits = humanToBaseUnits(receiveAmount);
       const requestedBaseUnits = humanToBaseUnits(amountHuman);
@@ -215,23 +205,43 @@ export function useEvmEarnHandler() {
         requestedAmountBaseUnits: requestedBaseUnits.toString(),
         receiveAmountBaseUnits: receiveBaseUnits.toString(),
         createdAt: Date.now(),
+        claimedByLiveFlow: false,
       };
-      savePendingEarnBridges([...loadPendingEarnBridges(), job]);
+      upsertPendingEarnBridge(job);
 
-      await pollSwapUntilComplete(swapId);
+      const chain = selectedNetwork.chain as Chain;
+      const rpcUrl = getRpcUrl(chain.name);
+      const calls = await buildLayerswapDepositBatchCalls({
+        chain,
+        rpcUrl: rpcUrl ?? "",
+        fromAddress: evmAddress,
+        tokenAmountBaseUnits: requestedBaseUnits,
+        depositActions,
+      });
+
+      patchPendingEarnBridge(swapId, { claimedByLiveFlow: true });
+
+      const txHash = await executeBatchCalls({
+        chain,
+        calls,
+        getAccessToken,
+        embeddedWallet,
+        signDelegationAuthorization,
+        gasLimit: 800_000,
+      });
+
+      await pollSwapUntilComplete(swapId, accessToken);
 
       const { txHash: vesuTxHash } = await vesuDeposit("USDC", receiveBaseUnits, {
         sourceChain,
       });
 
-      writeEarnSourcePosition(
+      addEarnSourcePosition(
         evmAddress,
         {
           sourceChain: sourceChain as EvmEarnSourceChain,
           starknetAddress,
-          suppliedBaseUnits: receiveBaseUnits.toString(),
-          suppliedFormatted: receiveAmount.toFixed(6),
-          supplyApy: null,
+          deltaBaseUnits: receiveBaseUnits,
         },
         "USDC",
       );
@@ -249,6 +259,7 @@ export function useEvmEarnHandler() {
       sourceChain,
       ensureWalletExists,
       starknetAddress,
+      walletId,
       getAccessToken,
       selectedNetwork.chain,
       signDelegationAuthorization,
@@ -291,13 +302,17 @@ export function useEvmEarnHandler() {
 
       const createRes = await fetch("/api/earn/layerswap/withdraw-swap", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
         body: JSON.stringify({
           destinationChain: sourceChain,
           amount: bridgeHuman,
           destinationAddress: evmAddress,
           sourceAddress: starknetAddress,
           refundAddress: starknetAddress,
+          walletId,
         }),
       });
       const created = await createRes.json();
@@ -330,9 +345,18 @@ export function useEvmEarnHandler() {
         throw new Error(deposited?.error || "LayerSwap Starknet deposit failed");
       }
 
-      await pollSwapUntilComplete(swapId);
+      await pollSwapUntilComplete(swapId, accessToken);
 
-      clearEarnSourcePosition(evmAddress, sourceChain, "USDC");
+      if (useMax) {
+        clearEarnSourcePosition(evmAddress, sourceChain, "USDC");
+      } else {
+        subtractEarnSourcePosition(
+          evmAddress,
+          sourceChain,
+          "USDC",
+          amountBaseUnits,
+        );
+      }
       await refreshPosition("USDC");
 
       return {

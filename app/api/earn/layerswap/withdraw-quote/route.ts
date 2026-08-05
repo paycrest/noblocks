@@ -5,6 +5,7 @@ import {
   LAYERSWAP_STARKNET_NETWORK,
   layerswapSourceNetwork,
 } from "@/app/lib/earnChains";
+import { parseLayerswapAmountParam } from "@/app/lib/layerswapValidation";
 
 export const GET = withRateLimit(async (request: NextRequest) => {
   const apiKey = getLayerswapApiKey();
@@ -17,12 +18,14 @@ export const GET = withRateLimit(async (request: NextRequest) => {
 
   const destinationChain =
     request.nextUrl.searchParams.get("destinationChain") || "";
-  const amount = parseFloat(request.nextUrl.searchParams.get("amount") || "0");
+  const amount = parseLayerswapAmountParam(
+    request.nextUrl.searchParams.get("amount"),
+  );
   const destinationAddress =
     request.nextUrl.searchParams.get("destinationAddress") || "";
 
   const destinationNetwork = layerswapSourceNetwork(destinationChain);
-  if (!destinationNetwork || !destinationAddress || !(amount > 0)) {
+  if (!destinationNetwork || !destinationAddress || amount === null) {
     return NextResponse.json(
       {
         error:

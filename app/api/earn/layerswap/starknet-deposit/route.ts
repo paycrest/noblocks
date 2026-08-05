@@ -111,10 +111,28 @@ export const POST = withRateLimit(async (request: NextRequest) => {
       maxFee,
     );
 
-    const txReceipt = await account.waitForTransaction(result.transaction_hash);
+    let txReceipt;
+    try {
+      txReceipt = await account.waitForTransaction(result.transaction_hash, {
+        retries: 60,
+        retryInterval: 5_000,
+      });
+    } catch {
+      return NextResponse.json(
+        {
+          error:
+            "Transaction submitted but confirmation timed out. Check the explorer.",
+          transactionHash: result.transaction_hash,
+        },
+        { status: 502 },
+      );
+    }
     if (!txReceipt.isSuccess()) {
       return NextResponse.json(
-        { error: "LayerSwap Starknet deposit reverted on-chain" },
+        {
+          error: "LayerSwap Starknet deposit reverted on-chain",
+          transactionHash: result.transaction_hash,
+        },
         { status: 500 },
       );
     }

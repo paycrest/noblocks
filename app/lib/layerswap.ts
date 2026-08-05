@@ -50,7 +50,13 @@ export interface LayerswapQuote {
 
 export interface LayerswapPreparedSwap {
   quote?: LayerswapQuote;
-  swap?: { id: string; status: LayerswapSwapStatus };
+  swap?: {
+    id: string;
+    status: LayerswapSwapStatus;
+    source_address?: string | null;
+    destination_address?: string | null;
+    fail_reason?: string | null;
+  };
   deposit_actions?: LayerswapDepositAction[];
 }
 

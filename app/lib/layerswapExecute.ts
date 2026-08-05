@@ -108,7 +108,16 @@ export async function buildLayerswapDepositBatchCalls(
 
     if (!hasCallData) continue;
 
-    const nativeValue = BigInt(action.amount_in_base_units || "0");
+    const isNativeAction =
+      !tokenContract || tokenContract.toLowerCase() === ZERO_ADDRESS;
+    let nativeValue = BigInt(0);
+    if (isNativeAction) {
+      try {
+        nativeValue = BigInt(action.amount_in_base_units || "0");
+      } catch {
+        throw new Error("LayerSwap deposit amount is invalid");
+      }
+    }
     calls.push({
       to: action.to_address as Address,
       value: nativeValue,

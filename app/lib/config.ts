@@ -1,4 +1,5 @@
 import { Config, JWTProviderConfig } from "@/app/types";
+import { resolveLayerswapApiBaseUrl } from "./layerswapConfig";
 
 /** EIP-7702 delegation contract (ProviderBatchCallAndSponsor) per chain. */
 export const DELEGATION_CONTRACT_BY_CHAIN: Record<number, string> = {
@@ -84,8 +85,9 @@ const config: Config = {
   embedEnabled: process.env.NEXT_PUBLIC_EMBED_ENABLED === "true",
   /** Server-side LayerSwap API key (EVM earn bridge). */
   layerswapApiKey: (process.env.LAYERSWAP_API_KEY || "").trim(),
-  layerswapApiBaseUrl:
-    (process.env.LAYERSWAP_API_BASE_URL || "https://api.layerswap.io").trim(),
+  layerswapApiBaseUrl: resolveLayerswapApiBaseUrl(
+    process.env.LAYERSWAP_API_BASE_URL,
+  ),
 };
 
 export default config;

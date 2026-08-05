@@ -450,6 +450,13 @@ export const POST = withRateLimit(async (request: NextRequest) => {
     };
     const finalAdjustedCashback = rpcData.adjusted_amount;
 
+    // Whether we got far enough that a transfer may exist on-chain. Everything
+    // before the broadcast is provably unpaid and safe to release; once
+    // writeContract has been entered the outcome is unknowable from here, since
+    // the node can accept and broadcast a transfer while the client loses the
+    // response. See the catch block.
+    let broadcastAttempted = false;
+
     // Step 11: Execute cashback transfer
     try {
       // Get token contract address
@@ -512,6 +519,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
       }
 
       // Execute transfer
+      broadcastAttempted = true;
       const txHash = await walletClient.writeContract({
         address: token.address as `0x${string}`,
         abi: erc20Abi,
@@ -550,14 +558,30 @@ export const POST = withRateLimit(async (request: NextRequest) => {
     } catch (transferError) {
       console.error("Cashback transfer failed:", transferError);
 
-      // Update claim status to failed
-      await supabaseAdmin
-        .from("blockfest_cashback_claims")
-        .update({
-          status: "failed",
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", pendingClaim.id);
+      // 'failed' releases the claim's quota reservation (see 20260804120000), so
+      // it may only be set when nothing can have been paid. An error thrown
+      // before the broadcast — token lookup, RPC config, key validation, the
+      // marker write — proves that. An error out of writeContract does not: the
+      // node can accept and broadcast the transfer while the client times out or
+      // loses the response, and releasing quota there would let the identity
+      // claim past its cap on money already sent.
+      //
+      // So a broadcast-attempted claim stays 'pending', keeping its reservation
+      // until a human reconciles it against the chain. The reaper leaves it
+      // alone too — it is stamped, which is exactly what that marker is for.
+      if (broadcastAttempted) {
+        console.error(
+          `MANUAL REVIEW NEEDED: Claim ${pendingClaim.id} may have broadcast a transfer before failing; left pending with its quota reserved`,
+        );
+      } else {
+        await supabaseAdmin
+          .from("blockfest_cashback_claims")
+          .update({
+            status: "failed",
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", pendingClaim.id);
+      }
 
       // Handle specific transfer errors
       let errorCode = "TRANSFER_FAILED";

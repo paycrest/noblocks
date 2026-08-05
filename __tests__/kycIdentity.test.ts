@@ -400,6 +400,19 @@ describe("buildIdentityIdKey", () => {
     );
   });
 
+  // Regression: Postgres btrim() strips spaces only, so an earlier version of
+  // the generated column left tab padding in place while trim() removed it —
+  // one document, two keys, which defeats the whole canonicalization. Both
+  // sides now strip exactly [[:space:]].
+  it("strips every character in the SQL space class, not just spaces", () => {
+    expect(buildIdentityIdKey("\tng\t", "\tpassport\t", "\ta 123 456\t")).toBe(
+      "NG:PASSPORT:A123456",
+    );
+    expect(buildIdentityIdKey("\nNG\r", "PASS\vPORT", "A\f123456")).toBe(
+      "NG:PASSPORT:A123456",
+    );
+  });
+
   it("maps divergent spellings of one document to one key", () => {
     // Must match the identity_id_key generated column in 20260805120000.
     expect(buildIdentityIdKey("ng", "passport", "a 123 456")).toBe(

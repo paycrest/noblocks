@@ -45,6 +45,20 @@ comment on column public.blockfest_cashback_claims.transfer_attempted_at is
   'broadcast was attempted, which is what makes a stranded pending row safe to '
   'reap. Never cleared.';
 
+-- Rows that predate the column have transfer_attempted_at NULL, but for them
+-- NULL means "unknown", not "never broadcast" — the marker did not exist when
+-- they ran, and some may be transfers that succeeded before tx_hash was
+-- persisted. Leaving them NULL would hand exactly those to the sweep below.
+-- Stamp them so they are excluded and can only be cleared by a human.
+--
+-- Stamped with created_at rather than now(): the column records when a broadcast
+-- was attempted, and claiming it happened at migration time would be false. For
+-- these rows it means "attempted at some unknown point at or after this".
+update public.blockfest_cashback_claims
+   set transfer_attempted_at = created_at
+ where status = 'pending'
+   and transfer_attempted_at is null;
+
 -- Supports the sweep's predicate; the partial WHERE keeps it to the handful of
 -- rows that are actually in flight at any moment.
 create index if not exists idx_cashback_claims_pending_reap

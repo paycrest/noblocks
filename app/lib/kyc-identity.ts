@@ -74,9 +74,34 @@ export async function identityScopeHasVerifiedPhone(
 }
 
 /**
- * Canonical form of an ID document: uppercased, trimmed, whitespace stripped
- * from the number. Returns null unless all three parts are present — a partial
- * triple would collide across every holder of that document type in a country.
+ * The exact character set the SQL copies of this expression strip, spelled out
+ * rather than using `\s` or `String.trim()`.
+ *
+ * `\s` and `trim()` in JS also match NBSP, BOM and the Unicode space separators;
+ * Postgres `[[:space:]]` matches only these six. Using either JS shorthand would
+ * make a tab- or NBSP-padded value canonicalize one way in the app and another
+ * way in the generated column — one identity, two keys, which is the exact
+ * failure this canonicalization exists to prevent. (`btrim(x)` with no second
+ * argument is worse still: it strips spaces only.)
+ *
+ * Applied to the whole string, not just the ends, so internal spacing variants
+ * ("A 123 456" vs "A123456") also collapse together.
+ */
+const SQL_SPACE_CLASS = /[ \t\n\v\f\r]/g;
+
+function normalizeIdPart(value: string): string {
+  return value.toUpperCase().replace(SQL_SPACE_CLASS, "");
+}
+
+/** Edge-trim only, over the same character set — the phone counterpart. */
+function trimSqlSpace(value: string): string {
+  return value.replace(/^[ \t\n\v\f\r]+|[ \t\n\v\f\r]+$/g, "");
+}
+
+/**
+ * Canonical form of an ID document: uppercased with whitespace stripped.
+ * Returns null unless all three parts are present — a partial triple would
+ * collide across every holder of that document type in a country.
  *
  * The id_* columns store raw input (app/api/kyc/smile-id/route.ts falls back to
  * the client-supplied number when the provider returns none), so the same
@@ -95,8 +120,7 @@ export function buildIdentityIdKey(
   number: string | null | undefined,
 ): string | null {
   if (!country || !type || !number) return null;
-  const norm = (value: string) => value.trim().toUpperCase();
-  return `${norm(country)}:${norm(type)}:${norm(number).replace(/\s/g, "")}`;
+  return `${normalizeIdPart(country)}:${normalizeIdPart(type)}:${normalizeIdPart(number)}`;
 }
 
 /**
@@ -130,7 +154,9 @@ export async function resolveOwnIdentityFingerprint(
   }
 
   return {
-    phone: profile?.phone_number?.trim() || null,
+    phone: profile?.phone_number
+      ? trimSqlSpace(profile.phone_number) || null
+      : null,
     idKey: buildIdentityIdKey(
       profile?.id_country,
       profile?.id_type,

@@ -21,8 +21,13 @@
 --
 -- Fingerprint normalization (must stay in sync with
 -- `resolveOwnIdentityFingerprint` in app/lib/kyc-identity.ts):
---   phone  → btrim(phone_number)          (already E.164-canonical on write)
---   id key → upper(btrim(country)) : upper(btrim(type)) : upper(btrim(number)) minus whitespace
+--   phone  → whitespace trimmed from both ends (already E.164-canonical on write)
+--   id key → upper(country):upper(type):upper(number), each with [[:space:]]
+--            stripped throughout
+-- [[:space:]] and not btrim(): btrim with no second argument removes spaces
+-- only, so a tab-padded value would canonicalize differently here than in
+-- `normalizeIdPart` (app/lib/kyc-identity.ts), splitting one identity across two
+-- keys. The character class matches that helper exactly.
 -- The stored id_* values are raw client input, so without normalization the
 -- same document could produce distinct fingerprints ("NG:passport:A 123" vs
 -- "ng:PASSPORT:a123") and both inserts would slip past the unique indexes.
@@ -43,11 +48,12 @@ ALTER TABLE public.referral_claims
 -- from the referred wallet's KYC profile, matched on lowercased address.
 
 UPDATE public.referrals r
-   SET identity_phone  = NULLIF(btrim(p.phone_number), ''),
+   SET identity_phone  = NULLIF(regexp_replace(p.phone_number, '^[[:space:]]+|[[:space:]]+$', '', 'g'), ''),
        identity_id_key = CASE
          WHEN p.id_country IS NOT NULL AND p.id_type IS NOT NULL AND p.id_number IS NOT NULL
-         THEN upper(btrim(p.id_country)) || ':' || upper(btrim(p.id_type)) || ':'
-              || regexp_replace(upper(btrim(p.id_number)), '\s', '', 'g')
+         THEN regexp_replace(upper(p.id_country), '[[:space:]]', '', 'g') || ':'
+              || regexp_replace(upper(p.id_type),    '[[:space:]]', '', 'g') || ':'
+              || regexp_replace(upper(p.id_number),  '[[:space:]]', '', 'g')
        END
   FROM public.user_kyc_profiles p
  WHERE lower(p.wallet_address) = lower(r.referred_wallet_address)
@@ -58,11 +64,12 @@ UPDATE public.referrals r
 -- earns on many referrals), so the claim backfill is restricted to rows whose
 -- wallet is the referral's referred party.
 UPDATE public.referral_claims c
-   SET identity_phone  = NULLIF(btrim(p.phone_number), ''),
+   SET identity_phone  = NULLIF(regexp_replace(p.phone_number, '^[[:space:]]+|[[:space:]]+$', '', 'g'), ''),
        identity_id_key = CASE
          WHEN p.id_country IS NOT NULL AND p.id_type IS NOT NULL AND p.id_number IS NOT NULL
-         THEN upper(btrim(p.id_country)) || ':' || upper(btrim(p.id_type)) || ':'
-              || regexp_replace(upper(btrim(p.id_number)), '\s', '', 'g')
+         THEN regexp_replace(upper(p.id_country), '[[:space:]]', '', 'g') || ':'
+              || regexp_replace(upper(p.id_type),    '[[:space:]]', '', 'g') || ':'
+              || regexp_replace(upper(p.id_number),  '[[:space:]]', '', 'g')
        END
   FROM public.referrals r
   JOIN public.user_kyc_profiles p

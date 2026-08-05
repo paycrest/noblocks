@@ -64,8 +64,17 @@ ALTER TABLE public.user_kyc_profiles
       WHEN id_country IS NOT NULL
        AND id_type    IS NOT NULL
        AND id_number  IS NOT NULL
-      THEN upper(btrim(id_country)) || ':' || upper(btrim(id_type)) || ':'
-           || regexp_replace(upper(btrim(id_number)), '\s', '', 'g')
+      -- [[:space:]] is space, tab, newline, vertical tab, form feed, carriage
+      -- return — and nothing else. Deliberately NOT btrim(), which strips only
+      -- spaces unless given a second argument, and deliberately applied to the
+      -- whole string rather than the ends so internal spacing collapses too.
+      -- `normalizeIdPart` in app/lib/kyc-identity.ts strips exactly this set;
+      -- JS `\s`/`trim()` would additionally match NBSP and the Unicode space
+      -- separators, which Postgres would leave in place, so one identity would
+      -- canonicalize to two different keys.
+      THEN regexp_replace(upper(id_country), '[[:space:]]', '', 'g') || ':'
+           || regexp_replace(upper(id_type),   '[[:space:]]', '', 'g') || ':'
+           || regexp_replace(upper(id_number), '[[:space:]]', '', 'g')
     END
   ) STORED;
 

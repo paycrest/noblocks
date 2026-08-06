@@ -9,6 +9,7 @@ import {
     trackAuthEvent,
 } from "@/app/lib/server-analytics";
 import { getWalletAddressFromPrivyUserId } from "@/app/lib/privy";
+import { resolveOwnIdentityFingerprint } from "@/app/lib/kyc-identity";
 import config from "@/app/lib/config";
 import { isReferralEnabled } from "@/app/utils";
 
@@ -135,6 +136,38 @@ export const POST = withRateLimit(async (request: NextRequest) => {
             );
         }
 
+        // Fingerprint the referred wallet's own verified phone/ID, if already known.
+        // Usually NULL here (referral codes are submitted before KYC), but when a
+        // fingerprint is already established, this lets the DB catch a sibling
+        // wallet re-submitting under a different referrer code up front. Fail
+        // closed: a lookup error must not silently insert with null fingerprints —
+        // but with its own code (mirroring IDENTITY_CHECK_FAILED in the claim
+        // route) so the failure is attributable, not a generic 500.
+        let fingerprint: { phone: string | null; idKey: string | null };
+        try {
+            fingerprint = await resolveOwnIdentityFingerprint(walletAddress);
+        } catch (fingerprintError) {
+            console.error(
+                "Error resolving identity fingerprint for referral submit:",
+                fingerprintError,
+            );
+            trackApiError(
+                request,
+                "/api/referral/submit",
+                "POST",
+                fingerprintError as Error,
+                500,
+            );
+            return NextResponse.json(
+                {
+                    success: false,
+                    error: "Unable to verify referral eligibility. Please try again later.",
+                    code: "IDENTITY_CHECK_FAILED",
+                },
+                { status: 500 },
+            );
+        }
+
         // Create referral record with pending status
         const { data: referralData, error: insertError } = await supabaseAdmin
             .from("referrals")
@@ -145,6 +178,8 @@ export const POST = withRateLimit(async (request: NextRequest) => {
                 status: "pending",
                 reward_amount: referralRewardAmountUsd,
                 created_at: new Date().toISOString(),
+                identity_phone: fingerprint.phone,
+                identity_id_key: fingerprint.idKey,
             })
             .select()
             .single();

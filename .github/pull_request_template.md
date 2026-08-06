@@ -1,3 +1,7 @@
+### Jira Issue
+
+Jira Issue: <!-- e.g. https://paycrest-io.atlassian.net/browse/KAN-123 -->
+
 ### Description
 
 > Describe the purpose of this PR along with any background information and the impacts of the proposed change. For the benefit of the community, please do not assume prior context.
@@ -9,7 +13,7 @@
 
 > Include any links supporting this change such as a:
 >
-> - GitHub Issue/PR number addressed or fixed e.g closes #407
+> - GitHub Issue/PR number addressed or fixed e.g closes #407 (legacy GitHub issues only)
 > - StackOverflow post
 > - Support forum thread
 > - Related pull requests/issues from other repos

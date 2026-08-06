@@ -32,6 +32,7 @@ import { EmbedNetworkLockApplier } from "./components/EmbedNetworkLockApplier";
 import { useActualTheme } from "./hooks/useActualTheme";
 import { useDatadogRum, useMixpanel } from "./hooks/analytics/client";
 import { BlockFestClaimProvider } from "./context/BlockFestClaimContext";
+import { EarnBridgeTracker } from "./components/EarnBridgeTracker";
 
 function Providers({ children }: { children: ReactNode }) {
   const { privyAppId } = config;
@@ -123,6 +124,7 @@ function ContextProviders({ children }: { children: ReactNode }) {
                 <TokensProvider>
                   <StepProvider>
                     <BalanceProvider>
+                      <EarnBridgeTracker />
                       <TransactionsProvider>
                         <KYCProvider>
                           <BlockFestClaimProvider>

@@ -2,6 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
+import { useWallets } from "@privy-io/react-auth";
 import {
   ArrowLeft02Icon,
   Cancel01Icon,
@@ -9,12 +10,15 @@ import {
   Wallet01Icon,
 } from "hugeicons-react";
 import { toast } from "sonner";
-import { useBalance } from "../context";
+import { useBalance, useNetwork } from "../context";
 import {
   useEarnAvailableTokens,
   useEarnHandler,
   type EarnToken,
 } from "../hooks/useEarnHandler";
+import { useEvmEarnHandler } from "../hooks/useEvmEarnHandler";
+import { useEarnSourcePosition } from "../hooks/useEarnSourcePosition";
+import { isEvmEarnFlow } from "../lib/earnFeature";
 import { classNames } from "../utils";
 import { FormDropdown } from "./FormDropdown";
 import { primaryBtnClasses } from "./Styles";
@@ -56,6 +60,10 @@ function formatPercent(decimal: number | null): string {
   return `${(decimal * 100).toFixed(2)}%`;
 }
 
+function humanToBaseUnits(amount: number): bigint {
+  return BigInt(Math.round(amount * 1_000_000));
+}
+
 export const EarnWalletForm: React.FC<{
   onClose: () => void;
   showBackButton?: boolean;
@@ -69,9 +77,40 @@ export const EarnWalletForm: React.FC<{
   initialTab = "deposit",
   layout = "modal",
 }) => {
-  const { allBalances, refreshBalance } = useBalance();
+  const { allBalances, refreshBalance, crossChainBalances } = useBalance();
+  const { selectedNetwork } = useNetwork();
+  const { wallets } = useWallets();
   const { positions, refreshPosition, deposit, withdraw } = useEarnHandler();
-  const { tokens: availableEarnTokens } = useEarnAvailableTokens();
+  const {
+    confirmationCopy,
+    withdrawConfirmationCopy,
+    fetchQuote,
+    fetchWithdrawQuote,
+    depositFromEvm,
+    withdrawToEvm,
+    isEvmEarnChain,
+    quote,
+    quoteLoading,
+    withdrawQuote,
+    withdrawQuoteLoading,
+  } = useEvmEarnHandler();
+  const { tokens: availableEarnTokensRaw } = useEarnAvailableTokens();
+
+  const chainName = selectedNetwork.chain.name;
+  const isEvmFlow = isEvmEarnFlow(chainName);
+  const evmAddress = wallets
+    .find((w) => w.walletClientType === "privy")
+    ?.address?.toLowerCase();
+  const sourcePosition = useEarnSourcePosition(
+    isEvmFlow ? evmAddress : undefined,
+    chainName,
+    "USDC",
+  );
+
+  const availableEarnTokens = useMemo(
+    () => (isEvmFlow ? (["USDC"] as EarnToken[]) : availableEarnTokensRaw),
+    [isEvmFlow, availableEarnTokensRaw],
+  );
 
   const tokenDropdownItems = useMemo(
     () =>
@@ -94,24 +133,41 @@ export const EarnWalletForm: React.FC<{
   } | null>(null);
 
   const walletBalanceUnit: number = token
-    ? ((allBalances.starknetWallet?.balances?.[token] as number | undefined) ??
-      0)
+    ? isEvmFlow
+      ? ((crossChainBalances
+          .find((e) => e.network.chain.name === chainName)
+          ?.balances.balances?.[token] as number | undefined) ?? 0)
+      : ((allBalances.starknetWallet?.balances?.[token] as number | undefined) ??
+        0)
     : 0;
   const walletBalanceBaseUnits: bigint = token
-    ? (allBalances.starknetWallet?.balancesInWei?.[token] ?? BigInt("0"))
+    ? isEvmFlow
+      ? (crossChainBalances.find((e) => e.network.chain.name === chainName)
+          ?.balances.balancesInWei?.[token] ?? BigInt("0"))
+      : (allBalances.starknetWallet?.balancesInWei?.[token] ?? BigInt("0"))
     : BigInt("0");
 
   const position = token ? positions[token] : null;
   const suppliedBaseUnits: bigint = useMemo(() => {
+    if (isEvmFlow) {
+      if (!sourcePosition) return BigInt("0");
+      try {
+        return BigInt(sourcePosition.suppliedBaseUnits);
+      } catch {
+        return BigInt("0");
+      }
+    }
     if (!position) return BigInt("0");
     try {
       return BigInt(position.suppliedBaseUnits);
     } catch {
       return BigInt("0");
     }
-  }, [position]);
+  }, [isEvmFlow, sourcePosition, position]);
 
-  const apy = position?.supplyApy ?? null;
+  const apy = isEvmFlow
+    ? (sourcePosition?.supplyApy ?? null)
+    : (position?.supplyApy ?? null);
 
   const form = useForm<{ amount: string }>({ mode: "onChange" });
   const {
@@ -129,15 +185,39 @@ export const EarnWalletForm: React.FC<{
     [amountString],
   );
 
-  // Live earnings projection on the entered amount
+  useEffect(() => {
+    if (!isEvmFlow || tab !== "deposit" || !amountString) return;
+    const human = parseFloat(amountString);
+    if (!(human > 0)) return;
+    const id = window.setTimeout(() => {
+      void fetchQuote(human);
+    }, 400);
+    return () => clearTimeout(id);
+  }, [amountString, fetchQuote, isEvmFlow, tab]);
+
+  useEffect(() => {
+    if (!isEvmFlow || tab !== "withdraw" || !amountString) return;
+    const human = parseFloat(amountString);
+    if (!(human > 0)) return;
+    const id = window.setTimeout(() => {
+      void fetchWithdrawQuote(human);
+    }, 400);
+    return () => clearTimeout(id);
+  }, [amountString, fetchWithdrawQuote, isEvmFlow, tab]);
+
+  // Live earnings projection on the entered amount (EVM deposits use post-bridge receive amount).
   const projection = useMemo(() => {
-    if (!parsedAmount || !apy)
+    const basis =
+      isEvmFlow && tab === "deposit" && quote?.receive_amount != null
+        ? humanToBaseUnits(quote.receive_amount)
+        : parsedAmount;
+    if (!basis || !apy)
       return { yearly: BigInt("0"), monthly: BigInt("0") };
-    const yearlyMicro = (parsedAmount * BigInt(Math.round(apy * 1_000_000))) /
+    const yearlyMicro = (basis * BigInt(Math.round(apy * 1_000_000))) /
       BigInt("1000000");
     const monthlyMicro = yearlyMicro / BigInt("12");
     return { yearly: yearlyMicro, monthly: monthlyMicro };
-  }, [parsedAmount, apy]);
+  }, [parsedAmount, apy, isEvmFlow, tab, quote?.receive_amount]);
 
   // Poll the position (and embedded supply APR) while the modal is open so
   // the rate stays in sync with the live pool instead of the once-on-open value.
@@ -209,16 +289,25 @@ export const EarnWalletForm: React.FC<{
     setSubmitting(true);
     const toastId = toast.loading(
       tab === "deposit"
-        ? `Depositing ${token} to Vesu pool…`
-        : `Withdrawing ${token} from Vesu pool…`,
+        ? isEvmFlow
+          ? "Bridging USDC to Vesu on Starknet…"
+          : `Depositing ${token} to Vesu pool…`
+        : isEvmFlow
+          ? `Withdrawing USDC to ${chainName}…`
+          : `Withdrawing ${token} from Vesu pool…`,
     );
 
     try {
       const useMax = tab === "withdraw" && parsed === suppliedBaseUnits;
+      const txContext = isEvmFlow ? { sourceChain: chainName } : undefined;
       const result =
-        tab === "deposit"
-          ? await deposit(token, parsed)
-          : await withdraw(token, useMax ? "max" : parsed);
+        tab === "deposit" && isEvmFlow
+          ? await depositFromEvm(parseFloat(amount))
+          : tab === "deposit"
+            ? await deposit(token, parsed, txContext)
+            : tab === "withdraw" && isEvmFlow
+              ? await withdrawToEvm({ amountBaseUnits: parsed, useMax })
+              : await withdraw(token, useMax ? "max" : parsed, txContext);
 
       // Dismiss the loading toast — the inline success view replaces it,
       // mirroring TransferForm.tsx's renderSuccessView pattern.
@@ -249,8 +338,12 @@ export const EarnWalletForm: React.FC<{
     const title = type === "deposit" ? "Deposit successful" : "Withdrawal successful";
     const description =
       type === "deposit"
-        ? `${amountFormatted} ${succToken} has been successfully deposited into the Vesu pool.`
-        : `${amountFormatted} ${succToken} has been successfully withdrawn from the Vesu pool.`;
+        ? isEvmFlow
+          ? `${amountFormatted} ${succToken} is being supplied to Vesu on Starknet after bridging from ${chainName}.`
+          : `${amountFormatted} ${succToken} has been successfully deposited into the Vesu pool.`
+        : isEvmFlow
+          ? `${amountFormatted} ${succToken} is bridging back to your ${chainName} wallet.`
+          : `${amountFormatted} ${succToken} has been successfully withdrawn from the Vesu pool.`;
     return (
       <div className="space-y-6 pt-4">
         <CheckmarkCircle01Icon className="mx-auto size-10" color="#39C65D" />
@@ -291,7 +384,9 @@ export const EarnWalletForm: React.FC<{
   const screenTitle = tab === "deposit" ? "Deposit" : "Withdraw";
   const screenSubtitle =
     tab === "deposit"
-      ? "Supply USDC or USDT to a Vesu lending pool"
+      ? isEvmFlow
+        ? "Bridge USDC to Vesu on Starknet"
+        : "Supply USDC or USDT to a Vesu lending pool"
       : "Withdraw USDC or USDT from your Vesu lending pool";
 
   return (
@@ -435,6 +530,52 @@ export const EarnWalletForm: React.FC<{
 
         {errors.amount && (
           <p className="text-xs text-red-500">{errors.amount.message}</p>
+        )}
+        {isEvmFlow && tab === "withdraw" && amountEntered && (
+          <div className="space-y-1">
+            <p className="text-xs text-text-secondary dark:text-white/50">
+              {withdrawConfirmationCopy}
+            </p>
+            {withdrawQuoteLoading && (
+              <p className="text-xs text-text-secondary dark:text-white/50">
+                Fetching bridge quote…
+              </p>
+            )}
+            {!withdrawQuoteLoading && withdrawQuote?.receive_amount != null && (
+              <p className="text-xs text-text-secondary dark:text-white/50">
+                Estimated on {chainName} after bridge fees:{" "}
+                <span className="font-medium text-text-body dark:text-white">
+                  ~{withdrawQuote.receive_amount.toFixed(4)} USDC
+                </span>
+              </p>
+            )}
+          </div>
+        )}
+        {isEvmFlow && tab === "deposit" && amountEntered && (
+          <div className="space-y-1">
+            <p className="text-xs text-text-secondary dark:text-white/50">
+              {confirmationCopy}
+            </p>
+            {quoteLoading && (
+              <p className="text-xs text-text-secondary dark:text-white/50">
+                Fetching bridge quote…
+              </p>
+            )}
+            {!quoteLoading && quote?.receive_amount != null && (
+              <p className="text-xs text-text-secondary dark:text-white/50">
+                Estimated on Starknet after bridge fees:{" "}
+                <span className="font-medium text-text-body dark:text-white">
+                  ~{quote.receive_amount.toFixed(4)} USDC
+                </span>
+                {quote.total_fee != null && quote.total_fee > 0 && (
+                  <>
+                    {" "}
+                    (fees ~{quote.total_fee.toFixed(4)} USDC)
+                  </>
+                )}
+              </p>
+            )}
+          </div>
         )}
       </div>
 

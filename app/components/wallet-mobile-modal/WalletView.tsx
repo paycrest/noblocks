@@ -32,6 +32,7 @@ import TransactionList from "../transaction/TransactionList";
 import type { Network, TransactionHistory } from "../../types";
 import { isReferralEnabled, formatTokenAmount } from "../../utils";
 import { ReferralCTA } from "../ReferralCTA";
+import { EarnSourcePositionCard } from "../EarnSourcePositionCard";
 
 const Divider = () => (
   <div className="w-full border border-dashed border-[#EBEBEF] dark:border-[#FFFFFF1A]" />
@@ -68,6 +69,8 @@ interface WalletViewProps {
   onEarn?: () => void;
   onEarnUnavailable?: () => void;
   walletBalanceUsd?: number;
+  embeddedEvmAddress?: string;
+  isEvmEarn?: boolean;
   onSelectTransaction?: (tx: TransactionHistory) => void;
   onViewReferrals?: () => void;
 }
@@ -100,6 +103,8 @@ export const WalletView: React.FC<WalletViewProps> = ({
   onEarn,
   onEarnUnavailable,
   walletBalanceUsd = 0,
+  embeddedEvmAddress,
+  isEvmEarn = false,
   onSelectTransaction,
   onViewReferrals,
 }) => {
@@ -298,6 +303,13 @@ export const WalletView: React.FC<WalletViewProps> = ({
               </div>
             );
           })
+        )}
+
+        {isEvmEarn && embeddedEvmAddress && (
+          <EarnSourcePositionCard
+            evmAddress={embeddedEvmAddress}
+            sourceChain={selectedNetwork.chain.name}
+          />
         )}
 
       </div>

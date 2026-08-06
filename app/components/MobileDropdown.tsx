@@ -44,7 +44,8 @@ import { EarnUnavailableModal } from "./EarnUnavailableModal";
 import { CopyAddressWarningModal } from "./CopyAddressWarningModal";
 import ProfileView from "./ProfileView";
 import { useEarnAccess } from "../hooks/useEarnAccess";
-import { isEarnActionVisible, isEarnUiVisible } from "../lib/earnFeature";
+import { isEarnActionVisible, isEarnUiVisible, isEvmEarnFlow } from "../lib/earnFeature";
+import { useEvmWalletDisplayTotal } from "../hooks/useEvmWalletDisplayTotal";
 import { isReferralEnabled } from "../utils";
 import { isBridgeUiVisible } from "../lib/bridgeFeature";
 import { BridgeForm } from "./bridge/BridgeForm";
@@ -181,6 +182,19 @@ export const MobileDropdown = ({
     selectedNetwork.chain.name,
   );
 
+  const embeddedEvmAddress =
+    selectedNetwork.chain.name !== "Starknet" &&
+    selectedNetwork.chain.name !== "Tron"
+      ? walletAddress?.toLowerCase()
+      : undefined;
+
+  const { displayTotalUsd: evmEarnWalletTotalUsd, includesEarn: walletTotalIncludesEarn } =
+    useEvmWalletDisplayTotal({
+      chainName: selectedNetwork.chain.name,
+      crossChainBalances: sortedCrossChainBalances,
+      evmAddress: embeddedEvmAddress,
+    });
+
   const handleNetworkSwitchWrapper = (network: Network) => {
     if (currentStep !== STEPS.FORM) {
       toast.error("Cannot switch networks during an active transaction");
@@ -306,7 +320,12 @@ export const MobileDropdown = ({
     }
   };
 
-  const walletBalanceUsd = crossChainTotal ?? 0;
+  const walletBalanceUsd = walletTotalIncludesEarn
+    ? evmEarnWalletTotalUsd
+    : selectedNetwork.chain.name === "Starknet"
+      ? (allBalances.starknetWallet?.total ?? 0)
+      : (crossChainTotal ?? 0);
+  const isEvmEarn = isEvmEarnFlow(selectedNetwork.chain.name);
 
   return (
     <>
@@ -373,6 +392,8 @@ export const MobileDropdown = ({
                           showEarnUi={showEarnUi}
                           showEarnAction={showEarnAction}
                           walletBalanceUsd={walletBalanceUsd}
+                          embeddedEvmAddress={embeddedEvmAddress}
+                          isEvmEarn={isEvmEarn}
                           onEarn={() =>
                             requestEarnAccess("earn-hub", onEarnAccessAction)
                           }

@@ -65,6 +65,7 @@ import { EarnUnavailableModal } from "./EarnUnavailableModal";
 import { useEarnAccess } from "../hooks/useEarnAccess";
 import { isEarnEnabled, isEarnActionVisible, isEarnUiVisible, isEvmEarnFlow } from "../lib/earnFeature";
 import { EarnSourcePositionCard } from "./EarnSourcePositionCard";
+import { useEvmWalletDisplayTotal } from "../hooks/useEvmWalletDisplayTotal";
 import { isReferralEnabled, formatTokenAmount } from "../utils";
 import { isBridgeUiVisible } from "../lib/bridgeFeature";
 import { BridgeForm } from "./bridge/BridgeForm";
@@ -257,6 +258,13 @@ export const WalletDetails = () => {
     .find((w) => w.walletClientType === "privy")
     ?.address?.toLowerCase();
 
+  const { displayTotalUsd: evmEarnWalletTotalUsd, includesEarn: walletTotalIncludesEarn } =
+    useEvmWalletDisplayTotal({
+      chainName: selectedNetwork.chain.name,
+      crossChainBalances,
+      evmAddress: embeddedEvmAddress,
+    });
+
   const onEarnAccessAction = (action: "earn-modal" | "earn-tab" | "earn-hub") => {
     if (action === "earn-hub" || action === "earn-modal") {
       setSidebarView("earn");
@@ -387,6 +395,8 @@ export const WalletDetails = () => {
             <BalanceSkeleton />
           ) : selectedNetwork.chain.name === "Starknet" ? (
             <p>{formatCurrency(activeBalance?.total ?? 0, "USD", "en-US")}</p>
+          ) : walletTotalIncludesEarn ? (
+            <p>{formatCurrency(evmEarnWalletTotalUsd, "USD", "en-US")}</p>
           ) : (
             <p>{formatCurrency(crossChainTotal, "USD", "en-US")}</p>
           )}
@@ -517,8 +527,8 @@ export const WalletDetails = () => {
                           <div className="text-2xl font-medium text-text-body dark:text-white">
                             {showBalanceSkeleton ? (
                               <BalanceSkeleton className="w-24" />
-                            ) : showEarnUi ? (
-                              formatCurrency(crossChainTotal, "USD", "en-US")
+                            ) : walletTotalIncludesEarn ? (
+                              formatCurrency(evmEarnWalletTotalUsd, "USD", "en-US")
                             ) : selectedNetwork.chain.name === "Starknet" ? (
                               formatCurrency(activeBalance?.total ?? 0, "USD", "en-US")
                             ) : (

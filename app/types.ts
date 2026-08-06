@@ -550,6 +550,14 @@ export type TransactionHistoryType =
   | "swap"
   | "credit" | "bridge";
 
+/** Order-backed history rows that can enter `refunding` / `refunded`. */
+export const SWAP_ORDER_TRANSACTION_TYPES = [
+  "onramp",
+  "offramp",
+  "bridge",
+  "swap",
+] as const satisfies readonly TransactionHistoryType[];
+
 export interface Recipient {
   account_name: string;
   institution: string;

@@ -38,7 +38,11 @@ import {
   isOnrampFiatCurrencyCode,
 } from "../utils";
 import { useMarketLiquidity } from "../hooks/useMarketLiquidity";
-import { fillableQuoteAmount } from "../lib/marketLiquidity";
+import {
+  fillableQuoteAmount,
+  isSendAmountOutsideLiquidityBand,
+  shouldSuppressNoProviderForLiquidity,
+} from "../lib/marketLiquidity";
 import { toAggregatorToken } from "../lib/token-symbol";
 import { mapReportAndAct } from "../lib/toastMappedError";
 import { reportClientError } from "../lib/sentry.client";
@@ -694,6 +698,17 @@ export function MainPageContent() {
       // no-provider toast.
       if (isLoadingLiquidity) return;
 
+      const sentForLiquidity = Number(amountSent) || 0;
+
+      // Above max or below min: the field already states the limit; a rate
+      // request (especially on-ramp with a token probe) often returns the
+      // aggregator's legacy no-provider string on top of that.
+      if (isSendAmountOutsideLiquidityBand(liquidity, sentForLiquidity)) {
+        setRateError(null);
+        setIsFetchingRate(false);
+        return;
+      }
+
       const getRate = async (shouldUseProvider = true) => {
         setIsFetchingRate(true);
 
@@ -803,6 +818,15 @@ export function MainPageContent() {
               }
             }
           }
+
+          if (
+            isNoProviderError(error) &&
+            shouldSuppressNoProviderForLiquidity(liquidity, sentN)
+          ) {
+            setRateError(null);
+            return;
+          }
+
           mapReportAndAct(error, {
             feature: "cngn-rate",
             onUserMessage: (userMsg) => {

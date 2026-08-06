@@ -2,10 +2,6 @@ import { isPaycrestGatewayAddress } from "@/app/utils";
 import { SWAP_ORDER_TRANSACTION_TYPES } from "@/app/types";
 import { supabaseAdmin } from "@/app/lib/supabase";
 
-function normalizeAddress(address: string): string {
-  return address.trim().toLowerCase();
-}
-
 async function swapOrderExists(
   walletAddress: string,
   filters: Record<string, string>,
@@ -13,7 +9,7 @@ async function swapOrderExists(
   let query = supabaseAdmin
     .from("transactions")
     .select("id")
-    .eq("wallet_address", normalizeAddress(walletAddress))
+    .eq("wallet_address", walletAddress.trim().toLowerCase())
     .in("transaction_type", [...SWAP_ORDER_TRANSACTION_TYPES]);
 
   for (const [column, value] of Object.entries(filters)) {
@@ -44,6 +40,6 @@ export async function shouldSkipMoralisDepositAsSwapRefund(params: {
     return true;
   }
   return swapOrderExists(params.walletAddress, {
-    tx_hash: normalizeAddress(params.txHash),
+    tx_hash: params.txHash.trim().toLowerCase(),
   });
 }

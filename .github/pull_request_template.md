@@ -9,7 +9,8 @@
 
 > Include any links supporting this change such as a:
 >
-> - GitHub Issue/PR number addressed or fixed e.g closes #407
+> - Jira issue: `Jira Issue: https://paycrest-io.atlassian.net/browse/KAN-123`
+> - GitHub Issue/PR number addressed or fixed e.g closes #407 (legacy GitHub issues only)
 > - StackOverflow post
 > - Support forum thread
 > - Related pull requests/issues from other repos

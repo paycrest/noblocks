@@ -1,32 +1,23 @@
 ---
 name: Bug report
-about: Report a bug to help us improve
-title: "[BUG] "
-labels: bug
-assignees: ''
-
+about: Report a bug — tracked in Jira (project KAN)
 ---
 
-**Describe the bug**
-A clear and concise description of what the bug is.
+## Issues are tracked in Jira
 
-**To Reproduce**
-Steps to reproduce the behavior:
-1. Go to '...'
-2. Click on '...'
-3. Scroll down to '...'
-4. See error
+New bugs should **not** be opened as GitHub Issues.
 
-**Expected behavior**
-A clear and concise description of what you expected to happen.
+**Create a ticket on the KAN board:**  
+https://paycrest-io.atlassian.net/jira/software/projects/KAN/boards/1
 
-**Screenshots**
-If applicable, add screenshots to help explain your problem.
+When creating the ticket:
 
-**Environment:**
-- OS: [e.g., Windows 10, macOS Ventura]
-- Browser: [e.g., Chrome 112]
-- Version: [e.g., 22.5]
+- Add label: **`repo-noblocks`**
+- Use issue type **Bug**
 
-**Additional context**
-Add any other context about the problem here.
+Link your GitHub PR with:
+
+- Branch / title: `KAN-123: Short description`
+- PR description: `Jira Issue: https://paycrest-io.atlassian.net/browse/KAN-123`
+
+Existing GitHub issues remain open; this applies to **new** work only.

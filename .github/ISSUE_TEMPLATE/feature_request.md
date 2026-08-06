@@ -1,24 +1,23 @@
 ---
 name: Feature request
-about: New feature for this project
-title: ''
-labels: enhancement
-assignees: ''
-
+about: New feature — tracked in Jira (project KAN)
 ---
 
-**User Story**
-> Add the details of this issue from the user's POV
+## Issues are tracked in Jira
 
-**Acceptance Criteria**
-> 1. **GIVEN** Given that something happens
-> **WHEN** Under certain conditions
-> **THEN** Then we expect a particular result
+New features and enhancements should **not** be opened as GitHub Issues.
 
-**Tech Details**
->* Add the technical details of the feature
+**Create a ticket on the KAN board:**  
+https://paycrest-io.atlassian.net/jira/software/projects/KAN/boards/1
 
-**Notes/Assumptions**
->* Notes or assumption that has to remain constant. 
+When creating the ticket:
 
-**Open Questions**
+- Add label: **`repo-noblocks`**
+- Use issue type **Task**
+
+Link your GitHub PR with:
+
+- Branch / title: `KAN-123: Short description`
+- PR description: `Jira Issue: https://paycrest-io.atlassian.net/browse/KAN-123`
+
+Existing GitHub issues remain open; this applies to **new** work only.

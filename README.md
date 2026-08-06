@@ -89,7 +89,7 @@ We welcome contributions to Noblocks! Before contributing:
 3. Make your changes and follow the commit message conventions in the Contribution Guide
 4. Push to your fork and open a Pull Request using the [PR template](.github/pull_request_template.md)
 
-Our team will review your pull request and work with you to get it merged. If you have questions, open an issue or reach out in the [developer Telegram](https://t.me/+Stx-wLOdj49iNDM0).
+Our team will review your pull request and work with you to get it merged. If you have questions, reach out in the [developer Telegram](https://t.me/+Stx-wLOdj49iNDM0). Paycrest team members: file engineering work in [Jira KAN](https://paycrest-io.atlassian.net/jira/software/projects/KAN/boards/1) (label `repo-noblocks`).
 
 ## License
 

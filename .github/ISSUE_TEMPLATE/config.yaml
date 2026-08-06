@@ -6,3 +6,6 @@ contact_links:
   - name: "Paycrest Security Bug Bounty"
     url: "engineering@paycrest.io"
     about: "Please report security vulnerabilities here."
+  - name: "Engineering issues (Jira KAN)"
+    url: "https://paycrest-io.atlassian.net/jira/software/projects/KAN/boards/1"
+    about: "Create bugs and tasks in Jira with label repo-noblocks."

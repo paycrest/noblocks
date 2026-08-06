@@ -243,6 +243,36 @@ export function isAmountFillable(
 }
 
 /**
+ * True when Send amount is strictly above the corridor max or below the min.
+ * The form already surfaces `liquidityMaxMessage` / `liquidityMinMessage` for
+ * these cases; quoting them only invites a redundant no-provider toast.
+ */
+export function isSendAmountOutsideLiquidityBand(
+  envelope: LiquidityEnvelope | null,
+  amount: number,
+): boolean {
+  if (!envelope?.viable || !(amount > 0) || !Number.isFinite(amount)) {
+    return false;
+  }
+  if (envelope.max !== null && amount > envelope.max) return true;
+  if (envelope.min !== null && amount < envelope.min) return true;
+  return false;
+}
+
+/**
+ * True when the live book already explains why this Send amount cannot fill —
+ * max/min band errors and inter-provider gaps (`nearestFillableMessage`). Used
+ * to retire the legacy no-provider toast for states the form already covers.
+ */
+export function shouldSuppressNoProviderForLiquidity(
+  envelope: LiquidityEnvelope | null,
+  amount: number,
+): boolean {
+  if (!envelope?.viable || !(amount > 0)) return false;
+  return !isAmountFillable(envelope, amount);
+}
+
+/**
  * @returns the fillable amount closest to `amount`, or null when there is no
  * live band to steer toward. An amount already fillable is returned unchanged.
  *

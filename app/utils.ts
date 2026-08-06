@@ -1634,24 +1634,43 @@ export function networkSupportsOnramp(chain: {
 /** Valid Tron base58 address (starts with T). Re-exported from validation for convenience. */
 export { isValidTronAddress } from "./lib/validation";
 
+/** Paycrest gateway contract addresses keyed by network name. */
+export const GATEWAY_CONTRACT_ADDRESSES = {
+  Base: "0x30f6a8457f8e42371e204a9c103f2bd42341dd0f",
+  "Arbitrum One": "0xe8bc3b607cfe68f47000e3d200310d49041148fc",
+  "BNB Smart Chain": "0x1fa0ee7f9410f6fa49b7ad5da72cf01647090028",
+  Polygon: "0xfb411cc6385af50a562afcb441864e9d541cda67",
+  Scroll: "0x663c5bfe7d44ba946c2dd4b2d1cf9580319f9338",
+  Optimism: "0xd293fcd3dbc025603911853d893a4724cf9f70a0",
+  Celo: "0xf418217e3f81092ef44b81c5c8336e6a6fdb0e4b",
+  Lisk: "0xff0E00E0110C1FBb5315D276243497b66D3a4d8a",
+  Ethereum: "0x8d2c0d398832b814e3814802ff2dc8b8ef4381e5",
+  Starknet: "0x06ff3a3b1532da65594fc98f9ca7200af6c3dbaf37e7339b0ebd3b3f2390c583",
+} as const;
+
+export type GatewayNetwork = keyof typeof GATEWAY_CONTRACT_ADDRESSES;
+
+const NORMALIZED_GATEWAY_ADDRESSES = new Set(
+  Object.values(GATEWAY_CONTRACT_ADDRESSES).map((address) =>
+    address.toLowerCase(),
+  ),
+);
+
 /**
  * Retrieves the contract address for the specified network.
  * @param network - The network for which to retrieve the contract address.
  * @returns The contract address for the specified network, or undefined if the network is not found.
  */
 export function getGatewayContractAddress(network = ""): string | undefined {
-  return {
-    Base: "0x30f6a8457f8e42371e204a9c103f2bd42341dd0f",
-    "Arbitrum One": "0xe8bc3b607cfe68f47000e3d200310d49041148fc",
-    "BNB Smart Chain": "0x1fa0ee7f9410f6fa49b7ad5da72cf01647090028",
-    Polygon: "0xfb411cc6385af50a562afcb441864e9d541cda67",
-    Scroll: "0x663c5bfe7d44ba946c2dd4b2d1cf9580319f9338",
-    Optimism: "0xd293fcd3dbc025603911853d893a4724cf9f70a0",
-    Celo: "0xf418217e3f81092ef44b81c5c8336e6a6fdb0e4b",
-    Lisk: "0xff0E00E0110C1FBb5315D276243497b66D3a4d8a",
-    Ethereum: "0x8d2c0d398832b814e3814802ff2dc8b8ef4381e5",
-    Starknet: "0x06ff3a3b1532da65594fc98f9ca7200af6c3dbaf37e7339b0ebd3b3f2390c583",
-  }[network];
+  return GATEWAY_CONTRACT_ADDRESSES[network as GatewayNetwork];
+}
+
+/** True when `address` is a known Paycrest gateway contract (e.g. failed-swap refunds). */
+export function isPaycrestGatewayAddress(
+  address: string | undefined,
+): boolean {
+  if (!address?.trim()) return false;
+  return NORMALIZED_GATEWAY_ADDRESSES.has(address.trim().toLowerCase());
 }
 
 /**

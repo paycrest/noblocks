@@ -248,10 +248,23 @@ describe("useSwapButton liquidity band", () => {
     expect(result.isEnabled).toBe(false);
   });
 
-  it("does not offer 'Fund wallet' for a corridor with no liquidity", () => {
-    // The insufficient-balance branch otherwise enables unconditionally, on
-    // the theory that funding fixes it — but no balance fills an order when
-    // no provider serves this corridor at all.
+  it("does not offer 'Fund wallet' for a corridor with no liquidity when balance is fine", () => {
+    // Funding cannot create a provider. Only short-circuit for underfunding when
+    // the amount is fundable — then no-liquidity still blocks the CTA.
+    const result = setupWithAmount(
+      { amountSent: 100 },
+      {
+        balance: 1000,
+        amountBounds: { min: 0.5, max: 10000, noLiquidity: true },
+      },
+    );
+
+    expect(result.isEnabled).toBe(false);
+    expect(result.buttonText).not.toBe("Fund wallet");
+  });
+
+  it("offers 'Fund wallet' when amount exceeds balance even if the corridor reports no liquidity", () => {
+    // Insufficient funds is actionable first; after top-up the market band can re-evaluate.
     const result = setupWithAmount(
       { amountSent: 100 },
       {
@@ -260,7 +273,8 @@ describe("useSwapButton liquidity band", () => {
       },
     );
 
-    expect(result.isEnabled).toBe(false);
+    expect(result.isEnabled).toBe(true);
+    expect(result.buttonText).toBe("Fund wallet");
   });
 
   it("enforces the static ceiling the form falls back to when liquidity is unknown", () => {

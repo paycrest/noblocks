@@ -10,7 +10,7 @@ Do **not** use `gh issue create` or GitHub Issues for new tickets.
 
 ## GitHub PRs
 
-Use [.github/pull_request_template.md](.github/pull_request_template.md). Prefix branch and PR title with the Jira key (e.g. `KAN-123: ...`) and include `Jira Issue: https://paycrest-io.atlassian.net/browse/KAN-123` in the description. Do not add AI attribution to PR titles or descriptions.
+Use [.github/pull_request_template.md](.github/pull_request_template.md). Prefix **branch** with the Jira key (e.g. `KAN-123-short-description`) and **PR title** with `KAN-123: Short description`. Include `Jira Issue: https://paycrest-io.atlassian.net/browse/KAN-123` in the description. Do not add AI attribution to PR titles or descriptions.
 
 ## Conventions
 

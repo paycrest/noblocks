@@ -17,7 +17,8 @@ When creating the ticket:
 
 Link your GitHub PR with:
 
-- Branch / title: `KAN-123: Short description`
+- Branch: `KAN-123-short-description`
+- PR title: `KAN-123: Short description`
 - PR description: `Jira Issue: https://paycrest-io.atlassian.net/browse/KAN-123`
 
 Existing GitHub issues remain open; this applies to **new** work only.

@@ -32,6 +32,7 @@ import { EmbedNetworkLockApplier } from "./components/EmbedNetworkLockApplier";
 import { useActualTheme } from "./hooks/useActualTheme";
 import { useDatadogRum, useMixpanel } from "./hooks/analytics/client";
 import { BlockFestClaimProvider } from "./context/BlockFestClaimContext";
+import { useSentry } from "./hooks/useSentry";
 
 function Providers({ children }: { children: ReactNode }) {
   const { privyAppId } = config;
@@ -104,6 +105,8 @@ function PrivyConfigWrapper({
 }
 
 function ContextProviders({ children }: { children: ReactNode }) {
+  useMixpanel(); // Initialize Mixpanel analytics
+  useSentry(); // Initialize Sentry error tracking
   const isEmbed = isEmbedPath(usePathname());
   // No client-side trackers inside partner iframes; source-domain attribution
   // happens server-side in middleware.ts instead.

@@ -38,7 +38,11 @@ import {
   isOnrampFiatCurrencyCode,
 } from "../utils";
 import { useMarketLiquidity } from "../hooks/useMarketLiquidity";
-import { fillableQuoteAmount } from "../lib/marketLiquidity";
+import {
+  fillableQuoteAmount,
+  isSendAmountOutsideLiquidityBand,
+  shouldSuppressNoProviderForLiquidity,
+} from "../lib/marketLiquidity";
 import { toAggregatorToken } from "../lib/token-symbol";
 import { mapReportAndAct } from "../lib/toastMappedError";
 import { reportClientError } from "../lib/sentry.client";
@@ -669,13 +673,19 @@ export function MainPageContent() {
     function handleRateFetch() {
       // Debounce rate fetching
       let timeoutId: NodeJS.Timeout;
+      let active = true;
 
-      if (!currency) return;
+      const invalidate = () => {
+        active = false;
+        clearTimeout(timeoutId);
+      };
 
-      if (isOnrampRate && !token) return;
+      if (!currency) return invalidate;
+
+      if (isOnrampRate && !token) return invalidate;
 
       // Only fetch rate if at least one amount is greater than 0
-      if (!amountSent && !amountReceived) return;
+      if (!amountSent && !amountReceived) return invalidate;
 
       // Nothing in this corridor is quotable. The form already says so
       // ("No liquidity available for X on Y right now"), and a request would
@@ -684,7 +694,7 @@ export function MainPageContent() {
       if (liquidity && !liquidity.viable) {
         setRateError(null);
         setIsFetchingRate(false);
-        return;
+        return invalidate;
       }
 
       // The corridor's first book is still in flight — true only until it
@@ -692,9 +702,21 @@ export function MainPageContent() {
       // clamp below and ask for whatever amount carried over from the
       // previous corridor, which is how a tab switch used to produce a
       // no-provider toast.
-      if (isLoadingLiquidity) return;
+      if (isLoadingLiquidity) return invalidate;
+
+      const sentForLiquidity = Number(amountSent) || 0;
+
+      // Above max or below min: the field already states the limit; a rate
+      // request (especially on-ramp with a token probe) often returns the
+      // aggregator's legacy no-provider string on top of that.
+      if (isSendAmountOutsideLiquidityBand(liquidity, sentForLiquidity)) {
+        setRateError(null);
+        setIsFetchingRate(false);
+        return invalidate;
+      }
 
       const getRate = async (shouldUseProvider = true) => {
+        if (!active) return;
         setIsFetchingRate(true);
 
         const lpParam =
@@ -740,9 +762,16 @@ export function MainPageContent() {
             network: normalizeNetworkForRateFetch(selectedNetwork.chain.name),
             side: isOnrampRate ? "buy" : "sell",
           });
+          if (!active) return;
           setRate(rate.data);
           setRateError(null); // Clear error on success
         } catch (error) {
+          if (!active) return;
+
+          const suppressLiquidityNoProvider =
+            isNoProviderError(error) &&
+            shouldSuppressNoProviderForLiquidity(liquidity, sentN);
+
           if (error instanceof Error) {
             if (
               shouldUseProvider &&
@@ -754,7 +783,9 @@ export function MainPageContent() {
                 phase: "provider-fallback",
                 provider: lpParam,
               });
-              toast.error(`${error.message} - defaulting to public rate`);
+              if (!suppressLiquidityNoProvider) {
+                toast.error(`${error.message} - defaulting to public rate`);
+              }
               // Track failed provider
               if (lpParam) {
                 failedProviders.current.add(lpParam);
@@ -803,6 +834,12 @@ export function MainPageContent() {
               }
             }
           }
+
+          if (suppressLiquidityNoProvider) {
+            setRateError(null);
+            return;
+          }
+
           mapReportAndAct(error, {
             feature: "cngn-rate",
             onUserMessage: (userMsg) => {
@@ -811,7 +848,7 @@ export function MainPageContent() {
             },
           });
         } finally {
-          setIsFetchingRate(false);
+          if (active) setIsFetchingRate(false);
         }
       };
 
@@ -822,9 +859,7 @@ export function MainPageContent() {
 
       debounceFetchRate();
 
-      return () => {
-        clearTimeout(timeoutId);
-      };
+      return invalidate;
     },
     [
       amountSent,

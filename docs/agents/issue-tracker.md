@@ -47,4 +47,4 @@ Pull requests stay on **GitHub**; only tickets live in Jira.
 
 - **KAN board:** https://paycrest-io.atlassian.net/jira/software/projects/KAN/boards/1
 - Existing GitHub issues: left as-is; no backlog migration.
-- GitHub Issues tab stays enabled; templates redirect to Jira.
+- GitHub Issues tab stays enabled for legacy issues; new work is filed via the Jira contact link in `.github/ISSUE_TEMPLATE/config.yml` (no submittable GitHub forms).

@@ -4,7 +4,7 @@ contact_links:
     url: "https://t.me/+Stx-wLOdj49iNDM0"
     about: "Please ask and answer questions here."
   - name: "Paycrest Security Bug Bounty"
-    url: "engineering@paycrest.io"
+    url: "mailto:engineering@paycrest.io"
     about: "Please report security vulnerabilities here."
   - name: "Engineering issues (Jira KAN)"
     url: "https://paycrest-io.atlassian.net/jira/software/projects/KAN/boards/1"

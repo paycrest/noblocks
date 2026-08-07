@@ -26,6 +26,7 @@ import {
   tokensEqual,
 } from "../lib/token-symbol";
 import { swapModeFromSideParam } from "../utils";
+import { computeEmbedCode } from "../lib/embedCode";
 
 /**
  * Embed (widget) mode context.
@@ -79,6 +80,12 @@ interface EmbedContextType {
    * bridge must not give up before this flips.
    */
   parentOriginResolved: boolean;
+  /**
+   * Deterministic embed code derived from parentOrigin (e_ + 8 hex chars).
+   * Null when not in embed mode, parentOrigin is missing, or origin is not
+   * allowlisted. Used for onchain attribution in transaction calldata.
+   */
+  embedCode: string | null;
   /** Send an event to the host page. No-op outside an iframe. */
   postToHost: (event: string, payload?: unknown) => void;
   /**
@@ -123,6 +130,7 @@ const EmbedContext = createContext<EmbedContextType>({
   isEmbed: false,
   parentOrigin: null,
   parentOriginResolved: false,
+  embedCode: null,
   postToHost: () => {},
   isNetworkLocked: false,
   networkLockUnresolved: false,
@@ -148,6 +156,7 @@ function EmbedProviderContent({ children }: { children: ReactNode }) {
   const isEmbed = isEmbedPath(pathname);
   const [parentOrigin, setParentOrigin] = useState<string | null>(null);
   const [parentOriginResolved, setParentOriginResolved] = useState(false);
+  const [embedCode, setEmbedCode] = useState<string | null>(null);
   const [walletNetworkLocked, setWalletNetworkLocked] = useState(false);
   const [hostFormConfig, setHostFormConfig] =
     useState<EmbedHostFormConfig>(defaultHostFormConfig);
@@ -267,6 +276,31 @@ function EmbedProviderContent({ children }: { children: ReactNode }) {
     setParentOriginResolved(true);
   }, [isEmbed]);
 
+  // Compute embed code once parentOrigin is known.
+  // The embed code is a deterministic hash of the origin for onchain attribution.
+  // We don't check the allowlist here because the middleware already blocks
+  // non-allowlisted origins from framing /widget. If parentOrigin is set, it's
+  // allowlisted by definition.
+  //
+  // Gated on isEmbed as well as parentOrigin: this provider stays mounted across
+  // route changes, and parentOrigin is only ever set (never cleared), so without
+  // the isEmbed check a transaction on a non-embed route would keep appending the
+  // previous partner's attribution code.
+  useEffect(() => {
+    if (!isEmbed || !parentOrigin) {
+      setEmbedCode(null);
+      return;
+    }
+    // Ignore a resolution that lands after the origin changed or embed mode ended.
+    let active = true;
+    computeEmbedCode(parentOrigin).then((code) => {
+      if (active) setEmbedCode(code);
+    });
+    return () => {
+      active = false;
+    };
+  }, [isEmbed, parentOrigin]);
+
   const postToHost = useCallback(
     (event: string, payload?: unknown) => {
       if (!parentOrigin || window.self === window.top) return;
@@ -296,6 +330,7 @@ function EmbedProviderContent({ children }: { children: ReactNode }) {
       isEmbed,
       parentOrigin,
       parentOriginResolved,
+      embedCode,
       postToHost,
       isNetworkLocked,
       networkLockUnresolved,
@@ -318,6 +353,7 @@ function EmbedProviderContent({ children }: { children: ReactNode }) {
       isEmbed,
       parentOrigin,
       parentOriginResolved,
+      embedCode,
       postToHost,
       isNetworkLocked,
       networkLockUnresolved,

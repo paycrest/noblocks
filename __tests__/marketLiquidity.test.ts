@@ -7,11 +7,13 @@ import {
   fillableQuoteAmount,
   filterOffersForCorridor,
   isAmountFillable,
+  isSendAmountOutsideLiquidityBand,
   liquidityMaxMessage,
   liquidityMinMessage,
   nearestFillableAmount,
   nearestFillableMessage,
   noLiquidityMessage,
+  shouldSuppressNoProviderForLiquidity,
   type LiquidityCorridor,
 } from "../app/lib/marketLiquidity";
 
@@ -595,6 +597,49 @@ describe("fillableQuoteAmount", () => {
 
   it("ignores a zero or absent Send amount", () => {
     expect(fillableQuoteAmount(sellEnvelope, 0, 100)).toBe(100);
+  });
+});
+
+describe("no-provider toast suppression", () => {
+  const buyBand = (band: Record<string, unknown>) =>
+    offer(BUY_NGN_BASE, { balanceCurrency: "CNGN", rate: 1, ...band });
+
+  const envelope = computeLiquidityEnvelope(
+    [buyBand({ min: 900, max: 10_000_000, balance: 2_995_665 })],
+    BUY_NGN_BASE,
+  );
+
+  it("treats amounts above max as outside the band", () => {
+    expect(isSendAmountOutsideLiquidityBand(envelope, 10_000_000)).toBe(true);
+    expect(isSendAmountOutsideLiquidityBand(envelope, 2_995_665)).toBe(false);
+  });
+
+  it("treats amounts below min as outside the band", () => {
+    expect(isSendAmountOutsideLiquidityBand(envelope, 500)).toBe(true);
+    expect(isSendAmountOutsideLiquidityBand(envelope, 900)).toBe(false);
+  });
+
+  it("does not treat inter-provider gaps as outside the band", () => {
+    const gapEnvelope = computeLiquidityEnvelope(
+      [
+        buyBand({ providerId: "a", min: 0.5, max: 2, balance: 2 }),
+        buyBand({ providerId: "b", min: 100, max: 500, balance: 500 }),
+      ],
+      BUY_NGN_BASE,
+    );
+
+    expect(isSendAmountOutsideLiquidityBand(gapEnvelope, 50)).toBe(false);
+    expect(shouldSuppressNoProviderForLiquidity(gapEnvelope, 50)).toBe(true);
+  });
+
+  it("suppresses legacy no-provider UX when the form already explains the limit", () => {
+    expect(shouldSuppressNoProviderForLiquidity(envelope, 10_000_000)).toBe(
+      true,
+    );
+    expect(shouldSuppressNoProviderForLiquidity(envelope, 1_500_000)).toBe(
+      false,
+    );
+    expect(shouldSuppressNoProviderForLiquidity(null, 10_000_000)).toBe(false);
   });
 });
 

@@ -40,10 +40,12 @@ import { FundWalletForm } from "./FundWalletForm";
 import { TransferForm } from "./TransferForm";
 import { EarnWalletForm } from "./EarnWalletForm";
 import { EarnConsentModal } from "./EarnConsentModal";
+import { EarnUnavailableModal } from "./EarnUnavailableModal";
 import { CopyAddressWarningModal } from "./CopyAddressWarningModal";
 import ProfileView from "./ProfileView";
 import { useEarnAccess } from "../hooks/useEarnAccess";
-import { isEarnUiVisible } from "../lib/earnFeature";
+import { isEarnActionVisible, isEarnUiVisible, isEvmEarnFlow } from "../lib/earnFeature";
+import { useEvmWalletDisplayTotal } from "../hooks/useEvmWalletDisplayTotal";
 import { isReferralEnabled } from "../utils";
 import { isBridgeUiVisible } from "../lib/bridgeFeature";
 import { BridgeForm } from "./bridge/BridgeForm";
@@ -69,6 +71,8 @@ export const MobileDropdown = ({
   const [isNetworkListOpen, setIsNetworkListOpen] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [isWarningModalOpen, setIsWarningModalOpen] = useState(false);
+  const [isEarnUnavailableModalOpen, setIsEarnUnavailableModalOpen] =
+    useState(false);
 
   const { selectedNetwork, setSelectedNetwork } = useNetwork();
   const { currentStep } = useStep();
@@ -177,6 +181,19 @@ export const MobileDropdown = ({
     crossChainBalances,
     selectedNetwork.chain.name,
   );
+
+  const embeddedEvmAddress =
+    selectedNetwork.chain.name !== "Starknet" &&
+    selectedNetwork.chain.name !== "Tron"
+      ? walletAddress?.toLowerCase()
+      : undefined;
+
+  const { displayTotalUsd: evmEarnWalletTotalUsd, includesEarn: walletTotalIncludesEarn } =
+    useEvmWalletDisplayTotal({
+      chainName: selectedNetwork.chain.name,
+      crossChainBalances: sortedCrossChainBalances,
+      evmAddress: embeddedEvmAddress,
+    });
 
   const handleNetworkSwitchWrapper = (network: Network) => {
     if (currentStep !== STEPS.FORM) {
@@ -287,6 +304,7 @@ export const MobileDropdown = ({
   const { client } = useSmartWallets();
 
   const showEarnUi = isEarnUiVisible(selectedNetwork.chain.name);
+  const showEarnAction = isEarnActionVisible(selectedNetwork.chain.name);
   const {
     isConsentModalOpen: isEarnConsentModalOpen,
     requestEarnAccess,
@@ -302,7 +320,12 @@ export const MobileDropdown = ({
     }
   };
 
-  const walletBalanceUsd = crossChainTotal ?? 0;
+  const walletBalanceUsd = walletTotalIncludesEarn
+    ? evmEarnWalletTotalUsd
+    : selectedNetwork.chain.name === "Starknet"
+      ? (allBalances.starknetWallet?.total ?? 0)
+      : (crossChainTotal ?? 0);
+  const isEvmEarn = isEvmEarnFlow(selectedNetwork.chain.name);
 
   return (
     <>
@@ -367,9 +390,15 @@ export const MobileDropdown = ({
                           onRefreshBalance={refreshBalance}
                           isRefreshing={isRefreshing}
                           showEarnUi={showEarnUi}
+                          showEarnAction={showEarnAction}
                           walletBalanceUsd={walletBalanceUsd}
+                          embeddedEvmAddress={embeddedEvmAddress}
+                          isEvmEarn={isEvmEarn}
                           onEarn={() =>
                             requestEarnAccess("earn-hub", onEarnAccessAction)
+                          }
+                          onEarnUnavailable={() =>
+                            setIsEarnUnavailableModalOpen(true)
                           }
                           onSelectTransaction={(tx) => {
                             setSelectedTransaction(tx);
@@ -499,6 +528,11 @@ export const MobileDropdown = ({
               isOpen={isEarnConsentModalOpen}
               onClose={dismissEarnConsent}
               onAccepted={() => handleEarnConsentAccepted(onEarnAccessAction)}
+            />
+
+            <EarnUnavailableModal
+              isOpen={isEarnUnavailableModalOpen}
+              onClose={() => setIsEarnUnavailableModalOpen(false)}
             />
 
             <CopyAddressWarningModal

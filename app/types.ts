@@ -484,6 +484,8 @@ export type Config = {
   moralisBaseUrl: string;
   /** Starknet Earn (Vesu via Starkzap). Requires Starknet wallet + API routes. */
   earnEnabled: boolean;
+  /** EVM → Starknet Earn via LayerSwap (Phase 2). Requires LAYERSWAP_API_KEY server-side. */
+  evmEarnEnabled: boolean;
   /** Tron network + Privy Tron wallet. Opt-in via NEXT_PUBLIC_TRON_ENABLED. */
   tronEnabled: boolean;
   /** Referral program feature flag. When false, all referral UI and API routes are disabled. */
@@ -505,6 +507,9 @@ export type Config = {
   fantasyCampaignEnded: boolean;
   /** Embeddable widget feature flag. Gates the /widget route (iframe embed for whitelisted partners). */
   embedEnabled: boolean;
+  /** LayerSwap API key (server-side only; used by /api/earn/layerswap/*). */
+  layerswapApiKey: string;
+  layerswapApiBaseUrl: string;
 };
 
 export type Network = {
@@ -549,6 +554,14 @@ export type TransactionHistoryType =
   | "transfer"
   | "swap"
   | "credit" | "bridge";
+
+/** Order-backed history rows that can enter `refunding` / `refunded`. */
+export const SWAP_ORDER_TRANSACTION_TYPES = [
+  "onramp",
+  "offramp",
+  "bridge",
+  "swap",
+] as const satisfies readonly TransactionHistoryType[];
 
 export interface Recipient {
   account_name: string;

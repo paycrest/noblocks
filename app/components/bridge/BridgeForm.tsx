@@ -114,7 +114,6 @@ export const BridgeForm: React.FC<BridgeFormProps> = ({
   const routeUnsupported =
     fromNetworkName === "Starknet" || toNetworkName === "Starknet";
 
-  const engine = from && to ? selectEngine(from, to) : null;
   const slippageBps = parseInt(
     process.env.NEXT_PUBLIC_BRIDGE_DEFAULT_SLIPPAGE_BPS ?? "50",
     10,
@@ -154,7 +153,12 @@ export const BridgeForm: React.FC<BridgeFormProps> = ({
     return undefined;
   }, [isInjectedWallet, injectedReady, injectedAddress, injectedProvider, embeddedWallet]);
 
-  const { quote, isLoading: quoteLoading, error: quoteError } = useBridgeQuote({
+  const {
+    quote,
+    isLoading: quoteLoading,
+    isFetched: quoteFetched,
+    error: quoteError,
+  } = useBridgeQuote({
     from,
     to,
     amount,
@@ -166,6 +170,17 @@ export const BridgeForm: React.FC<BridgeFormProps> = ({
     getInjectedToken:
       isInjectedWallet && injectedReady ? getInjectedTokenPassive : undefined,
   });
+
+  // Which rail actually served the quote. Predicted from the pair while one is in flight;
+  // once a quote lands it is the source of truth, because a NEAR pair with no solver
+  // inventory (USDT on Base, any Lisk/Celo leg) falls back to LI.FI inside useBridgeQuote.
+  const engine: BridgeEngine | null = quote
+    ? quote.kind === "lifi-tx"
+      ? "lifi"
+      : "near"
+    : from && to
+      ? selectEngine(from, to)
+      : null;
 
   const { execute, isLoading: execLoading } = useBridgeExecute({
     selectedNetwork: fromNetworkObj,
@@ -312,9 +327,13 @@ export const BridgeForm: React.FC<BridgeFormProps> = ({
     }
   };
 
+  // Only a quote attempt that actually ran and came back empty means no rail. A query that
+  // never ran (unauthenticated, wallet address not ready) leaves `quote` null too, and
+  // treating that as a dead route showed this error to every user before they connected.
   const noRailAvailable =
     routeUnsupported ||
-    (!quoteLoading &&
+    (quoteFetched &&
+      !quoteLoading &&
       !quoteError &&
       quote === null &&
       !!from &&

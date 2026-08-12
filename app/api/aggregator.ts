@@ -1333,10 +1333,11 @@ type RefundAccountSaveEnvelope = {
 };
 
 /**
- * Loads the saved refund account for the authenticated wallet, if any.
+ * Loads the saved refund account for the authenticated wallet and fiat currency, if any.
  * Injected wallets authenticate via `x-injected-token`; Privy via Bearer.
  */
 export async function fetchRefundAccount(
+  currency: string,
   accessToken: string | null,
   injectedToken: string | null = null,
 ): Promise<RefundAccountDetails | null> {
@@ -1348,7 +1349,10 @@ export async function fetchRefundAccount(
   }
   const response = await axios.get<RefundAccountApiEnvelope>(
     "/api/v1/refund-account",
-    { headers },
+    {
+      headers,
+      params: { currency: currency.trim().toUpperCase() },
+    },
   );
 
   if (!response.data.success) {
@@ -1359,7 +1363,7 @@ export async function fetchRefundAccount(
 }
 
 /**
- * Upserts refund account details for the authenticated wallet.
+ * Upserts refund account details for the authenticated wallet and fiat currency.
  * Injected wallets authenticate via `x-injected-token`; Privy via Bearer.
  */
 export async function saveRefundAccount(
@@ -1378,6 +1382,7 @@ export async function saveRefundAccount(
     response = await axios.put<RefundAccountSaveEnvelope>(
       "/api/v1/refund-account",
       {
+        currency: detail.currency.trim().toUpperCase(),
         institution: detail.institutionName,
         institutionCode: detail.institutionCode,
         accountIdentifier: detail.accountNumber,

@@ -11,13 +11,25 @@ import {
   accountNameMatchesKyc,
   REFUND_NAME_MISMATCH_MESSAGE,
 } from "@/app/lib/name-matching";
+import { normalizeRefundAccountCurrency } from "@/app/utils";
 
 type RefundAccountBody = {
+  currency?: string;
   institution?: string;
   institutionCode?: string;
   accountIdentifier?: string;
   accountName?: string;
 };
+
+function invalidCurrencyResponse() {
+  return NextResponse.json(
+    {
+      success: false,
+      error: "Missing or invalid currency. Provide a supported onramp fiat code.",
+    },
+    { status: 400 },
+  );
+}
 
 export const GET = withRateLimit(async (request: NextRequest) => {
   const startTime = Date.now();
@@ -40,14 +52,23 @@ export const GET = withRateLimit(async (request: NextRequest) => {
       );
     }
 
+    const currency = normalizeRefundAccountCurrency(
+      request.nextUrl.searchParams.get("currency"),
+    );
+    if (!currency) {
+      return invalidCurrencyResponse();
+    }
+
     trackApiRequest(request, "/api/v1/refund-account", "GET", {
       wallet_address: walletAddress,
+      currency,
     });
 
     const { data, error } = await supabaseAdmin
       .from("refund_accounts")
       .select("*")
       .eq("normalized_wallet_address", walletAddress)
+      .eq("currency", currency)
       .maybeSingle();
 
     if (error) {
@@ -58,6 +79,7 @@ export const GET = withRateLimit(async (request: NextRequest) => {
     if (!data) {
       trackApiResponse("/api/v1/refund-account", "GET", 200, Date.now() - startTime, {
         wallet_address: walletAddress,
+        currency,
         found: false,
       });
       return NextResponse.json({ success: true, data: null });
@@ -65,12 +87,14 @@ export const GET = withRateLimit(async (request: NextRequest) => {
 
     trackApiResponse("/api/v1/refund-account", "GET", 200, Date.now() - startTime, {
       wallet_address: walletAddress,
+      currency,
       found: true,
     });
 
     return NextResponse.json({
       success: true,
       data: {
+        currency: data.currency,
         institutionCode: data.institution_code,
         institutionName: data.institution,
         accountName: data.account_name,
@@ -109,6 +133,11 @@ export const PUT = withRateLimit(async (request: NextRequest) => {
     }
 
     const body = (await request.json()) as RefundAccountBody;
+    const currency = normalizeRefundAccountCurrency(body.currency);
+    if (!currency) {
+      return invalidCurrencyResponse();
+    }
+
     const institution = String(body.institution ?? "").trim();
     const institutionCode = String(body.institutionCode ?? "").trim();
     const accountIdentifier = String(body.accountIdentifier ?? "").trim();
@@ -119,7 +148,7 @@ export const PUT = withRateLimit(async (request: NextRequest) => {
         {
           success: false,
           error:
-            "Missing required fields: institution, institutionCode, accountIdentifier, accountName",
+            "Missing required fields: currency, institution, institutionCode, accountIdentifier, accountName",
         },
         { status: 400 },
       );
@@ -162,6 +191,7 @@ export const PUT = withRateLimit(async (request: NextRequest) => {
 
     trackApiRequest(request, "/api/v1/refund-account", "PUT", {
       wallet_address: walletAddress,
+      currency,
     });
 
     const { data, error } = await supabaseAdmin
@@ -170,12 +200,13 @@ export const PUT = withRateLimit(async (request: NextRequest) => {
         {
           wallet_address: walletAddress,
           normalized_wallet_address: walletAddress,
+          currency,
           institution,
           institution_code: institutionCode,
           account_identifier: accountIdentifier,
           account_name: accountName,
         },
-        { onConflict: "normalized_wallet_address" },
+        { onConflict: "normalized_wallet_address,currency" },
       )
       .select()
       .single();
@@ -187,11 +218,13 @@ export const PUT = withRateLimit(async (request: NextRequest) => {
 
     trackApiResponse("/api/v1/refund-account", "PUT", 200, Date.now() - startTime, {
       wallet_address: walletAddress,
+      currency,
     });
 
     return NextResponse.json({
       success: true,
       data: {
+        currency: data.currency,
         institutionCode: data.institution_code,
         institutionName: data.institution,
         accountName: data.account_name,

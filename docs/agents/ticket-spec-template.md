@@ -2,7 +2,7 @@
 
 Copy this into the **Jira ticket description** when creating work for the noblocks repo. The ticket is the single source of truth — no spec, no build. Add a **flowchart in a Jira comment** when the change touches multi-step wallet or swap flows.
 
-**Label:** `repo-noblocks` (required)
+**Label:** `noblocks` (required)
 
 ---
 

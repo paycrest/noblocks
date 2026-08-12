@@ -192,10 +192,10 @@ export const TransactionPreview = ({
   }, [isInjectedWallet, injectedReady, getInjectedToken]);
 
   useEffect(() => {
-    if (!isOnramp || !currency?.trim()) return;
-    const orderCurrency = currency.trim().toUpperCase();
     setRefundAccount(null);
     setRefundAccountModalOpen(false);
+    if (!isOnramp || !currency?.trim()) return;
+    const orderCurrency = currency.trim().toUpperCase();
     let cancelled = false;
     void (async () => {
       try {

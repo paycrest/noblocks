@@ -170,6 +170,7 @@ export function AddRefundAccountModal({
     }
 
     const payload: RefundAccountDetails = {
+      currency: currency.trim().toUpperCase(),
       institutionCode: selectedInstitution.code,
       institutionName: selectedInstitution.name,
       accountName: name,

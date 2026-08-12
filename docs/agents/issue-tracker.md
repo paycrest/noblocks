@@ -12,6 +12,10 @@ Paycrest engineering issues are filed in **Jira**, not GitHub Issues.
 
 Use Jira for bugs, enhancements, chores, and vertical slices. Do **not** use `gh issue create` or GitHub issue forms for new work.
 
+**Ticket body:** use [ticket-spec-template.md](ticket-spec-template.md) (Engineering Working Agreement). **PRs** use [.github/pull_request_template.md](../../.github/pull_request_template.md) — that is separate from the ticket spec.
+
+Architecture or process decisions: [decision-record-template.md](decision-record-template.md).
+
 ## Issue type mapping
 
 | Kind of work | Jira issue type |
@@ -30,7 +34,8 @@ Skills (`qa`, `triage`, `to-issues`): read this file before filing issues for no
 1. Set issue type: **Bug** or **Task** (see table above).
 2. Set **labels:** `repo-noblocks` (required).
 3. Title: clear, actionable summary.
-4. Description: context, steps to reproduce (bugs), acceptance criteria (tasks).
+4. Description: fill [ticket-spec-template.md](ticket-spec-template.md) (user story, GIVEN/WHEN/THEN AC, money-safety if applicable).
+5. Add a **flowchart in a comment** when the change involves multi-step flows or navigation.
 
 Humans may also create tickets on the [KAN board](https://paycrest-io.atlassian.net/jira/software/projects/KAN/boards/1).
 

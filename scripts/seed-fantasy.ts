@@ -333,15 +333,24 @@ async function deactivateNonEplPlayers(eplTeamIds: Iterable<number>): Promise<nu
   const keep = new Set(eplTeamIds);
   if (keep.size === 0) return 0;
 
-  const { data: rows, error: readErr } = await supabase
-    .from("fantasy_players")
-    .select("provider_player_id, team_id")
-    .eq("is_active", true);
-  if (readErr) fail("could not list active players for cleanup", readErr);
-
-  const dropIds = (rows ?? [])
-    .filter((r) => !keep.has(Number(r.team_id)))
-    .map((r) => Number(r.provider_player_id));
+  const dropIds: number[] = [];
+  const PAGE = 1000;
+  for (let from = 0; ; from += PAGE) {
+    const { data: rows, error: readErr } = await supabase
+      .from("fantasy_players")
+      .select("provider_player_id, team_id")
+      .eq("is_active", true)
+      .order("provider_player_id", { ascending: true })
+      .range(from, from + PAGE - 1);
+    if (readErr) fail("could not list active players for cleanup", readErr);
+    if (!rows?.length) break;
+    for (const row of rows) {
+      if (!keep.has(Number(row.team_id))) {
+        dropIds.push(Number(row.provider_player_id));
+      }
+    }
+    if (rows.length < PAGE) break;
+  }
 
   for (let i = 0; i < dropIds.length; i += 200) {
     const chunk = dropIds.slice(i, i + 200);

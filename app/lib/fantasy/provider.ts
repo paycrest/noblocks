@@ -412,8 +412,11 @@ export async function getNormalizedFixtureStats(
 
   for (const teamEntry of playersRaw) {
     const opponentId = teamIds.find((id) => id !== teamEntry.team.id);
-
-    // Goal events carry the BENEFITING team's id — including own goals
+    if (opponentId == null) {
+      throw new Error(
+        `Fixture players payload missing opponent team (team ${teamEntry.team.id})`,
+      );
+    }
     // (verified against live EPL fixtures: an OG event lists the team the
     // goal counts FOR, with the opposing scorer as player). So a team
     // concedes exactly the goals credited to its opponent; no OG special

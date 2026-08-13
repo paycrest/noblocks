@@ -7,7 +7,8 @@ import { getFantasySettings } from "./settings";
 import { getPlayersMap } from "./players";
 import { fetchAll } from "./pagination";
 import { LIVE_STATUSES, FINISHED_STATUSES } from "./provider";
-import { hasPlayed } from "./scoring";
+import { applyAutoSubs } from "./autosubs";
+import { hasPlayed, type SquadPlayerRow } from "./scoring";
 import type {
   FantasySettings,
   MatchdayStatus,
@@ -279,15 +280,24 @@ export async function getPublicManagerTeam(
       }));
       const live = (id: number) =>
         playerPoints.get(id) ?? { points: 0, minutes: 0, yellowCards: 0, redCards: 0 };
-      const xi = entries.filter((p) => p.slot <= 11);
-      const captain = xi.find((p) => p.is_captain);
-      const vice = xi.find((p) => p.is_vice);
+      const squadRows: SquadPlayerRow[] = entries.map((entry) => ({
+        playerId: entry.player_id,
+        slot: entry.slot,
+        isCaptain: entry.is_captain,
+        isVice: entry.is_vice,
+        position: players.get(entry.player_id)?.position ?? ("MID" as Position),
+      }));
       const played = (id: number) => hasPlayed(live(id));
+      const scoringXi = applyAutoSubs(squadRows, played);
+      const scoringIds = new Set(scoringXi.map((p) => p.playerId));
+      const startingXi = squadRows.filter((p) => p.slot <= 11);
+      const captain = startingXi.find((p) => p.isCaptain);
+      const vice = startingXi.find((p) => p.isVice);
       const doubledId =
-        captain && played(captain.player_id)
-          ? captain.player_id
-          : vice && played(vice.player_id)
-            ? vice.player_id
+        captain && played(captain.playerId)
+          ? captain.playerId
+          : vice && played(vice.playerId)
+            ? vice.playerId
             : null;
 
       team = {
@@ -302,7 +312,7 @@ export async function getPublicManagerTeam(
           .map((entry) => {
             const player = players.get(entry.player_id);
             const stats = live(entry.player_id);
-            const inXi = entry.slot <= 11;
+            const earnsPoints = scoringIds.has(entry.player_id);
             return {
               ...entry,
               name: player?.name ?? "Unknown",
@@ -314,7 +324,7 @@ export async function getPublicManagerTeam(
               photo_url: settings.photos_enabled
                 ? (player?.photo_url ?? null)
                 : null,
-              points: inXi
+              points: earnsPoints
                 ? stats.points * (entry.player_id === doubledId ? 2 : 1)
                 : 0,
               minutes: stats.minutes,

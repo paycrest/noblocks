@@ -231,6 +231,7 @@ export async function runWorkerTick(options?: { force?: boolean }): Promise<Work
           : []),
       ]),
     ];
+    let recomputeSucceeded = true;
     if (
       report.stats_synced > 0 ||
       report.transitions.length > 0 ||
@@ -242,17 +243,26 @@ export async function runWorkerTick(options?: { force?: boolean }): Promise<Work
         report.scores_recomputed = await recomputeScores(scoreTargets, report.alerts);
         if (pendingRescore.length > 0) await clearPendingRescore(report.alerts);
       } catch (error) {
+        recomputeSucceeded = false;
         report.alerts.push(`score recompute failed: ${String(error)}`);
       }
     }
 
-    // 5b. Resolve GW challenges only after scores are final for that matchday.
-    for (const md of finalizedThisTick) {
-      try {
-        const n = await resolveChallengesForGameweek(md.id, report.alerts);
-        if (n > 0) report.transitions.push(`MD${md.id}: resolved ${n} challenge(s)`);
-      } catch (error) {
-        report.alerts.push(`challenge resolve after MD${md.id} failed: ${String(error)}`);
+    // 5b. Resolve GW challenges only after scores recompute succeeded.
+    if (recomputeSucceeded) {
+      for (const md of finalizedThisTick) {
+        try {
+          const n = await resolveChallengesForGameweek(md.id, report.alerts);
+          if (n > 0) report.transitions.push(`MD${md.id}: resolved ${n} challenge(s)`);
+        } catch (error) {
+          report.alerts.push(`challenge resolve after MD${md.id} failed: ${String(error)}`);
+        }
+      }
+    } else {
+      for (const md of finalizedThisTick) {
+        report.alerts.push(
+          `challenge resolve deferred for MD${md.id}: score recompute failed`,
+        );
       }
     }
 

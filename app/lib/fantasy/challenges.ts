@@ -179,13 +179,14 @@ export async function resolveChallenge(
 
   const raw: ChallengeCandidate[] = [];
   for (const wallet of wallets) {
-    const leagueIds = [...qualifyingLeagues].filter((id) =>
-      (byLeague.get(id) ?? []).some((m) => m.wallet === wallet),
-    );
-    const membership = memberships.find(
+    const walletMemberships = memberships.filter(
       (m) => m.wallet_address === wallet && qualifyingLeagues.has(m.league_id),
     );
-    const leagueId = membership?.league_id ?? leagueIds[0] ?? "";
+    const membership = walletMemberships.reduce<MembershipRow | undefined>(
+      (best, m) => (!best || m.joined_gameweek < best.joined_gameweek ? m : best),
+      undefined,
+    );
+    const leagueId = membership?.league_id ?? "";
     const joined = Number(membership?.joined_gameweek ?? gw);
 
     if (!activeSquads.has(wallet)) {

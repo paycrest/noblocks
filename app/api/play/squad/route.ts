@@ -36,33 +36,42 @@ export const GET = withRateLimitAndAnalytics(async (request: NextRequest) => {
     if (!matchday) return jsonError("No active matchday", 404);
 
     const settings = await getFantasySettings();
-    const [squad, playerPoints, { data: matchdayScores }, { data: profile }, { data: fixtures }] =
-      await Promise.all([
-        getSquad(auth.walletAddress, matchday.id),
-        getMatchdayPlayerPoints(matchday.id),
-        supabaseAdmin
-          .from("fantasy_matchday_scores")
-          .select("matchday_id, points")
-          .eq("wallet_address", auth.walletAddress)
-          .gte("matchday_id", settings.season_matchday_min)
-          .lte("matchday_id", settings.season_matchday_max),
-        supabaseAdmin
-          .from("user_kyc_profiles")
-          .select("username")
-          .eq("wallet_address", auth.walletAddress)
-          .maybeSingle(),
-        supabaseAdmin
-          .from("fantasy_fixtures")
-          .select("status, kickoff")
-          .eq("matchday_id", matchday.id),
-      ]);
+    const [
+      squad,
+      playerPoints,
+      matchdayScoresResult,
+      profileResult,
+      fixturesResult,
+    ] = await Promise.all([
+      getSquad(auth.walletAddress, matchday.id),
+      getMatchdayPlayerPoints(matchday.id),
+      supabaseAdmin
+        .from("fantasy_matchday_scores")
+        .select("matchday_id, points")
+        .eq("wallet_address", auth.walletAddress)
+        .gte("matchday_id", settings.season_matchday_min)
+        .lte("matchday_id", settings.season_matchday_max),
+      supabaseAdmin
+        .from("user_kyc_profiles")
+        .select("username")
+        .eq("wallet_address", auth.walletAddress)
+        .maybeSingle(),
+      supabaseAdmin
+        .from("fantasy_fixtures")
+        .select("status, kickoff")
+        .eq("matchday_id", matchday.id),
+    ]);
+
+    for (const result of [matchdayScoresResult, profileResult, fixturesResult]) {
+      if (result.error) throw result.error;
+    }
 
     const players = await getPlayersMap();
 
     return jsonOk({
       matchday,
       locked: isMatchdayLocked(matchday),
-      game_active: hasActiveFixtures(fixtures ?? []),
+      game_active: hasActiveFixtures(fixturesResult.data ?? []),
       squad: squad
         ? {
             ...squad,
@@ -94,8 +103,8 @@ export const GET = withRateLimitAndAnalytics(async (request: NextRequest) => {
       club_cap: settings.club_cap,
       photos_enabled: settings.photos_enabled,
       total_points: participant.total_points,
-      username: (profile?.username as string | null) ?? null,
-      matchday_scores: (matchdayScores ?? []).map((s) => ({
+      username: (profileResult.data?.username as string | null) ?? null,
+      matchday_scores: (matchdayScoresResult.data ?? []).map((s) => ({
         matchday_id: Number(s.matchday_id),
         points: Number(s.points),
       })),

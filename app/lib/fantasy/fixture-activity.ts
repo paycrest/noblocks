@@ -24,6 +24,12 @@ export const FIXTURE_FINISHED_STATUSES = new Set([
   "WO",
 ]);
 
+/** Postponed/cancelled/abandoned — never poll as live. */
+export const FIXTURE_TERMINAL_STATUSES = new Set(["PST", "CANC", "ABD"]);
+
+/** NS after kickoff: treat as active only while awaiting provider update. */
+const POST_KICKOFF_ACTIVE_MS = 4 * 60 * 60 * 1000;
+
 export interface FixtureKickoffStatus {
   status: string;
   kickoff: string;
@@ -34,12 +40,14 @@ export function hasActiveFixtures(
   nowMs = Date.now(),
 ): boolean {
   return fixtures.some((f) => {
+    if (FIXTURE_TERMINAL_STATUSES.has(f.status)) return false;
     if (FIXTURE_LIVE_STATUSES.has(f.status)) return true;
     if (FIXTURE_FINISHED_STATUSES.has(f.status)) return false;
-    const kickedOff = nowMs >= new Date(f.kickoff).getTime();
+    const kickoffMs = new Date(f.kickoff).getTime();
+    const kickedOff = nowMs >= kickoffMs;
     if (!kickedOff || f.status === "TBD") return false;
-    // Kickoff passed but provider still NS — match getTeamLockStates fail-safe.
-    return true;
+    // Kickoff passed but provider still NS — active only within the match window.
+    return nowMs <= kickoffMs + POST_KICKOFF_ACTIVE_MS;
   });
 }
 

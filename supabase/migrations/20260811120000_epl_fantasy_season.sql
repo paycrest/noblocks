@@ -194,7 +194,10 @@ END;
 $$;
 
 GRANT EXECUTE ON FUNCTION public.fantasy_worker_try_acquire TO service_role;
+REVOKE ALL ON FUNCTION public.fantasy_worker_try_acquire(INTEGER) FROM PUBLIC;
+
 GRANT EXECUTE ON FUNCTION public.fantasy_worker_release TO service_role;
+REVOKE ALL ON FUNCTION public.fantasy_worker_release(TIMESTAMPTZ) FROM PUBLIC;
 
 -- ─── Retire xi_at_kickoff (no readers in app/) ────────────────────────────────
 -- Introduced by 20260704120001 / 20260710120000 and already applied, so this
@@ -245,6 +248,9 @@ BEGIN
   RETURN v_squad_id;
 END;
 $$;
+
+REVOKE ALL ON FUNCTION public.fantasy_save_squad(UUID, TEXT, INTEGER, NUMERIC, BOOLEAN, JSONB) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.fantasy_save_squad TO service_role;
 
 ALTER TABLE public.fantasy_squad_players
   DROP COLUMN IF EXISTS xi_at_kickoff;
@@ -299,6 +305,7 @@ END;
 $$;
 
 GRANT EXECUTE ON FUNCTION public.fantasy_create_challenge TO service_role;
+REVOKE ALL ON FUNCTION public.fantasy_create_challenge(INTEGER, TEXT, NUMERIC, INTEGER, NUMERIC, INTEGER) FROM PUBLIC;
 
 -- Join: username + participant in one transaction (no stranded profile rows).
 CREATE OR REPLACE FUNCTION public.fantasy_join_participant(
@@ -374,3 +381,33 @@ END;
 $$;
 
 GRANT EXECUTE ON FUNCTION public.fantasy_join_participant TO service_role;
+REVOKE ALL ON FUNCTION public.fantasy_join_participant(TEXT, TEXT, TIMESTAMPTZ) FROM PUBLIC;
+
+-- Leave league: remove member and delete empty league atomically.
+CREATE OR REPLACE FUNCTION public.fantasy_leave_league(
+  p_league_id      UUID,
+  p_wallet_address TEXT
+)
+RETURNS VOID
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_wallet TEXT := lower(trim(p_wallet_address));
+BEGIN
+  PERFORM set_config('search_path', 'public', true);
+
+  DELETE FROM fantasy_league_members
+   WHERE league_id = p_league_id
+     AND wallet_address = v_wallet;
+
+  DELETE FROM fantasy_leagues
+   WHERE id = p_league_id
+     AND NOT EXISTS (
+       SELECT 1 FROM fantasy_league_members WHERE league_id = p_league_id
+     );
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.fantasy_leave_league TO service_role;
+REVOKE ALL ON FUNCTION public.fantasy_leave_league(UUID, TEXT) FROM PUBLIC;

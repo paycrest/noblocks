@@ -28,7 +28,6 @@ season ends.
 | `/play/manager/[username]` | Public read-only team view |
 | `/play/terms` | Terms & conditions |
 | `/play/admin` | Ops console (admin key in sessionStorage) |
-| `/play-demo` | Frontend-only simulator (dev or `NEXT_PUBLIC_FANTASY_DEMO=true`) |
 
 User-facing APIs are gated by `NEXT_PUBLIC_FANTASY_ENABLED=true`. When
 `NEXT_PUBLIC_FANTASY_CAMPAIGN_ENDED=true`, public `/play` shows the
@@ -63,7 +62,6 @@ marked `final` and excluded from `getCurrentMatchday()`.
 | `NEXT_PUBLIC_FANTASY_ENABLED` | Next.js app | Must be exactly `"true"` to serve user-facing `/play` UI and `/api/play/*` (except worker/admin). |
 | `NEXT_PUBLIC_FANTASY_CAMPAIGN_ENDED` | Next.js app | When `"true"`, public `/play` shows campaign-ended UI. |
 | `FANTASY_LOCAL_TIMELAPSE` | Next.js app (non-prod only) | With `NODE_ENV !== "production"`, enables synthetic fixture/score pipeline for local demos. Pair with `pnpm seed:fantasy:timelapse`. |
-| `NEXT_PUBLIC_FANTASY_DEMO` | Next.js app | Enables `/play-demo` outside development. |
 | `BREVO_API_KEY` (existing) | Next.js app | Transactional emails. Also gated by `fantasy_settings.config.features.emails`. |
 | `BREVO_SENDER_EMAIL` (optional) | Next.js app | Sender for fantasy emails; defaults to `no-reply@noblocks.xyz`. |
 | `SUPABASE_URL`, `SUPABASE_SECRET_KEY` (existing) | app + seed script | Service-role DB access. |
@@ -85,8 +83,9 @@ Apply migrations in order:
    GW challenges, leaderboard without referral qualification, unique
    `gameweek_id` on challenges, simplified `fantasy_save_squad`, worker overlap
    RPCs (`fantasy_worker_try_acquire` / `_release`), dropped `xi_at_kickoff`,
-   atomic challenge/join RPCs (`fantasy_create_challenge`,
-   `fantasy_join_participant`)
+   atomic challenge/join/leave RPCs (`fantasy_create_challenge`,
+   `fantasy_join_participant`, `fantasy_leave_league`); REVOKE EXECUTE FROM PUBLIC
+   on all SECURITY DEFINER functions
 
 Rules (scoring matrix, budget, formations, flags) live in
 `fantasy_settings.config` JSONB — tweakable via SQL without a deploy (~60s

@@ -391,19 +391,9 @@ export async function joinLeagueByCode(input: {
 }
 
 export async function leaveLeague(leagueId: string, wallet: string): Promise<void> {
-  const { error } = await supabaseAdmin
-    .from("fantasy_league_members")
-    .delete()
-    .eq("league_id", leagueId)
-    .eq("wallet_address", wallet);
+  const { error } = await supabaseAdmin.rpc("fantasy_leave_league", {
+    p_league_id: leagueId,
+    p_wallet_address: wallet,
+  });
   if (error) throw error;
-
-  const { count } = await supabaseAdmin
-    .from("fantasy_league_members")
-    .select("wallet_address", { count: "exact", head: true })
-    .eq("league_id", leagueId);
-
-  if ((count ?? 0) === 0) {
-    await supabaseAdmin.from("fantasy_leagues").delete().eq("id", leagueId);
-  }
 }

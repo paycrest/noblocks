@@ -35,6 +35,17 @@ describe("hasActiveFixtures", () => {
       true,
     );
   });
+
+  it("is false for terminal postponed/cancelled statuses", () => {
+    expect(hasActiveFixtures([{ status: "PST", kickoff }], Date.parse(kickoff))).toBe(false);
+    expect(hasActiveFixtures([{ status: "CANC", kickoff }], Date.parse(kickoff))).toBe(false);
+  });
+
+  it("is false for NS long after kickoff", () => {
+    expect(
+      hasActiveFixtures([{ status: "NS", kickoff }], Date.parse(kickoff) + 5 * 60 * 60 * 1000),
+    ).toBe(false);
+  });
 });
 
 describe("playPollIntervalMs", () => {

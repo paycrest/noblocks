@@ -541,6 +541,7 @@ export async function syncFixtureStats(
       .eq("provider_fixture_id", fixture.provider_fixture_id)
       .maybeSingle(),
   ]);
+  if (fixtureMeta.error) throw fixtureMeta.error;
   const finalize = pass === "reconcile_final";
 
   const homeId = Number(fixtureMeta.data?.home_team_id ?? fixture.home_team_id);

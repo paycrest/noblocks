@@ -45,18 +45,21 @@ function clientIp(request: NextRequest): string {
 export async function rateLimit(request: NextRequest) {
   const ip = clientIp(request);
   const userId = request.headers.get("x-user-id");
+  const identityKey = userId ? `user:${userId}` : `ip:${ip}`;
 
   try {
-    const [identityResult] = await Promise.all([
-      identityLimiter.consume(userId ? `user:${userId}` : `ip:${ip}`),
-      ipLimiter.consume(ip),
-    ]);
-
-    return {
-      success: true,
-      remaining: identityResult.remainingPoints,
-      reset: Math.ceil(identityResult.msBeforeNext / 1000),
-    };
+    const ipResult = await ipLimiter.consume(ip);
+    try {
+      const identityResult = await identityLimiter.consume(identityKey);
+      return {
+        success: true,
+        remaining: identityResult.remainingPoints,
+        reset: Math.ceil(identityResult.msBeforeNext / 1000),
+      };
+    } catch (identityError) {
+      await ipLimiter.reward(ip);
+      throw identityError;
+    }
   } catch {
     return {
       success: false,

@@ -161,7 +161,8 @@ export async function resolveIdentityScope(
 
 /** Dedupe key for one-team-per-person rules (e.g. fantasy challenge winners). */
 export function identityDedupeKey(scope: IdentityScope): string {
-  return [...scope.identityKeys].sort().join("|") || `wallet:${scope.wallets[0]}`;
+  // Wallets are symmetric across a group; identityKeys are not (phone-only vs phone+ID).
+  return [...scope.wallets].sort().join("|") || `wallet:${scope.wallets[0]}`;
 }
 
 type ProfileRow = {
@@ -205,14 +206,20 @@ export async function resolveIdentityScopes(
   }
 
   const phones = new Set<string>();
-  const idTriples = new Set<string>();
+  const idTriples = new Map<
+    string,
+    { id_country: string; id_type: string; id_number: string }
+  >();
   for (const wallet of callers) {
     const profile = profilesByWallet.get(wallet);
     if (profile?.phone_number) phones.add(profile.phone_number);
     if (profile?.id_country && profile?.id_type && profile?.id_number) {
-      idTriples.add(
-        `${profile.id_country}:${profile.id_type}:${profile.id_number}`,
-      );
+      const key = `id:${profile.id_country}:${profile.id_type}:${profile.id_number}`;
+      idTriples.set(key, {
+        id_country: profile.id_country,
+        id_type: profile.id_type,
+        id_number: profile.id_number,
+      });
     }
   }
 
@@ -228,8 +235,9 @@ export async function resolveIdentityScopes(
   }
 
   const siblingsById = new Map<string, SiblingRow[]>();
-  for (const triple of idTriples) {
-    const [id_country, id_type, id_number] = triple.split(":");
+  for (const [, triple] of idTriples) {
+    const { id_country, id_type, id_number } = triple;
+    const key = `id:${id_country}:${id_type}:${id_number}`;
     const { data, error } = await supabaseAdmin
       .from("user_kyc_profiles")
       .select("wallet_address, tier")
@@ -238,7 +246,7 @@ export async function resolveIdentityScopes(
       .eq("id_number", id_number)
       .gte("tier", 2);
     if (error) throw error;
-    siblingsById.set(triple, (data ?? []) as SiblingRow[]);
+    siblingsById.set(key, (data ?? []) as SiblingRow[]);
   }
 
   for (const caller of callers) {
@@ -271,8 +279,8 @@ export async function resolveIdentityScopes(
     }
 
     if (hasId) {
-      const idKey = `${profile.id_country}:${profile.id_type}:${profile.id_number}`;
-      identityKeys.push(`id:${idKey}`);
+      const idKey = `id:${profile.id_country}:${profile.id_type}:${profile.id_number}`;
+      identityKeys.push(idKey);
       for (const row of siblingsById.get(idKey) ?? []) {
         const address = row.wallet_address?.trim().toLowerCase();
         if (!address) continue;

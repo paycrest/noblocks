@@ -155,7 +155,12 @@ async function authorizationMiddleware(req: NextRequest) {
     endpoint.startsWith("/api/play/matchday/") ||
     endpoint === "/api/play/og";
   if (isPlaySelfAuthedRoute) {
-    return NextResponse.next();
+    // JWT never runs here — strip client-supplied identity headers so downstream
+    // rate limiting cannot be keyed on forged x-user-id / x-wallet-address.
+    const headers = new Headers(req.headers);
+    headers.delete("x-user-id");
+    headers.delete("x-wallet-address");
+    return NextResponse.next({ request: { headers } });
   }
 
   // Track API request for analytics

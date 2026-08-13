@@ -13,9 +13,9 @@ export type RouteHandler<TContext = unknown> = (
 ) => Promise<Response>;
 
 /**
- * Per-caller budget. Keyed on the middleware-verified x-user-id when present
- * so that many signed-in users sharing one egress IP — carrier-grade NAT is
- * the norm on mobile networks — don't consume each other's allowance.
+ * Per-caller budget. Keyed on middleware-verified x-wallet-address when present
+ * (set only after Privy JWT or injected-session verification). Never use
+ * x-user-id — it is forgeable on routes that skip JWT auth.
  */
 const identityLimiter = new RateLimiterMemory({
   points: 100, // Number of requests
@@ -24,10 +24,8 @@ const identityLimiter = new RateLimiterMemory({
 });
 
 /**
- * Per-IP ceiling, always applied. x-user-id survives untouched on routes the
- * middleware short-circuits (public reads, the worker, admin), so the identity
- * key alone would be forgeable; this bucket bounds any single source
- * regardless. Sized to fit a NAT'd cohort at normal poll rates, not a scraper.
+ * Per-IP ceiling, always applied. Sized to fit a NAT'd cohort at normal poll
+ * rates, not a scraper.
  */
 const ipLimiter = new RateLimiterMemory({
   points: 300,
@@ -44,8 +42,8 @@ function clientIp(request: NextRequest): string {
 
 export async function rateLimit(request: NextRequest) {
   const ip = clientIp(request);
-  const userId = request.headers.get("x-user-id");
-  const identityKey = userId ? `user:${userId}` : `ip:${ip}`;
+  const verifiedWallet = request.headers.get("x-wallet-address")?.trim().toLowerCase();
+  const identityKey = verifiedWallet ? `wallet:${verifiedWallet}` : `ip:${ip}`;
 
   try {
     const ipResult = await ipLimiter.consume(ip);

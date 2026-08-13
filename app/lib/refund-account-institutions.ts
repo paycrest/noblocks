@@ -10,6 +10,19 @@ export type ResolveInstitutionResult =
 const INSTITUTION_VERIFY_UNAVAILABLE =
   "Could not verify institution right now. Please try again.";
 
+/** Bound aggregator institution lookups so a hung upstream cannot hold the route open. */
+const INSTITUTION_FETCH_TIMEOUT_MS = 5_000;
+
+function institutionFetchSignal(timeoutMs: number): AbortSignal {
+  if (typeof AbortSignal.timeout === "function") {
+    return AbortSignal.timeout(timeoutMs);
+  }
+  // jsdom / older runtimes: AbortSignal.timeout may be missing.
+  const controller = new AbortController();
+  setTimeout(() => controller.abort(), timeoutMs);
+  return controller.signal;
+}
+
 /** Finds an institution by exact `code` in a currency-scoped list. */
 export function findInstitutionForCurrency(
   institutions: InstitutionMatch[],
@@ -22,7 +35,7 @@ export function findInstitutionForCurrency(
 
 /**
  * Loads aggregator institutions for `currency` and requires `institutionCode` to be in that list.
- * Fail closed on missing aggregator URL, non-OK responses, or network errors (503).
+ * Fail closed on missing aggregator URL, non-OK responses, timeouts, or network errors (503).
  */
 export async function resolveInstitutionForCurrency(
   currency: string,
@@ -40,6 +53,7 @@ export async function resolveInstitutionForCurrency(
   try {
     const res = await fetchImpl(
       `${base}/institutions/${encodeURIComponent(currency)}`,
+      { signal: institutionFetchSignal(INSTITUTION_FETCH_TIMEOUT_MS) },
     );
     if (!res.ok) {
       return { ok: false, status: 503, error: INSTITUTION_VERIFY_UNAVAILABLE };

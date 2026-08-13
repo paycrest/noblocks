@@ -145,8 +145,16 @@ export async function handlePutRefundAccount(
       return { status: 401, body: { success: false, error: "Unauthorized" } };
     }
 
-    const body = (await request.json?.()) as RefundAccountBody;
-    const currency = normalizeRefundAccountCurrency(body?.currency);
+    let body: RefundAccountBody;
+    try {
+      body = ((await request.json?.()) ?? {}) as RefundAccountBody;
+    } catch {
+      return {
+        status: 400,
+        body: { success: false, error: "Invalid JSON body" },
+      };
+    }
+    const currency = normalizeRefundAccountCurrency(body.currency);
     if (!currency) {
       return { status: 400, body: INVALID_CURRENCY_BODY };
     }

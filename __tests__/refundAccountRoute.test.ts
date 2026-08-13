@@ -140,6 +140,23 @@ describe("handlePutRefundAccount", () => {
     expect(res.status).toBe(400);
   });
 
+  it("returns 400 when the request body is not valid JSON", async () => {
+    const res = await handlePutRefundAccount({
+      headers: {
+        get: (key: string) =>
+          key.toLowerCase() === "x-wallet-address" ? WALLET : null,
+      },
+      json: async () => {
+        throw new SyntaxError("Unexpected token");
+      },
+    });
+    expect(res).toEqual({
+      status: 400,
+      body: { success: false, error: "Invalid JSON body" },
+    });
+    expect(mockedFrom).not.toHaveBeenCalled();
+  });
+
   it("returns 422 when institution is not valid for the currency", async () => {
     mockedResolveInstitution.mockResolvedValue({
       ok: false,

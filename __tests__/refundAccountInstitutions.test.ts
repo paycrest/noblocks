@@ -28,7 +28,11 @@ describe("resolveInstitutionForCurrency", () => {
   const originalAggregatorUrl = process.env.NEXT_PUBLIC_AGGREGATOR_URL;
 
   afterEach(() => {
-    process.env.NEXT_PUBLIC_AGGREGATOR_URL = originalAggregatorUrl;
+    if (originalAggregatorUrl === undefined) {
+      delete process.env.NEXT_PUBLIC_AGGREGATOR_URL;
+    } else {
+      process.env.NEXT_PUBLIC_AGGREGATOR_URL = originalAggregatorUrl;
+    }
   });
 
   it("returns the matched institution from the aggregator list", async () => {
@@ -46,6 +50,7 @@ describe("resolveInstitutionForCurrency", () => {
     });
     expect(fetchImpl).toHaveBeenCalledWith(
       "https://api.example.com/v1/institutions/KES",
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
     );
   });
 

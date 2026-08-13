@@ -1,15 +1,27 @@
+### Jira Issue
+
+Jira Issue: <!-- e.g. https://paycrest-io.atlassian.net/browse/KAN-123 -->
+
 ### Description
 
 > Describe the purpose of this PR along with any background information and the impacts of the proposed change. For the benefit of the community, please do not assume prior context.
 >
 > Provide details that support your chosen implementation, including: breaking changes, alternatives considered, changes to the API, contracts etc.
+>
+> Spec and acceptance criteria live on the linked Jira ticket — not in this template.
+
+
+### Self-review
+
+- [ ] Reviewed diff against Jira acceptance criteria (including failure cases)
+- [ ] CodeRabbit / CI green
 
 
 ### References
 
 > Include any links supporting this change such as a:
 >
-> - GitHub Issue/PR number addressed or fixed e.g closes #407
+> - GitHub Issue/PR number addressed or fixed e.g closes #407 (legacy GitHub issues only)
 > - StackOverflow post
 > - Support forum thread
 > - Related pull requests/issues from other repos
@@ -26,6 +38,11 @@
 > Also include details of the environment this PR was developed in (language/platform/browser version).
 
 - [ ] This change adds test coverage for new/changed/fixed functionality
+
+
+### Staging
+
+- [ ] Staging noblocks checked (wallet and transaction flows)
 
 
 ### Checklist

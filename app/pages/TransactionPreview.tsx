@@ -859,6 +859,15 @@ export const TransactionPreview = ({
         toast.error("Add a refund account to continue");
         return;
       }
+      const orderCurrency = currency?.trim().toUpperCase() ?? "";
+      if (
+        !orderCurrency ||
+        refundAccount.currency.trim().toUpperCase() !== orderCurrency
+      ) {
+        toast.error("Add a refund account for this currency to continue");
+        setRefundAccount(null);
+        return;
+      }
       if (!walletAddress) {
         toast.error("Recipient wallet is required");
         return;

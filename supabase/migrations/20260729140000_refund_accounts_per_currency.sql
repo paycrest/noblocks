@@ -14,9 +14,7 @@ alter table public.refund_accounts
 alter table public.refund_accounts
   drop constraint if exists refund_accounts_one_per_wallet;
 
+-- Unique (wallet, currency) also provides the lookup index; no separate btree needed.
 alter table public.refund_accounts
   add constraint refund_accounts_one_per_wallet_currency
   unique (normalized_wallet_address, currency);
-
-create index if not exists idx_refund_accounts_wallet_currency
-  on public.refund_accounts (normalized_wallet_address, currency);

@@ -4,9 +4,10 @@ Consumer-facing crypto-to-fiat app built with Next.js. See [README.md](README.md
 
 ## Issue tracker (Jira)
 
-File new work in Jira project **KAN** ([paycrest-io.atlassian.net](https://paycrest-io.atlassian.net)), label **`noblocks`**. See [docs/agents/issue-tracker.md](docs/agents/issue-tracker.md) for issue types, Atlassian MCP usage, and PR linking. **Ticket spec:** [docs/agents/ticket-spec-template.md](docs/agents/ticket-spec-template.md) (Engineering Working Agreement). **PR template:** [.github/pull_request_template.md](.github/pull_request_template.md) (separate from ticket spec).
+File new work in Jira project **KAN** ([paycrest-io.atlassian.net](https://paycrest-io.atlassian.net)), label **`noblocks`**. See [docs/agents/issue-tracker.md](docs/agents/issue-tracker.md) for issue types, field ids, Atlassian MCP usage, and PR linking. **Ticket spec:** [docs/agents/ticket-spec-template.md](docs/agents/ticket-spec-template.md) — use the **Bug** fields *or* the **Task** fields, never both. **PR template:** [.github/pull_request_template.md](.github/pull_request_template.md) (separate from ticket spec).
 
 Do **not** use `gh issue create` or GitHub Issues for new tickets.
+
 
 ## GitHub PRs
 

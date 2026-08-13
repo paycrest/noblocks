@@ -268,6 +268,17 @@ export function isOnrampFiatCurrencyCode(code: string): boolean {
   return getOnrampFiatCurrencyCodes().has(code.toUpperCase());
 }
 
+/** Normalizes and validates an onramp fiat code for refund-account storage. */
+export function normalizeRefundAccountCurrency(
+  raw: string | null | undefined,
+): string | null {
+  const code = String(raw ?? "").trim().toUpperCase();
+  if (!code || !isOnrampFiatCurrencyCode(code)) {
+    return null;
+  }
+  return code;
+}
+
 /**
  * Max send amount for on-ramp in local fiat units (product caps per corridor).
  * Tune KES with product/compliance when backend limits are finalized.

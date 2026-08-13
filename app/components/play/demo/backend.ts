@@ -6,21 +6,25 @@
  * An in-memory implementation of every /api/play/* endpoint the UI consumes,
  * installed by DemoShell as a window.fetch interceptor. The real pages and
  * components run unmodified against it, and squad rules run through the REAL
- * isomorphic engines (validateSquad, computeTransferCost, computePoints), so
- * what the demo accepts/rejects/scores is what production accepts/rejects/
- * scores. No network, no database, no provider quota.
+ * isomorphic engines (validateSquad, computeTransferCost, computePoints,
+ * computeSquadPoints, applyAutoSubs), so what the demo accepts/rejects/scores
+ * is what production accepts/rejects/scores. No network, no database, no
+ * provider quota.
  *
- * Nothing in the app imports this except the /play-demo route.
+ * Nothing in the app imports this except DemoShell.
  */
 
-import { validateSquad } from "@/app/lib/fantasy/validation";
+import { hasActiveFixtures } from "@/app/lib/fantasy/fixture-activity";
+import { applyAutoSubs } from "@/app/lib/fantasy/autosubs";
 import {
   computePoints,
   computeSquadPoints,
   computeTransferCost,
   emptyStats,
 } from "@/app/lib/fantasy/scoring";
+import { validateSquad } from "@/app/lib/fantasy/validation";
 import type {
+  BadgeState,
   FantasyPlayer,
   FantasySettings,
   PlayerMatchStats,
@@ -29,46 +33,48 @@ import type {
 
 /* ------------------------------- Settings ------------------------------- */
 
-/** Mirror of the migration's fantasy_settings.config. */
+/** Mirror of fantasy_settings.config for the EPL demo season. */
 const DEMO_SETTINGS: FantasySettings = {
-  budget: 105,
+  budget: 100,
   squad_size: 15,
   positions: { GK: 2, DEF: 5, MID: 5, FWD: 3 },
   formations: ["4-4-2", "4-3-3", "4-5-1", "3-4-3", "3-5-2", "5-4-1", "5-3-2"],
-  nation_caps: { MD6: 5, MD7: 6, MD8: 8 },
-  free_transfers: { MD6: 4, MD7: 5, MD8: 6 },
-  transfer_penalty: 3,
+  club_cap: 3,
+  free_transfers_max: 5,
+  transfer_penalty: 4,
+  season_matchday_min: 101,
+  season_matchday_max: 138,
+  photos_enabled: false,
+  defcon_def_threshold: 5,
+  defcon_mid_fwd_threshold: 6,
   scoring: {
     appearance: 1,
     appearance_60: 1,
     assist: 3,
     yellow_card: -1,
-    red_card: -2,
+    red_card: -3,
     own_goal: -2,
-    penalty_won: 2,
-    penalty_conceded: -1,
-    goal: { GK: 9, DEF: 7, MID: 6, FWD: 5 },
-    clean_sheet: { GK: 5, DEF: 5, MID: 1, FWD: 0 },
-    goals_conceded_per_extra: { GK: -1, DEF: -1, MID: 0, FWD: 0 },
-    penalty_save: 3,
+    penalty_miss: -2,
+    penalty_conceded: 0,
+    goal: { GK: 10, DEF: 6, MID: 5, FWD: 4 },
+    clean_sheet: { GK: 4, DEF: 4, MID: 1, FWD: 0 },
+    goals_conceded_per_two: { GK: -1, DEF: -1, MID: 0, FWD: 0 },
+    penalty_save: 5,
     saves_per_point: 3,
-    tackles_per_point: 3,
-    key_passes_per_point: 2,
-    shots_on_target_per_point: 2,
-    direct_free_kick_goal: 1,
   },
-  qualification_deadline: "2026-07-22T23:59:59Z",
-  referrals_required: 5,
-  referral_min_total_usd: 5,
-  cngn_usd_rate: 0.00065,
-  campaign_start: "2026-07-04T00:00:00Z",
-  campaign_end: "2026-07-19T23:59:59Z",
+  campaign_start: "2026-08-01T00:00:00Z",
+  campaign_end: "2027-05-31T23:59:59Z",
   features: { emails: false, share_cards: true, join_open: true },
+};
+
+const DEFCON_PICK = {
+  defcon_def_threshold: DEMO_SETTINGS.defcon_def_threshold,
+  defcon_mid_fwd_threshold: DEMO_SETTINGS.defcon_mid_fwd_threshold,
 };
 
 /* -------------------------------- Players ------------------------------- */
 
-// [2×GK, 3×DEF, 3×MID, 2×FWD] per nation. Names are flavor only.
+// [2×GK, 3×DEF, 3×MID, 2×FWD] per club. Names are flavor only.
 const NATION_ROSTERS: Record<string, string[]> = {
   Brazil: ["Alisson", "Bento", "Marquinhos", "Militao", "Danilo", "Casemiro", "Paqueta", "Andreas", "Vinicius Jr", "Rodrygo"],
   France: ["Maignan", "Areola", "Saliba", "Upamecano", "Hernandez", "Tchouameni", "Camavinga", "Griezmann", "Mbappe", "Kolo Muani"],
@@ -78,7 +84,7 @@ const NATION_ROSTERS: Record<string, string[]> = {
   Germany: ["Neuer", "ter Stegen", "Rudiger", "Tah", "Raum", "Kimmich", "Gundogan", "Wirtz", "Musiala", "Fullkrug"],
   Portugal: ["D. Costa", "Rui Silva", "Ruben Dias", "Pepe", "Cancelo", "Vitinha", "B. Fernandes", "B. Silva", "Ronaldo", "Leao"],
   Morocco: ["Bounou", "Munir", "Hakimi", "Aguerd", "Mazraoui", "Amrabat", "Ounahi", "Ziyech", "En-Nesyri", "Diaz"],
-  // Eliminated in the (unscored) previous round — for the airplane flow.
+  // Relegated / inactive for the airplane flow in rolled-over squads.
   Netherlands: ["Verbruggen", "Flekken", "Van Dijk", "De Ligt", "Ake", "De Jong", "Simons", "Gakpo", "Depay", "Weghorst"],
   Japan: ["Suzuki", "Gonda", "Tomiyasu", "Itakura", "Sugawara", "Endo", "Kamada", "Kubo", "Mitoma", "Ueda"],
 };
@@ -88,8 +94,8 @@ const BASE_PRICE: Record<Position, number> = { GK: 4.5, DEF: 5.0, MID: 5.5, FWD:
 
 const NATIONS = Object.keys(NATION_ROSTERS);
 const ELIMINATED_NATIONS = new Set(["Netherlands", "Japan"]);
-// Offset keeps demo ids outside API-Football's real id space, so TeamFlag's
-// CDN lookups 404 (and hide) instead of loading the wrong nation's flag.
+// Offset keeps demo ids outside API-Football's real id space so kit colors
+// use the deterministic fallback (not a real club mapping).
 const TEAM_ID_BASE = 990000;
 const teamIdOf = (nation: string) => TEAM_ID_BASE + NATIONS.indexOf(nation) + 1;
 
@@ -132,12 +138,22 @@ interface DemoFixture {
   minute: number;
 }
 
-const QF_PAIRS: [string, string][] = [
+const GW_FIXTURES: [string, string][] = [
   ["Brazil", "France"],
   ["England", "Spain"],
   ["Argentina", "Germany"],
   ["Portugal", "Morocco"],
 ];
+
+const DEMO_MATCHDAY_IDS = [101, 102, 103] as const;
+
+const MATCHDAY_NAMES: Record<number, string> = {
+  101: "Gameweek 1",
+  102: "Gameweek 2",
+  103: "Gameweek 3",
+};
+
+const gameweekLabel = (matchdayId: number) => `GW${matchdayId - 100}`;
 
 /* ------------------------------ Scenarios ------------------------------- */
 
@@ -170,41 +186,41 @@ export const SCENARIOS: Record<
   build: {
     title: "Initial squad build",
     blurb:
-      "Joined, no squad. Round locks in ~4h — free-form building. From here the lifecycle buttons walk the ENTIRE campaign: lock → live games → rollover to the Semis → Final → champion.",
+      "Joined, no squad. GW1 locks in ~4h — free-form building. From here the lifecycle buttons walk the season: lock → live games → rollover to GW2 → GW3 → season complete.",
     checks: [
       "XI (4-4-2) on the pitch + 4 bench slots from the start",
-      "Budget bar, nation cap (5) and position quotas enforced on save",
+      "Budget bar, club cap (3) and position quotas enforced on save",
       "Autofill produces a valid squad; captain/vice defaults applied",
-      "Save, then Jump to lock → Advance → Roll over, repeat to the trophy",
+      "Save, then Jump to lock → Advance → Roll over, repeat through GW3",
     ],
   },
   manage: {
     title: "Rolled-over squad",
     blurb:
-      "Round 2 squad (not initial): lineup edits are free, composition goes through transfers (−3 beyond 4 free). Two squad players' teams were eliminated.",
+      "GW2 squad (not initial): lineup edits are free, composition goes through transfers (−4 beyond free). Two squad players' clubs were relegated.",
     checks: [
-      "Airplane badge on eliminated players; no swaps or armband for them",
-      "Transfer mode: out→in pairs with running −3 cost beyond free",
+      "Airplane badge on inactive players; no swaps or armband for them",
+      "Transfer mode: out→in pairs with running −4 cost beyond free",
       "Formation chip updates when you swap bench⇄XI",
     ],
   },
   live: {
-    title: "Live round (rolling lockout)",
+    title: "Live gameweek",
     blurb:
-      "Round locked mid-play: one game finished, one in progress, two later today. Captain hasn't played (vice fallback). Use 'Advance sim' to move time.",
+      "Gameweek locked mid-play: one game finished, one in progress, two later today. Captain hasn't played (vice fallback). Use 'Advance sim' to move time.",
     checks: [
       "Lock chips on in-play players, tick chips on finished ones",
       "Incoming XI player must be pre-kickoff; can't remove mid-match player",
-      "Live points tick up on Advance sim (real scoring matrix)",
-      "Transfers are closed during the round",
+      "Live points tick up on Advance sim (real FPL scoring matrix)",
+      "Transfers are closed during the gameweek",
     ],
   },
   finalizing: {
-    title: "Round finished (finalizing)",
+    title: "Gameweek finished (finalizing)",
     blurb: "All games done, stats reconciling. Transfers reopen after rollover.",
     checks: [
       "All players show the played tick with final points",
-      "Roll over: losers' players get the airplane badge, squad clones forward with fresh free transfers, rank movement appears on the leaderboard",
+      "Roll over: inactive players get the airplane badge, squad clones forward with banked free transfers (max 5), rank movement appears on the leaderboard",
     ],
   },
 };
@@ -218,7 +234,6 @@ interface DemoState {
   giveawayOptIn: boolean;
   pool: FantasyPlayer[];
   fixtures: DemoFixture[];
-  /** 6 = Quarter-finals, 7 = Semi-finals, 8 = Final (+ bronze). */
   matchdayId: number;
   lockAt: string;
   matchdayStatus: "upcoming" | "live" | "finalizing";
@@ -232,29 +247,28 @@ interface DemoState {
   } | null;
   stats: Map<number, PlayerMatchStats>;
   totalPoints: number;
-  /** Banked points per completed round (drives the round-strip pills). */
+  /** Banked points per completed gameweek (drives the round-strip pills). */
   roundHistory: { matchday_id: number; points: number }[];
   simMinutes: number;
   myRank: number;
-  activatedReferrals: number;
-  deadline: string;
+  leagues: {
+    id: string;
+    name: string;
+    invite_code: string;
+    created_by: string;
+    joined_gameweek: number;
+  }[];
 }
-
-const MATCHDAY_NAMES: Record<number, string> = {
-  6: "Quarter-finals",
-  7: "Semi-finals",
-  8: "Final",
-};
 
 const hoursFromNow = (h: number) => new Date(Date.now() + h * 3600_000).toISOString();
 
 const byId = (pool: FantasyPlayer[]) =>
   new Map(pool.map((p) => [Number(p.provider_player_id), p]));
 
-/** Deterministic valid 15 (2/5/5/3, ≤5 per nation, within budget). */
+/** Deterministic valid 15 (2/5/5/3, ≤club_cap per team_id, within budget). */
 function pickSquad(pool: FantasyPlayer[], preferNations: string[]) {
   const quotas: Record<Position, number> = { GK: 2, DEF: 5, MID: 5, FWD: 3 };
-  const nationCount = new Map<string, number>();
+  const clubCount = new Map<number, number>();
   const chosen: FantasyPlayer[] = [];
   const ordered = [...pool].sort(
     (a, b) =>
@@ -263,9 +277,9 @@ function pickSquad(pool: FantasyPlayer[], preferNations: string[]) {
   );
   for (const p of ordered) {
     if (quotas[p.position] <= 0) continue;
-    if ((nationCount.get(p.nation) ?? 0) >= 4) continue;
+    if ((clubCount.get(p.team_id) ?? 0) >= DEMO_SETTINGS.club_cap) continue;
     quotas[p.position]--;
-    nationCount.set(p.nation, (nationCount.get(p.nation) ?? 0) + 1);
+    clubCount.set(p.team_id, (clubCount.get(p.team_id) ?? 0) + 1);
     chosen.push(p);
     if (chosen.length === 15) break;
   }
@@ -300,10 +314,10 @@ function pickSquad(pool: FantasyPlayer[], preferNations: string[]) {
 function makeFixtures(scenario: DemoScenario): { fixtures: DemoFixture[]; lockAt: string } {
   const mk = (i: number, kickoffH: number): DemoFixture => ({
     provider_fixture_id: 9000 + i,
-    home_team_id: teamIdOf(QF_PAIRS[i][0]),
-    away_team_id: teamIdOf(QF_PAIRS[i][1]),
-    home_team: QF_PAIRS[i][0],
-    away_team: QF_PAIRS[i][1],
+    home_team_id: teamIdOf(GW_FIXTURES[i][0]),
+    away_team_id: teamIdOf(GW_FIXTURES[i][1]),
+    home_team: GW_FIXTURES[i][0],
+    away_team: GW_FIXTURES[i][1],
     kickoff: hoursFromNow(kickoffH),
     status: "NS",
     home_score: null,
@@ -324,7 +338,7 @@ function makeFixtures(scenario: DemoScenario): { fixtures: DemoFixture[]; lockAt
     return { fixtures, lockAt: hoursFromNow(-6) };
   }
   if (scenario === "finalizing") {
-    const fixtures = QF_PAIRS.map((_, i) => mk(i, -10 + i));
+    const fixtures = GW_FIXTURES.map((_, i) => mk(i, -10 + i));
     for (const f of fixtures) {
       f.status = "FT";
       f.home_score = (f.provider_fixture_id % 3) as number;
@@ -334,7 +348,7 @@ function makeFixtures(scenario: DemoScenario): { fixtures: DemoFixture[]; lockAt
     return { fixtures, lockAt: hoursFromNow(-14) };
   }
   // Pre-lock scenarios: all upcoming, lock in ~4h.
-  return { fixtures: QF_PAIRS.map((_, i) => mk(i, 4 + i * 3)), lockAt: hoursFromNow(4) };
+  return { fixtures: GW_FIXTURES.map((_, i) => mk(i, 4 + i * 3)), lockAt: hoursFromNow(4) };
 }
 
 /** Scripted match stats so live points come from the REAL scoring matrix. */
@@ -373,8 +387,8 @@ function seedLiveStats(state: DemoState) {
 
 function buildState(scenario: DemoScenario): DemoState {
   const pool = buildPool();
-  const bracketKnown = scenario !== "fresh"; // QF bracket published
-  if (bracketKnown) {
+  const seasonStarted = scenario !== "fresh"; // fixture list published
+  if (seasonStarted) {
     for (const p of pool) {
       if (ELIMINATED_NATIONS.has(p.nation)) p.is_active = false;
     }
@@ -388,7 +402,7 @@ function buildState(scenario: DemoScenario): DemoState {
     giveawayOptIn: true,
     pool,
     fixtures,
-    matchdayId: 6,
+    matchdayId: 101,
     lockAt,
     matchdayStatus:
       scenario === "live" ? "live" : scenario === "finalizing" ? "finalizing" : "upcoming",
@@ -399,29 +413,32 @@ function buildState(scenario: DemoScenario): DemoState {
     roundHistory: [],
     simMinutes: 0,
     myRank: 12,
-    activatedReferrals: 3,
-    deadline: DEMO_SETTINGS.qualification_deadline,
+    leagues: [],
   };
 
   if (scenario === "manage" || scenario === "live" || scenario === "finalizing") {
-    // Includes two players whose teams were eliminated last round (manage).
+    // Includes two players whose clubs were relegated (manage).
     const prefer =
       scenario === "manage"
         ? ["Netherlands", "Japan", "Brazil", "France", "England", "Spain"]
         : ["Brazil", "France", "England", "Spain", "Argentina"];
     const activePool =
       scenario === "manage"
-        ? pool // eliminated players allowed to REMAIN in a rolled-over squad
+        ? pool // inactive players allowed to REMAIN in a rolled-over squad
         : pool.filter((p) => p.is_active);
     const { players, budget } = pickSquad(activePool, prefer);
     state.squad = {
       players,
       budget_spent: budget,
-      free_transfers_remaining: 4,
-      transfer_points_deduction: scenario === "live" ? 3 : 0,
+      free_transfers_remaining:
+        scenario === "manage" ? 4 : DEMO_SETTINGS.free_transfers_max,
+      transfer_points_deduction: scenario === "live" ? 4 : 0,
       is_initial: false,
     };
-    // Baseline from previous rounds — THIS round's points are computed live
+    if (scenario === "manage" || scenario === "finalizing") {
+      state.matchdayId = 102;
+    }
+    // Baseline from previous gameweeks — THIS gameweek's points are computed live
     // from the squad's stats via computeSquadPoints (see totalPointsNow).
     state.totalPoints = 34;
   }
@@ -463,7 +480,7 @@ export class DemoBackend {
   }
 
   get label() {
-    return `MD${this.state.matchdayId}`;
+    return gameweekLabel(this.state.matchdayId);
   }
 
   get matchday() {
@@ -471,7 +488,7 @@ export class DemoBackend {
       id: this.state.matchdayId,
       label: this.label,
       round: MATCHDAY_NAMES[this.state.matchdayId],
-      display_name: MATCHDAY_NAMES[this.state.matchdayId],
+      display_name: this.label,
       lock_at: this.state.lockAt,
       status: this.state.matchdayStatus,
     };
@@ -481,20 +498,18 @@ export class DemoBackend {
     return Date.now() >= new Date(this.state.lockAt).getTime();
   }
 
-  /** Lifecycle fast-forward: skip the wait and lock the current round. */
+  /** Lifecycle fast-forward: skip the wait and lock the current gameweek. */
   jumpToLock() {
     const s = this.state;
     s.lockAt = new Date(Date.now() - 60_000).toISOString();
     s.matchdayStatus = "live";
-    this.note(`${MATCHDAY_NAMES[s.matchdayId]} locked — advance the sim for kickoffs`);
+    this.note(`${this.label} locked — advance the sim for kickoffs`);
   }
 
   /**
-   * Round rollover — the demo mirror of the worker's live→finalizing step:
-   * bank the round's points, flag the losers' players inactive, clone the
-   * squad into the next round (is_initial=false, fresh free transfers, no
-   * deduction), snapshot rank movement, and build the next round's fixtures
-   * from the winners.
+   * Gameweek rollover — bank points, flag inactive clubs' players, clone the
+   * squad into the next gameweek (is_initial=false, banked free transfers),
+   * snapshot rank movement, and build the next gameweek's fixtures.
    */
   rollover() {
     const s = this.state;
@@ -503,9 +518,11 @@ export class DemoBackend {
     s.totalPoints = bankedTotal;
     s.roundHistory.push({ matchday_id: s.matchdayId, points: roundPoints });
 
-    if (s.matchdayId >= 8) {
+    if (s.matchdayId >= 103) {
       s.campaignComplete = true;
-      this.note(`CHAMPIONS — campaign complete. Final round scored ${roundPoints} pts; winners export time!`);
+      this.note(
+        `Season complete. ${this.label} scored ${roundPoints} pts — winners export time!`,
+      );
       return;
     }
 
@@ -535,9 +552,9 @@ export class DemoBackend {
       minute: 0,
     });
     s.fixtures =
-      s.matchdayId === 7
+      s.matchdayId === 102
         ? [mkNext(0, winners[0], winners[1], 5), mkNext(1, winners[2], winners[3], 8)]
-        : [mkNext(0, losers[0], losers[1], 5), mkNext(1, winners[0], winners[1], 8)]; // bronze + final
+        : [mkNext(0, losers[0], losers[1], 5), mkNext(1, winners[0], winners[1], 8)];
     s.lockAt = hoursFromNow(4);
     s.matchdayStatus = "upcoming";
     s.stats = new Map();
@@ -545,34 +562,19 @@ export class DemoBackend {
 
     if (s.squad) {
       s.squad.is_initial = false;
-      s.squad.free_transfers_remaining =
-        DEMO_SETTINGS.free_transfers[this.label] ?? 0;
+      const remaining = s.squad.free_transfers_remaining;
+      s.squad.free_transfers_remaining = Math.min(
+        remaining + 1,
+        DEMO_SETTINGS.free_transfers_max,
+      );
       s.squad.transfer_points_deduction = 0;
     }
     const previousRank = s.myRank;
     s.myRank = Math.max(1, s.myRank - 3);
     this.note(
-      `Rolled over to the ${MATCHDAY_NAMES[s.matchdayId]} (+${roundPoints} pts, rank ${previousRank}→${s.myRank}). ` +
-        `Squad cloned with ${s.squad?.free_transfers_remaining ?? 0} free transfers; eliminated teams flagged as flown home.`,
+      `Rolled over to ${gameweekLabel(s.matchdayId)} (+${roundPoints} pts, rank ${previousRank}→${s.myRank}). ` +
+        `Squad cloned with ${s.squad?.free_transfers_remaining ?? 0} free transfers; inactive clubs flagged.`,
     );
-  }
-
-  /** Simulate a referred friend crossing the cumulative $5 threshold. */
-  activateReferral() {
-    const s = this.state;
-    if (s.activatedReferrals >= DEMO_SETTINGS.referrals_required) return;
-    s.activatedReferrals += 1;
-    this.note(
-      `Referral activated (${s.activatedReferrals}/${DEMO_SETTINGS.referrals_required})${
-        s.activatedReferrals >= DEMO_SETTINGS.referrals_required ? " — QUALIFIED" : ""
-      }`,
-    );
-  }
-
-  /** Simulate the qualification deadline passing. */
-  expireDeadline() {
-    this.state.deadline = new Date(Date.now() - 60_000).toISOString();
-    this.note("Qualification deadline passed — opt-in toggle now rejects");
   }
 
   private lockStateOf(teamId: number): "unlocked" | "locked" | "played" {
@@ -587,38 +589,47 @@ export class DemoBackend {
 
   private liveOf(playerId: number) {
     const s = this.state.stats.get(playerId);
-    if (!s) return { points: 0, minutes: 0 };
+    if (!s) return { points: 0, minutes: 0, yellowCards: 0, redCards: 0 };
     const player = byId(this.state.pool).get(playerId);
-    if (!player) return { points: 0, minutes: 0 };
+    if (!player) return { points: 0, minutes: 0, yellowCards: 0, redCards: 0 };
     return {
-      points: computePoints(s, player.position, DEMO_SETTINGS.scoring).points,
+      points: computePoints(s, player.position, DEMO_SETTINGS.scoring, DEFCON_PICK).points,
       minutes: s.minutes,
+      yellowCards: s.yellowCards,
+      redCards: s.redCards,
     };
   }
 
   /**
-   * Participant total = previous-rounds baseline + THIS round's squad score
-   * from the real aggregator (captain double, unconditional vice fallback,
-   * bench excluded, transfer deduction) — so the Total chip always agrees
-   * with the per-player live points on screen.
+   * Participant total = previous-gameweeks baseline + THIS gameweek's squad score
+   * from the real aggregator (auto-subs, captain double, vice fallback,
+   * transfer deduction) — so the Total chip agrees with per-player live points.
    */
   private totalPointsNow(): number {
     const s = this.state;
     if (!s.squad) return s.totalPoints;
+    const players = byId(s.pool);
     const playerPoints = new Map(
       s.squad.players.map((p) => [p.player_id, this.liveOf(p.player_id)] as const),
     );
-    const roundPoints = computeSquadPoints({
-      startingXI: s.squad.players
-        .filter((p) => p.slot <= 11)
-        .map((p) => ({
-          playerId: p.player_id,
-          isCaptain: p.is_captain,
-          isVice: p.is_vice,
-        })),
-      playerPoints,
-      transferPointsDeduction: s.squad.transfer_points_deduction,
+    const squad = s.squad.players.map((p) => {
+      const player = players.get(p.player_id)!;
+      return {
+        playerId: p.player_id,
+        slot: p.slot,
+        isCaptain: p.is_captain,
+        isVice: p.is_vice,
+        position: player.position,
+      };
     });
+    const { points: roundPoints } = computeSquadPoints(
+      {
+        squad,
+        playerPoints,
+        transferPointsDeduction: s.squad.transfer_points_deduction,
+      },
+      applyAutoSubs,
+    );
     return s.totalPoints + roundPoints;
   }
 
@@ -667,7 +678,10 @@ export class DemoBackend {
           (p) => squadXi.has(Number(p.provider_player_id)) && p.position !== "GK",
         ) ?? teamPlayers.find((p) => Number(p.provider_player_id) % 10 === 8);
       const assister = teamPlayers.find(
-        (p) => p !== scorer && (squadXi.has(Number(p.provider_player_id)) || Number(p.provider_player_id) % 10 === 7),
+        (p) =>
+          p !== scorer &&
+          (squadXi.has(Number(p.provider_player_id)) ||
+            Number(p.provider_player_id) % 10 === 7),
       );
       if (scorer && f.minute <= 90) {
         if (scorerTeam === f.home_team_id) f.home_score = (f.home_score ?? 0) + 1;
@@ -700,7 +714,7 @@ export class DemoBackend {
     }
     if (s.fixtures.every((f) => f.status === "FT") && s.matchdayStatus === "live") {
       s.matchdayStatus = "finalizing";
-      this.note("All games finished — round finalizing (rollover next)");
+      this.note("All games finished — gameweek finalizing (rollover next)");
     }
   }
 
@@ -725,8 +739,12 @@ export class DemoBackend {
           squad_size: DEMO_SETTINGS.squad_size,
           positions: DEMO_SETTINGS.positions,
           formations: DEMO_SETTINGS.formations,
-          nation_cap: DEMO_SETTINGS.nation_caps[this.label] ?? null,
+          club_cap: DEMO_SETTINGS.club_cap,
           transfer_penalty: DEMO_SETTINGS.transfer_penalty,
+          free_transfers_max: DEMO_SETTINGS.free_transfers_max,
+          photos_enabled: DEMO_SETTINGS.photos_enabled,
+          defcon_def_threshold: DEMO_SETTINGS.defcon_def_threshold,
+          defcon_mid_fwd_threshold: DEMO_SETTINGS.defcon_mid_fwd_threshold,
           scoring: DEMO_SETTINGS.scoring,
         },
         matchday: this.matchday,
@@ -734,13 +752,12 @@ export class DemoBackend {
     }
 
     if (path === "/api/play/matchdays") {
-      const ids = [6, 7, 8];
       return ok({
-        matchdays: ids.map((id) => ({
+        matchdays: DEMO_MATCHDAY_IDS.map((id) => ({
           id,
-          label: `MD${id}`,
+          label: gameweekLabel(id),
           round: MATCHDAY_NAMES[id],
-          display_name: MATCHDAY_NAMES[id],
+          display_name: gameweekLabel(id),
           lock_at:
             id === s.matchdayId ? s.lockAt : hoursFromNow(id < s.matchdayId ? -96 : 96),
           status:
@@ -761,15 +778,15 @@ export class DemoBackend {
           fixtures: s.fixtures.map(({ minute: _minute, ...f }) => f),
         });
       }
-      if (requested < 5 || requested > 8) return err("Not found (demo)", 404);
-      // Other rounds: known meta, no fixtures yet (bracket undecided) or
-      // already archived — enough for the FixturesCard navigation.
+      if (!DEMO_MATCHDAY_IDS.includes(requested as (typeof DEMO_MATCHDAY_IDS)[number])) {
+        return err("Not found (demo)", 404);
+      }
       return ok({
         matchday: {
           id: requested,
-          label: `MD${requested}`,
+          label: gameweekLabel(requested),
           round: MATCHDAY_NAMES[requested],
-          display_name: MATCHDAY_NAMES[requested] ?? "Round of 16",
+          display_name: gameweekLabel(requested),
           lock_at: hoursFromNow(requested > s.matchdayId ? 96 : -96),
           status: requested < s.matchdayId ? "final" : "upcoming",
         },
@@ -789,7 +806,7 @@ export class DemoBackend {
           ? {
               available: false,
               reason: "That username is taken",
-              suggestions: [`${u}_wc26`, `${u}${Math.floor(Math.random() * 90) + 10}`, `real_${u}`],
+              suggestions: [`${u}_epl26`, `${u}${Math.floor(Math.random() * 90) + 10}`, `real_${u}`],
             }
           : { available: true },
       );
@@ -799,12 +816,11 @@ export class DemoBackend {
       const username = String(body?.username ?? "").toLowerCase();
       if (s.scenario === "username-taken" || TAKEN_USERNAMES.has(username)) {
         return err("Username is taken", 409, {
-          suggestions: [`${username}_wc26`, `${username}9`, `real_${username}`],
+          suggestions: [`${username}_epl26`, `${username}9`, `real_${username}`],
         });
       }
       s.joined = true;
       s.username = username;
-      s.giveawayOptIn = Boolean(body?.giveawayOptIn);
       this.note(`Joined the league as @${username}`);
       return ok({ joined: true, already_joined: false, username });
     }
@@ -821,13 +837,47 @@ export class DemoBackend {
     if (path === "/api/play/transfers" && method === "POST") {
       return this.transfers(body);
     }
-    if (path === "/api/play/rewards") {
+    if (path === "/api/play/rewards" || (path === "/api/play/leagues" && method === "GET")) {
       return ok(this.rewards());
     }
-    if (path === "/api/play/opt-in" && method === "POST") {
-      if (Date.now() > new Date(s.deadline).getTime()) {
-        return err("The qualification deadline has passed", 400);
+    if (path === "/api/play/leagues" && method === "POST") {
+      const name = String(body?.name ?? "").trim();
+      if (name.length < 3) return err("League name must be at least 3 characters", 400);
+      const league = {
+        id: `demo-lg-${s.leagues.length + 1}`,
+        name,
+        invite_code: `DEMO${(s.leagues.length + 1).toString().padStart(4, "0")}`,
+        created_by: "0xdemo",
+        joined_gameweek: s.matchdayId,
+      };
+      s.leagues.push(league);
+      this.note(`Created league ${name} (${league.invite_code})`);
+      return ok({ league: this.leagueSummary(league) }, 201);
+    }
+    if (path === "/api/play/leagues/join" && method === "POST") {
+      const code = String(body?.code ?? "").trim().toUpperCase();
+      if (!code) return err("Provide an invite code", 400);
+      if (s.leagues.some((l) => l.invite_code === code)) {
+        return err("You are already in this league", 409, { code: "ALREADY_MEMBER" });
       }
+      const league = {
+        id: `demo-join-${code}`,
+        name: `League ${code}`,
+        invite_code: code,
+        created_by: "0xfriend",
+        joined_gameweek: s.matchdayId,
+      };
+      s.leagues.push(league);
+      this.note(`Joined league ${code}`);
+      return ok({ league: this.leagueSummary(league) });
+    }
+    if (path === "/api/play/leagues/leave" && method === "POST") {
+      const leagueId = String(body?.leagueId ?? "");
+      s.leagues = s.leagues.filter((l) => l.id !== leagueId);
+      this.note(`Left league ${leagueId}`);
+      return ok({ left: true });
+    }
+    if (path === "/api/play/opt-in" && method === "POST") {
       s.giveawayOptIn = Boolean(body?.optIn);
       this.note(`Giveaway opt-in → ${s.giveawayOptIn}`);
       return ok({ giveaway_opt_in: s.giveawayOptIn });
@@ -836,12 +886,35 @@ export class DemoBackend {
     return err("Not found (demo)", 404);
   }
 
+  private leagueSummary(league: DemoState["leagues"][number]) {
+    const s = this.state;
+    return {
+      id: league.id,
+      name: league.name,
+      invite_code: league.invite_code,
+      created_by: league.created_by,
+      member_count: 1,
+      standings: [
+        {
+          wallet_address: "0xdemo",
+          username: s.username,
+          points: this.totalPointsNow(),
+          transfers: 0,
+          rank: 1,
+          joined_gameweek: league.joined_gameweek,
+          is_me: true,
+        },
+      ],
+    };
+  }
+
   private squadResponse() {
     const s = this.state;
     const players = byId(s.pool);
     return {
       matchday: this.matchday,
       locked: this.locked,
+      game_active: hasActiveFixtures(s.fixtures),
       squad: s.squad
         ? {
             id: "demo-squad",
@@ -859,7 +932,10 @@ export class DemoBackend {
             }),
           }
         : null,
-      free_transfers: DEMO_SETTINGS.free_transfers[this.label] ?? 0,
+      free_transfers: s.squad?.free_transfers_remaining ?? DEMO_SETTINGS.free_transfers_max,
+      free_transfers_max: DEMO_SETTINGS.free_transfers_max,
+      club_cap: DEMO_SETTINGS.club_cap,
+      photos_enabled: DEMO_SETTINGS.photos_enabled,
       total_points: this.totalPointsNow(),
       matchday_scores: [
         ...s.roundHistory,
@@ -887,7 +963,6 @@ export class DemoBackend {
       selection,
       players,
       settings: DEMO_SETTINGS,
-      matchdayLabel: this.label,
     });
     if (!validation.ok) return err("Invalid squad", 400, { errors: validation.errors });
 
@@ -895,9 +970,9 @@ export class DemoBackend {
     const existing = s.squad;
 
     if (!existing) {
-      if (this.locked) return err("This round is locked — you can join the next one", 403, { code: "ROUND_LOCKED" });
+      if (this.locked) return err("This gameweek is locked — you can join the next one", 403, { code: "ROUND_LOCKED" });
       for (const id of newIds) {
-        if (!players.get(id)?.is_active) return err("Squad contains players from eliminated teams", 400);
+        if (!players.get(id)?.is_active) return err("Squad contains players from inactive clubs", 400);
       }
     } else {
       const oldIds = new Set(existing.players.map((p) => p.player_id));
@@ -905,10 +980,10 @@ export class DemoBackend {
         newIds.size !== oldIds.size || [...newIds].some((id) => !oldIds.has(id));
       if (!this.locked) {
         if (compositionChanged && !existing.is_initial) {
-          return err("Use transfers to change your squad after your first round", 400, { code: "USE_TRANSFERS" });
+          return err("Use transfers to change your squad after your first gameweek", 400, { code: "USE_TRANSFERS" });
         }
       } else {
-        if (compositionChanged) return err("Transfers are closed during a live round", 403, { code: "ROUND_LOCKED" });
+        if (compositionChanged) return err("Transfers are closed during a live gameweek", 403, { code: "ROUND_LOCKED" });
         const state = (id: number) => {
           const p = players.get(id);
           return p ? this.lockStateOf(p.team_id) : "unlocked";
@@ -948,7 +1023,8 @@ export class DemoBackend {
         is_vice: playerId === selection.viceId,
       })),
       budget_spent: Math.round(budget * 10) / 10,
-      free_transfers_remaining: existing?.free_transfers_remaining ?? (DEMO_SETTINGS.free_transfers.MD6 ?? 0),
+      free_transfers_remaining:
+        existing?.free_transfers_remaining ?? DEMO_SETTINGS.free_transfers_max,
       transfer_points_deduction: existing?.transfer_points_deduction ?? 0,
       is_initial: existing?.is_initial ?? true,
     };
@@ -962,7 +1038,7 @@ export class DemoBackend {
     const transfers = body?.transfers ?? [];
     if (!s.squad) return err("Build a squad first", 400);
     if (s.squad.is_initial) return err("Initial squads edit freely — no transfers needed", 400);
-    if (this.locked) return err("Transfers are closed during a live round", 403, { code: "ROUND_LOCKED" });
+    if (this.locked) return err("Transfers are closed during a live gameweek", 403, { code: "ROUND_LOCKED" });
     if (transfers.length === 0) return err("No transfers supplied", 400);
 
     const players = byId(s.pool);
@@ -971,7 +1047,7 @@ export class DemoBackend {
       const idx = updated.findIndex((p) => p.player_id === Number(t.out));
       if (idx < 0) return err("Transfer-out player is not in your squad", 400);
       if (!players.get(Number(t.in))?.is_active) {
-        return err("Incoming player's team is eliminated", 400);
+        return err("Incoming player's club is inactive", 400);
       }
       updated[idx] = { ...updated[idx], player_id: Number(t.in) };
     }
@@ -983,7 +1059,6 @@ export class DemoBackend {
       },
       players,
       settings: DEMO_SETTINGS,
-      matchdayLabel: this.label,
     });
     if (!validation.ok) {
       return err("Transfers would make your squad invalid", 400, { errors: validation.errors });
@@ -1018,12 +1093,7 @@ export class DemoBackend {
     let page = Math.max(1, Number(url.searchParams.get("page") ?? 1));
     if (findMe) page = Math.ceil(myRank / pageSize);
 
-    const myBadge =
-      s.activatedReferrals >= DEMO_SETTINGS.referrals_required && s.giveawayOptIn
-        ? "qualified"
-        : s.giveawayOptIn
-          ? "in_progress"
-          : "opted_out";
+    const myBadge: BadgeState = s.giveawayOptIn ? "active" : "opted_out";
 
     const rows = Array.from({ length: pageSize }, (_, i) => {
       const rank = (page - 1) * pageSize + i + 1;
@@ -1033,14 +1103,8 @@ export class DemoBackend {
         rank,
         username: isMe ? (s.username ?? "demo_manager") : `${names[rank % names.length]}${rank}`,
         total_points: isMe ? this.totalPointsNow() : Math.max(0, 190 - rank * 2 - (rank % 3)),
-        badge: (isMe
-          ? myBadge
-          : rank % 7 === 0
-            ? "opted_out"
-            : rank % 3 === 0
-              ? "qualified"
-              : "in_progress") as "qualified" | "in_progress" | "opted_out",
-        // Movement snapshots at rollover: self climbs 3 per completed round.
+        badge: (isMe ? myBadge : rank % 5 === 0 ? "opted_out" : "active") as BadgeState,
+        // Movement snapshots at rollover: self climbs 3 per completed gameweek.
         movement: isMe ? 12 - myRank : ((rank * 13) % 7) - 3,
         is_me: isMe,
       };
@@ -1051,30 +1115,12 @@ export class DemoBackend {
 
   private rewards() {
     const s = this.state;
-    // Derived from the sim's activated count so "+1 activated referral"
-    // walks the full 0→qualified journey, including the crossing amounts.
-    const activatedAmounts = [12.5, 9.4, 5.0, 7.2, 6.1];
-    const wallets = ["0x3f21…9be0", "0x88ac…1d77", "0xd014…52a3", "0x27e9…c4f8", "0xb3b1…08aa"];
-    const referrals = wallets.map((wallet_short, i) => {
-      const activated = i < s.activatedReferrals;
-      return {
-        wallet_short,
-        signed_up_at: hoursFromNow(-70 + i * 16),
-        total_tx_usd: activated ? activatedAmounts[i] : i === s.activatedReferrals ? 4.2 : 0,
-        activated,
-      };
-    });
     return {
-      required: DEMO_SETTINGS.referrals_required,
-      min_total_usd: DEMO_SETTINGS.referral_min_total_usd,
-      activated: Math.min(s.activatedReferrals, wallets.length),
-      referrals,
-      qualified:
-        s.activatedReferrals >= DEMO_SETTINGS.referrals_required && s.giveawayOptIn,
-      giveaway_opt_in: s.giveawayOptIn,
-      deadline: s.deadline,
+      stub: false,
+      message: "",
       rank: s.joined ? s.myRank : null,
       total_points: this.totalPointsNow(),
+      leagues: s.leagues.map((l) => this.leagueSummary(l)),
     };
   }
 }

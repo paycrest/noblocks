@@ -12,7 +12,7 @@ import { assertTransactionWalletMatchesJwtUser } from "@/app/lib/transaction-wal
 
 // Route handler for PUT requests
 export const PUT = withRateLimit(
-  async (request: NextRequest, { params }: { params: { id: string } }) => {
+  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
     const startTime = Date.now();
     const { id } = await params;
 

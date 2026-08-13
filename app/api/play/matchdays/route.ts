@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { withRateLimit } from "@/app/lib/rate-limit";
+import { withRateLimitAndAnalytics } from "@/app/lib/analytics-middleware";
 import {
   fantasyDisabledResponse,
   getMatchdays,
@@ -11,7 +11,7 @@ import {
  * GET /api/play/matchdays — public list of all rounds (id, name, lock,
  * status) for the round-progress strip. DB-only, briefly cached.
  */
-export const GET = withRateLimit(async (_request: NextRequest) => {
+export const GET = withRateLimitAndAnalytics(async (_request: NextRequest) => {
   if (!isFantasyEnabled()) return fantasyDisabledResponse();
 
   try {

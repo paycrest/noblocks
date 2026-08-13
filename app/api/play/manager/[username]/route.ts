@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { withRateLimit } from "@/app/lib/rate-limit";
+import { withRateLimitAndAnalytics } from "@/app/lib/analytics-middleware";
 import {
   fantasyDisabledResponse,
   getPublicManagerTeam,
@@ -12,7 +12,7 @@ import {
  * rank, total points and the squad for the most recent LOCKED matchday
  * (open-round picks never leak). `team` is null until they have one.
  */
-export const GET = withRateLimit(
+export const GET = withRateLimitAndAnalytics(
   async (
     _request: NextRequest,
     context: { params: Promise<{ username: string }> },

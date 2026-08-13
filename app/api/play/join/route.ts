@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { supabaseAdmin } from "@/app/lib/supabase";
-import { withRateLimit } from "@/app/lib/rate-limit";
+import { withRateLimitAndAnalytics } from "@/app/lib/analytics-middleware";
 import { trackBusinessEvent } from "@/app/lib/server-analytics";
 import { validateUsername, suggestUsernames } from "@/app/lib/fantasy/validation";
 import { getFantasySettings } from "@/app/lib/fantasy/settings";
@@ -15,17 +15,12 @@ import {
   jsonOk,
 } from "@/app/lib/fantasy/server";
 
-const isUniqueViolation = (error: { code?: string; message?: string } | null) =>
-  error?.code === "23505" ||
-  Boolean(error?.message?.toLowerCase().includes("duplicate")) ||
-  Boolean(error?.message?.toLowerCase().includes("unique"));
-
 /**
  * POST /api/play/join — create the permanent username and enter the one
  * global league. Idempotent: re-joining returns the existing participant.
- * Body: { username: string, acceptTerms: true, giveawayOptIn?: boolean }
+ * Body: { username: string, acceptTerms: true }
  */
-export const POST = withRateLimit(async (request: NextRequest) => {
+export const POST = withRateLimitAndAnalytics(async (request: NextRequest) => {
   if (!isFantasyEnabled()) return fantasyDisabledResponse();
 
   try {
@@ -47,10 +42,15 @@ export const POST = withRateLimit(async (request: NextRequest) => {
       });
     }
 
-    // Joining stays open until the Final's lineup lock (PRD O-3).
+    // Join open while features.join_open and a season matchday exists.
+    // Closed when the last season GW is locked/final (or join_open false).
     const settings = await getFantasySettings();
     const currentMatchday = await getCurrentMatchday();
-    if (!settings.features.join_open || !currentMatchday || (currentMatchday.id === 8 && isMatchdayLocked(currentMatchday))) {
+    const seasonComplete =
+      !currentMatchday ||
+      (currentMatchday.id >= settings.season_matchday_max &&
+        isMatchdayLocked(currentMatchday));
+    if (!settings.features.join_open || seasonComplete) {
       return jsonError("The league is closed to new entries", 403, {
         code: "JOIN_CLOSED",
       });
@@ -62,16 +62,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
         code: "TERMS_REQUIRED",
       });
     }
-    const giveawayOptIn = body?.giveawayOptIn !== false; // defaults ON (PRD §7.1)
 
-    const validation = validateUsername(String(body?.username ?? ""));
-    if (!validation.ok) {
-      return jsonError(validation.error, 400, { code: "INVALID_USERNAME" });
-    }
-    const username = validation.normalized;
-
-    // Usernames are permanent — if this wallet already has one (edge case:
-    // profile written by a prior partial join), keep it.
     const { data: profile, error: profileError } = await supabaseAdmin
       .from("user_kyc_profiles")
       .select("username")
@@ -79,47 +70,50 @@ export const POST = withRateLimit(async (request: NextRequest) => {
       .maybeSingle();
     if (profileError) throw profileError;
 
-    let finalUsername = profile?.username as string | null;
-
-    if (!finalUsername) {
-      const { error: upsertError } = await supabaseAdmin
-        .from("user_kyc_profiles")
-        .upsert(
-          { wallet_address: walletAddress, username },
-          { onConflict: "wallet_address" },
-        );
-      if (upsertError) {
-        if (isUniqueViolation(upsertError)) {
-          return jsonError("That username was just taken", 409, {
-            code: "USERNAME_TAKEN",
-            suggestions: suggestUsernames(username),
-          });
-        }
-        throw upsertError;
+    let username = profile?.username as string | null;
+    if (!username) {
+      const validation = validateUsername(String(body?.username ?? ""));
+      if (!validation.ok) {
+        return jsonError(validation.error, 400, { code: "INVALID_USERNAME" });
       }
-      finalUsername = username;
+      username = validation.normalized;
     }
 
-    const { error: participantError } = await supabaseAdmin
-      .from("fantasy_participants")
-      .insert({
+    const { data: joinResult, error: joinError } = await supabaseAdmin.rpc(
+      "fantasy_join_participant",
+      {
+        p_wallet_address: walletAddress,
+        p_username: username,
+        p_terms_accepted_at: new Date().toISOString(),
+      },
+    );
+    if (joinError) {
+      if (joinError.message?.includes("USERNAME_TAKEN")) {
+        return jsonError("That username was just taken", 409, {
+          code: "USERNAME_TAKEN",
+          suggestions: suggestUsernames(username),
+        });
+      }
+      throw joinError;
+    }
+
+    const payload = joinResult as { already_joined?: boolean; username?: string | null };
+    const alreadyJoined = payload.already_joined === true;
+
+    if (!alreadyJoined) {
+      trackBusinessEvent("Fantasy League Joined", {
         wallet_address: walletAddress,
-        terms_accepted_at: new Date().toISOString(),
-        giveaway_opt_in: giveawayOptIn,
+        username: payload.username ?? username,
       });
-    if (participantError && !isUniqueViolation(participantError)) {
-      throw participantError;
     }
-
-    trackBusinessEvent("Fantasy League Joined", {
-      wallet_address: walletAddress,
-      username: finalUsername,
-      giveaway_opt_in: giveawayOptIn,
-    });
 
     return jsonOk(
-      { joined: true, already_joined: false, username: finalUsername },
-      { status: 201 },
+      {
+        joined: true,
+        already_joined: alreadyJoined,
+        username: payload.username ?? username,
+      },
+      { status: alreadyJoined ? 200 : 201 },
     );
   } catch (error) {
     console.error("[play] join failed:", error);

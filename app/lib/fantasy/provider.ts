@@ -12,21 +12,24 @@ import { emptyStats } from "./scoring";
  */
 
 const BASE_URL = "https://v3.football.api-sports.io";
-export const WORLD_CUP_LEAGUE_ID = 1;
-export const WORLD_CUP_SEASON = 2026;
+export const EPL_LEAGUE_ID = 39;
+export const EPL_SEASON = 2026;
+/** Matchday ids are 100 + gameweek (GW1 → 101). */
+export const EPL_MATCHDAY_OFFSET = 100;
 
-/**
- * Provider round names → our matchday ids. MD5 (Round of 16) is only scored
- * when its matchday row was seeded (SEED_INCLUDE_R16 — internal testing);
- * otherwise the worker ignores its fixtures entirely.
- */
-export const ROUND_TO_MATCHDAY: Record<string, number> = {
-  "Round of 16": 5,
-  "Quarter-finals": 6,
-  "Semi-finals": 7,
-  "3rd Place Final": 8,
-  Final: 8,
-};
+/** Parse API-Football round e.g. "Regular Season - 12" → matchday id 112. */
+export function roundToMatchdayId(round: string): number | null {
+  const m = /Regular Season\s*-\s*(\d+)/i.exec(round);
+  if (!m) return null;
+  const gw = Number(m[1]);
+  if (!Number.isFinite(gw) || gw < 1 || gw > 38) return null;
+  return EPL_MATCHDAY_OFFSET + gw;
+}
+
+/** @deprecated use roundToMatchdayId — kept name for fewer call-site churns during cutover */
+export function ROUND_TO_MATCHDAY_LOOKUP(round: string): number | undefined {
+  return roundToMatchdayId(round) ?? undefined;
+}
 
 /** Fixture short statuses that mean "in progress" (rolling lockout = locked). */
 export const LIVE_STATUSES = new Set(["1H", "HT", "2H", "ET", "BT", "P", "LIVE", "INT"]);
@@ -117,6 +120,12 @@ export interface ProviderSquadPlayer {
 export interface ProviderEvent {
   minute: number;
   extraMinute: number | null;
+  /**
+   * For Goal events this is the team the goal counts FOR — including own
+   * goals, where the player is from the OTHER side (verified against live
+   * EPL fixtures, e.g. an OG by a Man Utd defender arrives with Tottenham's
+   * team id). Cards/substitutions carry the involved player's own team.
+   */
   teamId: number;
   playerId: number | null;
   assistPlayerId: number | null;
@@ -151,12 +160,16 @@ interface RawFixturePlayers {
         assists: number | null;
         saves: number | null;
       };
-      passes: { key: number | null };
-      tackles: { total: number | null };
+      passes: { total: number | null; key: number | null; accuracy: string | number | null };
+      tackles: { total: number | null; blocks: number | null; interceptions: number | null };
+      dribbles: { success: number | null } | null;
+      fouls: { drawn: number | null; committed: number | null } | null;
       cards: { yellow: number | null; red: number | null };
       penalty: {
         won: number | null;
-        commited: number | null; // provider's spelling
+        commited: number | null;
+        scored: number | null;
+        missed: number | null;
         saved: number | null;
       };
     }[];
@@ -200,23 +213,28 @@ const mapFixture = (raw: RawFixture): ProviderFixture => ({
   awayScore: raw.goals.away,
 });
 
-/** All World Cup fixtures for the season (one call). */
-export async function getWorldCupFixtures(): Promise<ProviderFixture[]> {
+/** All EPL fixtures for the season (one call). */
+export async function getLeagueFixtures(): Promise<ProviderFixture[]> {
   const raw = await apiGet<RawFixture>("/fixtures", {
-    league: WORLD_CUP_LEAGUE_ID,
-    season: WORLD_CUP_SEASON,
+    league: EPL_LEAGUE_ID,
+    season: EPL_SEASON,
   });
   return raw.map(mapFixture);
 }
 
-/** Currently-live World Cup fixtures (one call, TRD §2.4). */
-export async function getLiveWorldCupFixtures(): Promise<ProviderFixture[]> {
+/** @deprecated alias */
+export const getWorldCupFixtures = getLeagueFixtures;
+
+/** Currently-live EPL fixtures (one call). */
+export async function getLiveLeagueFixtures(): Promise<ProviderFixture[]> {
   const raw = await apiGet<RawFixture>("/fixtures", {
     live: "all",
-    league: WORLD_CUP_LEAGUE_ID,
+    league: EPL_LEAGUE_ID,
   });
   return raw.map(mapFixture);
 }
+
+export const getLiveWorldCupFixtures = getLiveLeagueFixtures;
 
 export async function getFixtureEvents(fixtureId: number): Promise<ProviderEvent[]> {
   const raw = await apiGet<RawEvent>("/fixtures/events", { fixture: fixtureId });
@@ -246,6 +264,12 @@ const POSITION_MAP: Record<string, Position> = {
 export function mapPosition(raw: string | null): Position | null {
   if (!raw) return null;
   return POSITION_MAP[raw] ?? null;
+}
+
+/** Null / unknown provider positions score as MID (NMB + fantasy points). */
+export function mapPositionOrMid(raw: string | Position | null | undefined): Position {
+  if (raw === "GK" || raw === "DEF" || raw === "MID" || raw === "FWD") return raw;
+  return mapPosition(raw ?? null) ?? "MID";
 }
 
 /** Team roster (1 call per team). */
@@ -288,8 +312,8 @@ export async function getTeamPlayerRatings(
   while (page <= 4) {
     const url = new URL(`${BASE_URL}/players`);
     url.searchParams.set("team", String(teamId));
-    url.searchParams.set("season", String(WORLD_CUP_SEASON));
-    url.searchParams.set("league", String(WORLD_CUP_LEAGUE_ID));
+    url.searchParams.set("season", String(EPL_SEASON));
+    url.searchParams.set("league", String(EPL_LEAGUE_ID));
     url.searchParams.set("page", String(page));
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
@@ -333,13 +357,12 @@ const isShootoutEvent = (e: ProviderEvent) =>
   Boolean(e.comments && /penalty shootout/i.test(e.comments));
 
 /**
- * Merge /fixtures/players statistics with /fixtures/events into the normalized
- * stat set the scoring matrix needs (TRD §6.8):
- *   * own goals come from events (not in player stats);
- *   * clean sheet / goals conceded are derived from opponent goal events that
- *     fall inside the player's on-pitch window (sub events bound the window);
- *   * direct free-kick goals are best-effort from event comments;
- *   * penalty-shootout events are excluded throughout.
+ * Merge /fixtures/players + /fixtures/events into scoring stats.
+ * CS / GC use on-pitch windows (goal at exact sub minute charges outgoing).
+ * penalty.missed: vendor field; also count Missed Penalty events for the taker
+ * (covers saved + off-target for FPL −2).
+ * passes.accuracy is 0–100 (string or number from API-Football).
+ * penalty.scored ⊆ goals.total (spike-confirmed) → open-play = goals - scored.
  */
 export async function getNormalizedFixtureStats(
   fixtureId: number,
@@ -351,8 +374,6 @@ export async function getNormalizedFixtureStats(
 
   const scoringEvents = events.filter((e) => !isShootoutEvent(e));
 
-  // On-pitch windows from substitution events. detail "Substitution N":
-  // event.player = outgoing, event.assist = incoming.
   const subOutMinute = new Map<number, number>();
   const subInMinute = new Map<number, number>();
   for (const e of scoringEvents) {
@@ -362,23 +383,28 @@ export async function getNormalizedFixtureStats(
     if (e.assistPlayerId != null) subInMinute.set(e.assistPlayerId, minute);
   }
 
-  // Goal timeline per team (excluding shootout), used for conceded-while-on-pitch.
-  const goalEvents = scoringEvents.filter((e) => e.type === "Goal" && e.detail !== "Missed Penalty");
+  const goalEvents = scoringEvents.filter(
+    (e) => e.type === "Goal" && e.detail !== "Missed Penalty",
+  );
+  const missedPenaltyByPlayer = new Map<number, number>();
+  for (const e of scoringEvents) {
+    if (e.playerId == null) continue;
+    if (e.type === "Goal" && e.detail === "Missed Penalty") {
+      missedPenaltyByPlayer.set(e.playerId, (missedPenaltyByPlayer.get(e.playerId) ?? 0) + 1);
+    }
+  }
+
   const ownGoalsByPlayer = new Map<number, number>();
-  const freeKickGoalsByPlayer = new Map<number, number>();
   for (const e of goalEvents) {
     if (e.playerId == null) continue;
     if (e.detail === "Own Goal") {
       ownGoalsByPlayer.set(e.playerId, (ownGoalsByPlayer.get(e.playerId) ?? 0) + 1);
-    } else if (e.comments && /free.?kick/i.test(e.comments)) {
-      freeKickGoalsByPlayer.set(e.playerId, (freeKickGoalsByPlayer.get(e.playerId) ?? 0) + 1);
     }
   }
 
   const teamIds = playersRaw.map((t) => t.team.id);
   const byPlayer: NormalizedFixtureStats["byPlayer"] = new Map();
 
-  // Match length in minutes (approx): max event minute or 90/120.
   const lastMinute = Math.max(
     90,
     ...scoringEvents.map((e) => e.minute + (e.extraMinute ?? 0)),
@@ -387,12 +413,13 @@ export async function getNormalizedFixtureStats(
   for (const teamEntry of playersRaw) {
     const opponentId = teamIds.find((id) => id !== teamEntry.team.id);
 
-    // Opponent goals against this team, with minutes. An own goal by this
-    // team's player also counts against this team.
+    // Goal events carry the BENEFITING team's id — including own goals
+    // (verified against live EPL fixtures: an OG event lists the team the
+    // goal counts FOR, with the opposing scorer as player). So a team
+    // concedes exactly the goals credited to its opponent; no OG special
+    // case, or the beneficiary's GK would lose a clean sheet they kept.
     const concededMinutes = goalEvents
-      .filter((e) =>
-        e.detail === "Own Goal" ? e.teamId === teamEntry.team.id : e.teamId === opponentId,
-      )
+      .filter((e) => e.teamId === opponentId)
       .map((e) => e.minute + (e.extraMinute ?? 0));
 
     for (const p of teamEntry.players) {
@@ -408,16 +435,27 @@ export async function getNormalizedFixtureStats(
       stats.redCards = stat.cards.red ?? 0;
       stats.saves = stat.goals.saves ?? 0;
       stats.tackles = stat.tackles.total ?? 0;
+      stats.blocks = stat.tackles.blocks ?? 0;
+      stats.interceptions = stat.tackles.interceptions ?? 0;
       stats.keyPasses = stat.passes.key ?? 0;
+      stats.passesTotal = stat.passes.total ?? 0;
+      const accRaw = stat.passes.accuracy;
+      stats.passesAccuracy =
+        typeof accRaw === "string" ? Number(accRaw) || 0 : typeof accRaw === "number" ? accRaw : 0;
+      stats.shotsTotal = stat.shots.total ?? 0;
       stats.shotsOnTarget = stat.shots.on ?? 0;
-      stats.penaltiesWon = stat.penalty.won ?? 0;
+      stats.dribblesSuccess = stat.dribbles?.success ?? 0;
+      stats.foulsDrawn = stat.fouls?.drawn ?? 0;
+      stats.foulsCommitted = stat.fouls?.committed ?? 0;
+      stats.penaltiesScored = stat.penalty.scored ?? 0;
       stats.penaltiesCommitted = stat.penalty.commited ?? 0;
       stats.penaltiesSaved = stat.penalty.saved ?? 0;
+      const missedStat = stat.penalty.missed ?? 0;
+      const missedEvt = missedPenaltyByPlayer.get(p.player.id) ?? 0;
+      stats.penaltiesMissed = Math.max(missedStat, missedEvt);
       stats.ownGoals = ownGoalsByPlayer.get(p.player.id) ?? 0;
-      stats.directFreeKickGoals = freeKickGoalsByPlayer.get(p.player.id) ?? 0;
 
       if (minutes > 0) {
-        // On-pitch window: starters play from 0, subs from their entry minute.
         const started = !stat.games.substitute;
         const from = started ? 0 : (subInMinute.get(p.player.id) ?? Math.max(0, lastMinute - minutes));
         const to = subOutMinute.get(p.player.id) ?? lastMinute;
@@ -435,4 +473,34 @@ export async function getNormalizedFixtureStats(
   }
 
   return { byPlayer };
+}
+
+/**
+ * Goal order per team, chronological, for the NMB winning-goal ordinal.
+ * EVERY goal that moves the score stays in the tally so the array always
+ * lines up with the final score the ordinal is derived from — dropping any
+ * would shift every later goal one place and mis-award the +3. Goals without
+ * an attributable scorer (own goals; feed gaps with a null player id) carry
+ * scorer null: a null at the ordinal means nobody gets the bonus.
+ */
+export function goalScorerOrdersFromEvents(
+  events: ProviderEvent[],
+  homeTeamId: number,
+  awayTeamId: number,
+): { home: (number | null)[]; away: (number | null)[] } {
+  const scoring = events.filter(
+    (e) =>
+      !isShootoutEvent(e) && e.type === "Goal" && e.detail !== "Missed Penalty",
+  );
+  scoring.sort(
+    (a, b) => a.minute + (a.extraMinute ?? 0) - (b.minute + (b.extraMinute ?? 0)),
+  );
+  const home: (number | null)[] = [];
+  const away: (number | null)[] = [];
+  for (const e of scoring) {
+    const scorer = e.detail === "Own Goal" ? null : e.playerId;
+    if (e.teamId === homeTeamId) home.push(scorer);
+    else if (e.teamId === awayTeamId) away.push(scorer);
+  }
+  return { home, away };
 }

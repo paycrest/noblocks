@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * End-of-campaign announcement for Noblocks Play (World Cup sunset).
+ * End-of-campaign announcement for Noblocks Play.
  * Shown at /play when fantasyCampaignEnded; deep links redirect here.
  */
 
@@ -22,17 +22,17 @@ export const CampaignEnded = () => (
         Noblocks Play
       </p>
       <h1 className="text-2xl font-semibold tracking-tight text-text-body dark:text-white sm:text-3xl">
-        World Cup fantasy league is over
+        This season of Noblocks Play has ended
       </h1>
       <p className="text-sm leading-relaxed text-text-secondary dark:text-white/60 sm:text-base">
-        Thanks for playing. Follow us on X for the winners announcement.
+        Thanks for playing. Follow us on X for winners and the next campaign.
       </p>
     </div>
 
     <PlayCard className="space-y-3 sm:p-6">
       <p className="text-sm leading-relaxed text-text-body dark:text-white/80">
-        Noblocks Play will be back for the Premier League and Champions League
-        — stay tuned.
+        Noblocks Play will be back for more Premier League gameweeks — stay
+        tuned.
       </p>
       <div className="flex flex-col gap-3 pt-1 sm:flex-row sm:items-center">
         <a

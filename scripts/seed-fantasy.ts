@@ -1,19 +1,29 @@
 /**
- * Noblocks Play — fantasy league seed script (handoff §5.4).
+ * Noblocks Play — fantasy league seed script (EPL 2025/26 season).
  *
- * Seeds `fantasy_matchdays` (6/7/8), `fantasy_fixtures` and `fantasy_players`
- * from API-Football (World Cup 2026: league=1, season=2026).
+ * Seeds `fantasy_matchdays` (GW1–GW38 → ids 101–138), `fantasy_fixtures`
+ * and `fantasy_players` from API-Football (Premier League: league=39, season=2026).
  *
- * Usage (from scripts/):
+ * Usage (from noblocks/):
  *   SUPABASE_URL=… SUPABASE_SECRET_KEY=… API_FOOTBALL_KEY=… pnpm seed:fantasy
  *
  * Idempotent: matchdays/fixtures/players are upserted; a matchday's
  * status/lock_at are never overwritten once the row has left 'upcoming'.
  *
+ * Optional env:
+ *   SEED_SKIP_PLAYERS=true  — skip squad/ratings fetching on re-runs
+ *   SEED_DELAY_MS=300       — pause between per-team API calls (default 300)
+ *   SEED_TIMELAPSE_HOURS=48 — LOCAL ONLY: pack SEED_TIMELAPSE_GWS into a wall-clock
+ *                             window (synthetic fixtures + compressed lock_at).
+ *                             Pair with FANTASY_LOCAL_TIMELAPSE=true on the app.
+ *   SEED_TIMELAPSE_GWS=4    — how many gameweeks to pack (default 4 → ids 101–104)
+ *
  * NOTE: this script deliberately does NOT import app/lib/fantasy/provider.ts —
  * that module imports "server-only", which throws outside the Next.js runtime.
- * The fetch helpers below mirror its response-shape handling (RawFixture,
- * RawSquad, RawPlayerWithStats, POSITION_MAP, ratings pagination).
+ * Constants and fetch helpers below mirror provider.ts (EPL_LEAGUE_ID, round
+ * parsing, POSITION_MAP, ratings pagination). Player photos are stored;
+ * photo_url may be stored from the provider but production keeps
+ * photos_enabled=false and the UI renders stylized kits instead.
  */
 
 import { createClient } from "@supabase/supabase-js";
@@ -39,43 +49,27 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SECRET_KEY);
 // ─── API-Football constants (mirrors app/lib/fantasy/provider.ts) ─────────────
 
 const BASE_URL = "https://v3.football.api-sports.io";
-const WORLD_CUP_LEAGUE_ID = 1;
-const WORLD_CUP_SEASON = 2026;
+const EPL_LEAGUE_ID = 39;
+const EPL_SEASON = 2026;
+/** Matchday ids are 100 + gameweek (GW1 → 101). */
+const EPL_MATCHDAY_OFFSET = 100;
+const TOTAL_GAMEWEEKS = 38;
 
-const ROUND_TO_MATCHDAY: Record<string, number> = {
-  "Round of 16": 5,
-  "Quarter-finals": 6,
-  "Semi-finals": 7,
-  "3rd Place Final": 8,
-  Final: 8,
-};
-
-const MATCHDAY_META: Record<number, { label: string; round: string; displayName: string }> = {
-  5: { label: "MD5", round: "Round of 16", displayName: "Round of 16" },
-  6: { label: "MD6", round: "Quarter-finals", displayName: "Quarter-finals" },
-  7: { label: "MD7", round: "Semi-finals", displayName: "Semi-finals" },
-  8: { label: "MD8", round: "Final", displayName: "Final" },
-};
-
-// SEED_INCLUDE_R16=true — INTERNAL TESTING ONLY: also seed the Round of 16
-// as scored matchday 5 so the full pipeline can be exercised before the QFs.
-// The public campaign scores MD6–8 (PRD O-1); remove MD5 before launch (see
-// docs/fantasy-league.md teardown).
-const INCLUDE_R16 = (process.env.SEED_INCLUDE_R16 ?? "").toLowerCase() === "true";
-// SEED_SKIP_PLAYERS=true — skip squad/ratings fetching on re-runs (saves
-// ~50 provider calls when only matchdays/fixtures need refreshing).
 const SKIP_PLAYERS = (process.env.SEED_SKIP_PLAYERS ?? "").toLowerCase() === "true";
-const MATCHDAY_IDS = INCLUDE_R16 ? [5, 6, 7, 8] : [6, 7, 8];
+const SEED_DELAY_MS = Number(process.env.SEED_DELAY_MS ?? 300);
+const TIMELAPSE_HOURS = Number(process.env.SEED_TIMELAPSE_HOURS ?? 0);
+const TIMELAPSE_GWS = Math.max(1, Math.min(8, Number(process.env.SEED_TIMELAPSE_GWS ?? 4)));
+/** Synthetic fixture id base — outside API-Football space so the worker won't clash. */
+const TIMELAPSE_FIXTURE_BASE = 9_100_000;
 
-// Knockout fixtures only appear on the provider once the bracket resolves
-// (mid-R16 the QF/SF/Final rounds are empty). Until then, matchdays are
-// seeded with PROVISIONAL locks from the official FIFA schedule — the worker
-// re-syncs lock_at to the real earliest kickoff as soon as fixtures publish.
-const PROVISIONAL_LOCK_AT: Record<number, string> = {
-  6: "2026-07-09T15:00:00Z", // first Quarter-final day
-  7: "2026-07-14T15:00:00Z", // first Semi-final day
-  8: "2026-07-18T15:00:00Z", // bronze final day (MD8 = bronze + final)
-};
+/** FPL deadline = earliest GW kickoff minus 90 minutes. */
+const DEADLINE_LEAD_MS = 90 * 60_000;
+const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+
+const ALL_MATCHDAY_IDS = Array.from(
+  { length: TOTAL_GAMEWEEKS },
+  (_, i) => EPL_MATCHDAY_OFFSET + i + 1,
+);
 
 type Position = "GK" | "DEF" | "MID" | "FWD";
 
@@ -95,10 +89,32 @@ function mapPosition(raw: string | null): Position | null {
   return POSITION_MAP[raw] ?? null;
 }
 
-// Heuristic price seed (handoff §2.3 / §5.4).
+/** Null / unknown provider positions default to MID (mapPositionOrMid semantics). */
+function mapPositionOrMid(raw: string | null): Position {
+  return mapPosition(raw) ?? "MID";
+}
+
+/** Parse API-Football round e.g. "Regular Season - 12" → matchday id 112. */
+function roundToMatchdayId(round: string): number | null {
+  const m = /Regular Season\s*-\s*(\d+)/i.exec(round);
+  if (!m) return null;
+  const gw = Number(m[1]);
+  if (!Number.isFinite(gw) || gw < 1 || gw > TOTAL_GAMEWEEKS) return null;
+  return EPL_MATCHDAY_OFFSET + gw;
+}
+
+function matchdayMeta(gw: number): { label: string; round: string; displayName: string } {
+  return {
+    label: `GW${gw}`,
+    round: `Regular Season - ${gw}`,
+    displayName: `Gameweek ${gw}`,
+  };
+}
+
+// Heuristic price seed — FPL-ish £4.0–£14.0 curve for ~600 players on £100m budget.
 const BASE_PRICE: Record<Position, number> = { GK: 4.5, DEF: 5.0, MID: 5.5, FWD: 6.0 };
 const PRICE_MIN = 4.0;
-const PRICE_MAX = 11.0;
+const PRICE_MAX = 14.0;
 
 function heuristicPrice(
   position: Position,
@@ -124,6 +140,10 @@ interface RawFixture {
     away: { id: number | null; name: string | null };
   };
   goals: { home: number | null; away: number | null };
+}
+
+interface RawTeam {
+  team: { id: number; name: string };
 }
 
 interface RawSquad {
@@ -197,10 +217,10 @@ interface ProviderFixture {
   awayScore: number | null;
 }
 
-async function getWorldCupFixtures(): Promise<ProviderFixture[]> {
+async function getLeagueFixtures(): Promise<ProviderFixture[]> {
   const body = await apiGet<RawFixture>("/fixtures", {
-    league: WORLD_CUP_LEAGUE_ID,
-    season: WORLD_CUP_SEASON,
+    league: EPL_LEAGUE_ID,
+    season: EPL_SEASON,
   });
   return (body.response ?? []).map((raw) => ({
     id: raw.fixture.id,
@@ -212,6 +232,18 @@ async function getWorldCupFixtures(): Promise<ProviderFixture[]> {
     homeScore: raw.goals.home,
     awayScore: raw.goals.away,
   }));
+}
+
+async function getLeagueTeams(): Promise<Map<number, string>> {
+  const body = await apiGet<RawTeam>("/teams", {
+    league: EPL_LEAGUE_ID,
+    season: EPL_SEASON,
+  });
+  const teams = new Map<number, string>();
+  for (const entry of body.response ?? []) {
+    teams.set(entry.team.id, entry.team.name);
+  }
+  return teams;
 }
 
 interface SquadPlayer {
@@ -227,27 +259,26 @@ async function getTeamSquad(teamId: number): Promise<{ teamName: string; players
   if (!squad) return { teamName: "", players: [] };
   return {
     teamName: squad.team.name,
-    players: squad.players
-      .map((p) => {
-        const position = mapPosition(p.position);
-        if (!position) return null;
-        return { id: p.id, name: p.name, position, photo: p.photo };
-      })
-      .filter((p): p is SquadPlayer => p !== null),
+    players: squad.players.map((p) => ({
+      id: p.id,
+      name: p.name,
+      position: mapPositionOrMid(p.position),
+      photo: p.photo,
+    })),
   };
 }
 
 type PlayerRating = { rating: number | null; appearances: number | null; goals: number | null };
 
-/** Tournament ratings per player (paginated; WC squads ≈ 2 pages of 20). */
+/** Season ratings per player (paginated; EPL squads may span several pages). */
 async function getTeamPlayerRatings(teamId: number): Promise<Map<number, PlayerRating>> {
   const ratings = new Map<number, PlayerRating>();
   let page = 1;
-  while (page <= 4) {
+  while (page <= 6) {
     const body = await apiGet<RawPlayerWithStats>("/players", {
       team: teamId,
-      season: WORLD_CUP_SEASON,
-      league: WORLD_CUP_LEAGUE_ID,
+      season: EPL_SEASON,
+      league: EPL_LEAGUE_ID,
       page,
     });
     for (const entry of body.response ?? []) {
@@ -266,28 +297,26 @@ async function getTeamPlayerRatings(teamId: number): Promise<Map<number, PlayerR
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-/** Placeholder / not-yet-determined knockout slots (bracket not drawn yet). */
-function isPlaceholderTeam(team: { id: number | null; name: string | null }): boolean {
-  if (team.id == null) return true;
-  if (!team.name) return true;
-  return /\b(tbd|to be|winner|loser)\b/i.test(team.name);
-}
-
-function earliestKickoff(fixtures: ProviderFixture[]): string {
-  return fixtures
-    .map((f) => f.kickoff)
-    .sort((a, b) => new Date(a).getTime() - new Date(b).getTime())[0];
-}
-
-/**
- * Lock time for a matchday. Normally the round's earliest kickoff; when the
- * round is already underway (mid-R16 internal testing) the lock is the next
- * NOT-yet-started kickoff so there's still a build window before it flips
- * live. The worker never moves an upcoming round's lock into the past.
- */
+/** lock_at = earliest GW kickoff minus 90 minutes (FPL KO−90m). */
 function lockAtFor(fixtures: ProviderFixture[]): string {
-  const notStarted = fixtures.filter((f) => f.status === "NS" || f.status === "TBD");
-  return earliestKickoff(notStarted.length > 0 ? notStarted : fixtures);
+  const earliestMs = Math.min(...fixtures.map((f) => new Date(f.kickoff).getTime()));
+  return new Date(earliestMs - DEADLINE_LEAD_MS).toISOString();
+}
+
+/** Provisional lock spaced one week per GW from GW1's earliest kickoff. */
+function provisionalLockAt(gw: number, gw1EarliestKickoffMs: number): string {
+  const kickoffMs = gw1EarliestKickoffMs + (gw - 1) * ONE_WEEK_MS;
+  return new Date(kickoffMs - DEADLINE_LEAD_MS).toISOString();
+}
+
+function teamsFromFixtures(fixtures: ProviderFixture[]): Map<number, string> {
+  const teams = new Map<number, string>();
+  for (const f of fixtures) {
+    for (const t of [f.homeTeam, f.awayTeam]) {
+      if (t.id != null && t.name) teams.set(t.id, t.name);
+    }
+  }
+  return teams;
 }
 
 function fail(message: string, error?: unknown): never {
@@ -296,27 +325,250 @@ function fail(message: string, error?: unknown): never {
   process.exit(1);
 }
 
+/**
+ * Hide World Cup / non-league leftovers. `nation` is the club label in the UI —
+ * WC rows still say "Argentina" etc. and must not appear in the picker.
+ */
+async function deactivateNonEplPlayers(eplTeamIds: Iterable<number>): Promise<number> {
+  const keep = new Set(eplTeamIds);
+  if (keep.size === 0) return 0;
+
+  const { data: rows, error: readErr } = await supabase
+    .from("fantasy_players")
+    .select("provider_player_id, team_id")
+    .eq("is_active", true);
+  if (readErr) fail("could not list active players for cleanup", readErr);
+
+  const dropIds = (rows ?? [])
+    .filter((r) => !keep.has(Number(r.team_id)))
+    .map((r) => Number(r.provider_player_id));
+
+  for (let i = 0; i < dropIds.length; i += 200) {
+    const chunk = dropIds.slice(i, i + 200);
+    const { error } = await supabase
+      .from("fantasy_players")
+      .update({ is_active: false })
+      .in("provider_player_id", chunk);
+    if (error) fail("could not deactivate non-EPL players", error);
+  }
+  return dropIds.length;
+}
+
+// ─── Local timelapse (compressed schedule for mechanic testing) ───────────────
+
+/**
+ * Pack N gameweeks into TIMELAPSE_HOURS. GW1 locks in ~15 minutes so you can
+ * build a squad first. Each GW slot = window/N; 4 fixtures per GW with kickoffs
+ * after lock+90m. Requires FANTASY_LOCAL_TIMELAPSE=true on the Next app/worker
+ * so provider refresh does not overwrite these kickoffs.
+ */
+async function seedTimelapse() {
+  const windowMs = TIMELAPSE_HOURS * 3600_000;
+  const slotMs = Math.floor(windowMs / TIMELAPSE_GWS);
+  const now = Date.now();
+  const gw1LockMs = now + 15 * 60_000;
+
+  console.log(
+    `LOCAL TIMELAPSE seed — ${TIMELAPSE_GWS} GWs in ${TIMELAPSE_HOURS}h ` +
+      `(ids ${EPL_MATCHDAY_OFFSET + 1}–${EPL_MATCHDAY_OFFSET + TIMELAPSE_GWS})\n`,
+  );
+  console.log(`GW1 lock_at ≈ ${new Date(gw1LockMs).toISOString()} (in ~15 minutes)\n`);
+
+  // Ensure season settings point at EPL bounds (migration may already have done this).
+  const { data: settingsRow, error: settingsErr } = await supabase
+    .from("fantasy_settings")
+    .select("config")
+    .eq("id", 1)
+    .maybeSingle();
+  if (settingsErr) fail("could not read fantasy_settings", settingsErr);
+  if (settingsRow?.config) {
+    const config = {
+      ...(settingsRow.config as object),
+      season_matchday_min: EPL_MATCHDAY_OFFSET + 1,
+      season_matchday_max: EPL_MATCHDAY_OFFSET + TOTAL_GAMEWEEKS,
+    };
+    const { error } = await supabase
+      .from("fantasy_settings")
+      .update({ config, updated_at: new Date().toISOString() })
+      .eq("id", 1);
+    if (error) fail("could not update fantasy_settings for timelapse", error);
+  }
+
+  let teams = await getLeagueTeams();
+  if (teams.size === 0) fail("no EPL teams from /teams — check API_FOOTBALL_KEY");
+  const teamList = [...teams.entries()];
+
+  // Players (needed for squad builder).
+  let playerCount = 0;
+  if (SKIP_PLAYERS) {
+    console.log("SEED_SKIP_PLAYERS=true — player seeding skipped.");
+  } else {
+    console.log(`Seeding players for ${teams.size} teams…`);
+    for (const [teamId, teamNameFromLeague] of teams) {
+      const squad = await getTeamSquad(teamId);
+      const ratings = await getTeamPlayerRatings(teamId);
+      const teamName = squad.teamName || teamNameFromLeague;
+      if (squad.players.length === 0) {
+        console.warn(`  ${teamName} (${teamId}): no squad — skipped.`);
+        continue;
+      }
+      const rows = squad.players.map((p) => {
+        const r = ratings.get(p.id) ?? { rating: null, appearances: null, goals: null };
+        return {
+          provider_player_id: p.id,
+          team_id: teamId,
+          name: p.name,
+          nation: teamName,
+          position: p.position,
+          price: heuristicPrice(p.position, r.rating, r.goals, r.appearances),
+          photo_url: p.photo,
+          is_active: true,
+          meta: { rating: r.rating, appearances: r.appearances, goals: r.goals },
+        };
+      });
+      const { error } = await supabase
+        .from("fantasy_players")
+        .upsert(rows, { onConflict: "provider_player_id" });
+      if (error) fail(`upsert players ${teamName}`, error);
+      playerCount += rows.length;
+      console.log(`  ${teamName}: ${rows.length} players.`);
+      await sleep(SEED_DELAY_MS);
+    }
+  }
+
+  const deactivated = await deactivateNonEplPlayers(teams.keys());
+  if (deactivated > 0) {
+    console.log(`Deactivated ${deactivated} non-EPL (WC leftover) players.`);
+  }
+
+  // Force WC rounds final so they never become current.
+  await supabase
+    .from("fantasy_matchdays")
+    .update({ status: "final", updated_at: new Date().toISOString() })
+    .in("id", [6, 7, 8]);
+
+  const schedule: { gw: number; lockAt: string; fixtures: string[] }[] = [];
+
+  for (let gw = 1; gw <= TIMELAPSE_GWS; gw++) {
+    const mdId = EPL_MATCHDAY_OFFSET + gw;
+    const meta = matchdayMeta(gw);
+    const lockMs = gw1LockMs + (gw - 1) * slotMs;
+    const lockAt = new Date(lockMs).toISOString();
+
+    const { error: mdErr } = await supabase.from("fantasy_matchdays").upsert(
+      {
+        id: mdId,
+        label: meta.label,
+        round: meta.round,
+        display_name: meta.displayName,
+        lock_at: lockAt,
+        status: "upcoming",
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "id" },
+    );
+    if (mdErr) fail(`upsert matchday ${mdId}`, mdErr);
+
+    // Drop prior timelapse fixtures for this GW (synthetic id range only).
+    await supabase
+      .from("fantasy_fixtures")
+      .delete()
+      .eq("matchday_id", mdId)
+      .gte("provider_fixture_id", TIMELAPSE_FIXTURE_BASE)
+      .lt("provider_fixture_id", TIMELAPSE_FIXTURE_BASE + 100_000);
+
+    const fixtureRows = [];
+    const kickoffLabels: string[] = [];
+    for (let i = 0; i < 4; i++) {
+      const home = teamList[(gw - 1 + i * 2) % teamList.length];
+      const away = teamList[(gw - 1 + i * 2 + 1) % teamList.length];
+      // Kickoffs: lock+90m, then +2h steps so a GW plays out inside its slot.
+      const kickoffMs = lockMs + DEADLINE_LEAD_MS + i * 2 * 3600_000;
+      const kickoff = new Date(kickoffMs).toISOString();
+      kickoffLabels.push(kickoff);
+      fixtureRows.push({
+        provider_fixture_id: TIMELAPSE_FIXTURE_BASE + mdId * 10 + i,
+        matchday_id: mdId,
+        home_team_id: home[0],
+        away_team_id: away[0],
+        home_team: home[1],
+        away_team: away[1],
+        kickoff,
+        status: "NS",
+        home_score: null,
+        away_score: null,
+        finished_at: null,
+        last_stats_sync: null,
+        stats_finalized: false,
+      });
+    }
+
+    const { error: fxErr } = await supabase
+      .from("fantasy_fixtures")
+      .upsert(fixtureRows, { onConflict: "provider_fixture_id" });
+    if (fxErr) fail(`upsert fixtures GW${gw}`, fxErr);
+
+    schedule.push({ gw, lockAt, fixtures: kickoffLabels });
+    console.log(
+      `GW${gw} (id ${mdId}): lock ${lockAt} · ${fixtureRows.length} fixtures ` +
+        `(first KO ${kickoffLabels[0]})`,
+    );
+  }
+
+  // Leave remaining EPL matchdays alone if present; optionally mark 105+ far future.
+  console.log("\n─── Timelapse summary ────────────────────────");
+  console.log(`Players upserted: ${playerCount}`);
+  console.log(`Set FANTASY_LOCAL_TIMELAPSE=true in .env and restart next dev.`);
+  console.log(`Tick the worker to advance: POST /api/play/worker with x-internal-auth.`);
+  console.log("Schedule:");
+  for (const row of schedule) {
+    console.log(`  GW${row.gw} lock=${row.lockAt}`);
+  }
+  console.log("Done.");
+}
+
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 async function main() {
-  console.log("Seeding Noblocks Play fantasy data (WC 2026, matchdays 6–8)…\n");
-
-  // 1. All World Cup fixtures (one call).
-  const fixtures = await getWorldCupFixtures();
-  if (fixtures.length === 0) fail("provider returned no World Cup fixtures");
-  console.log(`Fetched ${fixtures.length} World Cup fixtures.`);
-
-  // Group scored-round fixtures by matchday.
-  const byMatchday = new Map<number, ProviderFixture[]>();
-  for (const f of fixtures) {
-    const md = ROUND_TO_MATCHDAY[f.round];
-    if (!md) continue;
-    const list = byMatchday.get(md) ?? [];
-    list.push(f);
-    byMatchday.set(md, list);
+  if (TIMELAPSE_HOURS > 0) {
+    await seedTimelapse();
+    return;
   }
 
-  // 2. Upsert matchdays 6/7/8. Never overwrite status/lock_at once a row has
+  console.log(
+    `Seeding Noblocks Play fantasy data (EPL ${EPL_SEASON}, GW1–GW${TOTAL_GAMEWEEKS})…\n`,
+  );
+
+  // 1. All EPL fixtures (one call).
+  const fixtures = await getLeagueFixtures();
+  if (fixtures.length === 0) fail("provider returned no EPL fixtures");
+  console.log(`Fetched ${fixtures.length} EPL fixtures.`);
+
+  // Group fixtures by matchday id (101–138); skip unknown rounds.
+  const byMatchday = new Map<number, ProviderFixture[]>();
+  let skippedRounds = 0;
+  for (const f of fixtures) {
+    const mdId = roundToMatchdayId(f.round);
+    if (mdId == null) {
+      skippedRounds++;
+      continue;
+    }
+    const list = byMatchday.get(mdId) ?? [];
+    list.push(f);
+    byMatchday.set(mdId, list);
+  }
+  if (skippedRounds > 0) {
+    console.warn(`Skipped ${skippedRounds} fixtures with unknown/non-league rounds.`);
+  }
+
+  // GW1 earliest kickoff — anchor for provisional locks on fixture-less GWs.
+  const gw1Fixtures = byMatchday.get(EPL_MATCHDAY_OFFSET + 1) ?? [];
+  const gw1EarliestKickoffMs =
+    gw1Fixtures.length > 0
+      ? Math.min(...gw1Fixtures.map((f) => new Date(f.kickoff).getTime()))
+      : null;
+
+  // 2. Upsert matchdays 101–138. Never overwrite status/lock_at once a row has
   //    left 'upcoming' (the worker owns transitions from then on).
   const { data: existingMds, error: mdReadError } = await supabase
     .from("fantasy_matchdays")
@@ -324,23 +576,31 @@ async function main() {
   if (mdReadError) fail("could not read fantasy_matchdays", mdReadError);
 
   const seededMatchdayIds: number[] = [];
-  for (const mdId of MATCHDAY_IDS) {
+  for (const mdId of ALL_MATCHDAY_IDS) {
+    const gw = mdId - EPL_MATCHDAY_OFFSET;
+    const meta = matchdayMeta(gw);
     const mdFixtures = byMatchday.get(mdId) ?? [];
-    const meta = MATCHDAY_META[mdId];
-    const provisional = mdFixtures.length === 0;
-    if (provisional && !PROVISIONAL_LOCK_AT[mdId]) {
+    const hasFixtures = mdFixtures.length > 0;
+
+    let lockAt: string | null;
+    let provisional = false;
+
+    if (hasFixtures) {
+      lockAt = lockAtFor(mdFixtures);
+    } else if (gw1EarliestKickoffMs != null) {
+      lockAt = provisionalLockAt(gw, gw1EarliestKickoffMs);
+      provisional = true;
       console.warn(
-        `Matchday ${mdId} (${meta.displayName}): no fixtures and no provisional lock — skipped.`,
+        `Matchday ${mdId} (${meta.displayName}): no fixtures yet — ` +
+          `seeding with PROVISIONAL lock_at ${lockAt} (worker re-syncs once fixtures appear).`,
+      );
+    } else {
+      console.warn(
+        `Matchday ${mdId} (${meta.displayName}): no fixtures and no GW1 anchor — skipped.`,
       );
       continue;
     }
-    const lockAt = provisional ? PROVISIONAL_LOCK_AT[mdId] : lockAtFor(mdFixtures);
-    if (provisional) {
-      console.warn(
-        `Matchday ${mdId} (${meta.displayName}): fixtures not published yet — ` +
-          `seeding with PROVISIONAL lock_at ${lockAt} (worker re-syncs it once fixtures appear).`,
-      );
-    }
+
     const existing = existingMds?.find((row) => row.id === mdId);
 
     if (!existing) {
@@ -353,19 +613,22 @@ async function main() {
         status: "upcoming",
       });
       if (error) fail(`insert fantasy_matchdays ${mdId}`, error);
-      console.log(`Matchday ${mdId} (${meta.label}) created — lock_at ${lockAt}.`);
+      console.log(
+        `Matchday ${mdId} (${meta.label}) created — lock_at ${lockAt}${provisional ? " (provisional)" : ""}.`,
+      );
     } else if (existing.status === "upcoming") {
-      // Never regress a real (fixture-derived) lock back to a provisional one.
+      // Refresh lock_at from fixtures when available; never regress to provisional.
       const update: Record<string, unknown> = {
         label: meta.label,
         round: meta.round,
         display_name: meta.displayName,
-        ...(provisional ? {} : { lock_at: lockAt }),
+        ...(hasFixtures ? { lock_at: lockAt } : {}),
       };
       const { error } = await supabase.from("fantasy_matchdays").update(update).eq("id", mdId);
       if (error) fail(`update fantasy_matchdays ${mdId}`, error);
       console.log(
-        `Matchday ${mdId} (${meta.label}) refreshed${provisional ? " (lock_at left as-is)" : ` — lock_at ${lockAt}`}.`,
+        `Matchday ${mdId} (${meta.label}) refreshed` +
+          (hasFixtures ? ` — lock_at ${lockAt}` : " (lock_at left as-is, no fixtures yet)"),
       );
     } else {
       console.log(
@@ -375,49 +638,16 @@ async function main() {
     seededMatchdayIds.push(mdId);
   }
 
-  // 2b. Internal R16 testing: the validation/settings maps are keyed by
-  //     matchday label, so MD5 needs nation-cap and free-transfer entries.
-  if (INCLUDE_R16) {
-    const { data: settingsRow, error: settingsError } = await supabase
-      .from("fantasy_settings")
-      .select("config")
-      .eq("id", 1)
-      .single();
-    if (settingsError || !settingsRow) fail("could not read fantasy_settings", settingsError);
-    const config = settingsRow.config as {
-      nation_caps?: Record<string, number>;
-      free_transfers?: Record<string, number>;
-    };
-    let settingsChanged = false;
-    if (config.nation_caps?.MD5 == null) {
-      config.nation_caps = { ...config.nation_caps, MD5: 4 };
-      settingsChanged = true;
-    }
-    if (config.free_transfers?.MD5 == null) {
-      config.free_transfers = { ...config.free_transfers, MD5: 4 };
-      settingsChanged = true;
-    }
-    if (settingsChanged) {
-      const { error } = await supabase
-        .from("fantasy_settings")
-        .update({ config })
-        .eq("id", 1);
-      if (error) fail("could not add MD5 keys to fantasy_settings", error);
-      console.log("Added MD5 nation-cap/free-transfer settings (R16 test mode).");
-    }
-  }
-
-  // 3. Upsert fixtures for the seeded matchdays. Placeholder teams get id 0 /
-  //    name "TBD"; a later re-run overwrites them once the bracket is known.
+  // 3. Upsert fixtures for every GW that has provider data.
   let fixtureCount = 0;
-  for (const mdId of seededMatchdayIds) {
-    const rows = (byMatchday.get(mdId) ?? []).map((f) => ({
+  for (const [mdId, mdFixtures] of byMatchday) {
+    const rows = mdFixtures.map((f) => ({
       provider_fixture_id: f.id,
       matchday_id: mdId,
       home_team_id: f.homeTeam.id ?? 0,
       away_team_id: f.awayTeam.id ?? 0,
-      home_team: f.homeTeam.name ?? "TBD",
-      away_team: f.awayTeam.name ?? "TBD",
+      home_team: f.homeTeam.name ?? "Unknown",
+      away_team: f.awayTeam.name ?? "Unknown",
       kickoff: f.kickoff,
       status: f.status,
       home_score: f.homeScore,
@@ -429,77 +659,68 @@ async function main() {
     if (error) fail(`upsert fantasy_fixtures for matchday ${mdId}`, error);
     fixtureCount += rows.length;
   }
-  console.log(`Upserted ${fixtureCount} fixtures across matchdays ${seededMatchdayIds.join("/")}.`);
+  console.log(`Upserted ${fixtureCount} fixtures across ${byMatchday.size} gameweeks.`);
 
-  // 4. Teams: distinct ids from Round-of-16 fixtures (the 16 possible QF+
-  //    participants). If the R16 bracket is still TBD, fall back to every
-  //    concrete team appearing in any fixture.
-  const r16Fixtures = fixtures.filter((f) => f.round === "Round of 16");
-  const teams = new Map<number, string>();
-  for (const f of r16Fixtures) {
-    for (const t of [f.homeTeam, f.awayTeam]) {
-      if (!isPlaceholderTeam(t)) teams.set(t.id as number, t.name as string);
-    }
-  }
+  // 4. Teams: all 20 EPL clubs via /teams, falling back to fixture-derived ids.
+  let teams = await getLeagueTeams();
   if (teams.size === 0) {
-    console.warn(
-      "Round-of-16 teams unknown/TBD — falling back to ALL teams in any fixture (heavier on the API budget).",
-    );
-    for (const f of fixtures) {
-      for (const t of [f.homeTeam, f.awayTeam]) {
-        if (!isPlaceholderTeam(t)) teams.set(t.id as number, t.name as string);
-      }
-    }
+    console.warn("/teams returned no rows — falling back to teams from fixtures.");
+    teams = teamsFromFixtures(fixtures);
   }
-  if (teams.size === 0) fail("no concrete teams found in any fixture");
+  if (teams.size === 0) fail("no EPL teams found");
 
   let playerCount = 0;
+  const eplTeamIds = [...teams.keys()];
   if (SKIP_PLAYERS) {
     console.log("SEED_SKIP_PLAYERS=true — player seeding skipped.");
-    teams.clear();
   } else {
     console.log(`Seeding players for ${teams.size} teams…`);
-  }
-  for (const [teamId, teamNameFromFixture] of teams) {
-    // Sequential on purpose: keeps request pacing predictable for the 429 backoff.
-    const squad = await getTeamSquad(teamId);
-    const ratings = await getTeamPlayerRatings(teamId);
-    const teamName = squad.teamName || teamNameFromFixture;
-    if (squad.players.length === 0) {
-      console.warn(`  ${teamName} (${teamId}): provider returned no squad — skipped.`);
-      continue;
+    for (const [teamId, teamNameFromLeague] of teams) {
+      // Sequential on purpose: keeps request pacing predictable for the 429 backoff.
+      const squad = await getTeamSquad(teamId);
+      const ratings = await getTeamPlayerRatings(teamId);
+      const teamName = squad.teamName || teamNameFromLeague;
+      if (squad.players.length === 0) {
+        console.warn(`  ${teamName} (${teamId}): provider returned no squad — skipped.`);
+        continue;
+      }
+
+      const rows = squad.players.map((p) => {
+        const r = ratings.get(p.id) ?? { rating: null, appearances: null, goals: null };
+        return {
+          provider_player_id: p.id,
+          team_id: teamId,
+          name: p.name,
+          nation: teamName, // club name shown under player in the picker
+          position: p.position,
+          price: heuristicPrice(p.position, r.rating, r.goals, r.appearances),
+          photo_url: p.photo,
+          is_active: true,
+          meta: { rating: r.rating, appearances: r.appearances, goals: r.goals },
+        };
+      });
+
+      const { error } = await supabase
+        .from("fantasy_players")
+        .upsert(rows, { onConflict: "provider_player_id" });
+      if (error) fail(`upsert fantasy_players for team ${teamName} (${teamId})`, error);
+
+      playerCount += rows.length;
+      console.log(`  ${teamName}: ${rows.length} players seeded.`);
+      await sleep(SEED_DELAY_MS);
     }
+  }
 
-    const rows = squad.players.map((p) => {
-      const r = ratings.get(p.id) ?? { rating: null, appearances: null, goals: null };
-      return {
-        provider_player_id: p.id,
-        team_id: teamId,
-        name: p.name,
-        nation: teamName,
-        position: p.position,
-        price: heuristicPrice(p.position, r.rating, r.goals, r.appearances),
-        photo_url: p.photo,
-        is_active: true,
-        meta: { rating: r.rating, appearances: r.appearances, goals: r.goals },
-      };
-    });
-
-    const { error } = await supabase
-      .from("fantasy_players")
-      .upsert(rows, { onConflict: "provider_player_id" });
-    if (error) fail(`upsert fantasy_players for team ${teamName} (${teamId})`, error);
-
-    playerCount += rows.length;
-    console.log(`  ${teamName}: ${rows.length} players seeded.`);
-    await sleep(Number(process.env.SEED_DELAY_MS ?? 300)); // be gentle to the API
+  const deactivated = await deactivateNonEplPlayers(eplTeamIds);
+  if (deactivated > 0) {
+    console.log(`Deactivated ${deactivated} non-EPL (WC leftover) players.`);
   }
 
   // 5. Summary.
   console.log("\n─── Seed summary ─────────────────────────────");
-  console.log(`Matchdays seeded:   ${seededMatchdayIds.join(", ") || "none"}`);
+  console.log(`Matchdays seeded:   ${seededMatchdayIds.length} (${seededMatchdayIds[0]}–${seededMatchdayIds[seededMatchdayIds.length - 1] ?? "n/a"})`);
   console.log(`Fixtures upserted:  ${fixtureCount}`);
-  console.log(`Teams processed:    ${teams.size}`);
+  console.log(`Teams processed:    ${eplTeamIds.length}`);
   console.log(`Players upserted:   ${playerCount}`);
   console.log(`API calls used:     ${apiCalls}`);
   if (lastRateLimitRemaining != null) {

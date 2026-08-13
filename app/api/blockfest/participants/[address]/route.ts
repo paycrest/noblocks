@@ -6,7 +6,7 @@ import { BLOCKFEST_END_DATE } from "@/app/utils";
 
 // GET /api/blockfest/participants/[address]
 export const GET = withRateLimit(
-  async (_req: NextRequest, { params }: { params: { address: string } }) => {
+  async (_req: NextRequest, { params }: { params: Promise<{ address: string }> }) => {
     const start = Date.now();
 
     // Early return if BlockFest campaign has expired

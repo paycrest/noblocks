@@ -1,25 +1,28 @@
 "use client";
 
 /**
- * /play/rewards — referral link card (existing referral system's code),
- * qualification progress, giveaway opt-in toggle and the share-rank card.
+ * /play/rewards — mini-leagues hub: create / join / leave private leagues.
  */
 
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { useLogin, usePrivy } from "@privy-io/react-auth";
-import { toast } from "sonner";
-import { ChampionIcon, Copy01Icon, Share08Icon } from "hugeicons-react";
-import { trackEvent } from "@/app/hooks/analytics/client";
-import { PlayApiError } from "@/app/components/play/api";
-import { RewardsProgress } from "@/app/components/play/RewardsProgress";
-import { ShareRankCard } from "@/app/components/play/ShareRankCard";
+import { useSearchParams } from "next/navigation";
+import { usePrivy, useLogin } from "@privy-io/react-auth";
+import { useQueryClient } from "@tanstack/react-query";
 import {
-  useCopyToClipboard,
-  useGiveawayOptIn,
-  useLeaderboard,
-  useReferralData,
-  useRewards,
-} from "@/app/components/play/hooks";
+  Add01Icon,
+  LinkSquare01Icon,
+  UserGroupIcon,
+} from "hugeicons-react";
+import { toast } from "sonner";
+import { LeagueCard } from "@/app/components/play/LeagueCard";
+import { playKeys, useRewards } from "@/app/components/play/hooks";
+import {
+  createMiniLeague,
+  joinMiniLeague,
+  leaveMiniLeague,
+  PlayApiError,
+} from "@/app/components/play/api";
 import {
   EmptyState,
   ErrorState,
@@ -29,124 +32,79 @@ import {
   secondaryButtonClasses,
 } from "@/app/components/play/ui";
 
+const inputClasses =
+  "min-h-11 w-full rounded-xl border border-border-input bg-white px-3 text-sm text-text-body transition-colors placeholder:text-text-disabled focus:border-lavender-500 focus:outline-none focus:ring-2 focus:ring-lavender-500/20 dark:border-white/15 dark:bg-white/[0.03] dark:text-white dark:placeholder:text-white/30";
+
 const RewardsSkeleton = () => (
-  <div className="space-y-4">
-    <Skeleton className="h-8 w-40" />
-    <Skeleton className="h-36 w-full rounded-2xl" />
-    <Skeleton className="h-64 w-full rounded-2xl" />
-    <Skeleton className="h-24 w-full rounded-2xl" />
+  <div className="space-y-5">
+    <Skeleton className="h-10 w-48" />
+    <Skeleton className="h-40 w-full rounded-2xl" />
+    <div className="grid gap-4 sm:grid-cols-2">
+      <Skeleton className="h-36 w-full rounded-2xl" />
+      <Skeleton className="h-36 w-full rounded-2xl" />
+    </div>
   </div>
 );
 
-const ReferralLinkCard = () => {
-  const referralData = useReferralData();
-  const copy = useCopyToClipboard();
-
-  if (referralData.isPending) {
-    return <Skeleton className="h-36 w-full rounded-2xl" />;
-  }
-
-  const code = referralData.data?.referral_code;
-  if (!code) {
-    return (
-      <PlayCard>
-        <p className="text-sm text-text-secondary dark:text-white/50">
-          Couldn&apos;t load your referral code.{" "}
-          <button
-            type="button"
-            onClick={() => referralData.refetch()}
-            className="font-medium text-lavender-500 hover:text-lavender-600"
-          >
-            Try again
-          </button>
-        </p>
-      </PlayCard>
-    );
-  }
-
-  const link = `https://noblocks.xyz?ref=${code}`;
-
-  const handleCopy = async () => {
-    const ok = await copy(link);
-    if (ok) {
-      toast.success("Referral link copied");
-      trackEvent("referral_link_copied", { code });
-    } else {
-      toast.error("Couldn't copy the link");
-    }
-  };
-
-  const handleShare = async () => {
-    try {
-      if (navigator.share) {
-        await navigator.share({
-          title: "Join me on Noblocks Play",
-          text: "Join my World Cup fantasy league on Noblocks:",
-          url: link,
-        });
-        trackEvent("referral_link_shared", { code, source: "rewards" });
-      } else {
-        await handleCopy();
-        trackEvent("referral_link_shared", {
-          code,
-          source: "rewards_clipboard_fallback",
-        });
-      }
-    } catch {
-      // user dismissed the share sheet
-    }
-  };
-
-  return (
-    <PlayCard className="space-y-3">
-      <h2 className="text-base font-semibold text-text-body dark:text-white">
-        Your referral link
-      </h2>
-      <p className="truncate rounded-xl bg-background-neutral px-4 py-3 font-mono text-sm text-text-body dark:bg-white/5 dark:text-white">
-        {link}
-      </p>
-      <div className="flex flex-wrap gap-2">
-        <button
-          type="button"
-          onClick={handleCopy}
-          className={`${primaryButtonClasses} inline-flex items-center gap-2`}
-        >
-          <Copy01Icon className="size-4" />
-          Copy link
-        </button>
-        <button
-          type="button"
-          onClick={handleShare}
-          className={`${secondaryButtonClasses} inline-flex items-center gap-2`}
-        >
-          <Share08Icon className="size-4" />
-          Share
-        </button>
-      </div>
-    </PlayCard>
-  );
-};
-
 export default function RewardsPage() {
-  const { ready, authenticated } = usePrivy();
+  const searchParams = useSearchParams();
+  const { ready, authenticated, getAccessToken } = usePrivy();
   const { login } = useLogin();
-  const rewards = useRewards();
-  const referralData = useReferralData();
-  const optInMutation = useGiveawayOptIn();
-  // Own username (public leaderboard handle) for the share-rank card.
-  const myPage = useLeaderboard(1, true);
-  const myUsername = myPage.data?.rows.find((row) => row.is_me)?.username;
+  const { data, isLoading, error, refetch } = useRewards(authenticated);
+  const queryClient = useQueryClient();
+  const [name, setName] = useState("");
+  const [code, setCode] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [joinHighlight, setJoinHighlight] = useState(false);
+  const joinInputRef = useRef<HTMLInputElement>(null);
 
-  if (!ready || (authenticated && rewards.isPending)) {
-    return <RewardsSkeleton />;
-  }
+  useEffect(() => {
+    const join = searchParams.get("join")?.trim().toUpperCase();
+    if (!join || join.length < 4) return;
+    setCode(join);
+    setJoinHighlight(true);
+    window.setTimeout(() => {
+      joinInputRef.current?.focus();
+      document.getElementById("join-league")?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+    }, 300);
+  }, [searchParams]);
+
+  const refresh = async () => {
+    await queryClient.invalidateQueries({ queryKey: playKeys.rewards });
+    await refetch();
+  };
+
+  const withToken = async (fn: (token: string) => Promise<unknown>) => {
+    setBusy(true);
+    try {
+      const token = await getAccessToken();
+      if (!token) throw new PlayApiError("Unauthorized", 401);
+      await fn(token);
+      await refresh();
+    } catch (e) {
+      const msg = e instanceof PlayApiError ? e.message : "Something went wrong";
+      toast.error(msg);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (!ready || (authenticated && isLoading)) return <RewardsSkeleton />;
 
   if (!authenticated) {
+    const inviteCode = searchParams.get("join")?.trim().toUpperCase();
     return (
       <EmptyState
-        icon={<ChampionIcon className="size-8 text-lavender-500" />}
-        title="Sign in to see your rewards"
-        description="Track your referral qualification progress and share your league rank."
+        icon={<UserGroupIcon className="size-8 text-lavender-500" />}
+        title="Sign in to continue"
+        description={
+          inviteCode
+            ? `Connect your wallet to join the mini-league (${inviteCode}). You'll need a Noblocks Play account first.`
+            : "Connect your wallet to create or join mini-leagues with friends."
+        }
         action={
           <button
             type="button"
@@ -160,15 +118,12 @@ export default function RewardsPage() {
     );
   }
 
-  if (
-    rewards.error instanceof PlayApiError &&
-    rewards.error.code === "NOT_JOINED"
-  ) {
+  if (error instanceof PlayApiError && error.code === "NOT_JOINED") {
     return (
       <EmptyState
-        icon={<ChampionIcon className="size-8 text-lavender-500" />}
-        title="Join the league to unlock rewards"
-        description="The 600 USDC giveaway is for league participants — joining takes under a minute."
+        icon={<UserGroupIcon className="size-8 text-lavender-500" />}
+        title="Join Noblocks Play first"
+        description="Pick a username and enter the league, then come back here to join your friend's mini-league."
         action={
           <Link href="/play" className={primaryButtonClasses}>
             Join the league
@@ -178,86 +133,141 @@ export default function RewardsPage() {
     );
   }
 
-  if (rewards.isError || !rewards.data) {
-    return (
-      <ErrorState
-        message="Couldn't load your rewards."
-        onRetry={() => rewards.refetch()}
-      />
-    );
+  if (error) {
+    return <ErrorState message="Could not load this page." onRetry={() => refetch()} />;
   }
 
-  const data = rewards.data;
-
-  const handleToggleOptIn = async () => {
-    const next = !data.giveaway_opt_in;
-    try {
-      await optInMutation.mutateAsync(next);
-      if (!next) trackEvent("giveaway_opt_out");
-      toast.success(
-        next
-          ? "You're in the giveaway"
-          : "You're now playing for bragging rights only",
-      );
-    } catch (error) {
-      toast.error(
-        error instanceof PlayApiError
-          ? error.message
-          : "Couldn't update your preference",
-      );
-    }
-  };
+  const leagues = data?.leagues ?? [];
 
   return (
-    <div className="space-y-4">
-      <h1 className="text-xl font-semibold text-text-body dark:text-white">
-        Rewards
-      </h1>
+    <div className="space-y-5 max-lg:pb-10">
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight text-text-body dark:text-white">
+          Leagues
+        </h1>
+        <p className="mt-1 text-sm text-text-secondary dark:text-white/60">
+          Rank #{data?.rank ?? "—"} · {data?.total_points ?? 0} pts overall
+        </p>
+      </div>
 
-      <ReferralLinkCard />
-
-      <RewardsProgress rewards={data} />
-
-      {/* Giveaway opt-in */}
-      <PlayCard className="flex items-center justify-between gap-4">
-        <div>
-          <p className="text-sm font-semibold text-text-body dark:text-white">
-            600 USDC giveaway
-          </p>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <PlayCard className="space-y-3">
+          <div className="flex items-center gap-2">
+            <span className="flex size-8 items-center justify-center rounded-lg bg-lavender-100 dark:bg-lavender-500/15">
+              <Add01Icon className="size-4 text-lavender-600 dark:text-lavender-400" />
+            </span>
+            <h2 className="text-sm font-semibold text-text-body dark:text-white">
+              Create a league
+            </h2>
+          </div>
           <p className="text-xs text-text-secondary dark:text-white/50">
-            {data.giveaway_opt_in
-              ? "You're competing for the prize pool."
-              : "You're playing for bragging rights only."}
+            Name it, get an invite code, share with mates.
           </p>
-        </div>
-        <button
-          type="button"
-          role="switch"
-          aria-checked={data.giveaway_opt_in}
-          disabled={optInMutation.isPending}
-          onClick={handleToggleOptIn}
-          className={`relative h-6 w-11 shrink-0 rounded-full transition-colors disabled:opacity-50 ${
-            data.giveaway_opt_in
-              ? "bg-lavender-500"
-              : "bg-gray-300 dark:bg-white/20"
-          }`}
-        >
-          <span
-            className={`absolute left-0 top-0.5 size-5 rounded-full bg-white transition-transform ${
-              data.giveaway_opt_in ? "translate-x-[22px]" : "translate-x-0.5"
-            }`}
-          />
-        </button>
-      </PlayCard>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="League name"
+              maxLength={40}
+              className={inputClasses}
+            />
+            <button
+              type="button"
+              disabled={busy || name.trim().length < 3}
+              onClick={() =>
+                withToken(async (token) => {
+                  const { league } = await createMiniLeague(name.trim(), token);
+                  setName("");
+                  toast.success(`"${league.name}" created — share the invite below`);
+                })
+              }
+              className={`${primaryButtonClasses} shrink-0 sm:min-w-[6.5rem]`}
+            >
+              Create
+            </button>
+          </div>
+        </PlayCard>
 
-      {data.rank != null && referralData.data?.referral_code && myUsername && (
-        <ShareRankCard
-          username={myUsername}
-          rank={data.rank}
-          points={data.total_points}
-          referrals={data.activated}
-          code={referralData.data.referral_code}
+        <div
+          id="join-league"
+          className={
+            joinHighlight
+              ? "rounded-2xl ring-2 ring-lavender-500/40 dark:ring-lavender-400/30"
+              : undefined
+          }
+        >
+          <PlayCard className="space-y-3">
+          <div className="flex items-center gap-2">
+            <span className="flex size-8 items-center justify-center rounded-lg bg-accent-gray dark:bg-white/10">
+              <LinkSquare01Icon className="size-4 text-text-body dark:text-white/80" />
+            </span>
+            <h2 className="text-sm font-semibold text-text-body dark:text-white">
+              Join with code
+            </h2>
+          </div>
+          <p className="text-xs text-text-secondary dark:text-white/50">
+            Paste a code from a friend or open their invite link.
+          </p>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <input
+              ref={joinInputRef}
+              value={code}
+              onChange={(e) => {
+                setCode(e.target.value.toUpperCase());
+                setJoinHighlight(false);
+              }}
+              placeholder="e.g. 27GK6B89"
+              maxLength={12}
+              spellCheck={false}
+              autoComplete="off"
+              className={`${inputClasses} font-mono uppercase tracking-wider`}
+            />
+            <button
+              type="button"
+              disabled={busy || code.trim().length < 4}
+              onClick={() =>
+                withToken(async (token) => {
+                  await joinMiniLeague(code.trim(), token);
+                  setCode("");
+                  setJoinHighlight(false);
+                  toast.success("Joined league");
+                })
+              }
+              className={`${primaryButtonClasses} shrink-0 sm:min-w-[6.5rem]`}
+            >
+              Join
+            </button>
+          </div>
+          </PlayCard>
+        </div>
+      </div>
+
+      {leagues.length === 0 ? (
+        <EmptyState
+          icon={<UserGroupIcon className="size-8 text-lavender-500/80" />}
+          title="No leagues yet"
+          description="Create one and tap Share on the invite strip, or join a friend's league with their code."
+          action={
+            <Link href="/play/team" className={`${secondaryButtonClasses} inline-flex`}>
+              Build your squad
+            </Link>
+          }
         />
+      ) : (
+        <div className="space-y-4">
+          {leagues.map((league) => (
+            <LeagueCard
+              key={league.id}
+              league={league}
+              onLeave={(id) =>
+                withToken(async (token) => {
+                  await leaveMiniLeague(id, token);
+                  toast.success("Left league");
+                })
+              }
+            />
+          ))}
+        </div>
       )}
     </div>
   );

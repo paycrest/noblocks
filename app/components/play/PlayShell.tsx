@@ -51,7 +51,7 @@ const PlayFooter = ({ campaignEnded }: { campaignEnded?: boolean }) => (
       <span>
         {campaignEnded
           ? "Noblocks Play · Season complete"
-          : "Noblocks Play · World Cup 2026 Fantasy League"}
+          : "Noblocks Play · Premier League Fantasy"}
       </span>
       <span className="flex items-center gap-4">
         {!campaignEnded && (

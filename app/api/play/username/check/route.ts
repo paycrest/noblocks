@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { supabaseAdmin } from "@/app/lib/supabase";
-import { withRateLimit } from "@/app/lib/rate-limit";
+import { withRateLimitAndAnalytics } from "@/app/lib/analytics-middleware";
 import { validateUsername, suggestUsernames } from "@/app/lib/fantasy/validation";
 import {
   fantasyDisabledResponse,
@@ -11,7 +11,7 @@ import {
 } from "@/app/lib/fantasy/server";
 
 /** GET /api/play/username/check?u=<candidate> — availability + suggestions. */
-export const GET = withRateLimit(async (request: NextRequest) => {
+export const GET = withRateLimitAndAnalytics(async (request: NextRequest) => {
   if (!isFantasyEnabled()) return fantasyDisabledResponse();
 
   try {

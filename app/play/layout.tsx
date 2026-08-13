@@ -5,14 +5,14 @@ import { PlayShell } from "@/app/components/play/PlayShell";
 
 export const metadata: Metadata = config.fantasyCampaignEnded
   ? {
-      title: "Noblocks Play — World Cup Fantasy League",
+      title: "Noblocks Play — Premier League Fantasy",
       description:
-        "The World Cup fantasy league has ended. Follow Noblocks on X for the winners announcement — Play returns for Premier League and Champions League.",
+        "This season of Noblocks Play has ended. Follow Noblocks on X for winners and the next campaign.",
     }
   : {
-      title: "Noblocks Play — World Cup Fantasy League",
+      title: "Noblocks Play — Premier League Fantasy",
       description:
-        "Build your World Cup fantasy squad, climb the leaderboard and qualify for a share of 600 USDC on Base.",
+        "Build your Premier League fantasy squad, climb the leaderboard and compete with friends in mini-leagues.",
     };
 
 export default function PlayLayout({

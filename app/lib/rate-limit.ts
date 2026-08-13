@@ -1,26 +1,63 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { RateLimiterMemory } from 'rate-limiter-flexible';
+import { NextRequest, NextResponse } from "next/server";
+import { RateLimiterMemory } from "rate-limiter-flexible";
 
-const rateLimiter = new RateLimiterMemory({
+/**
+ * App Router route handler. Generic over the context arg so dynamic segments
+ * ([id], [address]) keep their own `{ params }` type through the wrappers —
+ * parameters are contravariant, so a non-generic `context?: unknown` would
+ * reject every typed handler.
+ */
+export type RouteHandler<TContext = unknown> = (
+  request: NextRequest,
+  context: TContext,
+) => Promise<Response>;
+
+/**
+ * Per-caller budget. Keyed on the middleware-verified x-user-id when present
+ * so that many signed-in users sharing one egress IP — carrier-grade NAT is
+ * the norm on mobile networks — don't consume each other's allowance.
+ */
+const identityLimiter = new RateLimiterMemory({
   points: 100, // Number of requests
   duration: 60, // Per minute
   blockDuration: 60, // Block for 1 minute if limit exceeded
 });
 
-export async function rateLimit(request: NextRequest) {
-  try {
-    const ip = request.headers.get('x-forwarded-for') ||
-      request.headers.get('x-real-ip') ||
-      'anonymous';
+/**
+ * Per-IP ceiling, always applied. x-user-id survives untouched on routes the
+ * middleware short-circuits (public reads, the worker, admin), so the identity
+ * key alone would be forgeable; this bucket bounds any single source
+ * regardless. Sized to fit a NAT'd cohort at normal poll rates, not a scraper.
+ */
+const ipLimiter = new RateLimiterMemory({
+  points: 300,
+  duration: 60,
+  blockDuration: 60,
+});
 
-    const rateLimitResult = await rateLimiter.consume(ip);
+/** First x-forwarded-for hop is the client; later entries are proxies. */
+function clientIp(request: NextRequest): string {
+  const forwarded = request.headers.get("x-forwarded-for");
+  if (forwarded) return forwarded.split(",")[0].trim();
+  return request.headers.get("x-real-ip") || "anonymous";
+}
+
+export async function rateLimit(request: NextRequest) {
+  const ip = clientIp(request);
+  const userId = request.headers.get("x-user-id");
+
+  try {
+    const [identityResult] = await Promise.all([
+      identityLimiter.consume(userId ? `user:${userId}` : `ip:${ip}`),
+      ipLimiter.consume(ip),
+    ]);
 
     return {
       success: true,
-      remaining: rateLimitResult.remainingPoints,
-      reset: Math.ceil(rateLimitResult.msBeforeNext / 1000),
+      remaining: identityResult.remainingPoints,
+      reset: Math.ceil(identityResult.msBeforeNext / 1000),
     };
-  } catch (error) {
+  } catch {
     return {
       success: false,
       remaining: 0,
@@ -29,29 +66,28 @@ export async function rateLimit(request: NextRequest) {
   }
 }
 
-export function withRateLimit(handler: Function) {
-  return async (request: NextRequest, context: any) => {
+export function withRateLimit<TContext>(
+  handler: RouteHandler<TContext>,
+): RouteHandler<TContext> {
+  return async (request: NextRequest, context: TContext) => {
     const limiter = await rateLimit(request);
 
     const headers = {
-      'X-RateLimit-Remaining': limiter.remaining.toString(),
-      'X-RateLimit-Reset': limiter.reset.toString(),
+      "X-RateLimit-Remaining": limiter.remaining.toString(),
+      "X-RateLimit-Reset": limiter.reset.toString(),
     };
 
     if (!limiter.success) {
       return NextResponse.json(
-        { success: false, error: 'Too many requests' },
-        { status: 429, headers }
+        { success: false, error: "Too many requests" },
+        { status: 429, headers },
       );
     }
 
     const response = await handler(request, context);
 
-    // Add rate limit headers to the response
-    if (response && response.headers) {
-      Object.entries(headers).forEach(([key, value]) => {
-        response.headers.set(key, value);
-      });
+    for (const [key, value] of Object.entries(headers)) {
+      response.headers.set(key, value);
     }
 
     return response;

@@ -6,6 +6,11 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   outputFileTracingRoot: path.join(__dirname),
+  // dapvatar assets are loaded via runtime path strings in /api/play/og — include
+  // them explicitly so serverless bundles don't silently drop manager portraits.
+  outputFileTracingIncludes: {
+    "/api/play/og": ["./node_modules/dapvatar/assets/**/*"],
+  },
   // Allow dev HMR / _next assets when the app is opened via ngrok (or similar)
   // instead of localhost only. See https://nextjs.org/docs/app/api-reference/config/next-config-js/allowedDevOrigins
   allowedDevOrigins: [

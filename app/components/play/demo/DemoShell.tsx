@@ -16,7 +16,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
-  AlarmClockIcon,
   ArrowRightDoubleIcon,
   ChampionIcon,
   Forward01Icon,
@@ -24,7 +23,6 @@ import {
   RotateLeft01Icon,
   TestTube01Icon,
   Tick02Icon,
-  UserAdd01Icon,
 } from "hugeicons-react";
 import { DemoBackend, SCENARIOS, type DemoScenario } from "./backend";
 
@@ -49,7 +47,7 @@ const MatchdayPanel = ({ version }: { version: number }) => {
   const [data, setData] = useState<MatchdayResponse | null>(null);
   useEffect(() => {
     let cancelled = false;
-    fetchMatchday(6)
+    fetchMatchday(101)
       .then((d) => !cancelled && setData(d))
       .catch(() => !cancelled && setData(null));
     return () => {
@@ -265,40 +263,9 @@ export const DemoShell = () => {
             </div>
             {st.campaignComplete && (
               <p className="mt-2 text-xs text-text-secondary dark:text-white/60">
-                The Final is done — in production this is where the winners
-                export (top-5 ×50 / ranks 6–10 ×40 / ranks 11–20 ×15 USDC
-                among qualified) runs.
+                GW3 is done — in production this is where season rollover runs.
               </p>
             )}
-          </PlayCard>
-
-          <PlayCard>
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-secondary dark:text-white/40">
-              Referral / qualification sim
-            </p>
-            <p className="text-xs text-text-secondary dark:text-white/60">
-              {st.activatedReferrals} of 5 activated
-              {st.activatedReferrals >= 5 && st.giveawayOptIn ? " — QUALIFIED" : ""}
-            </p>
-            <div className="mt-2 flex flex-wrap gap-2">
-              <button
-                type="button"
-                disabled={st.activatedReferrals >= 5}
-                onClick={() => runSim(() => backend.activateReferral())}
-                className={`${secondaryButtonClasses} inline-flex items-center gap-2 disabled:opacity-40`}
-              >
-                <UserAdd01Icon className="size-4" />
-                +1 activated referral
-              </button>
-              <button
-                type="button"
-                onClick={() => runSim(() => backend.expireDeadline())}
-                className={`${secondaryButtonClasses} inline-flex items-center gap-2`}
-              >
-                <AlarmClockIcon className="size-4" />
-                Expire deadline
-              </button>
-            </div>
           </PlayCard>
 
           {log.length > 0 && (

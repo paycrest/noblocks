@@ -6,6 +6,8 @@ Fill **typed Jira fields** (not one markdown dump in Description). The ticket is
 
 **Choose exactly one issue type.** Do **not** mix Bug fields with Task fields. Do **not** use Story or Feature.
 
+**Field format:** every field below except `summary` and Money-safety is **rich text (ADF)** — send `contentFormat: "adf"` with a `{"type": "doc", ...}` object. Markdown strings are rejected or stored literally, so `**bold**` and list markers end up visible in the ticket. See [issue-tracker.md](issue-tracker.md#field-formats-adf).
+
 | Jira issue type | Use this section |
 |-----------------|------------------|
 | **Task** (enhancement, chore, vertical slice) | [Task](#task) |
@@ -15,7 +17,7 @@ Fill **typed Jira fields** (not one markdown dump in Description). The ticket is
 
 ## Task
 
-Use for issue type **Task** only. Set fields via Atlassian MCP `additional_fields` (and `description` for the short overview).
+Use for issue type **Task** only. Set fields via Atlassian MCP — `additional_fields` on create, `fields` on edit — with `contentFormat: "adf"` for every rich-text value.
 
 | Field | Jira field id | Required |
 |-------|---------------|----------|

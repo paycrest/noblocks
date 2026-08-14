@@ -75,10 +75,18 @@ const config: Config = {
   evmEarnEnabled: process.env.NEXT_PUBLIC_EVM_EARN_ENABLED === "true",
   tronEnabled: process.env.NEXT_PUBLIC_TRON_ENABLED === "true",
   solanaEnabled: process.env.NEXT_PUBLIC_SOLANA_ENABLED === "true",
-  solanaDevnetRpc:
-    process.env.NEXT_PUBLIC_SOLANA_DEVNET_RPC || "https://api.devnet.solana.com",
-  solanaDevnetWss:
-    process.env.NEXT_PUBLIC_SOLANA_DEVNET_WSS || "wss://api.devnet.solana.com",
+  solanaRpc:
+    process.env.NEXT_PUBLIC_SOLANA_RPC ||
+    process.env.NEXT_PUBLIC_SOLANA_MAINNET_RPC ||
+    "https://api.mainnet-beta.solana.com",
+  solanaWss:
+    process.env.NEXT_PUBLIC_SOLANA_WSS ||
+    process.env.NEXT_PUBLIC_SOLANA_MAINNET_WSS ||
+    "wss://api.mainnet-beta.solana.com",
+  solanaGatewayProgramId:
+    process.env.NEXT_PUBLIC_SOLANA_GATEWAY_PROGRAM_ID ||
+    process.env.SOLANA_GATEWAY_PROGRAM_ID ||
+    "",
   referralEnabled: (process.env.NEXT_PUBLIC_REFERRAL_ENABLED || "").trim().toLowerCase() !== "false",
   bridgeEnabled: process.env.NEXT_PUBLIC_BRIDGE_ENABLED === "true",
   onrampChainedForwardingEnabled:

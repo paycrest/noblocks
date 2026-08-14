@@ -488,10 +488,11 @@ export type Config = {
   evmEarnEnabled: boolean;
   /** Tron network + Privy Tron wallet. Opt-in via NEXT_PUBLIC_TRON_ENABLED. */
   tronEnabled: boolean;
-  /** Solana devnet ramps. Opt-in via NEXT_PUBLIC_SOLANA_ENABLED. */
+  /** Solana mainnet-beta ramps. Opt-in via NEXT_PUBLIC_SOLANA_ENABLED. */
   solanaEnabled: boolean;
-  solanaDevnetRpc: string;
-  solanaDevnetWss: string;
+  solanaRpc: string;
+  solanaWss: string;
+  solanaGatewayProgramId: string;
   /** Referral program feature flag. When false, all referral UI and API routes are disabled. */
   referralEnabled: boolean;
   /** Bridge/Swap feature flag. Controls Convert button visibility + proxy routes. */

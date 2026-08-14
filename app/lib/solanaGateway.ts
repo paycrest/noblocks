@@ -11,12 +11,20 @@ import {
 } from "@solana/web3.js";
 import { keccak256 } from "viem";
 import config from "./config";
-import { DEFAULT_SOLANA_DEVNET_USDC_MINT } from "./solanaAta";
+import { DEFAULT_SOLANA_USDC_MINT } from "./solanaAta";
 import { getSolanaSponsorSecretKeyBytes } from "./solanaSponsor";
 
-export const SOLANA_DEVNET_CHAIN_ID = BigInt(900_002);
-export const SOLANA_DEVNET_PROGRAM_ID =
-  "BoSMnjq5yfEbGYDAm9QMDwYS1SU2avudcc7JqBKNw77U";
+export const SOLANA_CHAIN_ID = BigInt(900_001);
+
+export function getSolanaGatewayProgramId(): string {
+  const programId = config.solanaGatewayProgramId?.trim();
+  if (!programId) {
+    throw new Error(
+      "SOLANA_GATEWAY_PROGRAM_ID (or NEXT_PUBLIC_SOLANA_GATEWAY_PROGRAM_ID) is not configured",
+    );
+  }
+  return programId;
+}
 
 const TOKEN_PROGRAM_ID = new PublicKey(
   "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
@@ -27,11 +35,11 @@ const ASSOCIATED_TOKEN_PROGRAM_ID = new PublicKey(
 
 const OPCODE_CREATE_ORDER = 9;
 const CONFIG_ACCOUNT_LEN = 235;
-/** Minimum sponsor SOL to pay fees + Order PDA / ATA rent on devnet. */
+/** Minimum sponsor SOL to pay fees + Order PDA / ATA rent on mainnet. */
 const MIN_SPONSOR_LAMPORTS = 10_000_000;
 
 export function solanaConnection(commitment: Commitment = "confirmed"): Connection {
-  return new Connection(config.solanaDevnetRpc, commitment);
+  return new Connection(config.solanaRpc, commitment);
 }
 
 export function getSponsorKeypair(): Keypair {
@@ -218,9 +226,9 @@ async function validateCreateOrderPreflight(params: {
   const sponsorLamports = await connection.getBalance(sponsor.publicKey);
   if (sponsorLamports < MIN_SPONSOR_LAMPORTS) {
     throw new Error(
-      `Sponsor wallet ${sponsor.publicKey.toBase58()} needs devnet SOL for transaction fees ` +
+      `Sponsor wallet ${sponsor.publicKey.toBase58()} needs SOL for transaction fees ` +
         `(has ${(sponsorLamports / 1e9).toFixed(4)} SOL, need at least ${MIN_SPONSOR_LAMPORTS / 1e9} SOL). ` +
-        `Fund SPONSOR_SOLANA_WALLET_PRIVATE_KEY on devnet.`,
+        `Fund SPONSOR_SOLANA_WALLET_PRIVATE_KEY on mainnet.`,
     );
   }
 
@@ -228,7 +236,7 @@ async function validateCreateOrderPreflight(params: {
   if (!depositorAtaInfo) {
     throw new Error(
       `No USDC token account for wallet ${depositor.toBase58()}. ` +
-        `Receive USDC on Solana Devnet first (expected ATA ${depositorAta.toBase58()}).`,
+        `Receive USDC on Solana first (expected ATA ${depositorAta.toBase58()}).`,
     );
   }
 
@@ -294,9 +302,9 @@ export type BuildCreateOrderResult = {
 export async function buildCreateOrderTransaction(
   input: BuildCreateOrderInput,
 ): Promise<BuildCreateOrderResult> {
-  const programId = new PublicKey(SOLANA_DEVNET_PROGRAM_ID);
+  const programId = new PublicKey(getSolanaGatewayProgramId());
   const depositor = new PublicKey(input.depositor);
-  const mint = new PublicKey(input.mint?.trim() || DEFAULT_SOLANA_DEVNET_USDC_MINT);
+  const mint = new PublicKey(input.mint?.trim() || DEFAULT_SOLANA_USDC_MINT);
   const refundPubkey = new PublicKey(input.refundAddress);
   const senderFee = input.senderFee ?? BigInt(0);
   const senderFeeRecipient = input.senderFeeRecipient
@@ -315,9 +323,9 @@ export async function buildCreateOrderTransaction(
   if (cfg.paused) {
     throw new Error("Gateway is paused");
   }
-  if (cfg.chainId !== SOLANA_DEVNET_CHAIN_ID) {
+  if (cfg.chainId !== SOLANA_CHAIN_ID) {
     throw new Error(
-      `On-chain chain_id ${cfg.chainId} != expected ${SOLANA_DEVNET_CHAIN_ID}`,
+      `On-chain chain_id ${cfg.chainId} != expected ${SOLANA_CHAIN_ID}`,
     );
   }
 

@@ -87,7 +87,7 @@ export async function assertTransactionWalletAuthorized(
 
 /** NGN per 1 USDC from the aggregator (used for cNGN / fiat KYC limit math). */
 const KYC_RATE_NETWORK_FALLBACKS = [
-  "solana-devnet",
+  "solana-mainnet-beta",
   "base",
   "arbitrum-one",
   "polygon",

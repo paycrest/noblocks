@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import config from "@/app/lib/config";
 import {
-  DEFAULT_SOLANA_DEVNET_USDC_MINT,
+  DEFAULT_SOLANA_USDC_MINT,
   deriveAssociatedTokenAddress,
   tokenAccountExists,
 } from "@/app/lib/solanaAta";
@@ -16,7 +16,7 @@ export const GET = withRateLimit(async (request: NextRequest) => {
   const owner = request.nextUrl.searchParams.get("owner")?.trim() ?? "";
   const mint =
     request.nextUrl.searchParams.get("mint")?.trim() ??
-    DEFAULT_SOLANA_DEVNET_USDC_MINT;
+    DEFAULT_SOLANA_USDC_MINT;
 
   if (!isValidSolanaAddress(owner)) {
     return NextResponse.json({ error: "Invalid owner address" }, { status: 400 });

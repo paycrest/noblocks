@@ -473,8 +473,8 @@ export const getExplorerLink = (network: string, txHash: string) => {
       return `https://voyager.online/tx/${txHash}`;
     case "Tron":
       return `https://tronscan.org/#/transaction/${txHash}`;
-    case "Solana Devnet":
-      return `https://explorer.solana.com/tx/${txHash}?cluster=devnet`;
+    case "Solana":
+      return `https://explorer.solana.com/tx/${txHash}`;
     default:
       return "";
   }
@@ -598,10 +598,11 @@ export function getRpcUrl(network: string) {
       return (
         process.env.NEXT_PUBLIC_TRON_RPC_URL || "https://api.trongrid.io"
       );
-    case "Solana Devnet":
+    case "Solana":
       return (
-        process.env.NEXT_PUBLIC_SOLANA_DEVNET_RPC ||
-        "https://api.devnet.solana.com"
+        process.env.NEXT_PUBLIC_SOLANA_RPC ||
+        process.env.NEXT_PUBLIC_SOLANA_MAINNET_RPC ||
+        "https://api.mainnet-beta.solana.com"
       );
     default:
       return undefined;
@@ -847,13 +848,12 @@ export const FALLBACK_TOKENS: { [key: string]: Token[] } = {
       imageUrl: "/logos/usdt-logo.svg",
     },
   ],
-  "Solana Devnet": [
+  Solana: [
     {
       name: "USD Coin",
       symbol: "USDC",
       decimals: 6,
-      address:
-        "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
+      address: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
       imageUrl: "/logos/usdc-logo.svg",
     },
   ],
@@ -1406,7 +1406,7 @@ async function fetchSolanaBalancesUnified(
   address: string,
   tokens: Token[],
 ): Promise<UnifiedWalletBalances> {
-  const chainName = "Solana Devnet";
+  const chainName = "Solana";
 
   const emptyUsd = (): UnifiedWalletBalances => ({
     chainName,
@@ -1506,7 +1506,7 @@ async function fetchSolanaBalancesUnified(
 }
 
 /**
- * Solana devnet balances for supported SPL tokens (USDC ATA).
+ * Solana mainnet balances for supported SPL tokens (USDC ATA).
  */
 export async function fetchSolanaBalance(
   address: string,
@@ -1764,14 +1764,14 @@ export function isTronChain(chain: {
   return chain.network === "tron-mainnet";
 }
 
-/** True for Solana devnet (mock chain + aggregator `solana-devnet` slug). */
+/** True for Solana mainnet-beta (mock chain + aggregator `solana-mainnet-beta` slug). */
 export function isSolanaChain(chain: {
   name?: string;
   network?: string;
 } | null | undefined): boolean {
   if (!chain) return false;
-  if (chain.name === "Solana Devnet") return true;
-  return chain.network === "solana-devnet";
+  if (chain.name === "Solana") return true;
+  return chain.network === "solana-mainnet-beta";
 }
 
 /** EVM swap chains only — excludes Starknet, Tron, and Solana (no EIP-7702 / viem gateway). */
@@ -1808,7 +1808,6 @@ export const GATEWAY_CONTRACT_ADDRESSES = {
   Lisk: "0xff0E00E0110C1FBb5315D276243497b66D3a4d8a",
   Ethereum: "0x8d2c0d398832b814e3814802ff2dc8b8ef4381e5",
   Starknet: "0x06ff3a3b1532da65594fc98f9ca7200af6c3dbaf37e7339b0ebd3b3f2390c583",
-  "Solana Devnet":  "BoSMnjq5yfEbGYDAm9QMDwYS1SU2avudcc7JqBKNw77U",
 } as const;
 
 export type GatewayNetwork = keyof typeof GATEWAY_CONTRACT_ADDRESSES;
@@ -1825,6 +1824,9 @@ const NORMALIZED_GATEWAY_ADDRESSES = new Set(
  * @returns The contract address for the specified network, or undefined if the network is not found.
  */
 export function getGatewayContractAddress(network = ""): string | undefined {
+  if (network === "Solana") {
+    return config.solanaGatewayProgramId?.trim() || undefined;
+  }
   return GATEWAY_CONTRACT_ADDRESSES[network as GatewayNetwork];
 }
 
@@ -2051,7 +2053,7 @@ export const handleNetworkSwitch = async (
   const isNonEvmNetwork =
     network.chain.name === "Starknet" ||
     network.chain.name === "Tron" ||
-    network.chain.name === "Solana Devnet";
+    network.chain.name === "Solana";
 
   if (useInjectedWallet && window.ethereum && !isNonEvmNetwork) {
     if (!network.chain?.id) {

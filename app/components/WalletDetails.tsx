@@ -203,7 +203,7 @@ export const WalletDetails = () => {
     ? { address: injectedAddress }
     : selectedNetwork.chain.name === "Starknet" ||
       selectedNetwork.chain.name === "Tron" ||
-      selectedNetwork.chain.name === "Solana Devnet"
+      selectedNetwork.chain.name === "Solana"
       ? hookWalletAddress
         ? { address: hookWalletAddress }
         : undefined
@@ -219,7 +219,7 @@ export const WalletDetails = () => {
       ? allBalances.starknetWallet
       : selectedNetwork.chain.name === "Tron"
         ? allBalances.tronWallet
-        : selectedNetwork.chain.name === "Solana Devnet"
+        : selectedNetwork.chain.name === "Solana"
           ? allBalances.solanaWallet
         : shouldUseEOA
           ? allBalances.externalWallet

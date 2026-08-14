@@ -255,7 +255,7 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
     (n) =>
       n.chain.name !== "Starknet" &&
       n.chain.name !== "Tron" &&
-      n.chain.name !== "Solana Devnet",
+      n.chain.name !== "Solana",
   );
 
   /**
@@ -359,7 +359,7 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
       tronAddress: tronAddress ?? null,
       isTronSelected: selectedNetwork.chain.name === "Tron",
       solanaAddress: solanaAddress ?? null,
-      isSolanaSelected: selectedNetwork.chain.name === "Solana Devnet",
+      isSolanaSelected: selectedNetwork.chain.name === "Solana",
       selectedChainName: selectedNetwork.chain.name,
     });
 
@@ -504,10 +504,10 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
         return;
       }
 
-      if (selectedNetwork.chain.name === "Solana Devnet") {
+      if (selectedNetwork.chain.name === "Solana") {
         if (solanaAddress) {
           try {
-            const tokens = await getNetworkTokens("Solana Devnet");
+            const tokens = await getNetworkTokens("Solana");
             const result = await fetchSolanaBalance(solanaAddress, tokens);
 
             setSolanaWalletBalance(result);
@@ -517,7 +517,7 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
             setExternalWalletBalance(null);
             setInjectedWalletBalance(null);
             const solanaNetwork = networks.find(
-              (n) => n.chain.name === "Solana Devnet",
+              (n) => n.chain.name === "Solana",
             );
             setCrossChainBalances(
               solanaNetwork
@@ -917,7 +917,7 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
     tronAddress: tronAddress ?? null,
     isTronSelected: selectedNetwork.chain.name === "Tron",
     solanaAddress: solanaAddress ?? null,
-    isSolanaSelected: selectedNetwork.chain.name === "Solana Devnet",
+    isSolanaSelected: selectedNetwork.chain.name === "Solana",
     selectedChainName: selectedNetwork.chain.name,
   });
   const identityMatchesLastFetch =

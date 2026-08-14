@@ -91,7 +91,7 @@ import { RefundAccountSuccessModal } from "../components/RefundAccountSuccessMod
 import { PiCheckCircleFill } from "react-icons/pi";
 import { TbCircleDashed } from "react-icons/tb";
 import { useActualTheme } from "../hooks/useActualTheme";
-import { DEFAULT_SOLANA_DEVNET_USDC_MINT } from "../lib/solanaAta";
+import { DEFAULT_SOLANA_USDC_MINT } from "../lib/solanaAta";
 import axios from "axios";
 
 async function readApiJson<T>(response: Response): Promise<T> {
@@ -548,7 +548,7 @@ export const TransactionPreview = ({
         const mintAddress =
           [tokenAddress, fetchedTokens.find((t) => t.symbol.toUpperCase() === token.toUpperCase())?.address]
             .find((addr) => addr && isValidSolanaAddress(addr)) ??
-          DEFAULT_SOLANA_DEVNET_USDC_MINT;
+          DEFAULT_SOLANA_USDC_MINT;
 
         const decimals = tokenDecimals ?? 6;
         const amountBaseUnits = parseUnits(
@@ -605,7 +605,7 @@ export const TransactionPreview = ({
             Buffer.from(buildData.transaction, "base64"),
           ),
           wallet: solanaWallet,
-          chain: "solana:devnet",
+          chain: "solana:mainnet-beta",
         });
 
         const submitResponse = await fetch("/api/solana/create-order", {

@@ -74,8 +74,8 @@ export function resolveNetworkBySlug(
     return networks.find((n) => n.chain.name === "Starknet") ?? null;
   }
 
-  if (lower === "solana-devnet" || lower === "solana") {
-    return networks.find((n) => n.chain.name === "Solana Devnet") ?? null;
+  if (lower === "solana-mainnet-beta" || lower === "solana") {
+    return networks.find((n) => n.chain.name === "Solana") ?? null;
   }
 
   return (

@@ -55,10 +55,10 @@ const solanaPrivyConfig = config.solanaEnabled
       },
       solana: {
         rpcs: {
-          "solana:devnet": {
-            rpc: createSolanaRpc(config.solanaDevnetRpc),
+          "solana:mainnet-beta": {
+            rpc: createSolanaRpc(config.solanaRpc),
             rpcSubscriptions: createSolanaRpcSubscriptions(
-              config.solanaDevnetWss,
+              config.solanaWss,
             ),
           },
         },

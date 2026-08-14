@@ -1,7 +1,7 @@
 import { networks } from "@/app/mocks";
 
-/** Paycrest synthetic chain_id for Solana devnet (aggregator DB + GET /v2/orders/:chain_id). */
-export const SOLANA_DEVNET_AGGREGATOR_CHAIN_ID = 900_002;
+/** Paycrest synthetic chain_id for Solana mainnet-beta (aggregator DB + GET /v2/orders/:chain_id). */
+export const SOLANA_AGGREGATOR_CHAIN_ID = 900_001;
 
 const SENDER_ORDER_UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -28,14 +28,14 @@ export function resolveChainIdFromNetworkName(networkName: string): number | str
   const match = networks.find((n) => n.chain.name === trimmed);
   const id = match?.chain?.id;
   if (typeof id === "number") return id;
-  if (id === "solana-devnet") return SOLANA_DEVNET_AGGREGATOR_CHAIN_ID;
+  if (id === "solana-mainnet-beta") return SOLANA_AGGREGATOR_CHAIN_ID;
   if (typeof id === "string" && id.length > 0) return id;
   return null;
 }
 
 /** Maps EVM chain id → Noblocks network display name (e.g. 8453 → "Base"). */
 export function resolveNetworkNameFromChainId(chainId: number): string | null {
-  if (chainId === SOLANA_DEVNET_AGGREGATOR_CHAIN_ID) return "Solana Devnet";
+  if (chainId === SOLANA_AGGREGATOR_CHAIN_ID) return "Solana";
   const match = networks.find((n) => n.chain.id === chainId);
   return match?.chain?.name ?? null;
 }

@@ -33,10 +33,10 @@ export const starknetMainnet = {
   testnet: false,
 };
 
-export const solanaDevnet = {
-  id: "solana-devnet",
-  name: "Solana Devnet",
-  network: "solana-devnet",
+export const solanaMainnet = {
+  id: "solana-mainnet-beta",
+  name: "Solana",
+  network: "solana-mainnet-beta",
   nativeCurrency: {
     decimals: 9,
     name: "Solana",
@@ -45,24 +45,26 @@ export const solanaDevnet = {
   rpcUrls: {
     default: {
       http: [
-        process.env.NEXT_PUBLIC_SOLANA_DEVNET_RPC ||
-          "https://api.devnet.solana.com",
+        process.env.NEXT_PUBLIC_SOLANA_RPC ||
+          process.env.NEXT_PUBLIC_SOLANA_MAINNET_RPC ||
+          "https://api.mainnet-beta.solana.com",
       ],
     },
     public: {
       http: [
-        process.env.NEXT_PUBLIC_SOLANA_DEVNET_RPC ||
-          "https://api.devnet.solana.com",
+        process.env.NEXT_PUBLIC_SOLANA_RPC ||
+          process.env.NEXT_PUBLIC_SOLANA_MAINNET_RPC ||
+          "https://api.mainnet-beta.solana.com",
       ],
     },
   },
   blockExplorers: {
     default: {
       name: "Solana Explorer",
-      url: "https://explorer.solana.com/?cluster=devnet",
+      url: "https://explorer.solana.com",
     },
   },
-  testnet: true,
+  testnet: false,
 };
 
 export const tronMainnet = {
@@ -160,7 +162,7 @@ export const networks = [
   ...(config.solanaEnabled
     ? [
         {
-          chain: solanaDevnet,
+          chain: solanaMainnet,
           imageUrl: "/logos/solana-logo.svg",
         },
       ]
@@ -199,7 +201,7 @@ export const MIGRATION_EXCLUDED_CHAIN_IDS = new Set<number | string>([
   celo.id,
   starknetMainnet.id,
   tronMainnet.id,
-  solanaDevnet.id,
+  solanaMainnet.id,
 ]);
 
 /** Networks scanned and shown in the wallet migration modal (excludes Celo, Starknet, and Tron). */

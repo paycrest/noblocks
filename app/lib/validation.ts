@@ -68,7 +68,7 @@ export function validateWalletAddress(
     }
     return true;
   }
-  if (networkName === "Solana Devnet") {
+  if (networkName === "Solana") {
     if (raw.startsWith("0x")) {
       return "This address is an EVM address. Enter a Solana address.";
     }

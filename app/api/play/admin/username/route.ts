@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { supabaseAdmin } from "@/app/lib/supabase";
-import { withRateLimit } from "@/app/lib/rate-limit";
+import { withRateLimitAndAnalytics } from "@/app/lib/analytics-middleware";
 import { requireAdmin } from "@/app/lib/fantasy/admin";
 import { validateUsername } from "@/app/lib/fantasy/validation";
 import { jsonError, jsonOk } from "@/app/lib/fantasy/server";
@@ -17,7 +17,7 @@ const isUniqueViolation = (error: { code?: string; message?: string } | null) =>
  * availability case-insensitively excluding this wallet, then writes the new
  * username onto user_kyc_profiles.
  */
-export const POST = withRateLimit(async (request: NextRequest) => {
+export const POST = withRateLimitAndAnalytics(async (request: NextRequest) => {
   const unauthorized = requireAdmin(request);
   if (unauthorized) return unauthorized;
 

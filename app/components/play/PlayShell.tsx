@@ -19,7 +19,7 @@ import { NoblocksLogo, NoblocksLogoIcon } from "../ImageAssets";
 import { PlayTabs } from "./PlayTabs";
 import { CountdownChip } from "./CountdownChip";
 
-/** Header shared by the game pages and the /play-demo harness. */
+/** Header shared by Noblocks Play game pages. */
 export const PlayHeader = ({ right }: { right?: ReactNode }) => (
   <header className="sticky top-0 z-40 border-b border-border-light bg-white/90 backdrop-blur dark:border-white/10 dark:bg-neutral-900/90">
     <div className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between gap-3 px-4 sm:px-6">
@@ -51,7 +51,7 @@ const PlayFooter = ({ campaignEnded }: { campaignEnded?: boolean }) => (
       <span>
         {campaignEnded
           ? "Noblocks Play · Season complete"
-          : "Noblocks Play · World Cup 2026 Fantasy League"}
+          : "Noblocks Play · Premier League Fantasy"}
       </span>
       <span className="flex items-center gap-4">
         {!campaignEnded && (

@@ -1,14 +1,12 @@
 /**
- * Noblocks Play — shared domain types for the World Cup fantasy league.
- * Isomorphic (no server-only imports): used by the engine, API routes,
- * client components and tests.
+ * Noblocks Play — shared domain types (EPL season).
  */
 
 export type Position = "GK" | "DEF" | "MID" | "FWD";
 
 export type MatchdayStatus = "upcoming" | "live" | "finalizing" | "final";
 
-export type BadgeState = "qualified" | "in_progress" | "opted_out";
+export type BadgeState = "active" | "opted_out";
 
 /** Normalized per-player per-fixture stats the scoring engine consumes. */
 export interface PlayerMatchStats {
@@ -18,20 +16,28 @@ export interface PlayerMatchStats {
   yellowCards: number;
   redCards: number;
   ownGoals: number;
-  penaltiesWon: number;
+  penaltiesMissed: number;
+  penaltiesScored: number;
   penaltiesCommitted: number;
   penaltiesSaved: number;
   saves: number;
   /** Goals conceded by the player's team while they were on the pitch. */
   goalsConceded: number;
   tackles: number;
-  /** Key passes stand in for "big chances created" at the same 2-for-1 rate (TRD §6.8). */
+  blocks: number;
+  interceptions: number;
   keyPasses: number;
+  shotsTotal: number;
   shotsOnTarget: number;
+  passesTotal: number;
+  /** Pass accuracy 0–100. */
+  passesAccuracy: number;
+  dribblesSuccess: number;
+  foulsDrawn: number;
+  foulsCommitted: number;
+  offsides: number;
   /** 60+ min played and team conceded 0 while on pitch (derived upstream). */
   cleanSheet: boolean;
-  /** Best-effort: only counted when provider events identify the goal type (TRD §6.8). */
-  directFreeKickGoals: number;
 }
 
 export interface ScoringMatrix {
@@ -41,17 +47,14 @@ export interface ScoringMatrix {
   yellow_card: number;
   red_card: number;
   own_goal: number;
-  penalty_won: number;
+  penalty_miss: number;
   penalty_conceded: number;
   goal: Record<Position, number>;
   clean_sheet: Record<Position, number>;
-  goals_conceded_per_extra: Record<Position, number>;
+  /** FPL: −1 per 2 goals conceded (GK/DEF). */
+  goals_conceded_per_two: Record<Position, number>;
   penalty_save: number;
   saves_per_point: number;
-  tackles_per_point: number;
-  key_passes_per_point: number;
-  shots_on_target_per_point: number;
-  direct_free_kick_goal: number;
 }
 
 export interface PointsBreakdownEntry {
@@ -64,24 +67,24 @@ export interface FantasySettings {
   squad_size: number;
   positions: Record<Position, number>;
   formations: string[];
-  /** Max players from one nation, keyed by matchday label (MD6/MD7/MD8). */
-  nation_caps: Record<string, number>;
-  /** Free transfers granted before each matchday, keyed by label. */
-  free_transfers: Record<string, number>;
+  club_cap: number;
+  free_transfers_max: number;
   transfer_penalty: number;
+  season_matchday_min: number;
+  season_matchday_max: number;
+  /**
+   * Production uses stylized kits + letter badges (not provider media).
+   * Keep false so APIs never expose API-Football headshot URLs. Only flip
+   * if media is explicitly licensed and product chooses to show photos.
+   */
+  photos_enabled: boolean;
+  /** BIT defcon thresholds (calibrated spike: DEF 5 / MID·FWD 6). */
+  defcon_def_threshold: number;
+  defcon_mid_fwd_threshold: number;
   scoring: ScoringMatrix;
-  qualification_deadline: string;
-  referrals_required: number;
-  referral_min_total_usd: number;
-  cngn_usd_rate: number;
   campaign_start: string;
   campaign_end: string;
   features: { emails: boolean; share_cards: boolean; join_open: boolean };
-  /**
-   * One-shot rescore queue: migrations that rewrite kickoff stamps directly
-   * (bypassing the stamp RPC) enqueue affected matchday ids here; the worker
-   * recomputes them on its next tick and clears the key.
-   */
   pending_rescore_matchdays?: number[];
 }
 
@@ -97,7 +100,6 @@ export interface FantasyPlayer {
 }
 
 export interface SquadSelection {
-  /** slot (1–11 XI, 12–15 bench) → player id */
   players: { playerId: number; slot: number }[];
   captainId: number;
   viceId: number;
@@ -111,19 +113,19 @@ export interface PublicTeamPlayer {
   name: string;
   position: Position;
   nation: string;
+  team_id: number;
   photo_url: string | null;
-  /** Effective points — includes the captain double / vice fallback. */
   points: number;
   minutes: number;
 }
 
-/** Public view of a manager's team (leaderboard drill-in, share links). */
 export interface PublicManagerTeam {
   username: string;
   rank: number | null;
   total_points: number;
+  /** People this manager referred (server count for share cards). */
+  activated_referrals: number;
   badge: string;
-  /** null until the manager has a squad in a locked round. */
   team: {
     matchday: { id: number; display_name: string; status: MatchdayStatus };
     points: number;
@@ -136,6 +138,40 @@ export interface LeaderboardRow {
   username: string | null;
   total_points: number;
   badge: BadgeState;
-  movement: number; // previous_rank - rank; positive = climbed
+  movement: number;
   is_me?: boolean;
+}
+
+// ─── Scoring worker ───────────────────────────────────────────────────────────
+
+export interface FixtureRow {
+  provider_fixture_id: number;
+  matchday_id: number;
+  home_team_id: number;
+  away_team_id: number;
+  kickoff: string;
+  status: string;
+  finished_at: string | null;
+  last_stats_sync: string | null;
+  stats_finalized: boolean;
+}
+
+export type StatsPass = "live" | "post_ft" | "reconcile_final";
+
+export interface WorkerReport {
+  ran_at: string;
+  /** A matchday window is active — i.e. a game is on (TRD §2.4). Lets the
+   * Cloudflare scheduler decide whether to tick faster than once a minute. */
+  live_window_active: boolean;
+  fixtures_refreshed: boolean;
+  transitions: string[];
+  /** Squad-player rows stamped with their XI/bench state at kickoff this tick. */
+  kickoff_stamps: number;
+  stats_synced: number;
+  fixtures_finalized: number;
+  scores_recomputed: number;
+  rolled_over_to: number | null;
+  notifications: { sent: number } | "skipped";
+  provider_rate_limit: { remaining: number | null; limit: number | null };
+  alerts: string[];
 }

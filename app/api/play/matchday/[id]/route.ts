@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/app/lib/supabase";
-import { withRateLimit } from "@/app/lib/rate-limit";
+import { withRateLimitAndAnalytics } from "@/app/lib/analytics-middleware";
+import { getFantasySettings } from "@/app/lib/fantasy/settings";
 import {
   fantasyDisabledResponse,
   isFantasyEnabled,
@@ -11,7 +12,7 @@ import {
  * GET /api/play/matchday/[id] — public matchday summary: fixtures, scores,
  * status. Served from our DB (never the provider) and briefly cached.
  */
-export const GET = withRateLimit(
+export const GET = withRateLimitAndAnalytics(
   async (_request: NextRequest, context: { params: Promise<{ id: string }> }) => {
     if (!isFantasyEnabled()) return fantasyDisabledResponse();
 
@@ -19,6 +20,14 @@ export const GET = withRateLimit(
       const { id } = await context.params;
       const matchdayId = Number(id);
       if (!Number.isInteger(matchdayId)) return jsonError("Invalid matchday", 400);
+
+      const settings = await getFantasySettings();
+      if (
+        matchdayId < settings.season_matchday_min ||
+        matchdayId > settings.season_matchday_max
+      ) {
+        return jsonError("Matchday not found", 404);
+      }
 
       const [{ data: matchday, error: mdError }, { data: fixtures, error: fxError }] =
         await Promise.all([

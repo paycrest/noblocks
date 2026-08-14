@@ -132,28 +132,35 @@ async function authorizationMiddleware(req: NextRequest) {
     );
   }
 
-  // Return 404 for Noblocks Play routes when the feature is disabled
+  // Ops routes keep running while the public UI is hidden pre-launch / post-campaign.
+  const isPlayOpsRoute =
+    endpoint === "/api/play/worker" || endpoint.startsWith("/api/play/admin/");
+
+  // Return 404 for user-facing Noblocks Play routes when the feature is disabled.
   const isPlayRoute = endpoint === "/api/play" || endpoint.startsWith("/api/play/");
-  if (isPlayRoute && process.env.NEXT_PUBLIC_FANTASY_ENABLED !== "true") {
+  if (isPlayRoute && !isPlayOpsRoute && process.env.NEXT_PUBLIC_FANTASY_ENABLED !== "true") {
     return NextResponse.json(
       { success: false, error: "Noblocks Play is not available" },
       { status: 404 },
     );
   }
 
-  // Noblocks Play routes that manage their own auth (public reads, the
-  // worker's internal secret, the admin key) skip the Privy JWT requirement
-  // below - they only need the feature-flag gate above.
+  // Noblocks Play routes that manage their own auth (public reads, the worker's
+  // internal secret, the admin key) skip the Privy JWT requirement below.
   const isPlaySelfAuthedRoute =
+    isPlayOpsRoute ||
     endpoint === "/api/play/leaderboard" ||
     endpoint === "/api/play/players" ||
     endpoint === "/api/play/matchdays" ||
     endpoint.startsWith("/api/play/matchday/") ||
-    endpoint === "/api/play/og" ||
-    endpoint === "/api/play/worker" ||
-    endpoint.startsWith("/api/play/admin/");
+    endpoint === "/api/play/og";
   if (isPlaySelfAuthedRoute) {
-    return NextResponse.next();
+    // JWT never runs here — strip client-supplied identity headers so downstream
+    // rate limiting cannot be keyed on forged x-user-id / x-wallet-address.
+    const headers = new Headers(req.headers);
+    headers.delete("x-user-id");
+    headers.delete("x-wallet-address");
+    return NextResponse.next({ request: { headers } });
   }
 
   // Track API request for analytics
@@ -555,12 +562,15 @@ export const config = {
     "/api/play/transfers",
     "/api/play/captain",
     "/api/play/rewards",
+    "/api/play/leagues",
+    "/api/play/leagues/:path*",
     "/api/play/opt-in",
     "/api/play/username/:path*",
     "/api/play/leaderboard",
     "/api/play/players",
     "/api/play/matchdays",
     "/api/play/matchday/:path*",
+    "/api/play/manager/:path*",
     "/api/play/og",
     "/api/play/worker",
     "/api/play/admin/:path*",

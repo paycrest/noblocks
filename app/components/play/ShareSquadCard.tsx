@@ -21,7 +21,7 @@ export const ShareSquadCard = ({ username }: { username: string }) => {
   const [imageLoaded, setImageLoaded] = useState(false);
 
   const ogUrl = manager
-    ? `/api/play/og?layout=squad&username=${encodeURIComponent(manager.username)}`
+    ? `/api/play/og?layout=squad&username=${encodeURIComponent(manager.username)}&v=kits`
     : null;
   useEffect(() => {
     setImageLoaded(false);

@@ -2,14 +2,16 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { NextRequest } from "next/server";
 import { ImageResponse } from "next/og";
-import { createAvatar } from "@dicebear/core";
-import { bigSmile, openPeeps } from "@dicebear/collection";
+import { matchMemoji } from "dapvatar";
 import config from "@/app/lib/config";
-import { withRateLimit } from "@/app/lib/rate-limit";
+import { withRateLimitAndAnalytics } from "@/app/lib/analytics-middleware";
 import { getPublicManagerTeam } from "@/app/lib/fantasy/server";
+import { clubJerseyDataUri } from "@/app/lib/fantasy/club-kits";
 import type { Position } from "@/app/lib/fantasy/types";
 
 const CACHE_CONTROL = "public, max-age=60, s-maxage=300";
+/** Share-card tagline — no fixed prize amounts; promos are marketing-led. */
+const PLAY_CHIP = "NOBLOCKS PLAY";
 
 /** Clamp a username to the on-card format: ≤20 chars, alnum/underscore only. */
 const sanitizeUsername = (value: string | null): string => {
@@ -17,12 +19,10 @@ const sanitizeUsername = (value: string | null): string => {
   return cleaned || "player";
 };
 
-/** Parse a positive integer query param, else "—". */
-const sanitizeNumber = (value: string | null): string => {
-  const parsed = Number.parseInt(String(value ?? ""), 10);
-  return Number.isFinite(parsed) && parsed >= 0
-    ? String(Math.min(parsed, 999_999_999))
-    : "—";
+/** Format a verified non-negative stat for on-card display. */
+const formatDisplayStat = (value: number | null | undefined): string => {
+  if (value == null || !Number.isFinite(value) || value < 0) return "—";
+  return String(Math.min(Math.trunc(value), 999_999_999));
 };
 
 /** Referral codes are NB + 4 alphanumerics; keep only safe chars. */
@@ -52,20 +52,101 @@ const loadGoldCard = () =>
   ).then((buf) => `data:image/png;base64,${buf.toString("base64")}`));
 
 /**
- * The card portrait: a DiceBear illustration generated locally (no network),
- * DETERMINISTIC from the username — every manager gets their own recurring
- * character. big-smile by default; Open Peeps (CC0) as the alternate style.
+ * Manager portrait via dapvatar memoji — deterministic from username.
+ * Reads the PNG from the package assets (no CDN) so OG rendering stays offline.
+ * `style` query is accepted for back-compat but ignored (single catalog).
  */
-function generateAvatar(username: string, style: string | null): string {
-  // flip: the characters face right by default — mirrored so they always
-  // look inward (left, toward the rating) from the card's right side.
-  const options = { seed: username.toLowerCase(), size: 512, flip: true };
-  const svg = (
-    style === "peeps"
-      ? createAvatar(openPeeps, options)
-      : createAvatar(bigSmile, options)
-  ).toString();
-  return `data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}`;
+const avatarCache = new Map<string, string>();
+async function generateAvatar(
+  username: string,
+  _style: string | null,
+): Promise<string | null> {
+  const seed = username.toLowerCase() || "noblocks-manager";
+  const match = matchMemoji({ seed, posture: "happy" });
+  const assetPath = match.selectedPosture.assetPath;
+  if (!assetPath) return null;
+  const cached = avatarCache.get(assetPath);
+  if (cached) return cached;
+  try {
+    const buf = await readFile(
+      path.join(process.cwd(), "node_modules/dapvatar/assets", assetPath),
+    );
+    const dataUri = `data:image/png;base64,${buf.toString("base64")}`;
+    avatarCache.set(assetPath, dataUri);
+    return dataUri;
+  } catch (error) {
+    console.warn("[play] dapvatar asset read failed:", assetPath, error);
+    return null;
+  }
+}
+
+type OgLayout = "wide" | "card" | "squad";
+
+/** Branded placeholder when a manager has no public profile or shareable squad. */
+function ogNotFoundImage(anton: Buffer, layout: OgLayout, message: string) {
+  const copy =
+    layout === "card"
+      ? { width: 640, height: 960 }
+      : { width: 1200, height: 630 };
+
+  return new ImageResponse(
+    (
+      <div
+        style={{
+          width: "100%",
+          height: "100%",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          backgroundImage:
+            "radial-gradient(circle at 50% 42%, #201a0b 0%, #100d06 55%, #0a0804 100%)",
+          fontFamily: "Anton",
+          padding: 48,
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            fontSize: 28,
+            letterSpacing: 6,
+            color: "#e0bd57",
+          }}
+        >
+          NOBLOCKS PLAY
+        </div>
+        <div
+          style={{
+            display: "flex",
+            marginTop: 24,
+            fontSize: 42,
+            letterSpacing: 2,
+            color: "#ffffff",
+            textAlign: "center",
+          }}
+        >
+          {message.toUpperCase()}
+        </div>
+        <div
+          style={{
+            display: "flex",
+            marginTop: 16,
+            fontSize: 22,
+            letterSpacing: 1,
+            color: "rgba(255,255,255,0.55)",
+            textAlign: "center",
+          }}
+        >
+          SET A USERNAME AND JOIN THE LEAGUE TO SHARE
+        </div>
+      </div>
+    ),
+    {
+      ...copy,
+      fonts: [{ name: "Anton", data: anton, style: "normal", weight: 400 }],
+      headers: { "Cache-Control": CACHE_CONTROL },
+    },
+  );
 }
 
 // Portrait window on the card (ref: gitfut's geometry) + its fade mask.
@@ -76,70 +157,30 @@ const PHOTO_MASK =
 // ─── Squad snapshot (layout=squad) ───────────────────────────────────────────
 
 const POS_ORDER: Position[] = ["GK", "DEF", "MID", "FWD"];
-const POS_COLOR: Record<Position, { bg: string; fg: string }> = {
-  GK: { bg: "#eab308", fg: "#1c1400" },
-  DEF: { bg: "#0ea5e9", fg: "#ffffff" },
-  MID: { bg: "#10b981", fg: "#ffffff" },
-  FWD: { bg: "#f43f5e", fg: "#ffffff" },
-};
-
-const playerInitials = (name: string) =>
-  name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase())
-    .join("");
 
 const lastName = (name: string) => name.split(" ").slice(-1)[0] ?? name;
 
 /**
- * Player headshot as a data URI so satori never does its own (uncontrolled)
- * remote fetch. Tight timeout + size cap; any failure falls back to the
- * initials chip for that player only — one flaky CDN image can't break or
- * stall the whole card.
- */
-async function fetchPhotoDataUri(url: string | null): Promise<string | null> {
-  if (!url || !/^https:\/\//.test(url)) return null;
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 2500);
-  try {
-    const res = await fetch(url, { signal: controller.signal, cache: "no-store" });
-    if (!res.ok) return null;
-    const type = res.headers.get("content-type") ?? "image/png";
-    if (!type.startsWith("image/")) return null;
-    const buf = Buffer.from(await res.arrayBuffer());
-    if (buf.length === 0 || buf.length > 400_000) return null;
-    return `data:${type};base64,${buf.toString("base64")}`;
-  } catch {
-    return null;
-  } finally {
-    clearTimeout(timeout);
-  }
-}
-
-/**
- * 1200×630 squad snapshot: the XI on a pitch panel (real headshots with
- * initials fallback, C/V badges, effective points) + manager stats and the
- * #NoblocksPlay hashtag.
+ * 1200×630 squad snapshot: the XI on a pitch panel (stylized club kits —
+ * never provider headshots), C/V badges, effective points + manager stats.
  */
 async function squadImage(usernameParam: string, anton: Buffer) {
   const manager = await getPublicManagerTeam(usernameParam);
   if (!manager?.team) {
-    return Response.json(
-      { success: false, error: "No shareable squad yet" },
-      { status: 404 },
-    );
+    return ogNotFoundImage(anton, "squad", "No shareable squad yet");
   }
   const { team } = manager;
 
   const xi = team.players.filter((p) => p.slot <= 11);
   const bench = team.players.filter((p) => p.slot > 11);
 
-  const photos = new Map<number, string | null>();
-  await Promise.all(
-    xi.map(async (p) => photos.set(p.player_id, await fetchPhotoDataUri(p.photo_url))),
-  );
+  const jerseys = new Map<number, string>();
+  for (const p of xi) {
+    jerseys.set(
+      p.player_id,
+      clubJerseyDataUri(p.team_id || 0, p.position),
+    );
+  }
 
   const slot = (p: (typeof team.players)[number]) => (
     <div
@@ -152,42 +193,18 @@ async function squadImage(usernameParam: string, anton: Buffer) {
       }}
     >
       <div style={{ display: "flex", position: "relative" }}>
-        {photos.get(p.player_id) ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={photos.get(p.player_id)!}
-            alt=""
-            width={58}
-            height={58}
-            style={{
-              width: 58,
-              height: 58,
-              borderRadius: 999,
-              objectFit: "cover",
-              objectPosition: "top",
-              backgroundColor: "rgba(255,255,255,0.92)",
-              border: `3px solid ${POS_COLOR[p.position].bg}`,
-            }}
-          />
-        ) : (
-          <div
-            style={{
-              display: "flex",
-              width: 58,
-              height: 58,
-              borderRadius: 999,
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: 22,
-              letterSpacing: 1,
-              backgroundColor: POS_COLOR[p.position].bg,
-              color: POS_COLOR[p.position].fg,
-              border: "3px solid rgba(255,255,255,0.85)",
-            }}
-          >
-            {playerInitials(p.name)}
-          </div>
-        )}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={jerseys.get(p.player_id)!}
+          alt=""
+          width={58}
+          height={58}
+          style={{
+            width: 58,
+            height: 58,
+            objectFit: "contain",
+          }}
+        />
         {(p.is_captain || p.is_vice) && (
           <div
             style={{
@@ -396,7 +413,7 @@ async function squadImage(usernameParam: string, anton: Buffer) {
                 color: INK,
               }}
             >
-              600 USDC IN PRIZES
+              {PLAY_CHIP}
             </div>
             <div
               style={{
@@ -424,13 +441,12 @@ async function squadImage(usernameParam: string, anton: Buffer) {
 /**
  * GET /api/play/og — share card for Noblocks Play (F-13): the FUT gold card
  * with the manager's stats on a dark backdrop.
- * Query: username, rank, points, refs (activated referrals), code, and
- * layout — "wide" (1200×630, link previews / desktop), "card" (640×960,
- * portrait: just the shield, big — the mobile presentation) or "squad"
- * (1200×630 squad snapshot for /play/manager/[username] link unfurls).
+ * Query: username, layout ("wide" | "card" | "squad"), code (referral link only),
+ * and optional style (ignored). Rank, points, and referral stats are resolved
+ * server-side from getPublicManagerTeam — query params cannot forge them.
  * Public route, rate-limited — gated by the feature flag.
  */
-export const GET = withRateLimit(async (request: NextRequest) => {
+export const GET = withRateLimitAndAnalytics(async (request: NextRequest) => {
   if (!config.fantasyEnabled) {
     return Response.json(
       { success: false, error: "Noblocks Play is not available" },
@@ -455,15 +471,27 @@ export const GET = withRateLimit(async (request: NextRequest) => {
     }
   }
 
-  const username = sanitizeUsername(searchParams.get("username"));
-  const rank = sanitizeNumber(searchParams.get("rank"));
-  const points = sanitizeNumber(searchParams.get("points"));
-  const refs = sanitizeNumber(searchParams.get("refs"));
+  const layoutParam = searchParams.get("layout");
+  const layout: "wide" | "card" = layoutParam === "card" ? "card" : "wide";
   const code = sanitizeCode(searchParams.get("code"));
-  const initials = username.slice(0, 2).toUpperCase();
 
-  const [anton, cardArt] = await Promise.all([loadAnton(), loadGoldCard()]);
-  const photo = generateAvatar(username, searchParams.get("style"));
+  try {
+    const anton = await loadAnton();
+    const manager = await getPublicManagerTeam(searchParams.get("username") ?? "");
+    if (!manager) {
+      return ogNotFoundImage(anton, layout, "Manager not found");
+    }
+
+    const username = sanitizeUsername(manager.username);
+    const rank = formatDisplayStat(manager.rank);
+    const points = formatDisplayStat(manager.total_points);
+    const refs = formatDisplayStat(manager.activated_referrals);
+    const initials = username.slice(0, 2).toUpperCase();
+
+    const [cardArt, photo] = await Promise.all([
+      loadGoldCard(),
+      generateAvatar(username, searchParams.get("style")),
+    ]);
 
   const stat = (value: string, label: string) => (
     <div
@@ -487,9 +515,6 @@ export const GET = withRateLimit(async (request: NextRequest) => {
       </span>
     </div>
   );
-
-  const layout =
-    searchParams.get("layout") === "card" ? "card" : "wide";
 
   const card = (
     <div
@@ -722,8 +747,8 @@ export const GET = withRateLimit(async (request: NextRequest) => {
             }}
           >
             {code
-              ? `600 USDC IN PRIZES · noblocks.xyz?ref=${code}`
-              : "600 USDC IN PRIZES · noblocks.xyz/play"}
+              ? `${PLAY_CHIP} · noblocks.xyz?ref=${code}`
+              : `${PLAY_CHIP} · noblocks.xyz/play`}
           </div>
         </div>
       ),
@@ -796,7 +821,7 @@ export const GET = withRateLimit(async (request: NextRequest) => {
                 color: "rgba(255,255,255,0.55)",
               }}
             >
-              WORLD CUP 2026 FANTASY LEAGUE
+              PREMIER LEAGUE FANTASY
             </div>
           </div>
 
@@ -847,7 +872,7 @@ export const GET = withRateLimit(async (request: NextRequest) => {
                 color: INK,
               }}
             >
-              600 USDC IN PRIZES
+              {PLAY_CHIP}
             </div>
             <div
               style={{
@@ -870,4 +895,11 @@ export const GET = withRateLimit(async (request: NextRequest) => {
       headers: { "Cache-Control": CACHE_CONTROL },
     },
   );
+  } catch (error) {
+    console.error("[play] manager og render failed:", error);
+    return Response.json(
+      { success: false, error: "Failed to render manager card" },
+      { status: 500 },
+    );
+  }
 });

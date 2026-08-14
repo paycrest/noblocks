@@ -22,7 +22,7 @@ export const ShareRankCard = ({
   username: string;
   rank: number;
   points: number;
-  /** Activated referrals — the card's second stat. */
+  /** Shown in share text only — OG image stats come from the server. */
   referrals?: number;
   code: string;
 }) => {
@@ -41,8 +41,8 @@ export const ShareRankCard = ({
 
   const referralLink = `https://noblocks.xyz?ref=${code}`;
   // The portrait is a DiceBear character generated server-side from the
-  // username — deterministic, so every manager keeps their own card art.
-  const ogUrl = `/api/play/og?username=${encodeURIComponent(username)}&rank=${rank}&points=${points}&refs=${referrals}&code=${encodeURIComponent(code)}&layout=${wide ? "wide" : "card"}`;
+  // username — dapvatar memoji seed, so every manager keeps their own card art.
+  const ogUrl = `/api/play/og?username=${encodeURIComponent(username)}&code=${encodeURIComponent(code)}&layout=${wide ? "wide" : "card"}`;
 
   // A layout flip changes the image URL — show the skeleton again.
   useEffect(() => {

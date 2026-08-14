@@ -2,9 +2,8 @@
 
 /**
  * Join-the-league modal: pick a permanent username (debounced availability
- * check + suggestions), accept the T&Cs, choose the giveaway track
- * (default ON) and POST /api/play/join. Handles the 409 username race by
- * surfacing the server's suggestions.
+ * check + suggestions), accept the T&Cs, and POST /api/play/join. Handles the
+ * 409 username race by surfacing the server's suggestions.
  */
 
 import { useState } from "react";
@@ -34,7 +33,6 @@ export const JoinModal = ({
   const router = useRouter();
   const [username, setUsername] = useState("");
   const [acceptTerms, setAcceptTerms] = useState(false);
-  const [giveawayOptIn, setGiveawayOptIn] = useState(true); // default ON (PRD §7.1)
   const [suggestions, setSuggestions] = useState<string[]>([]);
 
   const { result, checking } = useUsernameAvailability(username);
@@ -59,14 +57,12 @@ export const JoinModal = ({
       const data = await join.mutateAsync({
         username: trimmed,
         acceptTerms: true,
-        giveawayOptIn,
       });
       if (!data.already_joined) {
         trackEvent("username_created", { username: data.username });
       }
       trackEvent("league_joined", {
         username: data.username,
-        giveaway_opt_in: giveawayOptIn,
         already_joined: data.already_joined,
       });
       toast.success(
@@ -163,32 +159,6 @@ export const JoinModal = ({
           Your username is public on the leaderboard and can&apos;t be changed
           later. 3–20 characters, letters, numbers and underscores.
         </p>
-
-        <label className="flex cursor-pointer items-center justify-between gap-3 rounded-xl bg-background-neutral px-4 py-3 dark:bg-white/5">
-          <span className="text-sm text-text-body dark:text-white">
-            Enter the 600 USDC giveaway
-            <span className="block text-xs text-text-secondary dark:text-white/50">
-              Turn off to play for bragging rights only
-            </span>
-          </span>
-          <button
-            type="button"
-            role="switch"
-            aria-checked={giveawayOptIn}
-            onClick={() => setGiveawayOptIn((v) => !v)}
-            className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${
-              giveawayOptIn
-                ? "bg-lavender-500"
-                : "bg-gray-300 dark:bg-white/20"
-            }`}
-          >
-            <span
-              className={`absolute left-0 top-0.5 size-5 rounded-full bg-white transition-transform ${
-                giveawayOptIn ? "translate-x-[22px]" : "translate-x-0.5"
-              }`}
-            />
-          </button>
-        </label>
 
         <label className="flex cursor-pointer items-start gap-3 text-sm text-text-body dark:text-white">
           <input

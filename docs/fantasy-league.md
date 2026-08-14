@@ -245,13 +245,13 @@ Configure the Cloudflare Worker (Settings → Variables):
 | --- | --- |
 | `APP_URL_PROD` | `https://noblocks.xyz` |
 | `APP_URL_STAGING` | staging URL |
-| `FANTASY_WORKER_SECRET` | same as Vercel |
+| `FANTASY_WORKER_SECRET` |
 
 Cron: `*/5 * * * *`. The worker script is maintained in Cloudflare, not git.
 
 ### 5. Launch
 
-1. Set `NEXT_PUBLIC_FANTASY_ENABLED=true` on Vercel (explicit opt-in).
+1. Set `NEXT_PUBLIC_FANTASY_ENABLED=true` on deployment (explicit opt-in).
 2. Set `NEXT_PUBLIC_FANTASY_CAMPAIGN_ENDED=false`.
 3. Confirm `fantasy_settings.config.features.join_open` is `true` (default in
    EPL migration).
@@ -321,10 +321,11 @@ New users must join Noblocks Play (`/play`) before joining a mini-league.
 
 - [ ] All four migrations applied in target environment
 - [ ] `pnpm seed:fantasy` completed; GW1 `lock_at` looks correct
-- [ ] `API_FOOTBALL_KEY` on Vercel + sufficient API-Football quota
-- [ ] `FANTASY_WORKER_SECRET` matches Cloudflare Worker and Vercel
+- [ ] `API_FOOTBALL_KEY`  + sufficient API-Football quota
+- [ ] `FANTASY_WORKER_SECRET` matches Cloudflare Worker
 - [ ] `FANTASY_ADMIN_KEY` set; `/play/admin` loads
 - [ ] CF cron firing; manual worker curl returns 200 + report JSON
+- [ ] `DD_API_KEY` set — worker ticks appear in Datadog Logs as `play worker tick`
 - [ ] End-to-end: join → squad → mini-league invite link → sign in → join league
 - [ ] `NEXT_PUBLIC_FANTASY_ENABLED=true`, `CAMPAIGN_ENDED=false`
 

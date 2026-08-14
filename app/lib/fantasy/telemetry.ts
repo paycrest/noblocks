@@ -1,0 +1,123 @@
+/**
+ * Datadog telemetry for the fantasy scoring worker.
+ *
+ * The worker is driven by an external Cloudflare cron, so nothing in RUM or in
+ * the Mixpanel API-analytics path observes it. Its WorkerReport already carries
+ * everything an on-call engineer needs — how much work the tick did, how much
+ * API-Football budget is left, and what went wrong — but until now it was only
+ * returned to the caller and dropped.
+ *
+ * One log line per tick, flattened into `@worker.*` facets so Datadog can turn
+ * them into metrics (Logs → Generate Metrics) and monitors.
+ */
+import { logToDatadog, type DatadogLogStatus } from "@/app/lib/datadog.server";
+
+import type { WorkerReport } from "./types";
+
+/** Stable message strings — log-based metrics and monitors filter on these. */
+export const WORKER_TICK_MESSAGE = "play worker tick";
+export const WORKER_FAILURE_MESSAGE = "play worker tick failed";
+
+/** Keeps a pathological alert loop from shipping a multi-MB log line. */
+const MAX_LIST_ENTRIES = 25;
+const MAX_ENTRY_LENGTH = 300;
+
+export interface WorkerTickLog {
+  message: string;
+  status: DatadogLogStatus;
+  attributes: Record<string, unknown>;
+}
+
+function truncateList(values: string[]): string[] {
+  return values
+    .slice(0, MAX_LIST_ENTRIES)
+    .map((value) =>
+      value.length > MAX_ENTRY_LENGTH
+        ? `${value.slice(0, MAX_ENTRY_LENGTH)}…`
+        : value,
+    );
+}
+
+/**
+ * Flattens a completed tick. Status is `warn` whenever the report carries
+ * alerts — that is the signal worth paging on, since a tick can "succeed"
+ * (HTTP 200) while rollover or score recompute silently failed inside it.
+ */
+export function buildWorkerTickLog(
+  report: WorkerReport,
+  durationMs: number,
+  options?: { forced?: boolean },
+): WorkerTickLog {
+  const notificationsSkipped = report.notifications === "skipped";
+
+  return {
+    message: WORKER_TICK_MESSAGE,
+    status: report.alerts.length > 0 ? "warn" : "info",
+    attributes: {
+      feature: "play",
+      worker: {
+        ok: true,
+        ran_at: report.ran_at,
+        duration_ms: durationMs,
+        forced: options?.forced === true,
+        live_window_active: report.live_window_active,
+        fixtures_refreshed: report.fixtures_refreshed,
+        kickoff_stamps: report.kickoff_stamps,
+        stats_synced: report.stats_synced,
+        fixtures_finalized: report.fixtures_finalized,
+        scores_recomputed: report.scores_recomputed,
+        rolled_over_to: report.rolled_over_to,
+        // Boolean twin so a rollover is countable without a null-vs-0 filter.
+        did_rollover: report.rolled_over_to !== null,
+        notifications_skipped: notificationsSkipped,
+        notifications_sent: notificationsSkipped
+          ? 0
+          : (report.notifications as { sent: number }).sent,
+        provider_remaining: report.provider_rate_limit.remaining,
+        provider_limit: report.provider_rate_limit.limit,
+        transitions_count: report.transitions.length,
+        transitions: truncateList(report.transitions),
+        alerts_count: report.alerts.length,
+        alerts: truncateList(report.alerts),
+      },
+    },
+  };
+}
+
+/**
+ * Flattens a tick that threw. Deliberately shares the `@worker.*` namespace and
+ * sets `ok:false`, so a single "ticks in the last 10 minutes" heartbeat query
+ * counts crashed ticks too — a crash loop must not read as a healthy worker.
+ */
+export function buildWorkerFailureLog(
+  error: unknown,
+  durationMs: number,
+  options?: { forced?: boolean },
+): WorkerTickLog {
+  const normalized = error instanceof Error ? error : new Error(String(error));
+
+  return {
+    message: WORKER_FAILURE_MESSAGE,
+    status: "error",
+    attributes: {
+      feature: "play",
+      worker: {
+        ok: false,
+        ran_at: new Date().toISOString(),
+        duration_ms: durationMs,
+        forced: options?.forced === true,
+        alerts_count: 1,
+      },
+      error: {
+        kind: normalized.name,
+        message: normalized.message,
+        stack: normalized.stack,
+      },
+    },
+  };
+}
+
+/** Ships a built log line. Never throws. */
+export async function emitWorkerTickLog(log: WorkerTickLog): Promise<boolean> {
+  return logToDatadog(log.message, log.attributes, log.status);
+}

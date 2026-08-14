@@ -95,6 +95,18 @@ NEXT_PUBLIC_DD_SESSION_REPLAY_SAMPLE_RATE=100 # 0–100; % of RUM sessions that 
 NEXT_PUBLIC_DD_ENABLE_IN_DEV=false          # Send RUM from local dev when true
 ```
 
+### Datadog Server Logs
+
+Structured server-side logs posted straight to the Datadog HTTP intake (`app/lib/datadog.server.ts`). Used for work no browser can observe — currently the fantasy scoring worker, which is driven by an external Cloudflare cron and is therefore invisible to RUM.
+
+Create an API key in [Datadog EU](https://app.datadoghq.eu/organization-settings/api-keys). This is a **server secret** — do not add a `NEXT_PUBLIC_` prefix.
+
+```bash
+DD_API_KEY=                                 # Optional; logging is a no-op when unset
+```
+
+Site, service, env and version are reused from the `NEXT_PUBLIC_DD_*` values above, and `NEXT_PUBLIC_DD_ENABLE_IN_DEV=true` also enables server logs from local dev.
+
 ### Server-Side Analytics
 
 ```bash

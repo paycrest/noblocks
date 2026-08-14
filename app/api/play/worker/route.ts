@@ -1,6 +1,11 @@
 import { createHash, timingSafeEqual } from "crypto";
 import { NextRequest } from "next/server";
 import { withAnalytics } from "@/app/lib/analytics-middleware";
+import {
+  buildWorkerFailureLog,
+  buildWorkerTickLog,
+  emitWorkerTickLog,
+} from "@/app/lib/fantasy/telemetry";
 import { runWorkerTick } from "@/app/lib/fantasy/worker";
 import { jsonError, jsonOk } from "@/app/lib/fantasy/server";
 
@@ -32,15 +37,29 @@ export const POST = withAnalytics(async (request: NextRequest) => {
     return jsonError("Unauthorized", 401);
   }
 
+  // Hoisted so the failure log can report them too.
+  const startedAt = Date.now();
+  let forced = false;
+
   try {
     const body = (await request.json().catch(() => null)) as { force?: boolean } | null;
-    const report = await runWorkerTick({ force: body?.force === true });
+    forced = body?.force === true;
+    const report = await runWorkerTick({ force: forced });
     if (report.alerts.length > 0) {
       console.warn("[play worker] alerts:", report.alerts);
     }
+    // Awaited, not fire-and-forget: the runtime may freeze this invocation the
+    // moment we return, dropping an in-flight request. Bounded by the intake
+    // timeout in datadog.server.ts and never throws.
+    await emitWorkerTickLog(
+      buildWorkerTickLog(report, Date.now() - startedAt, { forced }),
+    );
     return jsonOk(report);
   } catch (error) {
     console.error("[play worker] tick failed:", error);
+    await emitWorkerTickLog(
+      buildWorkerFailureLog(error, Date.now() - startedAt, { forced }),
+    );
     return jsonError("Worker tick failed", 500);
   }
 });

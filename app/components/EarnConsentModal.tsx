@@ -6,7 +6,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Cancel01Icon } from "hugeicons-react";
 import { EARN_LEARN_MORE_URL } from "../lib/earnConsent";
 import { classNames } from "../utils";
-import { primaryBtnClasses, secondaryBtnClasses } from "./Styles";
+import { baseBtnClasses, primaryBtnClasses } from "./Styles";
 
 interface EarnConsentModalProps {
   isOpen: boolean;
@@ -122,8 +122,8 @@ export const EarnConsentModal: React.FC<EarnConsentModalProps> = ({
                         target="_blank"
                         rel="noopener noreferrer"
                         className={classNames(
-                          secondaryBtnClasses,
-                          "w-full min-h-11 bg-accent-gray font-normal text-text-body hover:bg-accent-gray/90 dark:bg-white/10 dark:text-white sm:w-auto sm:min-w-[108px]",
+                          baseBtnClasses,
+                          "w-full min-h-11 bg-accent-gray font-normal text-text-body hover:bg-accent-gray/90 dark:bg-white/10 dark:text-white dark:hover:bg-white/5 sm:w-auto sm:min-w-[108px]",
                         )}
                       >
                         Learn more

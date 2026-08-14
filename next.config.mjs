@@ -86,7 +86,9 @@ const nextConfig = {
   },
   // Twilio: keep on Node resolution (nested https-proxy-agent vs root dep caused
   // "can't be external" version skew when https-proxy-agent was listed here).
-  serverExternalPackages: ["mixpanel", "twilio"],
+  // dd-trace ships native addons and patches modules at require time, and pino
+  // resolves transports through worker threads — bundling either breaks them.
+  serverExternalPackages: ["mixpanel", "twilio", "dd-trace", "pino"],
   webpack: (config, { isServer }) => {
     // Handle both client and server-side fallbacks
     config.resolve.fallback = {
@@ -134,7 +136,15 @@ const nextConfig = {
     return config;
   },
   compiler: {
-    removeConsole: process.env.NODE_ENV === "production",
+    // This transform applies to server code too, not just the browser bundle:
+    // a blanket `true` silently stripped every console.error in the API routes
+    // from production builds, so no log drain or agent could ever have
+    // collected them. Keep warn/error/info; strip console.log debug noise.
+    // Prefer app/lib/logger.ts for anything meant to be queryable in Datadog.
+    removeConsole:
+      process.env.NODE_ENV === "production"
+        ? { exclude: ["warn", "error", "info"] }
+        : false,
   },
   images: {
     remotePatterns: [

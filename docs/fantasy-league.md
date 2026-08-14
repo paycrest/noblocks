@@ -325,7 +325,7 @@ New users must join Noblocks Play (`/play`) before joining a mini-league.
 - [ ] `FANTASY_WORKER_SECRET` matches Cloudflare Worker
 - [ ] `FANTASY_ADMIN_KEY` set; `/play/admin` loads
 - [ ] CF cron firing; manual worker curl returns 200 + report JSON
-- [ ] `DD_API_KEY` set — worker ticks appear in Datadog Logs as `play worker tick`
+- [ ] Datadog Agent running — worker ticks appear in Logs as `play worker tick`
 - [ ] End-to-end: join → squad → mini-league invite link → sign in → join league
 - [ ] `NEXT_PUBLIC_FANTASY_ENABLED=true`, `CAMPAIGN_ENDED=false`
 

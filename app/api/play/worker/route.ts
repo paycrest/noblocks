@@ -45,19 +45,14 @@ export const POST = withAnalytics(async (request: NextRequest) => {
     const body = (await request.json().catch(() => null)) as { force?: boolean } | null;
     forced = body?.force === true;
     const report = await runWorkerTick({ force: forced });
-    if (report.alerts.length > 0) {
-      console.warn("[play worker] alerts:", report.alerts);
-    }
-    // Awaited, not fire-and-forget: the runtime may freeze this invocation the
-    // moment we return, dropping an in-flight request. Bounded by the intake
-    // timeout in datadog.server.ts and never throws.
-    await emitWorkerTickLog(
+    // The alert detail rides on the structured line below (@worker.alerts), so
+    // there is no separate console.warn to keep in step with it.
+    emitWorkerTickLog(
       buildWorkerTickLog(report, Date.now() - startedAt, { forced }),
     );
     return jsonOk(report);
   } catch (error) {
-    console.error("[play worker] tick failed:", error);
-    await emitWorkerTickLog(
+    emitWorkerTickLog(
       buildWorkerFailureLog(error, Date.now() - startedAt, { forced }),
     );
     return jsonError("Worker tick failed", 500);

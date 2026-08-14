@@ -35,6 +35,9 @@ yarn-error.log*
 .env
 .sanity
 .env*.local
+# Datadog Agent credentials (docker-compose.datadog.yml); .env.datadog.example
+# is the committed template.
+.env.datadog
 keys/rsa.key.pub
 keys/rsa.key
 keys

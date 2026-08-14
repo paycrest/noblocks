@@ -9,10 +9,16 @@
  *
  * One log line per tick, flattened into `@worker.*` facets so Datadog can turn
  * them into metrics (Logs → Generate Metrics) and monitors.
+ *
+ * Emitted through the shared pino logger to stdout, where the agent sidecar
+ * collects it. The tick also runs inside an APM span, so `logger` stamps
+ * dd.trace_id and the line links back to its trace.
  */
-import { logToDatadog, type DatadogLogStatus } from "@/app/lib/datadog.server";
+import logger from "@/app/lib/logger";
 
 import type { WorkerReport } from "./types";
+
+type DatadogLogStatus = "info" | "warn" | "error";
 
 /** Stable message strings — log-based metrics and monitors filter on these. */
 export const WORKER_TICK_MESSAGE = "play worker tick";
@@ -131,7 +137,13 @@ export function buildWorkerFailureLog(
   };
 }
 
-/** Ships a built log line. Never throws. */
-export async function emitWorkerTickLog(log: WorkerTickLog): Promise<boolean> {
-  return logToDatadog(log.message, log.attributes, log.status);
+/**
+ * Writes a built log line to stdout for the agent to collect.
+ *
+ * Synchronous and non-throwing by contract: pino writes to a stream rather than
+ * making a network call, so unlike the previous HTTP shipper there is nothing
+ * to await and no in-flight request for the runtime to drop.
+ */
+export function emitWorkerTickLog(log: WorkerTickLog): void {
+  logger[log.status](log.attributes, log.message);
 }

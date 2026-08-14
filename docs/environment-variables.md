@@ -95,17 +95,25 @@ NEXT_PUBLIC_DD_SESSION_REPLAY_SAMPLE_RATE=100 # 0–100; % of RUM sessions that 
 NEXT_PUBLIC_DD_ENABLE_IN_DEV=false          # Send RUM from local dev when true
 ```
 
-### Datadog Server Logs
+### Datadog Server-Side APM and Logs
 
-Structured server-side logs posted straight to the Datadog HTTP intake (`app/lib/datadog.server.ts`). Used for work no browser can observe — currently the fantasy scoring worker, which is driven by an external Cloudflare cron and is therefore invisible to RUM.
+Server-side tracing (`instrumentation.ts`) and structured JSON logging (`app/lib/logger.ts`). Both talk to the **Datadog Agent sidecar**, never to Datadog directly — see [OBSERVABILITY.md](../OBSERVABILITY.md) for the deployment.
 
-Create an API key in [Datadog EU](https://app.datadoghq.eu/organization-settings/api-keys). This is a **server secret** — do not add a `NEXT_PUBLIC_` prefix.
+**The app does not need `DD_API_KEY`.** Only the agent holds the key, in `.env.datadog` (template: `.env.datadog.example`). Adding an API key to the app's environment is unnecessary and widens its blast radius.
 
 ```bash
-DD_API_KEY=                                 # Optional; logging is a no-op when unset
+DD_SERVICE=noblocks
+DD_ENV=production
+DD_VERSION=                                 # Set from the git SHA in CI
+DD_AGENT_HOST=datadog-agent                 # Agent container name on the Docker network
+DD_TRACE_AGENT_PORT=8126
+DD_TRACE_ENABLED=true                       # Set "false" to disable APM without a redeploy
+LOG_LEVEL=info                              # pino level: trace|debug|info|warn|error|fatal
 ```
 
-Site, service, env and version are reused from the `NEXT_PUBLIC_DD_*` values above, and `NEXT_PUBLIC_DD_ENABLE_IN_DEV=true` also enables server logs from local dev.
+Locally the tracer defaults to `localhost:8126` and is harmless with no agent running — traces are dropped, and logs still print as JSON.
+
+> **Note on `console`:** `next.config.mjs` strips `console.log` from production builds (`warn`/`error`/`info` are preserved). Anything that must be queryable in Datadog should go through `app/lib/logger.ts`, which emits JSON with `dd.trace_id` for trace correlation.
 
 ### Server-Side Analytics
 

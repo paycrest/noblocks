@@ -245,7 +245,7 @@ Configure the Cloudflare Worker (Settings → Variables):
 | --- | --- |
 | `APP_URL_PROD` | `https://noblocks.xyz` |
 | `APP_URL_STAGING` | staging URL |
-| `FANTASY_WORKER_SECRET` |
+| `FANTASY_WORKER_SECRET` | same as the app deployment |
 
 Cron: `*/5 * * * *`. The worker script is maintained in Cloudflare, not git.
 

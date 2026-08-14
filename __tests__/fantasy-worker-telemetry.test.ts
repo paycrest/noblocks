@@ -136,6 +136,34 @@ describe("buildWorkerFailureLog", () => {
       message: "string failure",
     });
   });
+
+  it("bounds the message and stack before shipping them", () => {
+    // Postgres and provider errors can build their message from the data that
+    // caused them, so an unbounded message risks both payload size and
+    // accidental disclosure.
+    const error = new Error("x".repeat(5_000));
+    error.stack = `Error: boom\n${"    at frame\n".repeat(1_000)}`;
+
+    const payload = buildWorkerFailureLog(error, 5).attributes.error as {
+      message: string;
+      stack: string;
+    };
+
+    expect(payload.message).toHaveLength(501); // 500 + ellipsis
+    expect(payload.stack).toHaveLength(2_001);
+    // Capped, not dropped — the frames are why the log is worth shipping.
+    expect(payload.stack.startsWith("Error: boom")).toBe(true);
+  });
+
+  it("omits the stack entirely when the error has none", () => {
+    const error = new Error("no stack here");
+    delete error.stack;
+
+    expect(
+      (buildWorkerFailureLog(error, 5).attributes.error as { stack?: string })
+        .stack,
+    ).toBeUndefined();
+  });
 });
 
 describe("logToDatadog", () => {

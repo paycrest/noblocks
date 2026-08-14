@@ -22,6 +22,22 @@ export const WORKER_FAILURE_MESSAGE = "play worker tick failed";
 const MAX_LIST_ENTRIES = 25;
 const MAX_ENTRY_LENGTH = 300;
 
+/**
+ * Bounds on the failure payload. Provider and Postgres errors can carry long
+ * messages built from the data that caused them, so an unbounded message is
+ * both a payload-size and an accidental-disclosure risk.
+ *
+ * The stack is capped rather than dropped: these frames are our own code paths
+ * and are the main reason to ship an error log at all. A few frames is enough
+ * to locate the throw.
+ */
+const MAX_ERROR_MESSAGE_LENGTH = 500;
+const MAX_ERROR_STACK_LENGTH = 2_000;
+
+function truncate(value: string, max: number): string {
+  return value.length > max ? `${value.slice(0, max)}…` : value;
+}
+
 export interface WorkerTickLog {
   message: string;
   status: DatadogLogStatus;
@@ -31,11 +47,7 @@ export interface WorkerTickLog {
 function truncateList(values: string[]): string[] {
   return values
     .slice(0, MAX_LIST_ENTRIES)
-    .map((value) =>
-      value.length > MAX_ENTRY_LENGTH
-        ? `${value.slice(0, MAX_ENTRY_LENGTH)}…`
-        : value,
-    );
+    .map((value) => truncate(value, MAX_ENTRY_LENGTH));
 }
 
 /**
@@ -110,8 +122,10 @@ export function buildWorkerFailureLog(
       },
       error: {
         kind: normalized.name,
-        message: normalized.message,
-        stack: normalized.stack,
+        message: truncate(normalized.message, MAX_ERROR_MESSAGE_LENGTH),
+        stack: normalized.stack
+          ? truncate(normalized.stack, MAX_ERROR_STACK_LENGTH)
+          : undefined,
       },
     },
   };

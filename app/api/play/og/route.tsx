@@ -200,10 +200,23 @@ async function loadPlayerMarks(
       try {
         const response = await fetch(p.photo_url, { signal: controller.signal });
         if (!response.ok) throw new Error(`headshot ${response.status}`);
-        const contentType = response.headers.get("content-type") || "image/png";
+        // A 200 carrying an HTML error page would otherwise be inlined as a
+        // data: URI and marked isPhoto, skipping the kit fallback and handing
+        // Satori something it cannot decode — the whole-card failure this
+        // pre-fetch exists to avoid. The strict pattern (rather than a bare
+        // startsWith) also keeps anything odd in the header out of the URI we
+        // build from it.
+        const mediaType = response.headers
+          .get("content-type")
+          ?.split(";", 1)[0]
+          .trim()
+          .toLowerCase();
+        if (!mediaType || !/^image\/[a-z0-9.+-]+$/.test(mediaType)) {
+          throw new Error(`headshot media type ${mediaType ?? "missing"}`);
+        }
         const body = Buffer.from(await response.arrayBuffer());
         marks.set(p.player_id, {
-          src: `data:${contentType};base64,${body.toString("base64")}`,
+          src: `data:${mediaType};base64,${body.toString("base64")}`,
           isPhoto: true,
         });
       } catch {

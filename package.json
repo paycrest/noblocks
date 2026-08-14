@@ -53,6 +53,7 @@
     "critters": "^0.0.25",
     "dapvatar": "^0.1.4",
     "date-fns": "^4.1.0",
+    "dd-trace": "^6.10.0",
     "framer-motion": "^11.18.2",
     "https-proxy-agent": "^9.0.0",
     "hugeicons-react": "^0.3.0",
@@ -69,6 +70,7 @@
     "next-sanity": "^10.0.4",
     "next-themes": "^0.4.6",
     "permissionless": "^0.2.47",
+    "pino": "^10.3.1",
     "rate-limiter-flexible": "^7.1.1",
     "react": "^19.0.1",
     "react-dom": "^19.0.1",
@@ -117,6 +119,11 @@
   },
   "packageManager": "pnpm@10.27.0",
   "pnpm": {
+    "onlyBuiltDependencies": [
+      "@datadog/native-metrics",
+      "@datadog/native-appsec",
+      "@datadog/native-iast-taint-tracking"
+    ],
     "overrides": {
       "@types/react": "^19.0.8",
       "@types/react-dom": "^19.0.3",

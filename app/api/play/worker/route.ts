@@ -1,6 +1,11 @@
 import { createHash, timingSafeEqual } from "crypto";
 import { NextRequest } from "next/server";
 import { withAnalytics } from "@/app/lib/analytics-middleware";
+import {
+  buildWorkerFailureLog,
+  buildWorkerTickLog,
+  emitWorkerTickLog,
+} from "@/app/lib/fantasy/telemetry";
 import { runWorkerTick } from "@/app/lib/fantasy/worker";
 import { jsonError, jsonOk } from "@/app/lib/fantasy/server";
 
@@ -32,15 +37,24 @@ export const POST = withAnalytics(async (request: NextRequest) => {
     return jsonError("Unauthorized", 401);
   }
 
+  // Hoisted so the failure log can report them too.
+  const startedAt = Date.now();
+  let forced = false;
+
   try {
     const body = (await request.json().catch(() => null)) as { force?: boolean } | null;
-    const report = await runWorkerTick({ force: body?.force === true });
-    if (report.alerts.length > 0) {
-      console.warn("[play worker] alerts:", report.alerts);
-    }
+    forced = body?.force === true;
+    const report = await runWorkerTick({ force: forced });
+    // The alert detail rides on the structured line below (@worker.alerts), so
+    // there is no separate console.warn to keep in step with it.
+    emitWorkerTickLog(
+      buildWorkerTickLog(report, Date.now() - startedAt, { forced }),
+    );
     return jsonOk(report);
   } catch (error) {
-    console.error("[play worker] tick failed:", error);
+    emitWorkerTickLog(
+      buildWorkerFailureLog(error, Date.now() - startedAt, { forced }),
+    );
     return jsonError("Worker tick failed", 500);
   }
 });

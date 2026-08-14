@@ -15,7 +15,7 @@ SET config = '{
   "transfer_penalty": 4,
   "season_matchday_min": 101,
   "season_matchday_max": 138,
-  "photos_enabled": false,
+  "photos_enabled": true,
   "defcon_def_threshold": 5,
   "defcon_mid_fwd_threshold": 6,
   "scoring": {

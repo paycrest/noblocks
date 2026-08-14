@@ -1,0 +1,46 @@
+# Datadog Agent sidecar for noblocks (DigitalOcean, Docker).
+#
+# Mirrors the aggregator's agent setup. Run alongside the app container on the
+# same Docker network so the app can reach the agent by container name:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.datadog.yml up -d
+#
+# The app then needs DD_AGENT_HOST=datadog-agent (see .env.example). The agent
+# collects container stdout for logs, receives APM traces on 8126 and DogStatsD
+# metrics on 8125 — nothing is shipped over HTTP from application code.
+#
+# Requires .env.datadog (copy .env.datadog.example). Never commit it.
+
+services:
+  datadog-agent:
+    image: gcr.io/datadoghq/agent:7
+    container_name: datadog-agent
+    env_file:
+      - .env.datadog
+    environment:
+      # EU org — must match the site the RUM client reports to.
+      DD_SITE: datadoghq.eu
+      DD_APM_ENABLED: "true"
+      # Required for traces arriving from another container rather than
+      # localhost; without it the agent only accepts loopback traffic.
+      DD_APM_NON_LOCAL_TRAFFIC: "true"
+      DD_DOGSTATSD_NON_LOCAL_TRAFFIC: "true"
+      DD_LOGS_ENABLED: "true"
+      DD_LOGS_CONFIG_CONTAINER_COLLECT_ALL: "true"
+      DD_CONTAINER_EXCLUDE_LOGS: "name:datadog-agent"
+      DD_PROCESS_AGENT_ENABLED: "true"
+    volumes:
+      # Container discovery and log collection.
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /proc/:/host/proc/:ro
+      - /sys/fs/cgroup/:/host/sys/fs/cgroup:ro
+      # Survives restarts without re-sending already-shipped log lines.
+      - datadog-agent-run:/opt/datadog-agent/run
+    ports:
+      # Bound to the Docker network only — do not publish these on the host.
+      - "127.0.0.1:8125:8125/udp"
+      - "127.0.0.1:8126:8126/tcp"
+    restart: always
+
+volumes:
+  datadog-agent-run:

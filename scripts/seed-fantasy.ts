@@ -22,8 +22,8 @@
  * that module imports "server-only", which throws outside the Next.js runtime.
  * Constants and fetch helpers below mirror provider.ts (EPL_LEAGUE_ID, round
  * parsing, POSITION_MAP, ratings pagination). Player photos are stored;
- * photo_url may be stored from the provider but production keeps
- * photos_enabled=false and the UI renders stylized kits instead.
+ * photo_url is surfaced to the UI when photos_enabled is on, and the UI falls
+ * back to stylized kits per player when a photo is missing or fails to load.
  */
 
 import { createClient } from "@supabase/supabase-js";

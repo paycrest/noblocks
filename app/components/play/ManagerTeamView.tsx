@@ -26,7 +26,7 @@ const toFantasyPlayer = (p: PublicTeamPlayer): FantasyPlayer => ({
   nation: p.nation,
   position: p.position,
   price: 0,
-  photo_url: null, // UI uses ClubJersey from team_id
+  photo_url: p.photo_url, // null unless photos_enabled; PlayerPhoto falls back to the kit
   is_active: true,
 });
 

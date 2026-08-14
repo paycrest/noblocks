@@ -1,6 +1,6 @@
 # Ticket / Spec template (Jira KAN)
 
-Fill **typed Jira fields** (not one markdown dump in Description). The ticket is the single source of truth — no spec, no build. Add a **flowchart in a Jira comment** when the change touches multi-step wallet or swap flows.
+Fill **typed Jira fields** (not one markdown dump in Description). The ticket is the single source of truth — no spec, no build. Add a **flowchart in a Jira comment** when the change involves multi-step flows or navigation.
 
 **Label:** `noblocks` (required)
 
@@ -24,7 +24,7 @@ Use for issue type **Task** only. Set fields via Atlassian MCP `additional_field
 | User story | `customfield_10126` | yes |
 | Acceptance criteria | `customfield_10127` | yes |
 | Tech details | `customfield_10128` | yes |
-| Money-safety | `customfield_10129` (`Yes` / `No`) | yes |
+| Money-safety | `customfield_10129` (select: `{"value": "Yes"}` / `{"value": "No"}`) | yes |
 | Notes / assumptions | `customfield_10130` | no |
 | Open questions | `customfield_10131` | no |
 

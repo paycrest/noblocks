@@ -12,7 +12,7 @@ Paycrest engineering issues are filed in **Jira**, not GitHub Issues.
 
 Use Jira for bugs, enhancements, chores, and vertical slices. Do **not** use `gh issue create` or GitHub issue forms for new work.
 
-**Ticket fields:** use [ticket-spec-template.md](ticket-spec-template.md) (Engineering Working Agreement). **PRs** use [.github/pull_request_template.md](../../.github/pull_request_template.md) — that is separate from the ticket spec.
+**Ticket fields:** use [ticket-spec-template.md](ticket-spec-template.md). **PRs** use [.github/pull_request_template.md](../../.github/pull_request_template.md) — that is separate from the ticket spec.
 
 Architecture or process decisions: [decision-record-template.md](decision-record-template.md).
 
@@ -37,7 +37,7 @@ Skills (`qa`, `triage`, `to-issues`): read this file before filing issues for no
 4. Fill **typed fields** from [ticket-spec-template.md](ticket-spec-template.md):
    - **Task:** short `description` + `customfield_10126` (User story), `10127` (Acceptance criteria), `10128` (Tech details), `10129` (Money-safety Yes/No), optional `10130` / `10131`.
    - **Bug:** `description` (describe the bug) + `customfield_10123` (To reproduce), `10124` (Expected behaviour), `environment`, optional `10125` (Additional context). **No** acceptance criteria on Bugs.
-5. Pass custom fields via `additional_fields` on create/edit (e.g. `{"customfield_10126": "..."}`). Money-safety is a select: `{"customfield_10129": {"value": "Yes"}}` or `"No"`.
+5. Pass custom fields via `additional_fields` on create/edit (e.g. `{"customfield_10126": "..."}`). Money-safety is a select — always send the option object, never a bare string: `{"customfield_10129": {"value": "Yes"}}` or `{"customfield_10129": {"value": "No"}}`.
 6. Add a **flowchart in a comment** when the change involves multi-step flows or navigation.
 
 Humans may also create tickets on the [KAN board](https://paycrest-io.atlassian.net/jira/software/projects/KAN/boards/1).

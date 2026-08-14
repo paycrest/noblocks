@@ -160,9 +160,67 @@ const POS_ORDER: Position[] = ["GK", "DEF", "MID", "FWD"];
 
 const lastName = (name: string) => name.split(" ").slice(-1)[0] ?? name;
 
+/** Budget for pulling one headshot before the card falls back to the kit. */
+const HEADSHOT_TIMEOUT_MS = 2_500;
+
+interface PlayerMark {
+  src: string;
+  /** Headshots crop round and cover; kit SVGs are drawn to fit as-is. */
+  isPhoto: boolean;
+}
+
 /**
- * 1200×630 squad snapshot: the XI on a pitch panel (stylized club kits —
- * never provider headshots), C/V badges, effective points + manager stats.
+ * Resolves each XI slot to a headshot when photos are enabled, else the
+ * stylized club kit.
+ *
+ * Headshots are fetched here and inlined as data URIs rather than handed to
+ * Satori as remote URLs: Satori would fetch them itself during render, and a
+ * single dead provider URL would throw and take the entire card down. Fetching
+ * them up front lets one bad URL degrade to that player's kit instead. All
+ * requests run in parallel and are individually bounded.
+ */
+async function loadPlayerMarks(
+  players: { player_id: number; team_id: number; position: Position; photo_url: string | null }[],
+): Promise<Map<number, PlayerMark>> {
+  const marks = new Map<number, PlayerMark>();
+
+  await Promise.all(
+    players.map(async (p) => {
+      const kit: PlayerMark = {
+        src: clubJerseyDataUri(p.team_id || 0, p.position),
+        isPhoto: false,
+      };
+      if (!p.photo_url) {
+        marks.set(p.player_id, kit);
+        return;
+      }
+
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), HEADSHOT_TIMEOUT_MS);
+      try {
+        const response = await fetch(p.photo_url, { signal: controller.signal });
+        if (!response.ok) throw new Error(`headshot ${response.status}`);
+        const contentType = response.headers.get("content-type") || "image/png";
+        const body = Buffer.from(await response.arrayBuffer());
+        marks.set(p.player_id, {
+          src: `data:${contentType};base64,${body.toString("base64")}`,
+          isPhoto: true,
+        });
+      } catch {
+        marks.set(p.player_id, kit);
+      } finally {
+        clearTimeout(timeout);
+      }
+    }),
+  );
+
+  return marks;
+}
+
+/**
+ * 1200×630 squad snapshot: the XI on a pitch panel (player headshots when
+ * photos_enabled, else stylized club kits), C/V badges, effective points +
+ * manager stats.
  */
 async function squadImage(usernameParam: string, anton: Buffer) {
   const manager = await getPublicManagerTeam(usernameParam);
@@ -174,13 +232,7 @@ async function squadImage(usernameParam: string, anton: Buffer) {
   const xi = team.players.filter((p) => p.slot <= 11);
   const bench = team.players.filter((p) => p.slot > 11);
 
-  const jerseys = new Map<number, string>();
-  for (const p of xi) {
-    jerseys.set(
-      p.player_id,
-      clubJerseyDataUri(p.team_id || 0, p.position),
-    );
-  }
+  const marks = await loadPlayerMarks(xi);
 
   const slot = (p: (typeof team.players)[number]) => (
     <div
@@ -195,14 +247,19 @@ async function squadImage(usernameParam: string, anton: Buffer) {
       <div style={{ display: "flex", position: "relative" }}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src={jerseys.get(p.player_id)!}
+          src={(marks.get(p.player_id) ?? { src: "", isPhoto: false }).src}
           alt=""
           width={58}
           height={58}
           style={{
             width: 58,
             height: 58,
-            objectFit: "contain",
+            // Headshots arrive as tall portraits on a light background: crop
+            // them round and cover so they sit like the kit they replace.
+            objectFit: marks.get(p.player_id)?.isPhoto ? "cover" : "contain",
+            ...(marks.get(p.player_id)?.isPhoto
+              ? { borderRadius: 29, backgroundColor: "rgba(255,255,255,0.9)" }
+              : {}),
           }}
         />
         {(p.is_captain || p.is_vice) && (

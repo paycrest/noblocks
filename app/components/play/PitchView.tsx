@@ -5,7 +5,7 @@
  * a green gradient pitch. Exports PlayerSlotCard, shared with BenchRow.
  */
 
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import {
   AirplaneTakeOff01Icon,
   SquareLock02Icon,
@@ -54,8 +54,16 @@ const initials = (name: string) =>
     .join("");
 
 /**
- * Production player mark: stylized club jersey (never provider headshots).
- * `fallback` only if team_id is missing.
+ * Player mark, in preference order: provider headshot → stylized club jersey →
+ * `fallback` (initials/position).
+ *
+ * No flag is threaded here on purpose. The APIs null `photo_url` unless
+ * `fantasy_settings.photos_enabled` is on, so the setting alone decides whether
+ * faces appear, and a broken headshot degrades to the kit rather than a hole.
+ *
+ * Photo styling lives here rather than at the call sites: they pass size-only
+ * classes that suit the jersey SVG, and a headshot additionally needs to be
+ * cropped round and anchored to the top of the frame.
  */
 export const PlayerPhoto = ({
   player,
@@ -66,6 +74,26 @@ export const PlayerPhoto = ({
   className: string;
   fallback: ReactNode;
 }) => {
+  // Store the URL that failed, not a boolean: these components are reused
+  // across players in scrolling lists, and a boolean would keep suppressing
+  // the next player's perfectly good photo.
+  const [failedUrl, setFailedUrl] = useState<string | null>(null);
+  const photo = player.photo_url;
+
+  if (photo && photo !== failedUrl) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={photo}
+        alt=""
+        loading="lazy"
+        draggable={false}
+        onError={() => setFailedUrl(photo)}
+        className={`${className} rounded-full bg-white/90 object-cover object-top`}
+      />
+    );
+  }
+
   if (!player.team_id) return <>{fallback}</>;
   return (
     <ClubJersey

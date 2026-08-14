@@ -73,9 +73,9 @@ export interface FantasySettings {
   season_matchday_min: number;
   season_matchday_max: number;
   /**
-   * Production uses stylized kits + letter badges (not provider media).
-   * Keep false so APIs never expose API-Football headshot URLs. Only flip
-   * if media is explicitly licensed and product chooses to show photos.
+   * When true the APIs expose API-Football headshot URLs and the UI renders
+   * faces; when false they are nulled server-side and every surface falls back
+   * to the stylized club kit. Requires the provider media to be licensed.
    */
   photos_enabled: boolean;
   /** BIT defcon thresholds (calibrated spike: DEF 5 / MID·FWD 6). */

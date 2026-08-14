@@ -319,8 +319,8 @@ export async function getPublicManagerTeam(
               position: player?.position ?? ("MID" as Position),
               nation: player?.nation ?? "",
               team_id: Number(player?.team_id ?? 0),
-              // Prefer stylized kits in UI; never expose provider headshots
-              // until photos_enabled is licensed.
+              // Headshots only when photos_enabled; the UI falls back to the
+              // stylized club kit when this is null.
               photo_url: settings.photos_enabled
                 ? (player?.photo_url ?? null)
                 : null,

@@ -93,20 +93,20 @@ export const EarnConsentModal: React.FC<EarnConsentModalProps> = ({
 
                   {/* Scrollable risk copy */}
                   <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-4 sm:px-6">
-                    <div className="rounded-3xl border border-border-light bg-accent-gray/50 px-4 py-4 dark:border-white/10 dark:bg-black/20">
+                    <div className="rounded-2xl border-[0.5px] border-border-light bg-white p-4 dark:rounded-3xl dark:border dark:border-white/10 dark:bg-black/20">
                       <p className="whitespace-pre-line text-sm leading-6 text-text-body dark:text-white/50">
                         {RISK_COPY}
                       </p>
                     </div>
                   </div>
 
-                  <div className="flex w-full shrink-0 flex-col gap-4 rounded-t-3xl bg-[#2c2c2c] px-4 py-3 dark:bg-[#2c2c2c]">
-                    <label className="flex cursor-pointer items-start gap-3 rounded-3xl px-4 py-3 dark:bg-white/5">
+                  <div className="flex w-full shrink-0 flex-col gap-4 px-5 pb-5 pt-1 sm:px-6 dark:rounded-t-3xl dark:bg-[#2c2c2c] dark:px-4 dark:py-3">
+                    <label className="flex cursor-pointer items-start gap-3 rounded-xl border-[0.3px] border-border-light bg-background-neutral p-4 dark:rounded-3xl dark:border-transparent dark:bg-white/5">
                       <input
                         type="checkbox"
                         checked={acknowledged}
                         onChange={(e) => setAcknowledged(e.target.checked)}
-                        className="mt-0.5 size-[19px] shrink-0 cursor-pointer rounded border-2 border-border-light accent-lavender-500 dark:border-white/30"
+                        className="mt-0.5 size-[19px] shrink-0 cursor-pointer rounded border-2 border-border-input bg-white accent-lavender-500 dark:border-white/30 dark:bg-transparent"
                       />
                       <span className="text-sm leading-5 text-text-body dark:text-white/50">
                         By proceeding, I understand that Earn is powered by
@@ -123,7 +123,7 @@ export const EarnConsentModal: React.FC<EarnConsentModalProps> = ({
                         rel="noopener noreferrer"
                         className={classNames(
                           secondaryBtnClasses,
-                          "w-full font-normal sm:w-auto sm:min-w-[108px]",
+                          "w-full min-h-11 bg-accent-gray font-normal text-text-body hover:bg-accent-gray/90 dark:bg-white/10 dark:text-white sm:w-auto sm:min-w-[108px]",
                         )}
                       >
                         Learn more

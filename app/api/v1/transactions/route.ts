@@ -269,7 +269,8 @@ export const POST = withRateLimit(async (request: NextRequest) => {
         return NextResponse.json(
           {
             success: false,
-            error: "Unable to verify transaction amount. Please try again.",
+            error:
+              "Unable to verify transaction amount. The exchange rate service is unavailable for this network — try again shortly.",
           },
           { status: 503 },
         );

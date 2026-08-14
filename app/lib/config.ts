@@ -12,8 +12,11 @@ export const DELEGATION_CONTRACT_BY_CHAIN: Record<number, string> = {
   1: "0x25054a2b9D4544ed292DC1a74E8bF1f6F449d988",
 };
 
-/** Returns the delegation contract address for the given chainId. Uses NEXT_PUBLIC_DELEGATION_CONTRACT_ADDRESS if set, else DELEGATION_CONTRACT_BY_CHAIN, else "". */
-export function getDelegationContractAddress(chainId: number): string {
+/** Returns the delegation contract address for the given EVM chainId. Non-EVM chains return "". */
+export function getDelegationContractAddress(chainId: number | string): string {
+  if (typeof chainId !== "number" || !Number.isFinite(chainId)) {
+    return "";
+  }
   return DELEGATION_CONTRACT_BY_CHAIN[chainId] ?? "";
 }
 
@@ -71,6 +74,11 @@ const config: Config = {
   earnEnabled: process.env.NEXT_PUBLIC_EARN_ENABLED === "true",
   evmEarnEnabled: process.env.NEXT_PUBLIC_EVM_EARN_ENABLED === "true",
   tronEnabled: process.env.NEXT_PUBLIC_TRON_ENABLED === "true",
+  solanaEnabled: process.env.NEXT_PUBLIC_SOLANA_ENABLED === "true",
+  solanaDevnetRpc:
+    process.env.NEXT_PUBLIC_SOLANA_DEVNET_RPC || "https://api.devnet.solana.com",
+  solanaDevnetWss:
+    process.env.NEXT_PUBLIC_SOLANA_DEVNET_WSS || "wss://api.devnet.solana.com",
   referralEnabled: (process.env.NEXT_PUBLIC_REFERRAL_ENABLED || "").trim().toLowerCase() !== "false",
   bridgeEnabled: process.env.NEXT_PUBLIC_BRIDGE_ENABLED === "true",
   onrampChainedForwardingEnabled:

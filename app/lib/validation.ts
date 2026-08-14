@@ -3,6 +3,14 @@
  */
 
 /**
+ * Validates Solana base58 address (32-byte pubkey).
+ */
+export function isValidSolanaAddress(value: string): boolean {
+  const trimmed = value.trim();
+  return /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(trimmed);
+}
+
+/**
  * Validates Tron address format (base58, starts with T).
  */
 export function isValidTronAddress(address: string): boolean {
@@ -57,6 +65,15 @@ export function validateWalletAddress(
     }
     if (!isValidTronAddress(raw)) {
       return "Enter a valid Tron address.";
+    }
+    return true;
+  }
+  if (networkName === "Solana Devnet") {
+    if (raw.startsWith("0x")) {
+      return "This address is an EVM address. Enter a Solana address.";
+    }
+    if (!isValidSolanaAddress(raw)) {
+      return "Enter a valid Solana address.";
     }
     return true;
   }

@@ -85,6 +85,134 @@ export async function assertTransactionWalletAuthorized(
   return { ok: true };
 }
 
+/** NGN per 1 USDC from the aggregator (used for cNGN / fiat KYC limit math). */
+const KYC_RATE_NETWORK_FALLBACKS = [
+  "solana-devnet",
+  "base",
+  "arbitrum-one",
+  "polygon",
+] as const;
+
+function aggregatorOriginForV2(): string | null {
+  const raw = process.env.NEXT_PUBLIC_AGGREGATOR_URL?.trim();
+  if (!raw) return null;
+  try {
+    const parsed = new URL(raw);
+    const basePath = parsed.pathname
+      .replace(/\/v1\/?$/i, "")
+      .replace(/\/$/, "");
+    return `${parsed.origin}${basePath}`;
+  } catch {
+    return null;
+  }
+}
+
+function normalizeRateNetworkSlug(network?: string | null): string | null {
+  const trimmed = String(network ?? "").trim().toLowerCase();
+  if (!trimmed) return null;
+  return trimmed.replace(/\s+/g, "-");
+}
+
+function parseV1RatePayload(payload: { data?: unknown } | null): number {
+  const rate = Number(payload?.data);
+  return Number.isFinite(rate) && rate > 0 ? rate : 0;
+}
+
+function parseV2SellRatePayload(payload: { data?: unknown } | null): number {
+  const sell = (payload?.data as { sell?: { rate?: unknown } } | undefined)
+    ?.sell;
+  const rate = Number(sell?.rate);
+  return Number.isFinite(rate) && rate > 0 ? rate : 0;
+}
+
+/**
+ * Resolves USDC/NGN for monthly limit checks. Staging requires a network slug
+ * (same as solanatool / UI v2 quotes); production v1 without network still works.
+ */
+export async function fetchCngnToUsdRate(
+  networkSlug?: string | null,
+): Promise<number> {
+  const raw = process.env.NEXT_PUBLIC_AGGREGATOR_URL?.trim();
+  if (!raw) {
+    console.warn(
+      "swap limit check: NEXT_PUBLIC_AGGREGATOR_URL is not set; rate-dependent KYC checks may fail",
+    );
+    return 0;
+  }
+
+  const v1Base = raw.replace(/\/+$/, "");
+  const primary = normalizeRateNetworkSlug(networkSlug);
+  const networksToTry = [
+    ...(primary ? [primary] : []),
+    ...KYC_RATE_NETWORK_FALLBACKS.filter((slug) => slug !== primary),
+  ];
+
+  for (const network of networksToTry) {
+    const v1Url = `${v1Base}/rates/USDC/1/NGN?network=${encodeURIComponent(network)}`;
+    try {
+      const rateRes = await fetch(v1Url, {
+        signal: AbortSignal.timeout(5000),
+      });
+      const rateData = (await rateRes.json().catch(() => null)) as
+        | { status?: string; data?: unknown }
+        | null;
+      if (rateRes.ok && rateData?.status === "success") {
+        const rate = parseV1RatePayload(rateData);
+        if (rate > 0) return rate;
+      }
+    } catch (error) {
+      console.warn(
+        `swap limit check: v1 rate fetch failed for ${network}:`,
+        error,
+      );
+    }
+
+    const origin = aggregatorOriginForV2();
+    if (origin) {
+      const v2Url = `${origin}/v2/rates/${encodeURIComponent(network)}/USDC/1/NGN?side=sell`;
+      try {
+        const rateRes = await fetch(v2Url, {
+          signal: AbortSignal.timeout(5000),
+        });
+        const rateData = (await rateRes.json().catch(() => null)) as
+          | { status?: string; data?: unknown }
+          | null;
+        if (rateRes.ok && rateData?.status === "success") {
+          const rate = parseV2SellRatePayload(rateData);
+          if (rate > 0) return rate;
+        }
+      } catch (error) {
+        console.warn(
+          `swap limit check: v2 sell rate fetch failed for ${network}:`,
+          error,
+        );
+      }
+    }
+  }
+
+  // Legacy prod path: network-agnostic v1 (404 on staging when no EVM provider).
+  const legacyV1Url = `${v1Base}/rates/USDC/1/NGN`;
+  try {
+    const rateRes = await fetch(legacyV1Url, {
+      signal: AbortSignal.timeout(5000),
+    });
+    const rateData = (await rateRes.json().catch(() => null)) as
+      | { status?: string; data?: unknown }
+      | null;
+    if (rateRes.ok && rateData?.status === "success") {
+      const rate = parseV1RatePayload(rateData);
+      if (rate > 0) return rate;
+    }
+  } catch (error) {
+    console.warn("swap limit check: legacy v1 rate fetch failed:", error);
+  }
+
+  console.warn(
+    "swap limit check: could not resolve USDC/NGN rate from aggregator",
+  );
+  return 0;
+}
+
 export type SwapLimitCheckResult =
   | { kind: "success"; id?: string; monthlyLimit: number; pooledWalletCount: number }
   | { kind: "rate_unavailable" }
@@ -134,22 +262,10 @@ export async function executeSwapTransactionLimitCheck(
   // Echoed back so the blocked-swap copy can name the wallets sharing the allowance.
   const pooledWalletCount = scope.wallets.length;
 
-  let cngnToUsdRate = 0;
-  try {
-    const aggregatorUrl = process.env.NEXT_PUBLIC_AGGREGATOR_URL;
-    if (aggregatorUrl) {
-      const rateRes = await fetch(`${aggregatorUrl}/rates/USDC/1/NGN`, {
-        signal: AbortSignal.timeout(5000),
-      });
-      if (rateRes.ok) {
-        const rateData = await rateRes.json();
-        const rate = Number(rateData?.data);
-        if (rate > 0) cngnToUsdRate = rate;
-      }
-    }
-  } catch {
-    // Rate unavailable — stored procedure will return rate_unavailable if cNGN is involved
-  }
+  const rateNetworkSlug = normalizeRateNetworkSlug(
+    typeof body.network === "string" ? body.network : null,
+  );
+  const cngnToUsdRate = await fetchCngnToUsdRate(rateNetworkSlug);
 
   const { data: rpcResult, error: rpcError } = await supabaseAdmin.rpc(
     "insert_swap_transaction_if_within_limit",

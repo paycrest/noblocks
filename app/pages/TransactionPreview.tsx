@@ -16,11 +16,15 @@ import {
   getNetworkImageUrl,
   getRpcUrl,
   normalizeNetworkName,
+  normalizeNetworkForRateFetch,
   publicKeyEncrypt,
   shortenAddress,
+  isSolanaChain,
+  isEvmChain,
 } from "../utils";
+import { isValidSolanaAddress } from "../lib/validation";
 import { tokensEqual, toAggregatorToken } from "../lib/token-symbol";
-import { useNetwork, useTokens, useStarknet } from "../context";
+import { useNetwork, useTokens, useStarknet, useSolana } from "../context";
 import config, { getDelegationContractAddress } from "../lib/config";
 import { appendBaseBuilderCode } from "../lib/baseBuilderCode";
 import { mapReportAndAct } from "../lib/toastMappedError";
@@ -34,6 +38,10 @@ import type {
 import { primaryBtnClasses, secondaryBtnClasses } from "../components/Styles";
 import { gatewayAbi } from "../api/abi";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
+import {
+  useSignTransaction as useSolanaSignTransaction,
+  useWallets as useSolanaWallets,
+} from "@privy-io/react-auth/solana";
 import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
 import {
   type BaseError,
@@ -83,7 +91,21 @@ import { RefundAccountSuccessModal } from "../components/RefundAccountSuccessMod
 import { PiCheckCircleFill } from "react-icons/pi";
 import { TbCircleDashed } from "react-icons/tb";
 import { useActualTheme } from "../hooks/useActualTheme";
+import { DEFAULT_SOLANA_DEVNET_USDC_MINT } from "../lib/solanaAta";
 import axios from "axios";
+
+async function readApiJson<T>(response: Response): Promise<T> {
+  const text = await response.text();
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    throw new Error(
+      text.trimStart().startsWith("<!")
+        ? `Server returned HTML instead of JSON (HTTP ${response.status}). Restart the dev server after config changes.`
+        : `Invalid server response (HTTP ${response.status})`,
+    );
+  }
+}
 
 /**
  * Renders a preview of a transaction with the provided details.
@@ -109,6 +131,9 @@ export const TransactionPreview = ({
   } = useInjectedWallet();
   const { resolveAuth } = useApiAuth();
   const { walletId: starknetWalletId, address: starknetWalletAddress, publicKey: starknetPublicKey } = useStarknet();
+  const { address: solanaWalletAddress } = useSolana();
+  const { wallets: solanaWallets, ready: solanaWalletsReady } = useSolanaWallets();
+  const { signTransaction: signSolanaTransaction } = useSolanaSignTransaction();
   const shouldUseEOA = useShouldUseEOA();
   const { isLoading: isMigrationLoading } = useMigrationStatus();
   const { signDelegationAuthorization } = useDelegationContractAuth();
@@ -118,7 +143,7 @@ export const TransactionPreview = ({
   const { allTokens } = useTokens();
   const { setCurrentStep } = useStep();
   const { fetchTransactions } = useTransactions();
-  const { refreshBalance, smartWalletBalance, externalWalletBalance, injectedWalletBalance, starknetWalletBalance, tronWalletBalance } =
+  const { refreshBalance, smartWalletBalance, externalWalletBalance, injectedWalletBalance, starknetWalletBalance, tronWalletBalance, solanaWalletBalance } =
     useBalance();
 
   const {
@@ -254,6 +279,7 @@ export const TransactionPreview = ({
 
   const isStarknetSelected = selectedNetwork.chain.name === "Starknet";
   const isTronSelected = selectedNetwork.chain.name === "Tron";
+  const isSolanaSelected = isSolanaChain(selectedNetwork.chain);
 
   // Drives the approval-step copy for injected off-ramp only — that's the one flow that tells the
   // user up front how many wallet prompts to expect. Skipped for Starknet/Tron, whose chain objects
@@ -264,6 +290,7 @@ export const TransactionPreview = ({
       isOnramp ||
       isStarknetSelected ||
       isTronSelected ||
+      isSolanaSelected ||
       !injectedReady
     ) {
       return;
@@ -306,9 +333,16 @@ export const TransactionPreview = ({
   // For Starknet, the middleware resolves x-wallet-address from the EVM embedded wallet.
   // Use the EVM address for backend API calls (precheck, save, fetchTransactions)
   // so auth passes, while activeWallet still holds the Starknet address for order creation.
-  const apiWalletAddress = isStarknetSelected && embeddedWallet
-    ? embeddedWallet.address
-    : activeWallet?.address;
+  // Middleware pins x-wallet-address to the Privy EVM embedded wallet (plan G9).
+  // Use that for backend API calls on non-EVM chains; activeWallet holds the chain signer.
+  const apiWalletAddress =
+    (isStarknetSelected || isSolanaSelected) && embeddedWallet
+      ? embeddedWallet.address
+      : activeWallet?.address;
+
+  const precheckNetworkSlug =
+    selectedNetwork.chain.network ||
+    normalizeNetworkForRateFetch(selectedNetwork.chain.name);
 
   // Get appropriate balance based on migration status
   // After migration: use externalWalletBalance (EOA balance)
@@ -320,6 +354,8 @@ export const TransactionPreview = ({
       ? starknetWalletBalance
       : isTronSelected
         ? tronWalletBalance
+        : isSolanaSelected
+          ? solanaWalletBalance
         : !isMigrationLoading && shouldUseEOA
           ? externalWalletBalance
           : smartWalletBalance;
@@ -484,6 +520,148 @@ export const TransactionPreview = ({
         return;
       }
 
+      if (isSolanaSelected) {
+        if (!solanaWalletAddress) {
+          throw new Error("Solana wallet not ready");
+        }
+        if (!solanaWalletsReady) {
+          throw new Error("Solana wallet not ready");
+        }
+
+        const solanaWallet = solanaWallets.find(
+          (wallet) => wallet.address === solanaWalletAddress,
+        );
+        if (!solanaWallet) {
+          throw new Error("Solana wallet not connected in Privy");
+        }
+
+        const senderApiKeyId = config.aggregatorSenderApiKey?.trim();
+        if (!senderApiKeyId) {
+          throw new Error(
+            "Sender API key is not configured (set NEXT_PUBLIC_AGGREGATOR_SENDER_API_KEY_ID)",
+          );
+        }
+
+        const providerId =
+          searchParams.get("provider") || searchParams.get("PROVIDER") || undefined;
+
+        const mintAddress =
+          [tokenAddress, fetchedTokens.find((t) => t.symbol.toUpperCase() === token.toUpperCase())?.address]
+            .find((addr) => addr && isValidSolanaAddress(addr)) ??
+          DEFAULT_SOLANA_DEVNET_USDC_MINT;
+
+        const decimals = tokenDecimals ?? 6;
+        const amountBaseUnits = parseUnits(
+          amountSent.toString(),
+          decimals,
+        ).toString();
+
+        setCreatedAt(new Date().toISOString());
+
+        const accessToken = await getAccessToken();
+        if (!accessToken) throw new Error("Not authenticated");
+
+        const buildResponse = await fetch("/api/solana/create-order", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify({
+            phase: "build",
+            depositor: solanaWalletAddress,
+            mint: mintAddress,
+            amount: amountBaseUnits,
+            rate: packRate(rate).toString(),
+            senderFee: "0",
+            refundAddress: solanaWalletAddress,
+            recipient: {
+              accountIdentifier: formValues.accountIdentifier,
+              accountName: recipientName,
+              institution: formValues.institution,
+              ...(formValues.memo ? { memo: formValues.memo } : {}),
+              ...(providerId ? { providerId } : {}),
+              metadata: { apiKey: senderApiKeyId },
+            },
+          }),
+        });
+
+        if (!buildResponse.ok) {
+          const err = await readApiJson<{ error?: string }>(buildResponse);
+          throw new Error(err.error ?? "Failed to build Solana create_order");
+        }
+
+        const buildData = await readApiJson<{
+          transaction?: string;
+          orderId?: string;
+        }>(buildResponse);
+
+        if (!buildData.transaction) {
+          throw new Error("Server did not return a Solana transaction");
+        }
+
+        const { signedTransaction } = await signSolanaTransaction({
+          transaction: Uint8Array.from(
+            Buffer.from(buildData.transaction, "base64"),
+          ),
+          wallet: solanaWallet,
+          chain: "solana:devnet",
+        });
+
+        const submitResponse = await fetch("/api/solana/create-order", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify({
+            phase: "submit",
+            signedTransaction: Buffer.from(signedTransaction).toString("base64"),
+            orderIdHex: buildData.orderId,
+            depositor: solanaWalletAddress,
+          }),
+        });
+
+        if (!submitResponse.ok) {
+          const err = await readApiJson<{ error?: string }>(submitResponse);
+          throw new Error(err.error ?? "Failed to submit Solana create_order");
+        }
+
+        const submitData = await readApiJson<{
+          transactionHash?: string;
+          orderId?: string;
+        }>(submitResponse);
+
+        setIsGatewayApproved(true);
+        setIsOrderCreated(true);
+
+        const txOrderId = submitData.orderId ?? buildData.orderId ?? "";
+        const txHash = submitData.transactionHash;
+
+        if (txOrderId) {
+          setOrderId(txOrderId);
+          setActiveOrderIsOnramp(false);
+          await saveTransactionData({
+            orderId: txOrderId,
+            txHash: txHash as `0x${string}` | undefined,
+          });
+          setCreatedAt(new Date().toISOString());
+          setTransactionStatus("pending");
+          setCurrentStep("status");
+        }
+
+        trackEvent("Swap started", {
+          "Entry point": "Transaction preview",
+          "Wallet type": "Solana",
+        });
+        refreshBalance();
+        return;
+      }
+
+      if (isTronSelected) {
+        throw new Error("Tron off-ramp is not wired in this flow yet.");
+      }
+
       if (isInjectedWallet && injectedProvider) {
         // Injected wallet
         if (!injectedReady) {
@@ -582,11 +760,14 @@ export const TransactionPreview = ({
           "Entry point": "Transaction preview",
           "Wallet type": "Injected wallet",
         });
-      } else if (shouldUseEOA && embeddedWallet) {
+      } else if (shouldUseEOA && embeddedWallet && isEvmChain(selectedNetwork.chain)) {
         // EIP-7702 + bundler (execute-sponsored): check delegationContractAddress, attach delegation with signature if needed
         const chain = selectedNetwork?.chain;
         if (!chain) throw new Error("Network not ready");
         const chainId = chain.id;
+        if (typeof chainId !== "number") {
+          throw new Error(`Unsupported network for EVM delegation: ${chain.name}`);
+        }
 
         const delegationContractAddress = getDelegationContractAddress(chainId);
         if (!delegationContractAddress || delegationContractAddress === "") {
@@ -736,7 +917,7 @@ export const TransactionPreview = ({
           setIsPollingOrderId(false);
         }
         return;
-      } else {
+      } else if (isEvmChain(selectedNetwork.chain)) {
         // Smart wallet (pre-migration)
         if (!client) {
           throw new Error("Smart wallet not found");
@@ -798,6 +979,10 @@ export const TransactionPreview = ({
             },
           ],
         });
+      } else {
+        throw new Error(
+          `Off-ramp is not supported for ${selectedNetwork.chain.name} in this wallet mode.`,
+        );
       }
 
       await getOrderId();
@@ -892,6 +1077,7 @@ export const TransactionPreview = ({
             amountSent: Number(amountSent),
             amountReceived: Number(amountReceived),
             fee: Number(rate),
+            network: precheckNetworkSlug,
             recipient: {
               account_name: recipientName || walletAddress || "",
               institution: "Wallet",
@@ -1016,6 +1202,7 @@ export const TransactionPreview = ({
           amountSent: Number(amountSent),
           amountReceived: Number(amountReceived),
           fee: Number(rate),
+          network: precheckNetworkSlug,
           recipient: {
             account_name: recipientName,
             institution: getInstitutionNameByCode(

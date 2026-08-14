@@ -21,6 +21,7 @@ import {
   StarknetProvider,
   StarknetExportModalProvider,
   TronProvider,
+  SolanaProvider,
   StepProvider,
   TokensProvider,
   TransactionsProvider,
@@ -121,6 +122,7 @@ function ContextProviders({ children }: { children: ReactNode }) {
             <StarknetProvider>
               <StarknetExportModalProvider>
                 <TronProvider>
+                <SolanaProvider>
                 <TokensProvider>
                   <StepProvider>
                     <BalanceProvider>
@@ -139,6 +141,7 @@ function ContextProviders({ children }: { children: ReactNode }) {
                     </BalanceProvider>
                   </StepProvider>
                 </TokensProvider>
+                </SolanaProvider>
                 </TronProvider>
               </StarknetExportModalProvider>
             </StarknetProvider>

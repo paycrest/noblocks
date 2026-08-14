@@ -6,6 +6,10 @@ import {
   trackApiResponse,
   trackApiError,
 } from "@/app/lib/server-analytics";
+import {
+  aggregatorApiKeyNotFoundHint,
+  getAggregatorSenderApiKeyId,
+} from "@/app/lib/aggregator-server-env";
 import config from "@/app/lib/config";
 import { aggregatorOriginForV2 } from "@/app/api/aggregator";
 import {
@@ -84,7 +88,8 @@ export const GET = withRateLimit(
         }
         url = `${base}/v2/orders/${chainId}/${encodeURIComponent(orderId)}`;
       } else if (isSenderPaymentOrderUuid(orderId)) {
-        if (!config.aggregatorSenderApiKey?.trim()) {
+        const senderApiKeyId = getAggregatorSenderApiKeyId();
+        if (!senderApiKeyId) {
           trackApiError(
             request,
             "/api/v1/payment-orders/[id]",
@@ -98,7 +103,7 @@ export const GET = withRateLimit(
           );
         }
         url = `${base}/v2/sender/orders/${encodeURIComponent(orderId)}`;
-        headers = { "API-Key": config.aggregatorSenderApiKey.trim() };
+        headers = { "API-Key": senderApiKeyId };
       } else {
         return NextResponse.json(
           {
@@ -126,7 +131,8 @@ export const GET = withRateLimit(
           ? (data as { message: string }).message
           : "";
       if (status === 404 && /api key not found/i.test(msg)) {
-        return NextResponse.json(data, { status: 401 });
+        const hint = aggregatorApiKeyNotFoundHint(url);
+        return NextResponse.json({ ...(data as object), hint }, { status: 401 });
       }
 
       return NextResponse.json(data, { status });

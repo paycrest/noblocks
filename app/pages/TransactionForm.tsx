@@ -37,6 +37,7 @@ import {
   networkSupportsOnramp,
   isTronChain,
   isStarknetChain,
+  isSolanaChain,
   getCurrencySymbol,
   getOnrampFiatMaxAmount,
   isOnrampFiatCurrencyCode,
@@ -131,6 +132,7 @@ export const TransactionForm = ({
     injectedWalletBalance,
     starknetWalletBalance,
     tronWalletBalance,
+    solanaWalletBalance,
     isLoading,
   } = useBalance();
   const shouldUseEOA = useShouldUseEOA();
@@ -330,6 +332,8 @@ export const TransactionForm = ({
       ? starknetWalletBalance
       : isTronChain(selectedNetwork.chain)
         ? tronWalletBalance
+        : isSolanaChain(selectedNetwork.chain)
+          ? solanaWalletBalance
         : shouldUseEOA
           ? externalWalletBalance
           : smartWalletBalance;

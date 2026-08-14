@@ -555,6 +555,7 @@ export const config = {
     "/api/bridge/:path*",
     "/api/starknet/transfer",
     "/api/starknet/create-order",
+    "/api/solana/create-order",
     "/api/referral",
     "/api/referral/:path*",
     "/api/play/join",

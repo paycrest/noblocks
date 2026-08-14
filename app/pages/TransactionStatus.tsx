@@ -152,6 +152,7 @@ export function TransactionStatus({
     injectedWalletBalance,
     starknetWalletBalance,
     tronWalletBalance,
+    solanaWalletBalance,
   } = useBalance();
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
   const { user, getAccessToken } = usePrivy();
@@ -946,6 +947,8 @@ export function TransactionStatus({
             ? starknetWalletBalance?.balances[token] || 0
             : selectedNetwork.chain.name === "Tron"
               ? tronWalletBalance?.balances[token] || 0
+              : selectedNetwork.chain.name === "Solana Devnet"
+                ? solanaWalletBalance?.balances[token] || 0
               : smartWalletBalance?.balances[token] || 0;
 
         const eventData = {

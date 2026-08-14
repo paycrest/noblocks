@@ -4,8 +4,9 @@ import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { useInjectedWallet } from "../context/InjectedWalletContext";
 import { useStarknet } from "../context/StarknetContext";
 import { useTron } from "../context/TronContext";
+import { useSolana } from "../context/SolanaContext";
 import { useNetwork } from "../context/NetworksContext";
-import { normalizeStarknetAddress } from "../utils";
+import { normalizeStarknetAddress, isSolanaChain } from "../utils";
 import { useShouldUseEOA } from "./useEIP7702Account";
 
 /**
@@ -19,6 +20,7 @@ export function useWalletAddress(): string | undefined {
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
   const { address: starknetAddress } = useStarknet();
   const { address: tronAddress } = useTron();
+  const { address: solanaAddress } = useSolana();
   const { selectedNetwork } = useNetwork();
   const shouldUseEOA = useShouldUseEOA();
 
@@ -40,6 +42,10 @@ export function useWalletAddress(): string | undefined {
 
   if (selectedNetwork?.chain?.name === "Tron") {
     return tronAddress ?? undefined;
+  }
+
+  if (isSolanaChain(selectedNetwork?.chain)) {
+    return solanaAddress ?? undefined;
   }
 
   const embeddedLinked = user?.linkedAccounts?.find(

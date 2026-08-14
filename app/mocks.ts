@@ -33,6 +33,38 @@ export const starknetMainnet = {
   testnet: false,
 };
 
+export const solanaDevnet = {
+  id: "solana-devnet",
+  name: "Solana Devnet",
+  network: "solana-devnet",
+  nativeCurrency: {
+    decimals: 9,
+    name: "Solana",
+    symbol: "SOL",
+  },
+  rpcUrls: {
+    default: {
+      http: [
+        process.env.NEXT_PUBLIC_SOLANA_DEVNET_RPC ||
+          "https://api.devnet.solana.com",
+      ],
+    },
+    public: {
+      http: [
+        process.env.NEXT_PUBLIC_SOLANA_DEVNET_RPC ||
+          "https://api.devnet.solana.com",
+      ],
+    },
+  },
+  blockExplorers: {
+    default: {
+      name: "Solana Explorer",
+      url: "https://explorer.solana.com/?cluster=devnet",
+    },
+  },
+  testnet: true,
+};
+
 export const tronMainnet = {
   id: "tron-mainnet",
   name: "Tron",
@@ -125,6 +157,14 @@ export const networks = [
         },
       ]
     : []),
+  ...(config.solanaEnabled
+    ? [
+        {
+          chain: solanaDevnet,
+          imageUrl: "/logos/solana-logo.svg",
+        },
+      ]
+    : []),
   {
     chain: polygon,
     imageUrl: "/logos/polygon-logo.svg",
@@ -159,6 +199,7 @@ export const MIGRATION_EXCLUDED_CHAIN_IDS = new Set<number | string>([
   celo.id,
   starknetMainnet.id,
   tronMainnet.id,
+  solanaDevnet.id,
 ]);
 
 /** Networks scanned and shown in the wallet migration modal (excludes Celo, Starknet, and Tron). */

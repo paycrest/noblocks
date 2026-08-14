@@ -12,6 +12,7 @@ import {
   fetchWalletBalance,
   fetchStarknetBalance,
   fetchTronBalance,
+  fetchSolanaBalance,
   getRpcUrl,
   calculateCorrectedTotalBalance,
   getNetworkTokens,
@@ -32,6 +33,7 @@ import { migrationChecklistNetworks, networks } from "../mocks";
 import type { Network } from "../types";
 import { useStarknet } from "./StarknetContext";
 import { useTron } from "./TronContext";
+import { useSolana } from "./SolanaContext";
 import { bsc } from "viem/chains";
 
 // All networks are fetched in parallel — no artificial concurrency limit
@@ -144,12 +146,14 @@ interface BalanceContextProps {
   injectedWalletBalance: WalletBalances | null;
   starknetWalletBalance: WalletBalances | null;
   tronWalletBalance: WalletBalances | null;
+  solanaWalletBalance: WalletBalances | null;
   allBalances: {
     smartWallet: WalletBalances | null;
     externalWallet: WalletBalances | null;
     injectedWallet: WalletBalances | null;
     starknetWallet: WalletBalances | null;
     tronWallet: WalletBalances | null;
+    solanaWallet: WalletBalances | null;
   };
   crossChainBalances: CrossChainBalanceEntry[];
   crossChainTotal: number;
@@ -182,13 +186,18 @@ type IdentityKeyInput = {
   isStarknetSelected: boolean;
   tronAddress: string | null;
   isTronSelected: boolean;
+  solanaAddress: string | null;
+  isSolanaSelected: boolean;
+  selectedChainName: string;
 };
 
 function buildIdentityKey(o: IdentityKeyInput): string {
-  if (o.isInjectedWallet) return `inj:${o.injectedAddress ?? ""}`;
+  const chain = o.selectedChainName;
+  if (o.isInjectedWallet) return `inj:${o.injectedAddress ?? ""}:${chain}`;
   if (o.isStarknetSelected) return `stk:${o.starknetAddress ?? ""}`;
   if (o.isTronSelected) return `trx:${o.tronAddress ?? ""}`;
-  return `evm:${o.smartAddr ?? ""}|${o.embeddedAddr ?? ""}`;
+  if (o.isSolanaSelected) return `sol:${o.solanaAddress ?? ""}`;
+  return `evm:${o.smartAddr ?? ""}|${o.embeddedAddr ?? ""}:${chain}`;
 }
 
 const BalanceContext = createContext<BalanceContextProps | undefined>(
@@ -204,6 +213,7 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
     useInjectedWallet();
   const { address: starknetAddress } = useStarknet();
   const { address: tronAddress } = useTron();
+  const { address: solanaAddress } = useSolana();
 
   const [smartWalletBalance, setSmartWalletBalance] =
     useState<WalletBalances | null>(null);
@@ -225,6 +235,8 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
     useState<WalletBalances | null>(null);
   const [tronWalletBalance, setTronWalletBalance] =
     useState<WalletBalances | null>(null);
+  const [solanaWalletBalance, setSolanaWalletBalance] =
+    useState<WalletBalances | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const bypassCacheNextFetchRef = useRef(false);
   /** Identity (addresses) for the last fetch that reached its finally block. Drives isRefreshing on wallet swap. */
@@ -240,7 +252,10 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
   const { isMigrationComplete, isLoading: isMigrationLoading } = useMigrationStatus();
 
   const evmBalanceNetworks = networks.filter(
-    (n) => n.chain.name !== "Starknet" && n.chain.name !== "Tron",
+    (n) =>
+      n.chain.name !== "Starknet" &&
+      n.chain.name !== "Tron" &&
+      n.chain.name !== "Solana Devnet",
   );
 
   /**
@@ -343,7 +358,18 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
       isStarknetSelected: selectedNetwork.chain.name === "Starknet",
       tronAddress: tronAddress ?? null,
       isTronSelected: selectedNetwork.chain.name === "Tron",
+      solanaAddress: solanaAddress ?? null,
+      isSolanaSelected: selectedNetwork.chain.name === "Solana Devnet",
+      selectedChainName: selectedNetwork.chain.name,
     });
+
+    if (
+      !bypassCache &&
+      lastFetchedKeyRef.current !== "" &&
+      lastFetchedKeyRef.current === fetchIdentityKey
+    ) {
+      return;
+    }
 
     const clearAllWalletBalances = () => {
       setSmartWalletBalance(null);
@@ -351,6 +377,7 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
       setInjectedWalletBalance(null);
       setStarknetWalletBalance(null);
       setTronWalletBalance(null);
+      setSolanaWalletBalance(null);
       setCrossChainBalances([]);
       setSmartWalletRemainingTotal(0);
       setSmartWalletCrossChainTotals(null);
@@ -363,6 +390,7 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
       setInjectedWalletBalance(null);
       setStarknetWalletBalance(null);
       setTronWalletBalance(null);
+      setSolanaWalletBalance(null);
     };
 
     setIsLoading(true);
@@ -476,8 +504,54 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
         return;
       }
 
+      if (selectedNetwork.chain.name === "Solana Devnet") {
+        if (solanaAddress) {
+          try {
+            const tokens = await getNetworkTokens("Solana Devnet");
+            const result = await fetchSolanaBalance(solanaAddress, tokens);
+
+            setSolanaWalletBalance(result);
+            setTronWalletBalance(null);
+            setStarknetWalletBalance(null);
+            setSmartWalletBalance(null);
+            setExternalWalletBalance(null);
+            setInjectedWalletBalance(null);
+            const solanaNetwork = networks.find(
+              (n) => n.chain.name === "Solana Devnet",
+            );
+            setCrossChainBalances(
+              solanaNetwork
+                ? [{ network: solanaNetwork, balances: result }]
+                : [],
+            );
+            setSmartWalletRemainingTotal(0);
+            setSmartWalletCrossChainTotals(null);
+          } catch (error) {
+            console.error("Error fetching Solana balance:", error);
+            setSolanaWalletBalance(null);
+            setCrossChainBalances([]);
+            setSmartWalletRemainingTotal(0);
+            setSmartWalletCrossChainTotals(null);
+          }
+        } else {
+          setSolanaWalletBalance(null);
+          setTronWalletBalance(null);
+          setStarknetWalletBalance(null);
+          setSmartWalletBalance(null);
+          setExternalWalletBalance(null);
+          setInjectedWalletBalance(null);
+          setCrossChainBalances([]);
+          setSmartWalletRemainingTotal(0);
+          setSmartWalletCrossChainTotals(null);
+        }
+
+        setIsLoading(false);
+        return;
+      }
+
       setStarknetWalletBalance(null);
       setTronWalletBalance(null);
+      setSolanaWalletBalance(null);
 
       if (ready && !isInjectedWallet) {
         const smartWalletAccount = user?.linkedAccounts.find(
@@ -739,19 +813,25 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
     }
   };
 
+  const walletIdentityKey = wallets
+    .map((wallet) => `${wallet.walletClientType}:${wallet.address ?? ""}`)
+    .join("|");
+  const selectedChainName = selectedNetwork.chain.name;
+
   useEffect(() => {
     fetchBalances();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     ready,
-    user,
-    wallets,
-    selectedNetwork,
+    user?.id,
+    walletIdentityKey,
+    selectedChainName,
     isInjectedWallet,
     injectedReady,
     injectedAddress,
     starknetAddress,
     tronAddress,
+    solanaAddress,
     isMigrationComplete,
     isMigrationLoading,
   ]);
@@ -784,18 +864,19 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
   }, [cngnRate]);
 
   useEffect(() => {
-    if (!user && !isInjectedWallet && !starknetAddress && !tronAddress) {
+    if (!user && !isInjectedWallet && !starknetAddress && !tronAddress && !solanaAddress) {
       setSmartWalletBalance(null);
       setExternalWalletBalance(null);
       setInjectedWalletBalance(null);
       setStarknetWalletBalance(null);
       setTronWalletBalance(null);
+      setSolanaWalletBalance(null);
       setCrossChainBalances([]);
       setSmartWalletRemainingTotal(0);
       setSmartWalletCrossChainTotals(null);
       setIsLoading(false);
     }
-  }, [user, isInjectedWallet, starknetAddress, tronAddress]);
+  }, [user, isInjectedWallet, starknetAddress, tronAddress, solanaAddress]);
 
   const allBalances = {
     smartWallet: smartWalletBalance,
@@ -803,6 +884,7 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
     injectedWallet: injectedWalletBalance,
     starknetWallet: starknetWalletBalance,
     tronWallet: tronWalletBalance,
+    solanaWallet: solanaWalletBalance,
   };
 
   // Calculate cross-chain total for the active wallet type (balances are already CNGN-corrected)
@@ -818,7 +900,8 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
     externalWalletBalance != null ||
     injectedWalletBalance != null ||
     starknetWalletBalance != null ||
-    tronWalletBalance != null;
+    tronWalletBalance != null ||
+    solanaWalletBalance != null;
 
   const currentIdentityKey = buildIdentityKey({
     isInjectedWallet,
@@ -833,6 +916,9 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
     isStarknetSelected: selectedNetwork.chain.name === "Starknet",
     tronAddress: tronAddress ?? null,
     isTronSelected: selectedNetwork.chain.name === "Tron",
+    solanaAddress: solanaAddress ?? null,
+    isSolanaSelected: selectedNetwork.chain.name === "Solana Devnet",
+    selectedChainName: selectedNetwork.chain.name,
   });
   const identityMatchesLastFetch =
     lastFetchedKeyRef.current !== "" &&
@@ -854,6 +940,7 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
         injectedWalletBalance,
         starknetWalletBalance,
         tronWalletBalance,
+        solanaWalletBalance,
         allBalances,
         crossChainBalances,
         crossChainTotal,

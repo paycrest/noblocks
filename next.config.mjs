@@ -88,7 +88,7 @@ const nextConfig = {
   // "can't be external" version skew when https-proxy-agent was listed here).
   // dd-trace ships native addons and patches modules at require time, and pino
   // resolves transports through worker threads — bundling either breaks them.
-  serverExternalPackages: ["mixpanel", "twilio", "dd-trace", "pino"],
+  serverExternalPackages: ["mixpanel", "twilio", "dd-trace", "pino", "@solana/web3.js"],
   webpack: (config, { isServer }) => {
     // Handle both client and server-side fallbacks
     config.resolve.fallback = {
@@ -122,8 +122,13 @@ const nextConfig = {
       "@hyperlane-xyz/sdk": starkzapUnusedShim,
       "@hyperlane-xyz/registry": starkzapUnusedShim,
       "@hyperlane-xyz/utils": starkzapUnusedShim,
-      "@solana/web3.js": starkzapUnusedShim,
     };
+
+    // starkzap optionally imports @solana/web3.js in the browser bundle only.
+    // Server routes (e.g. /api/solana/create-order) need the real package.
+    if (!isServer) {
+      config.resolve.alias["@solana/web3.js"] = starkzapUnusedShim;
+    }
 
     // Handle Mixpanel on server-side only
     if (isServer) {
@@ -188,7 +193,14 @@ const nextConfig = {
       "@hyperlane-xyz/sdk": "./app/lib/_starkzap-unused-shim.ts",
       "@hyperlane-xyz/registry": "./app/lib/_starkzap-unused-shim.ts",
       "@hyperlane-xyz/utils": "./app/lib/_starkzap-unused-shim.ts",
-      "@solana/web3.js": "./app/lib/_starkzap-unused-shim.ts",
+      // Browser only — server routes (solanaGateway.ts) need the real package.
+      "@solana/web3.js": {
+        browser: "./app/lib/_starkzap-unused-shim.ts",
+      },
+      "@solana/kit": "@solana/kit",
+      "@solana-program/memo": "@solana-program/memo",
+      "@solana-program/system": "@solana-program/system",
+      "@solana-program/token": "@solana-program/token",
     },
   },
 };

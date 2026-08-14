@@ -16,6 +16,8 @@ export async function register() {
   // Skipped on the Edge runtime (middleware): dd-trace is a Node library and
   // importing it there breaks the Edge bundle.
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
+  // Read once, here, at process startup — flipping this on a running
+  // container has no effect until it restarts.
   if (process.env.DD_TRACE_ENABLED === "false") return;
 
   const { default: tracer } = await import("dd-trace");

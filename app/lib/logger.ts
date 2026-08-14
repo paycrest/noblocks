@@ -56,7 +56,19 @@ export const logger = pino({
   // Datadog expects millisecond epoch under `timestamp`.
   timestamp: () => `,"timestamp":${Date.now()}`,
   redact: {
+    // Both the bare and the wildcard form of each key are needed. fast-redact
+    // treats "*.token" as "iterate the root object's children and redact
+    // `token` inside each" — it does NOT match a root-level { token: ... },
+    // which is the shape most call sites actually use. It has no recursive
+    // wildcard, so each depth must be listed explicitly.
     paths: [
+      "authorization",
+      "cookie",
+      "password",
+      "token",
+      "secret",
+      "apiKey",
+      "api_key",
       "*.authorization",
       "*.cookie",
       "*.password",

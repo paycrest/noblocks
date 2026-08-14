@@ -20,7 +20,7 @@ Application code never holds a Datadog API key. Only the agent does.
 
 ## Architecture
 
-```
+```text
 ┌───────────────────┐   stdout (JSON)    ┌──────────────┐
 │  noblocks (Next)  │───────────────────▶│              │
 │                   │   traces :8126     │  DD Agent    │──▶ datadoghq.eu
@@ -105,12 +105,17 @@ failure mode worth alerting on.
 
 ### Monitors worth having
 
+Every query below is scoped `env:production`. **Do not drop that scope.** Staging
+shares this Datadog org, so an unscoped absence monitor is satisfied by staging
+ticks and a production outage would never page — the monitor inverted into a
+liability. The threshold monitors would likewise fire on staging noise.
+
 | Monitor | Query | Why |
 | --- | --- | --- |
-| **No tick in 10 minutes → page** | absence of `service:noblocks @feature:play @worker.ran_at:*` | Cron is `*/5`; two misses means scores silently stopped updating |
-| Alerts sustained 15 min → Slack | `@worker.alerts_count:>0` | Internal failure inside a 200 |
-| Provider budget low → Slack | `@worker.provider_remaining:<200` | Before the API-Football wall |
-| Crashed tick → Slack | `@worker.ok:false` | Tick threw outright |
+| **No tick in 10 minutes → page** | absence of `service:noblocks env:production @feature:play @worker.ran_at:*` | Cron is `*/5`; two misses means scores silently stopped updating |
+| Alerts sustained 15 min → Slack | `service:noblocks env:production @feature:play @worker.alerts_count:>0` | Internal failure inside a 200 |
+| Provider budget low → Slack | `service:noblocks env:production @feature:play @worker.provider_remaining:<200` | Before the API-Football wall |
+| Crashed tick → Slack | `service:noblocks env:production @feature:play @worker.ok:false` | Tick threw outright |
 
 The first one is the one that matters. When the cron dies, nothing else
 anywhere reports it.

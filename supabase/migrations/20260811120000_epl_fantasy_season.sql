@@ -197,7 +197,7 @@ GRANT EXECUTE ON FUNCTION public.fantasy_worker_try_acquire TO service_role;
 REVOKE ALL ON FUNCTION public.fantasy_worker_try_acquire(INTEGER) FROM PUBLIC;
 
 GRANT EXECUTE ON FUNCTION public.fantasy_worker_release TO service_role;
-REVOKE ALL ON FUNCTION public.fantasy_worker_release(TIMESTAMPTZ) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.fantasy_worker_release(UUID) FROM PUBLIC;
 
 -- ─── Retire xi_at_kickoff (no readers in app/) ────────────────────────────────
 -- Introduced by 20260704120001 / 20260710120000 and already applied, so this

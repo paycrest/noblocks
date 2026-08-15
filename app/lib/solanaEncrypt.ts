@@ -93,7 +93,7 @@ async function fetchAggregatorPublicKeyPEM(): Promise<string> {
   }
 
   const url = `${config.aggregatorUrl.replace(/\/$/, "")}/pubkey`;
-  const response = await axios.get<{ data?: string }>(url);
+  const response = await axios.get<{ data?: string }>(url, { timeout: 10_000 });
   const pem = response.data?.data?.trim();
   if (!pem) {
     throw new Error("Empty aggregator public key");

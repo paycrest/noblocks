@@ -8,10 +8,9 @@ import {
 } from "@/app/lib/server-analytics";
 import {
   aggregatorApiKeyNotFoundHint,
+  getAggregatorBaseUrlForV2,
   getAggregatorSenderApiKeyId,
 } from "@/app/lib/aggregator-server-env";
-import config from "@/app/lib/config";
-import { aggregatorOriginForV2 } from "@/app/api/aggregator";
 import {
   isGatewayOrderId,
   isStarknetOrderId,
@@ -49,15 +48,15 @@ export const GET = withRateLimit(
         gateway_lookup: isGatewayOrderId(orderId) || (isStarknetOrderId(orderId) && networkParam === "Starknet"),
       });
 
-      if (!config.aggregatorUrl) {
-        trackApiError(request, "/api/v1/payment-orders/[id]", "GET", new Error("NEXT_PUBLIC_AGGREGATOR_URL is not configured"), 500);
+      if (!getAggregatorBaseUrlForV2()) {
+        trackApiError(request, "/api/v1/payment-orders/[id]", "GET", new Error("Aggregator URL is not configured"), 500);
         return NextResponse.json(
-          { success: false, error: "NEXT_PUBLIC_AGGREGATOR_URL is not configured" },
+          { success: false, error: "Aggregator URL is not configured" },
           { status: 500 },
         );
       }
 
-      const base = aggregatorOriginForV2();
+      const base = getAggregatorBaseUrlForV2();
       let url: string;
       let headers: Record<string, string> = {};
 

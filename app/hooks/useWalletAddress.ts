@@ -24,6 +24,10 @@ export function useWalletAddress(): string | undefined {
   const { selectedNetwork } = useNetwork();
   const shouldUseEOA = useShouldUseEOA();
 
+  if (isSolanaChain(selectedNetwork?.chain)) {
+    return solanaAddress ?? undefined;
+  }
+
   if (isInjectedWallet) {
     return injectedAddress ?? undefined;
   }
@@ -42,10 +46,6 @@ export function useWalletAddress(): string | undefined {
 
   if (selectedNetwork?.chain?.name === "Tron") {
     return tronAddress ?? undefined;
-  }
-
-  if (isSolanaChain(selectedNetwork?.chain)) {
-    return solanaAddress ?? undefined;
   }
 
   const embeddedLinked = user?.linkedAccounts?.find(

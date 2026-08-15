@@ -21,6 +21,8 @@ import {
   shortenAddress,
   isSolanaChain,
   isEvmChain,
+  base64ToUint8Array,
+  uint8ArrayToBase64,
 } from "../utils";
 import { isValidSolanaAddress } from "../lib/validation";
 import { tokensEqual, toAggregatorToken } from "../lib/token-symbol";
@@ -601,9 +603,7 @@ export const TransactionPreview = ({
         }
 
         const { signedTransaction } = await signSolanaTransaction({
-          transaction: Uint8Array.from(
-            Buffer.from(buildData.transaction, "base64"),
-          ),
+          transaction: base64ToUint8Array(buildData.transaction),
           wallet: solanaWallet,
           chain: "solana:mainnet-beta",
         });
@@ -616,7 +616,7 @@ export const TransactionPreview = ({
           },
           body: JSON.stringify({
             phase: "submit",
-            signedTransaction: Buffer.from(signedTransaction).toString("base64"),
+            signedTransaction: uint8ArrayToBase64(signedTransaction),
             orderIdHex: buildData.orderId,
             depositor: solanaWalletAddress,
           }),
@@ -630,6 +630,7 @@ export const TransactionPreview = ({
         const submitData = await readApiJson<{
           transactionHash?: string;
           orderId?: string;
+          confirmed?: boolean;
         }>(submitResponse);
 
         setIsGatewayApproved(true);
@@ -643,7 +644,7 @@ export const TransactionPreview = ({
           setActiveOrderIsOnramp(false);
           await saveTransactionData({
             orderId: txOrderId,
-            txHash: txHash as `0x${string}` | undefined,
+            txHash,
           });
           setCreatedAt(new Date().toISOString());
           setTransactionStatus("pending");
@@ -1234,7 +1235,7 @@ export const TransactionPreview = ({
     providerAccount,
   }: {
     orderId: string;
-    txHash?: `0x${string}`;
+    txHash?: string;
     /** Pass from create-order response so bank name is saved before React state updates. */
     providerAccount?: V2FiatProviderAccountDTO | null;
   }) => {

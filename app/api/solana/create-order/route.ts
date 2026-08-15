@@ -16,10 +16,12 @@ import {
   buildCreateOrderTransaction,
   submitSignedCreateOrderTransaction,
 } from "@/app/lib/solanaGateway";
+import { collectLinkedSolanaAddressesForPrivyUserId } from "@/app/lib/privy";
 import { isSolanaSponsorConfigured } from "@/app/lib/solanaSponsor";
 import { isValidSolanaAddress } from "@/app/lib/validation";
 
 const ROUTE = "/api/solana/create-order" as const;
+const GENERIC_ERROR = "Failed to process Solana order";
 
 type BuildBody = {
   phase: "build";
@@ -41,15 +43,29 @@ type SubmitBody = {
 };
 
 function parseBigIntField(value: string, field: string): bigint {
+  let parsed: bigint;
   try {
-    const parsed = BigInt(value);
-    if (parsed < BigInt(0)) {
-      throw new Error(`${field} must be non-negative`);
-    }
-    return parsed;
+    parsed = BigInt(value);
   } catch {
     throw new Error(`Invalid ${field}`);
   }
+  if (parsed < BigInt(0)) {
+    throw new Error(`${field} must be non-negative`);
+  }
+  return parsed;
+}
+
+async function resolveAuthorizedSolanaDepositors(
+  authUserId: string,
+): Promise<string[]> {
+  return collectLinkedSolanaAddressesForPrivyUserId(authUserId);
+}
+
+function depositorNotAuthorizedResponse() {
+  return NextResponse.json(
+    { error: "Depositor does not match your linked Solana wallet" },
+    { status: 403 },
+  );
 }
 
 export const POST = withRateLimit(async (request: NextRequest) => {
@@ -99,7 +115,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
     const { payload } = await verifyJWT(token, DEFAULT_PRIVY_CONFIG);
     const authUserId = payload.sub || payload.userId;
 
-    if (!authUserId) {
+    if (!authUserId || typeof authUserId !== "string") {
       return NextResponse.json(
         { error: "Invalid token: missing user ID" },
         { status: 401 },
@@ -112,9 +128,12 @@ export const POST = withRateLimit(async (request: NextRequest) => {
     });
 
     const body = (await request.json()) as BuildBody | SubmitBody;
+    const authorizedDepositors = await resolveAuthorizedSolanaDepositors(
+      authUserId,
+    );
 
     if (body.phase === "submit") {
-      const { signedTransaction } = body;
+      const { signedTransaction, depositor: submitDepositor } = body;
       if (!signedTransaction?.trim()) {
         return NextResponse.json(
           { error: "Missing signedTransaction" },
@@ -122,8 +141,22 @@ export const POST = withRateLimit(async (request: NextRequest) => {
         );
       }
 
-      const { signature } = await submitSignedCreateOrderTransaction(
+      if (submitDepositor?.trim()) {
+        const trimmed = submitDepositor.trim();
+        if (!isValidSolanaAddress(trimmed)) {
+          return NextResponse.json(
+            { error: "Invalid Solana depositor address" },
+            { status: 400 },
+          );
+        }
+        if (!authorizedDepositors.includes(trimmed)) {
+          return depositorNotAuthorizedResponse();
+        }
+      }
+
+      const { signature, confirmed } = await submitSignedCreateOrderTransaction(
         signedTransaction.trim(),
+        body.orderIdHex,
       );
 
       const responseTime = Date.now() - startTime;
@@ -131,12 +164,14 @@ export const POST = withRateLimit(async (request: NextRequest) => {
         wallet_address: walletAddress,
         privy_user_id: authUserId,
         phase: "submit",
+        confirmed,
       });
 
       return NextResponse.json({
         success: true,
         transactionHash: signature,
         orderId: body.orderIdHex,
+        confirmed,
       });
     }
 
@@ -170,11 +205,22 @@ export const POST = withRateLimit(async (request: NextRequest) => {
       );
     }
 
-    if (!isValidSolanaAddress(depositor) || !isValidSolanaAddress(refundAddress)) {
+    const depositorTrimmed = depositor.trim();
+    if (!isValidSolanaAddress(depositorTrimmed) || !isValidSolanaAddress(refundAddress)) {
       return NextResponse.json(
         { error: "Invalid Solana depositor or refund address" },
         { status: 400 },
       );
+    }
+
+    if (authorizedDepositors.length === 0) {
+      return NextResponse.json(
+        { error: "No linked Solana wallet found for this account" },
+        { status: 403 },
+      );
+    }
+    if (!authorizedDepositors.includes(depositorTrimmed)) {
+      return depositorNotAuthorizedResponse();
     }
 
     const senderApiKeyId = config.aggregatorSenderApiKey;
@@ -194,7 +240,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
     });
 
     const built = await buildCreateOrderTransaction({
-      depositor: depositor.trim(),
+      depositor: depositorTrimmed,
       mint: mint?.trim(),
       amount: parseBigIntField(amount, "amount"),
       rate: parseBigIntField(rate, "rate"),
@@ -224,7 +270,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
     console.error("[API] Error in Solana create-order:", error);
     const responseTime = Date.now() - startTime;
     const err =
-      error instanceof Error ? error : new Error("Failed to process Solana order");
+      error instanceof Error ? error : new Error(GENERIC_ERROR);
     const walletAddressCatch = request.headers
       .get("x-wallet-address")
       ?.toLowerCase();
@@ -232,9 +278,6 @@ export const POST = withRateLimit(async (request: NextRequest) => {
       ...(walletAddressCatch ? { wallet_address: walletAddressCatch } : {}),
       response_time_ms: responseTime,
     });
-    return NextResponse.json(
-      { error: err.message || "Failed to process Solana order" },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: GENERIC_ERROR }, { status: 500 });
   }
 });

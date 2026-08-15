@@ -241,6 +241,8 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
   const bypassCacheNextFetchRef = useRef(false);
   /** Identity (addresses) for the last fetch that reached its finally block. Drives isRefreshing on wallet swap. */
   const lastFetchedKeyRef = useRef<string>("");
+  /** Monotonic fetch generation — stale async results must not overwrite newer state. */
+  const fetchGenerationRef = useRef(0);
 
   // CNGN rate for balance correction: same corridor as cross-chain batch (stable NGN↔USD quote).
   const { rate: cngnRate } = useCNGNRate({
@@ -342,6 +344,8 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
   const fetchBalances = async () => {
     const bypassCache = bypassCacheNextFetchRef.current;
     bypassCacheNextFetchRef.current = false;
+    const fetchGeneration = ++fetchGenerationRef.current;
+    const isCurrentFetch = () => fetchGeneration === fetchGenerationRef.current;
 
     const smartWalletAccountForKey = user?.linkedAccounts.find(
       (account) => account.type === "smart_wallet",
@@ -508,7 +512,9 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
         if (solanaAddress) {
           try {
             const tokens = await getNetworkTokens("Solana");
+            if (!isCurrentFetch()) return;
             const result = await fetchSolanaBalance(solanaAddress, tokens);
+            if (!isCurrentFetch()) return;
 
             setSolanaWalletBalance(result);
             setTronWalletBalance(null);
@@ -528,12 +534,14 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
             setSmartWalletCrossChainTotals(null);
           } catch (error) {
             console.error("Error fetching Solana balance:", error);
+            if (!isCurrentFetch()) return;
             setSolanaWalletBalance(null);
             setCrossChainBalances([]);
             setSmartWalletRemainingTotal(0);
             setSmartWalletCrossChainTotals(null);
           }
         } else {
+          if (!isCurrentFetch()) return;
           setSolanaWalletBalance(null);
           setTronWalletBalance(null);
           setStarknetWalletBalance(null);
@@ -548,6 +556,8 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
         setIsLoading(false);
         return;
       }
+
+      if (!isCurrentFetch()) return;
 
       setStarknetWalletBalance(null);
       setTronWalletBalance(null);
@@ -808,8 +818,10 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
       // and address don't flip to zero-balance UI when switching networks causes RPC errors
       clearPerNetworkBalances();
     } finally {
-      lastFetchedKeyRef.current = fetchIdentityKey;
-      setIsLoading(false);
+      if (isCurrentFetch()) {
+        lastFetchedKeyRef.current = fetchIdentityKey;
+        setIsLoading(false);
+      }
     }
   };
 

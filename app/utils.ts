@@ -61,6 +61,25 @@ export function classNames(...classes: (string | false | undefined | null)[]) {
   return classes.filter(Boolean).join(" ");
 }
 
+/** Browser-safe base64 decode for Solana transaction bytes. */
+export function base64ToUint8Array(base64: string): Uint8Array {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index++) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+  return bytes;
+}
+
+/** Browser-safe base64 encode for signed Solana transactions. */
+export function uint8ArrayToBase64(bytes: Uint8Array): string {
+  let binary = "";
+  for (let index = 0; index < bytes.length; index++) {
+    binary += String.fromCharCode(bytes[index]!);
+  }
+  return btoa(binary);
+}
+
 /**
  * Gets the logo identifier for a token symbol (for transaction history display)
  * @param tokenSymbol - The token symbol (e.g., "USDC", "USDT")
@@ -1471,9 +1490,16 @@ async function fetchSolanaBalancesUnified(
       };
 
       const amountStr =
-        payload.result?.value?.[0]?.account?.data?.parsed?.info?.tokenAmount
-          ?.amount ?? "0";
-      const balanceInWei = BigInt(amountStr);
+        payload.result?.value?.reduce((sum, account) => {
+          const raw =
+            account?.account?.data?.parsed?.info?.tokenAmount?.amount ?? "0";
+          try {
+            return sum + BigInt(raw);
+          } catch {
+            return sum;
+          }
+        }, BigInt(0)) ?? BigInt(0);
+      const balanceInWei = amountStr;
       const balance =
         Number(balanceInWei) / Math.pow(10, token.decimals);
       balances[token.symbol] = Number.isNaN(balance) ? 0 : balance;

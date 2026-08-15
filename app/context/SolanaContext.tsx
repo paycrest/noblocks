@@ -33,6 +33,11 @@ function readLinkedSolanaAddress(
   return raw && isValidSolanaAddress(raw) ? raw : null;
 }
 
+function readStoredSolanaAddress(userId: string): string | null {
+  const stored = localStorage.getItem(`${STORAGE_PREFIX}address_${userId}`);
+  return stored && isValidSolanaAddress(stored) ? stored : null;
+}
+
 function SolanaProviderEnabled({ children }: { children: ReactNode }) {
   const { user, authenticated } = usePrivy();
   const { wallets: solanaWallets } = useSolanaPrivyWallets();
@@ -59,29 +64,33 @@ function SolanaProviderEnabled({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!config.solanaEnabled) return;
 
-    if (!authenticated || !user) {
+    if (!authenticated || !user?.id) {
       setAddress(null);
       return;
     }
 
-    const next = connectedExternalAddress ?? linkedSolanaAddress;
+    const live = connectedExternalAddress ?? linkedSolanaAddress;
+    const stored = readStoredSolanaAddress(user.id);
+    const restored =
+      stored &&
+      (stored === connectedExternalAddress || stored === linkedSolanaAddress)
+        ? stored
+        : null;
+    const next = live ?? restored;
+
     setAddress(next ?? null);
 
-    if (user.id) {
-      localStorage.setItem(
-        `${STORAGE_PREFIX}address_${user.id}`,
-        next ?? "",
-      );
+    if (next) {
+      localStorage.setItem(`${STORAGE_PREFIX}address_${user.id}`, next);
+    } else {
+      localStorage.removeItem(`${STORAGE_PREFIX}address_${user.id}`);
     }
-  }, [authenticated, user?.id, connectedExternalAddress, linkedSolanaAddress]);
-
-  useEffect(() => {
-    if (!config.solanaEnabled || !authenticated || !user?.id) return;
-    const stored = localStorage.getItem(`${STORAGE_PREFIX}address_${user.id}`);
-    if (stored && isValidSolanaAddress(stored)) {
-      setAddress(stored);
-    }
-  }, [authenticated, user?.id]);
+  }, [
+    authenticated,
+    user?.id,
+    connectedExternalAddress,
+    linkedSolanaAddress,
+  ]);
 
   const value = useMemo(() => ({ address }), [address]);
 

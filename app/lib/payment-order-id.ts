@@ -25,6 +25,10 @@ export function isSenderPaymentOrderUuid(id: string): boolean {
 export function resolveChainIdFromNetworkName(networkName: string): number | string | null {
   const trimmed = networkName.trim();
   if (!trimmed) return null;
+  const slug = trimmed.toLowerCase();
+  if (slug === "solana-mainnet-beta" || slug === "solana") {
+    return SOLANA_AGGREGATOR_CHAIN_ID;
+  }
   const match = networks.find((n) => n.chain.name === trimmed);
   const id = match?.chain?.id;
   if (typeof id === "number") return id;

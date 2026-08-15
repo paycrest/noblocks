@@ -14,10 +14,16 @@ export const DELEGATION_CONTRACT_BY_CHAIN: Record<number, string> = {
 
 /** Returns the delegation contract address for the given EVM chainId. Non-EVM chains return "". */
 export function getDelegationContractAddress(chainId: number | string): string {
-  if (typeof chainId !== "number" || !Number.isFinite(chainId)) {
+  const resolved =
+    typeof chainId === "number"
+      ? chainId
+      : typeof chainId === "string" && chainId.trim() !== ""
+        ? Number(chainId)
+        : NaN;
+  if (!Number.isFinite(resolved)) {
     return "";
   }
-  return DELEGATION_CONTRACT_BY_CHAIN[chainId] ?? "";
+  return DELEGATION_CONTRACT_BY_CHAIN[resolved] ?? "";
 }
 
 export const STARKNET_READY_ACCOUNT_CLASSHASH = "0x073414441639dcd11d1846f287650a00c60c416b9d3ba45d31c651672125b2c2";
@@ -84,9 +90,7 @@ const config: Config = {
     process.env.NEXT_PUBLIC_SOLANA_MAINNET_WSS ||
     "wss://api.mainnet-beta.solana.com",
   solanaGatewayProgramId:
-    process.env.NEXT_PUBLIC_SOLANA_GATEWAY_PROGRAM_ID ||
-    process.env.SOLANA_GATEWAY_PROGRAM_ID ||
-    "",
+    process.env.NEXT_PUBLIC_SOLANA_GATEWAY_PROGRAM_ID || "",
   referralEnabled: (process.env.NEXT_PUBLIC_REFERRAL_ENABLED || "").trim().toLowerCase() !== "false",
   bridgeEnabled: process.env.NEXT_PUBLIC_BRIDGE_ENABLED === "true",
   onrampChainedForwardingEnabled:

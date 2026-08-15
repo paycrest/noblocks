@@ -33,6 +33,7 @@ import {
   getInstitutionNameByCode,
   getRpcUrl,
   isBlockFestActive,
+  isSolanaChain,
 } from "../utils";
 import {
   fetchOrderDetails,
@@ -947,7 +948,7 @@ export function TransactionStatus({
             ? starknetWalletBalance?.balances[token] || 0
             : selectedNetwork.chain.name === "Tron"
               ? tronWalletBalance?.balances[token] || 0
-              : selectedNetwork.chain.name === "Solana"
+              : isSolanaChain(selectedNetwork.chain)
                 ? solanaWalletBalance?.balances[token] || 0
               : smartWalletBalance?.balances[token] || 0;
 

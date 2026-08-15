@@ -2,11 +2,13 @@ import "server-only";
 
 /** Read at request time — avoids stale module-level config when env changes. */
 export function getAggregatorSenderApiKeyId(): string {
-  return (
-    process.env.AGGREGATOR_SENDER_API_KEY_ID ||
-    process.env.NEXT_PUBLIC_AGGREGATOR_SENDER_API_KEY_ID ||
-    ""
-  ).trim();
+  return (process.env.AGGREGATOR_SENDER_API_KEY_ID || "").trim();
+}
+
+/** v1 API base, e.g. `https://staging-api.paycrest.io/v1`. */
+export function getAggregatorV1BaseUrl(): string {
+  const v2 = getAggregatorBaseUrlForV2();
+  return v2 ? `${v2}/v1` : "";
 }
 
 /** Base origin for v2 routes, e.g. `https://staging-api.paycrest.io`. */

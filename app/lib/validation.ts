@@ -2,12 +2,21 @@
  * Validation utilities
  */
 
+import bs58 from "bs58";
+
 /**
  * Validates Solana base58 address (32-byte pubkey).
  */
 export function isValidSolanaAddress(value: string): boolean {
   const trimmed = value.trim();
-  return /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(trimmed);
+  if (!/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(trimmed)) {
+    return false;
+  }
+  try {
+    return bs58.decode(trimmed).length === 32;
+  } catch {
+    return false;
+  }
 }
 
 /**

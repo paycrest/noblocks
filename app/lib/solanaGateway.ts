@@ -35,6 +35,10 @@ const ASSOCIATED_TOKEN_PROGRAM_ID = new PublicKey(
 
 const OPCODE_CREATE_ORDER = 9;
 const CONFIG_ACCOUNT_LEN = 235;
+/** Gateway Config account layout: paused flag byte offset. */
+const CONFIG_PAUSED_OFFSET = 10;
+/** Gateway Config account layout: chain_id u64 LE offset. */
+const CONFIG_CHAIN_ID_OFFSET = 139;
 /** Minimum sponsor SOL to pay fees + Order PDA / ATA rent on mainnet. */
 const MIN_SPONSOR_LAMPORTS = 10_000_000;
 
@@ -111,8 +115,8 @@ function decodeConfig(data: Buffer): { paused: boolean; chainId: bigint } {
     throw new Error(`Config account length ${data.length} (want ${CONFIG_ACCOUNT_LEN})`);
   }
   return {
-    paused: data[10] !== 0,
-    chainId: data.readBigUInt64LE(139),
+    paused: data[CONFIG_PAUSED_OFFSET] !== 0,
+    chainId: data.readBigUInt64LE(CONFIG_CHAIN_ID_OFFSET),
   };
 }
 
@@ -200,14 +204,29 @@ async function findNextFreeNonce(
   depositor: PublicKey,
   chainId: bigint,
 ): Promise<{ nonce: bigint; orderPda: PublicKey; orderBump: number; orderId: Buffer }> {
+  const candidates: Array<{
+    nonce: bigint;
+    orderPda: PublicKey;
+    orderBump: number;
+    orderId: Buffer;
+  }> = [];
+
   for (let nonce = BigInt(1); nonce <= BigInt(64); nonce++) {
     const orderId = orderIdHash(depositor, nonce, chainId);
     const [orderPda, orderBump] = findOrderPDA(programId, orderId);
-    const info = await connection.getAccountInfo(orderPda);
-    if (!info) {
-      return { nonce, orderPda, orderBump, orderId };
+    candidates.push({ nonce, orderPda, orderBump, orderId });
+  }
+
+  const infos = await connection.getMultipleAccountsInfo(
+    candidates.map((candidate) => candidate.orderPda),
+  );
+
+  for (let index = 0; index < candidates.length; index++) {
+    if (!infos[index]) {
+      return candidates[index]!;
     }
   }
+
   throw new Error("No free order nonce found (1..64)");
 }
 
@@ -417,13 +436,26 @@ export async function buildCreateOrderTransaction(
 
 export async function submitSignedCreateOrderTransaction(
   signedTransactionBase64: string,
-): Promise<{ signature: string }> {
+  orderIdHex?: string,
+): Promise<{ signature: string; confirmed: boolean }> {
   const connection = solanaConnection();
   const raw = Buffer.from(signedTransactionBase64, "base64");
   const tx = Transaction.from(raw);
 
   if (!tx.signatures.every((sig) => sig.signature !== null)) {
     throw new Error("Transaction is missing required signatures");
+  }
+
+  if (orderIdHex?.trim()) {
+    const programId = new PublicKey(getSolanaGatewayProgramId());
+    const orderId = Buffer.from(orderIdHex.replace(/^0x/i, ""), "hex");
+    const [orderPda] = findOrderPDA(programId, orderId);
+    const occupied = await connection.getAccountInfo(orderPda);
+    if (occupied) {
+      throw new Error(
+        "Order nonce already used; rebuild the transaction and sign again",
+      );
+    }
   }
 
   let signature: string;
@@ -436,23 +468,16 @@ export async function submitSignedCreateOrderTransaction(
     throw new Error(await formatSendTransactionError(connection, error));
   }
 
-  const deadline = Date.now() + 90_000;
-  while (Date.now() < deadline) {
-    const status = await connection.getSignatureStatus(signature, {
-      searchTransactionHistory: true,
-    });
-    const value = status.value;
-    if (value?.err) {
-      throw new Error(`Transaction failed: ${JSON.stringify(value.err)}`);
-    }
-    if (
-      value?.confirmationStatus === "confirmed" ||
-      value?.confirmationStatus === "finalized"
-    ) {
-      return { signature };
-    }
-    await new Promise((resolve) => setTimeout(resolve, 2000));
+  const status = await connection.getSignatureStatus(signature, {
+    searchTransactionHistory: true,
+  });
+  const value = status.value;
+  if (value?.err) {
+    throw new Error(`Transaction failed: ${JSON.stringify(value.err)}`);
   }
+  const confirmed =
+    value?.confirmationStatus === "confirmed" ||
+    value?.confirmationStatus === "finalized";
 
-  return { signature };
+  return { signature, confirmed: !!confirmed };
 }

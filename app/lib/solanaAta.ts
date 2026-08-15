@@ -27,10 +27,14 @@ export async function deriveAssociatedTokenAddress(
   return ata;
 }
 
+const SOLANA_RPC_TIMEOUT_MS = 8_000;
+
 /** True when the token account exists on-chain (ATA initialized). */
 export async function tokenAccountExists(ata: string): Promise<boolean> {
   const rpc = createSolanaRpc(solanaRpcUrl());
-  const info = await rpc.getAccountInfo(address(ata.trim()), { encoding: "base64" }).send();
+  const info = await rpc
+    .getAccountInfo(address(ata.trim()), { encoding: "base64" })
+    .send({ abortSignal: AbortSignal.timeout(SOLANA_RPC_TIMEOUT_MS) });
   return info.value != null;
 }
 
@@ -42,7 +46,7 @@ export async function fetchTokenAccountBalanceBaseUnits(
   try {
     const result = await rpc
       .getTokenAccountBalance(address(ata.trim()))
-      .send();
+      .send({ abortSignal: AbortSignal.timeout(SOLANA_RPC_TIMEOUT_MS) });
     return BigInt(result.value.amount);
   } catch {
     return null;

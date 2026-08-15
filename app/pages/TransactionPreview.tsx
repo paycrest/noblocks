@@ -618,7 +618,6 @@ export const TransactionPreview = ({
             phase: "submit",
             signedTransaction: uint8ArrayToBase64(signedTransaction),
             orderIdHex: buildData.orderId,
-            depositor: solanaWalletAddress,
           }),
         });
 

@@ -110,6 +110,25 @@ export function orderIdHex(orderId: Buffer): string {
   return `0x${orderId.toString("hex")}`;
 }
 
+/** Pubkeys that signed the deserialized transaction (base58). */
+export function listSignedTransactionPubkeys(
+  signedTransactionBase64: string,
+): string[] {
+  const raw = Buffer.from(signedTransactionBase64, "base64");
+  const tx = Transaction.from(raw);
+  return tx.signatures
+    .filter(({ signature }) => signature !== null)
+    .map(({ publicKey }) => publicKey.toBase58());
+}
+
+function parseOrderIdBuffer(orderIdHex: string): Buffer {
+  const hex = orderIdHex.trim().replace(/^0x/i, "");
+  if (!/^[a-fA-F0-9]{64}$/.test(hex)) {
+    throw new Error("Invalid order id hex");
+  }
+  return Buffer.from(hex, "hex");
+}
+
 function decodeConfig(data: Buffer): { paused: boolean; chainId: bigint } {
   if (data.length !== CONFIG_ACCOUNT_LEN) {
     throw new Error(`Config account length ${data.length} (want ${CONFIG_ACCOUNT_LEN})`);
@@ -448,7 +467,7 @@ export async function submitSignedCreateOrderTransaction(
 
   if (orderIdHex?.trim()) {
     const programId = new PublicKey(getSolanaGatewayProgramId());
-    const orderId = Buffer.from(orderIdHex.replace(/^0x/i, ""), "hex");
+    const orderId = parseOrderIdBuffer(orderIdHex);
     const [orderPda] = findOrderPDA(programId, orderId);
     const occupied = await connection.getAccountInfo(orderPda);
     if (occupied) {
@@ -468,16 +487,23 @@ export async function submitSignedCreateOrderTransaction(
     throw new Error(await formatSendTransactionError(connection, error));
   }
 
-  const status = await connection.getSignatureStatus(signature, {
-    searchTransactionHistory: true,
-  });
-  const value = status.value;
-  if (value?.err) {
-    throw new Error(`Transaction failed: ${JSON.stringify(value.err)}`);
+  const confirmDeadline = Date.now() + 20_000;
+  while (Date.now() < confirmDeadline) {
+    const status = await connection.getSignatureStatus(signature, {
+      searchTransactionHistory: true,
+    });
+    const value = status.value;
+    if (value?.err) {
+      throw new Error(`Transaction failed: ${JSON.stringify(value.err)}`);
+    }
+    if (
+      value?.confirmationStatus === "confirmed" ||
+      value?.confirmationStatus === "finalized"
+    ) {
+      return { signature, confirmed: true };
+    }
+    await new Promise((resolve) => setTimeout(resolve, 2000));
   }
-  const confirmed =
-    value?.confirmationStatus === "confirmed" ||
-    value?.confirmationStatus === "finalized";
 
-  return { signature, confirmed: !!confirmed };
+  return { signature, confirmed: false };
 }

@@ -14,6 +14,7 @@ import {
 } from "@/app/lib/solanaEncrypt";
 import {
   buildCreateOrderTransaction,
+  listSignedTransactionPubkeys,
   submitSignedCreateOrderTransaction,
 } from "@/app/lib/solanaGateway";
 import { collectLinkedSolanaAddressesForPrivyUserId } from "@/app/lib/privy";
@@ -39,7 +40,6 @@ type SubmitBody = {
   phase: "submit";
   signedTransaction: string;
   orderIdHex?: string;
-  depositor?: string;
 };
 
 function parseBigIntField(value: string, field: string): bigint {
@@ -133,7 +133,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
     );
 
     if (body.phase === "submit") {
-      const { signedTransaction, depositor: submitDepositor } = body;
+      const { signedTransaction } = body;
       if (!signedTransaction?.trim()) {
         return NextResponse.json(
           { error: "Missing signedTransaction" },
@@ -141,17 +141,19 @@ export const POST = withRateLimit(async (request: NextRequest) => {
         );
       }
 
-      if (submitDepositor?.trim()) {
-        const trimmed = submitDepositor.trim();
-        if (!isValidSolanaAddress(trimmed)) {
-          return NextResponse.json(
-            { error: "Invalid Solana depositor address" },
-            { status: 400 },
-          );
-        }
-        if (!authorizedDepositors.includes(trimmed)) {
-          return depositorNotAuthorizedResponse();
-        }
+      if (authorizedDepositors.length === 0) {
+        return NextResponse.json(
+          { error: "No linked Solana wallet found for this account" },
+          { status: 403 },
+        );
+      }
+
+      const signerPubkeys = listSignedTransactionPubkeys(signedTransaction.trim());
+      const hasAuthorizedSigner = signerPubkeys.some((pubkey) =>
+        authorizedDepositors.includes(pubkey),
+      );
+      if (!hasAuthorizedSigner) {
+        return depositorNotAuthorizedResponse();
       }
 
       const { signature, confirmed } = await submitSignedCreateOrderTransaction(

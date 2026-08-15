@@ -333,14 +333,6 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
       });
   };
 
-  const fetchCrossChainBalances = async (
-    address: string,
-    opts?: { bypassCache?: boolean },
-  ) => {
-    const entries = await fetchCrossChainEntriesForAddress(address, opts);
-    setCrossChainBalances(entries);
-  };
-
   const fetchBalances = async () => {
     const bypassCache = bypassCacheNextFetchRef.current;
     bypassCacheNextFetchRef.current = false;
@@ -427,12 +419,15 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
         (await getCNGNRateForNetwork(CNGN_CROSS_CHAIN_QUOTE_NETWORK, {
           bypassCache,
         }));
+      if (!isCurrentFetch()) return;
 
       if (selectedNetwork.chain.name === "Starknet") {
         if (starknetAddress) {
           try {
             const tokens = await getNetworkTokens("Starknet");
+            if (!isCurrentFetch()) return;
             const result = await fetchStarknetBalance(starknetAddress, tokens);
+            if (!isCurrentFetch()) return;
 
             setStarknetWalletBalance(result);
             setSmartWalletBalance(null);
@@ -450,12 +445,14 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
             setSmartWalletCrossChainTotals(null);
           } catch (error) {
             console.error("Error fetching Starknet balance:", error);
+            if (!isCurrentFetch()) return;
             setStarknetWalletBalance(null);
             setCrossChainBalances([]);
             setSmartWalletRemainingTotal(0);
             setSmartWalletCrossChainTotals(null);
           }
         } else {
+          if (!isCurrentFetch()) return;
           setStarknetWalletBalance(null);
           setSmartWalletBalance(null);
           setExternalWalletBalance(null);
@@ -473,7 +470,9 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
         if (tronAddress) {
           try {
             const tokens = await getNetworkTokens("Tron");
+            if (!isCurrentFetch()) return;
             const result = await fetchTronBalance(tronAddress, tokens);
+            if (!isCurrentFetch()) return;
 
             setTronWalletBalance(result);
             setStarknetWalletBalance(null);
@@ -488,12 +487,14 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
             setSmartWalletCrossChainTotals(null);
           } catch (error) {
             console.error("Error fetching Tron balance:", error);
+            if (!isCurrentFetch()) return;
             setTronWalletBalance(null);
             setCrossChainBalances([]);
             setSmartWalletRemainingTotal(0);
             setSmartWalletCrossChainTotals(null);
           }
         } else {
+          if (!isCurrentFetch()) return;
           setTronWalletBalance(null);
           setStarknetWalletBalance(null);
           setSmartWalletBalance(null);
@@ -583,6 +584,7 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
             console.warn("Error switching smart wallet chain:", error);
           }
         }
+        if (!isCurrentFetch()) return;
 
         const selectedChain = selectedNetwork.chain as Chain;
         const publicClient = createPublicClient({
@@ -618,6 +620,7 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
             eoaCrossChainPromise,
             scwRemainingPromise,
           ]);
+          if (!isCurrentFetch()) return;
 
           setCrossChainBalances(eoaEntries);
           setSmartWalletRemainingTotal(remaining);
@@ -634,6 +637,7 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
               embeddedWalletAccount.address,
               { bypassCache },
             );
+            if (!isCurrentFetch()) return;
             setExternalWalletBalance(
               buildWalletBalancesFromRaw(
                 { ...result.balances },
@@ -648,6 +652,7 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
             await fetchCrossChainEntriesForAddress(smartWalletAccount.address, {
               bypassCache,
             });
+          if (!isCurrentFetch()) return;
           const scwCrossChainTotalMigrationRelevant =
             sumMigrationRelevantTotals(scwCrossChainEntries);
           const scwTotalAll = sumAllChainTotals(scwCrossChainEntries);
@@ -668,6 +673,7 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
               smartWalletAccount.address,
               { bypassCache },
             );
+            if (!isCurrentFetch()) return;
             const rawBalances = { ...result.balances };
             setSmartWalletBalance(
               buildWalletBalancesFromRaw(
@@ -684,6 +690,7 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
               await fetchCrossChainEntriesForAddress(embeddedWalletAccount.address, {
                 bypassCache,
               });
+            if (!isCurrentFetch()) return;
             setCrossChainBalances(eoaEntries);
 
             const eoaSelectedEntry = eoaEntries.find(
@@ -697,6 +704,7 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
                 embeddedWalletAccount.address,
                 { bypassCache },
               );
+              if (!isCurrentFetch()) return;
               setExternalWalletBalance(
                 buildWalletBalancesFromRaw(
                   { ...eoaResult.balances },
@@ -719,6 +727,7 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
             await fetchCrossChainEntriesForAddress(embeddedWalletAccount.address, {
               bypassCache,
             });
+          if (!isCurrentFetch()) return;
 
           setCrossChainBalances(eoaEntries);
           setSmartWalletRemainingTotal(0);
@@ -734,6 +743,7 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
               embeddedWalletAccount.address,
               { bypassCache },
             );
+            if (!isCurrentFetch()) return;
             const rawBalances = { ...result.balances };
             setExternalWalletBalance(
               buildWalletBalancesFromRaw(
@@ -757,6 +767,7 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
             externalWalletAccount.address,
             { bypassCache },
           );
+          if (!isCurrentFetch()) return;
 
           // Store raw balances BEFORE any modifications
           const rawBalances = { ...result.balances };
@@ -789,6 +800,7 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
             injectedAddress,
             { bypassCache },
           );
+          if (!isCurrentFetch()) return;
 
           // Store raw balances BEFORE any modifications
           const rawBalances = { ...result.balances };
@@ -802,13 +814,19 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
           );
 
           // Fetch cross-chain balances for injected wallet
-          await fetchCrossChainBalances(injectedAddress, { bypassCache });
+          const crossChainEntries =
+            await fetchCrossChainEntriesForAddress(injectedAddress, {
+              bypassCache,
+            });
+          if (!isCurrentFetch()) return;
+          setCrossChainBalances(crossChainEntries);
 
           setSmartWalletBalance(null);
           setExternalWalletBalance(null);
           setSmartWalletCrossChainTotals(null);
         } catch (error) {
           console.error("Error fetching injected wallet balance:", error);
+          if (!isCurrentFetch()) return;
           clearAllWalletBalances();
         }
       }

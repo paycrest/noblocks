@@ -489,10 +489,15 @@ export async function submitSignedCreateOrderTransaction(
 
   const confirmDeadline = Date.now() + 20_000;
   while (Date.now() < confirmDeadline) {
-    const status = await connection.getSignatureStatus(signature, {
-      searchTransactionHistory: true,
-    });
-    const value = status.value;
+    let value;
+    try {
+      const status = await connection.getSignatureStatus(signature, {
+        searchTransactionHistory: true,
+      });
+      value = status.value;
+    } catch {
+      return { signature, confirmed: false };
+    }
     if (value?.err) {
       throw new Error(`Transaction failed: ${JSON.stringify(value.err)}`);
     }

@@ -2,12 +2,13 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import config from "@/app/lib/config";
 import { PlayShell } from "@/app/components/play/PlayShell";
+import { CampaignEnded } from "@/app/components/play/CampaignEnded";
 
 export const metadata: Metadata = config.fantasyCampaignEnded
   ? {
-      title: "Noblocks Play — Premier League Fantasy",
+      title: "Noblocks Play — Coming soon",
       description:
-        "This season of Noblocks Play has ended. Follow Noblocks on X for winners and the next campaign.",
+        "Premier League fantasy on Noblocks launches Wednesday 19 August 2026. Build your squad and compete with friends.",
     }
   : {
       title: "Noblocks Play — Premier League Fantasy",
@@ -20,11 +21,15 @@ export default function PlayLayout({
 }: {
   children: React.ReactNode;
 }) {
-  // Feature-flagged: pre-launch the whole surface 404s (middleware mirrors
-  // this for /api/play/*).
   if (!config.fantasyEnabled) notFound();
 
-  return (
-    <PlayShell campaignEnded={config.fantasyCampaignEnded}>{children}</PlayShell>
-  );
+  if (config.fantasyCampaignEnded) {
+    return (
+      <PlayShell prelaunch>
+        <CampaignEnded />
+      </PlayShell>
+    );
+  }
+
+  return <PlayShell>{children}</PlayShell>;
 }

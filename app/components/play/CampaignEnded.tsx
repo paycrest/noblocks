@@ -6,6 +6,7 @@
  */
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { ArrowUpRight01Icon, Clock01Icon, NewTwitterIcon } from "hugeicons-react";
 import { useCountdown } from "./hooks";
 import {
@@ -45,9 +46,15 @@ const CountdownUnit = ({
 );
 
 export const CampaignEnded = () => {
-  const { days, hours, minutes, seconds, expired } = useCountdown(PLAY_LAUNCH_AT);
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
-  if (!expired) {
+  // Null target until mount: useCountdown stays at stable zeros (no Date.now).
+  const { days, hours, minutes, seconds, expired } = useCountdown(
+    mounted ? PLAY_LAUNCH_AT : null,
+  );
+
+  if (mounted && expired) {
     return (
       <div className="mx-auto flex w-full max-w-xl flex-col gap-6 py-6 sm:py-10">
         <div className="space-y-3 text-center">
@@ -55,32 +62,29 @@ export const CampaignEnded = () => {
             Noblocks Play
           </p>
           <h1 className="text-2xl font-semibold tracking-tight text-text-body dark:text-white sm:text-3xl">
-            Premier League fantasy is almost here
+            This season of Noblocks Play has ended
           </h1>
           <p className="text-sm leading-relaxed text-text-secondary dark:text-white/60 sm:text-base">
-            Build your squad, climb the leaderboard, and compete with friends in
-            mini-leagues. The season kicks off {LAUNCH_LABEL}.
+            Thanks for playing. Follow us on X for winners and the next campaign.
           </p>
         </div>
 
-        <PlayCard className="space-y-5 sm:p-6">
-          <div className="flex items-center justify-center gap-2 text-sm font-medium text-lavender-600 dark:text-lavender-400">
-            <Clock01Icon className="size-4 shrink-0" />
-            Season starts in
-          </div>
-
-          <div className="flex justify-center gap-2 sm:gap-3">
-            <CountdownUnit value={days} label="Days" />
-            <CountdownUnit value={hours} label="Hours" />
-            <CountdownUnit value={minutes} label="Mins" />
-            <CountdownUnit value={seconds} label="Secs" />
-          </div>
-
-          <p className="text-center text-sm text-text-secondary dark:text-white/50">
-            {LAUNCH_LABEL}
+        <PlayCard className="space-y-3 sm:p-6">
+          <p className="text-sm leading-relaxed text-text-body dark:text-white/80">
+            Noblocks Play will be back for more Premier League gameweeks — stay
+            tuned.
           </p>
-
-          <div className="flex justify-center pt-1">
+          <div className="flex flex-col gap-3 pt-1 sm:flex-row sm:items-center">
+            <a
+              href={X_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={`${primaryButtonClasses} inline-flex items-center justify-center gap-2`}
+            >
+              <NewTwitterIcon className="size-4" />
+              Follow on X
+              <ArrowUpRight01Icon className="size-4" />
+            </a>
             <Link
               href="/"
               className={`${secondaryButtonClasses} inline-flex items-center justify-center gap-2`}
@@ -100,29 +104,32 @@ export const CampaignEnded = () => {
           Noblocks Play
         </p>
         <h1 className="text-2xl font-semibold tracking-tight text-text-body dark:text-white sm:text-3xl">
-          This season of Noblocks Play has ended
+          Premier League fantasy is almost here
         </h1>
         <p className="text-sm leading-relaxed text-text-secondary dark:text-white/60 sm:text-base">
-          Thanks for playing. Follow us on X for winners and the next campaign.
+          Build your squad, climb the leaderboard, and compete with friends in
+          mini-leagues. The season kicks off {LAUNCH_LABEL}.
         </p>
       </div>
 
-      <PlayCard className="space-y-3 sm:p-6">
-        <p className="text-sm leading-relaxed text-text-body dark:text-white/80">
-          Noblocks Play will be back for more Premier League gameweeks — stay
-          tuned.
+      <PlayCard className="space-y-5 sm:p-6">
+        <div className="flex items-center justify-center gap-2 text-sm font-medium text-lavender-600 dark:text-lavender-400">
+          <Clock01Icon className="size-4 shrink-0" />
+          Season starts in
+        </div>
+
+        <div className="flex justify-center gap-2 sm:gap-3" aria-busy={!mounted}>
+          <CountdownUnit value={mounted ? days : 0} label="Days" />
+          <CountdownUnit value={mounted ? hours : 0} label="Hours" />
+          <CountdownUnit value={mounted ? minutes : 0} label="Mins" />
+          <CountdownUnit value={mounted ? seconds : 0} label="Secs" />
+        </div>
+
+        <p className="text-center text-sm text-text-secondary dark:text-white/50">
+          {LAUNCH_LABEL}
         </p>
-        <div className="flex flex-col gap-3 pt-1 sm:flex-row sm:items-center">
-          <a
-            href={X_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className={`${primaryButtonClasses} inline-flex items-center justify-center gap-2`}
-          >
-            <NewTwitterIcon className="size-4" />
-            Follow on X
-            <ArrowUpRight01Icon className="size-4" />
-          </a>
+
+        <div className="flex justify-center pt-1">
           <Link
             href="/"
             className={`${secondaryButtonClasses} inline-flex items-center justify-center gap-2`}

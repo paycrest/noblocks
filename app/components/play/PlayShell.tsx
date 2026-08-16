@@ -9,8 +9,9 @@
  * pushing the content right like a slide-out panel.
  * Mobile: fixed bottom tab bar.
  *
- * When campaignEnded, hide live-game nav (tabs + countdown) so /play reads
- * as an announcement; /play/admin still uses this shell without game chrome.
+ * When campaignEnded or prelaunch, hide live-game nav (tabs + countdown) so
+ * /play reads as an announcement; /play/admin still uses this shell without
+ * game chrome.
  */
 
 import { ReactNode } from "react";
@@ -38,13 +39,22 @@ export const PlayHeader = ({ right }: { right?: ReactNode }) => (
   </header>
 );
 
-const PlayFooter = ({ campaignEnded }: { campaignEnded?: boolean }) => (
+const PlayFooter = ({
+  campaignEnded = false,
+  prelaunch = false,
+}: {
+  campaignEnded?: boolean;
+  prelaunch?: boolean;
+}) => {
+  const announcementMode = campaignEnded || prelaunch;
+
+  return (
   // Mobile has the bottom tab bar instead — the footer only earns its keep
-  // on wider screens. When the campaign has ended there is no bottom bar,
-  // so show the footer at all breakpoints.
+  // on wider screens. Announcement pages have no bottom bar, so show the
+  // footer at all breakpoints.
   <footer
     className={`border-t border-border-light py-6 dark:border-white/10 ${
-      campaignEnded ? "" : "max-lg:hidden"
+      announcementMode ? "" : "max-lg:hidden"
     }`}
   >
     <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-3 px-4 text-xs text-text-secondary dark:text-white/40 sm:px-6">
@@ -54,7 +64,7 @@ const PlayFooter = ({ campaignEnded }: { campaignEnded?: boolean }) => (
           : "Noblocks Play · Premier League Fantasy"}
       </span>
       <span className="flex items-center gap-4">
-        {!campaignEnded && (
+        {!announcementMode && (
           <Link
             href="/play/terms"
             className="transition-colors hover:text-text-body dark:hover:text-white"
@@ -65,47 +75,55 @@ const PlayFooter = ({ campaignEnded }: { campaignEnded?: boolean }) => (
       </span>
     </div>
   </footer>
-);
+  );
+};
 
 export const PlayShell = ({
   children,
   campaignEnded = false,
+  prelaunch = false,
 }: {
   children: ReactNode;
   campaignEnded?: boolean;
-}) => (
-  <div className="flex min-h-dvh flex-col">
-    <PlayHeader />
+  /** Feature off pre-launch — countdown landing, no game chrome. */
+  prelaunch?: boolean;
+}) => {
+  const announcementMode = campaignEnded || prelaunch;
 
-    <div
-      className={`mx-auto w-full max-w-6xl flex-1 px-4 pt-4 sm:px-6 ${
-        campaignEnded ? "pb-10" : "pb-28 lg:pb-20"
-      }`}
-    >
-      {!campaignEnded && (
-        /* The ONE countdown pill: first element under the header, right-aligned
-            (all breakpoints — it is deliberately not in the header). */
-        <div className="mb-4 flex justify-end">
-          <CountdownChip />
-        </div>
-      )}
+  return (
+    <div className="flex min-h-dvh flex-col">
+      <PlayHeader />
 
-      <div className="lg:flex lg:items-start lg:gap-6">
-        {!campaignEnded && (
-          /* Desktop: icon rail that expands IN FLOW on hover — a slide-out
-              panel that pushes the content right, never an overlay. */
-          <aside className="group hidden lg:block lg:w-[4.25rem] lg:shrink-0 lg:transition-[width] lg:duration-200 lg:ease-out lg:hover:w-56">
-            <div className="sticky top-24 overflow-hidden rounded-2xl border border-border-light bg-white shadow-sm dark:border-white/10 dark:bg-surface-overlay">
-              <PlayTabs variant="rail" />
-            </div>
-          </aside>
+      <div
+        className={`mx-auto w-full max-w-6xl flex-1 px-4 pt-4 sm:px-6 ${
+          announcementMode ? "pb-10" : "pb-28 lg:pb-20"
+        }`}
+      >
+        {!announcementMode && (
+          /* The ONE countdown pill: first element under the header, right-aligned
+              (all breakpoints — it is deliberately not in the header). */
+          <div className="mb-4 flex justify-end">
+            <CountdownChip />
+          </div>
         )}
 
-        <main className="min-w-0 flex-1">{children}</main>
-      </div>
-    </div>
+        <div className="lg:flex lg:items-start lg:gap-6">
+          {!announcementMode && (
+            /* Desktop: icon rail that expands IN FLOW on hover — a slide-out
+                panel that pushes the content right, never an overlay. */
+            <aside className="group hidden lg:block lg:w-[4.25rem] lg:shrink-0 lg:transition-[width] lg:duration-200 lg:ease-out lg:hover:w-56">
+              <div className="sticky top-24 overflow-hidden rounded-2xl border border-border-light bg-white shadow-sm dark:border-white/10 dark:bg-surface-overlay">
+                <PlayTabs variant="rail" />
+              </div>
+            </aside>
+          )}
 
-    <PlayFooter campaignEnded={campaignEnded} />
-    {!campaignEnded && <PlayTabs variant="bottom" />}
-  </div>
-);
+          <main className="min-w-0 flex-1">{children}</main>
+        </div>
+      </div>
+
+      <PlayFooter campaignEnded={campaignEnded} prelaunch={prelaunch} />
+      {!announcementMode && <PlayTabs variant="bottom" />}
+    </div>
+  );
+};

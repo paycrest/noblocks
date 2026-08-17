@@ -12,7 +12,7 @@
 -- match. Every consumer of the scope inherits that:
 --
 --   * the monthly spend pool (20260726120000) — siblings get separate allowances
---   * the BlockFest cashback pool (20260804120000) — same
+--   * the BlockFest cashback pool (20260817180200) — same
 --   * the advisory lock keys, which are built from the same raw values, so two
 --     siblings serialize on *different* locks and the check-then-insert race the
 --     quota function exists to close reopens
@@ -37,7 +37,7 @@
 -- from IMMUTABLE functions (upper/btrim/regexp_replace), as generated columns
 -- require. It must stay in sync with `buildIdentityIdKey` in
 -- app/lib/kyc-identity.ts and with the referral fingerprint backfill in
--- 20260730120000.
+-- 20260817180100.
 --
 -- NOTE: adding a STORED generated column rewrites the table under ACCESS
 -- EXCLUSIVE. user_kyc_profiles is small (one row per KYC'd wallet), so this is

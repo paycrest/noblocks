@@ -344,7 +344,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
     }
 
     // Result contract is documented in the migration that defines the function
-    // (supabase/migrations/20260804120000_cashback_claim_quota_function.sql).
+    // (supabase/migrations/20260817180200_cashback_claim_quota_function.sql).
     // Numeric fields are coerced with Number(): PostgREST serializes NUMERIC as
     // a string to preserve precision, so `.toFixed()` directly would throw.
     const rpcData = (rpcResult ?? {}) as {
@@ -499,7 +499,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
       // Mark the claim as about to broadcast. tx_hash only exists after
       // writeContract returns, so without this a row killed mid-transfer is
       // indistinguishable from one that never started — and the reaper
-      // (20260804120100) would release quota for a payout that really happened.
+      // (20260817180300) would release quota for a payout that really happened.
       // Abort rather than broadcast if the stamp can't be persisted: an
       // unstamped row is one the reaper is entitled to reclaim.
       const { error: attemptError } = await supabaseAdmin
@@ -558,7 +558,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
     } catch (transferError) {
       console.error("Cashback transfer failed:", transferError);
 
-      // 'failed' releases the claim's quota reservation (see 20260804120000), so
+      // 'failed' releases the claim's quota reservation (see 20260817180200), so
       // it may only be set when nothing can have been paid. An error thrown
       // before the broadcast — token lookup, RPC config, key validation, the
       // marker write — proves that. An error out of writeContract does not: the

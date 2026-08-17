@@ -21,7 +21,7 @@
 --
 -- A 'pending' row is only moved to 'failed' by the route's own catch block, so
 -- an invocation killed mid-flight (timeout, OOM, deploy) would strand its
--- reservation forever. 20260804120100 sweeps those.
+-- reservation forever. 20260817180300 sweeps those.
 --
 -- Return contract (JSONB) — app/api/blockfest/cashback/route.ts depends on this:
 --   success:   { "id": <uuid>, "adjusted_amount": <text, 2 decimals> }

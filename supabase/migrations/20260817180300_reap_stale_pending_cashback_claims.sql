@@ -1,6 +1,6 @@
 -- Release cashback quota stranded by a killed invocation.
 --
--- WHY: 20260804120000 pools the BlockFest caps per verified identity and counts
+-- WHY: 20260817180200 pools the BlockFest caps per verified identity and counts
 -- 'pending' rows against them — that reservation is what stops two sibling
 -- wallets racing past the shared $500 / 10-claim limit. The reservation is
 -- released when the route's transfer catch block sets 'failed'.

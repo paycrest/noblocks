@@ -130,7 +130,7 @@ export const checkUsername = (candidate: string, token: string) =>
   );
 
 export const joinLeague = (
-  body: { username: string; acceptTerms: true; giveawayOptIn: boolean },
+  body: { username: string; acceptTerms: true },
   token: string,
 ) => playRequest<JoinResponse>("/api/play/join", { method: "POST", body, token });
 
@@ -154,9 +154,23 @@ export const makeTransfers = (body: TransfersBody, token: string) =>
 export const fetchRewards = (token: string) =>
   playRequest<RewardsResponse>("/api/play/rewards", { token });
 
-export const setGiveawayOptIn = (optIn: boolean, token: string) =>
-  playRequest<{ giveaway_opt_in: boolean }>("/api/play/opt-in", {
+export const createMiniLeague = (name: string, token: string) =>
+  playRequest<{ league: RewardsResponse["leagues"][number] }>("/api/play/leagues", {
     method: "POST",
-    body: { optIn },
+    body: { name },
+    token,
+  });
+
+export const joinMiniLeague = (code: string, token: string) =>
+  playRequest<{ league: RewardsResponse["leagues"][number] }>("/api/play/leagues/join", {
+    method: "POST",
+    body: { code },
+    token,
+  });
+
+export const leaveMiniLeague = (leagueId: string, token: string) =>
+  playRequest<{ left: boolean }>("/api/play/leagues/leave", {
+    method: "POST",
+    body: { leagueId },
     token,
   });

@@ -315,12 +315,47 @@ export const TransactionForm = ({
     dependencies: [selectedNetwork],
   });
 
-  // Live provider capacity for this corridor, polled once at the page level
-  // (see MainPageContent) so the limits here and the rate request there read
-  // the same book. Drives the amount limits so the form only accepts amounts a
-  // provider can actually fill; a null envelope means unknown and leaves the
-  // static limits in place.
-  const liquidity = stateProps.liquidity;
+  // Determine active wallet based on migration status
+  // After migration: use EOA (new wallet with funds)
+  // Before migration: use SCW (old wallet)
+  const activeWallet = isInjectedWallet
+    ? { address: injectedAddress }
+    : connectedWalletAddress
+      ? { address: connectedWalletAddress }
+      : undefined;
+
+  const activeBalance = isInjectedWallet
+    ? injectedWalletBalance
+    : isStarknetChain(selectedNetwork.chain)
+      ? starknetWalletBalance
+      : isTronChain(selectedNetwork.chain)
+        ? tronWalletBalance
+        : shouldUseEOA
+          ? externalWalletBalance
+          : smartWalletBalance;
+
+  // For cNGN, prefer the raw token balance over the USD equivalent: try the
+  // exact key, then the cNGN/CNGN raw keys, then fall back to the balances map,
+  // then zero.
+  const balance = tokensEqual(token, "cNGN")
+    ? (activeBalance?.rawBalances?.[token] ??
+      activeBalance?.rawBalances?.cNGN ??
+      activeBalance?.rawBalances?.CNGN ??
+      activeBalance?.balances[token] ??
+      0)
+    : (activeBalance?.balances[token] ?? 0);
+
+  const totalRequired = Number(amountSent) || 0;
+
+  // Off-ramp: amount already over wallet balance → ignore market limits so
+  // "Insufficient balance" wins (markets also pause in MainPageContent).
+  const hasInsufficientBalance =
+    isWalletConnected &&
+    !isSwapped &&
+    !isLoading &&
+    totalRequired > 0 &&
+    totalRequired > balance;
+  const liquidity = hasInsufficientBalance ? null : stateProps.liquidity;
   const noLiquidity = Boolean(liquidity && !liquidity.viable);
 
   /**
@@ -363,39 +398,7 @@ export const TransactionForm = ({
     return { min, max, liquidityMin, liquidityMax };
   }, [swapMode, currency, token, rate, cngnRate, liquidity]);
 
-  // Determine active wallet based on migration status
-  // After migration: use EOA (new wallet with funds)
-  // Before migration: use SCW (old wallet)
-  const activeWallet = isInjectedWallet
-    ? { address: injectedAddress }
-    : connectedWalletAddress
-      ? { address: connectedWalletAddress }
-      : undefined;
-
-  const activeBalance = isInjectedWallet
-    ? injectedWalletBalance
-    : isStarknetChain(selectedNetwork.chain)
-      ? starknetWalletBalance
-      : isTronChain(selectedNetwork.chain)
-        ? tronWalletBalance
-        : shouldUseEOA
-          ? externalWalletBalance
-          : smartWalletBalance;
-
-  // For cNGN, prefer the raw token balance over the USD equivalent: try the
-  // exact key, then the cNGN/CNGN raw keys, then fall back to the balances map,
-  // then zero.
-  const balance = tokensEqual(token, "cNGN")
-    ? (activeBalance?.rawBalances?.[token] ??
-      activeBalance?.rawBalances?.cNGN ??
-      activeBalance?.rawBalances?.CNGN ??
-      activeBalance?.balances[token] ??
-      0)
-    : (activeBalance?.balances[token] ?? 0);
-
   const fetchedTokens: Token[] = allTokens[selectedNetwork.chain.name] || [];
-
-  const totalRequired = Number(amountSent) || 0;
 
   const { handleFundWallet } = useFundWalletHandler("Transaction form");
 
@@ -987,9 +990,13 @@ export const TransactionForm = ({
     amountBounds: {
       min: amountBounds.min,
       max: amountBounds.max,
-      segments: liquidity?.viable ? liquidity.segments : undefined,
-      noLiquidity,
+      segments:
+        hasInsufficientBalance || !liquidity?.viable
+          ? undefined
+          : liquidity.segments,
+      noLiquidity: hasInsufficientBalance ? false : noLiquidity,
     },
+    hasInsufficientBalance,
   });
 
   const [isPhoneVerificationOpen, setIsPhoneVerificationOpen] = useState(false);
@@ -1545,7 +1552,7 @@ export const TransactionForm = ({
                 className={`w-full min-w-0 rounded-xl border-b border-transparent bg-transparent py-2 text-2xl outline-none transition-all placeholder:text-gray-400 focus:outline-none disabled:cursor-not-allowed dark:placeholder:text-white/30 ${
                   isWalletConnected &&
                   !isSwapped &&
-                  (amountSent > balance || errors.amountSent)
+                  (hasInsufficientBalance || errors.amountSent)
                     ? "text-red-500 dark:text-red-500"
                     : "text-neutral-900 dark:text-white/80"
                 }`}
@@ -1585,20 +1592,18 @@ export const TransactionForm = ({
                 )}
               </div>
             </div>
-            {(errors.amountSent ||
-              (isWalletConnected && !isSwapped && totalRequired > balance)) && (
+            {(hasInsufficientBalance || errors.amountSent) && (
               <AnimatedComponent
                 variant={slideInOut}
                 className="!mt-0 text-xs text-red-500"
               >
-                {errors.amountSent?.message ||
-                  (isWalletConnected && !isSwapped && totalRequired > balance
-                    ? "Insufficient balance"
-                    : null)}
+                {hasInsufficientBalance
+                  ? "Insufficient balance"
+                  : (errors.amountSent?.message ?? null)}
               </AnimatedComponent>
             )}
 
-            {noLiquidity && (
+            {!hasInsufficientBalance && noLiquidity && (
               <AnimatedComponent
                 variant={slideInOut}
                 className="!mt-0 text-xs text-orange-500 dark:text-orange-400"

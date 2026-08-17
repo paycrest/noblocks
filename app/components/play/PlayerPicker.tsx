@@ -2,9 +2,8 @@
 
 /**
  * Player picker: bottom sheet (mobile) / right-hand panel (desktop) with
- * search + position/nation/price filters. Excludes inactive (eliminated)
- * players; already-picked and constraint-violating players are disabled
- * with a reason.
+ * search + position/club/price filters. Excludes inactive players;
+ * already-picked and constraint-violating players are disabled with a reason.
  */
 
 import { useMemo, useState } from "react";
@@ -114,7 +113,7 @@ export const PlayerPicker = ({
                   type="text"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search players or nations"
+                  placeholder="Search players or clubs"
                   className="w-full border-0 bg-transparent text-sm text-text-body placeholder:text-text-placeholder focus:outline-none focus:ring-0 dark:text-white dark:placeholder:text-white/30"
                 />
               </div>
@@ -142,10 +141,10 @@ export const PlayerPicker = ({
                 <select
                   value={nation}
                   onChange={(e) => setNation(e.target.value)}
-                  aria-label="Filter by nation"
+                  aria-label="Filter by club"
                   className="min-h-9 flex-1 rounded-lg border-0 bg-accent-gray px-2 text-xs font-medium text-text-body focus:outline-none focus:ring-1 focus:ring-lavender-500 dark:bg-white/5 dark:text-white"
                 >
-                  <option value="ALL">All nations</option>
+                  <option value="ALL">All clubs</option>
                   {nations.map((n) => (
                     <option key={n} value={n}>
                       {n}
@@ -187,10 +186,10 @@ export const PlayerPicker = ({
                           onClick={() => onPick(player)}
                           className="flex w-full items-center gap-3 rounded-xl px-2 py-2.5 text-left transition-colors enabled:hover:bg-background-neutral disabled:opacity-40 dark:enabled:hover:bg-white/5"
                         >
-                          <span className="flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-accent-gray text-[10px] font-bold text-text-secondary dark:bg-white/10 dark:text-white/60">
+                          <span className="flex size-9 shrink-0 items-center justify-center">
                             <PlayerPhoto
                               player={player}
-                              className="size-full object-cover object-top"
+                              className="size-9"
                               fallback={player.position}
                             />
                           </span>

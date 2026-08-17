@@ -1,9 +1,8 @@
 "use client";
 
 /**
- * /play campaign landing: hero, how it works, prize breakdown, top-5
- * leaderboard preview and the join flow (Privy login, then the username
- * modal).
+ * /play campaign landing: hero, how it works, top-5 leaderboard preview
+ * and the join flow (Privy login, then the username modal).
  */
 
 import { useEffect, useRef, useState, type CSSProperties } from "react";
@@ -12,12 +11,10 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useLogin, usePrivy } from "@privy-io/react-auth";
 import {
   ArrowRight01Icon,
-  ChampionIcon,
   FootballIcon,
   UserGroupIcon,
 } from "hugeicons-react";
 import { trackEvent } from "@/app/hooks/analytics/client";
-import { CampaignEnded } from "@/app/components/play/CampaignEnded";
 import { JoinModal } from "@/app/components/play/JoinModal";
 import { LeaderboardTable } from "@/app/components/play/LeaderboardTable";
 import { useJoinStatus, useLeaderboard } from "@/app/components/play/hooks";
@@ -27,17 +24,10 @@ import {
   Skeleton,
   primaryButtonClasses,
 } from "@/app/components/play/ui";
-import config from "@/app/lib/config";
 
 const ASSET = (name: string) => `/images/play-promo/${name}`;
 const HERO_PILL_BUTTON =
   "inline-flex min-h-0 items-center justify-center gap-1 whitespace-nowrap rounded-full bg-white px-4 py-2 text-sm font-semibold text-black transition-transform active:scale-[0.98]";
-
-const PRIZE_TIERS = [
-  { ranks: "Ranks 1–5", amount: "50 USDC each" },
-  { ranks: "Ranks 6–10", amount: "40 USDC each" },
-  { ranks: "Ranks 11–20", amount: "15 USDC each" },
-];
 
 // Every star photo used across the campaign (hero collage + this section) —
 // each side of the bottom CTA cycles through all of them.
@@ -281,14 +271,8 @@ const LeaderboardPreview = () => {
 
 export default function PlayLandingPage() {
   useEffect(() => {
-    if (!config.fantasyCampaignEnded) {
-      trackEvent("play_landing_view");
-    }
+    trackEvent("play_landing_view");
   }, []);
-
-  if (config.fantasyCampaignEnded) {
-    return <CampaignEnded />;
-  }
 
   return (
     <div className="space-y-10 md:space-y-20 md:mt-20">
@@ -318,16 +302,15 @@ export default function PlayLandingPage() {
         />
         <div className="relative max-w-2xl space-y-4">
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-white/70">
-            World Cup 2026 · Quarter-finals to the Final
+            Premier League 2026/27 · Gameweeks 1–38
           </p>
           <h1 className="text-3xl font-bold leading-tight sm:text-4xl">
-            Build Your World Cup Quarter-finals to finals XI.
+            Build your Premier League fantasy XI.
           </h1>
           <p className="max-w-xl text-sm text-white/80 sm:text-base">
-            Build your dream XI for the knockout rounds, score points every
-            matchday, and invite friends to qualify for a share of{" "}
-            <span className="font-semibold text-white">600 USDC on Base</span>.
-            Free to play.
+            Pick a 15-man squad within £100m, score points every gameweek, and
+            climb the global leaderboard. Free to play — create mini-leagues
+            with friends.
           </p>
           <div className="flex flex-wrap items-center gap-3 pt-1">
             <JoinCTA buttonClassName={HERO_PILL_BUTTON} />
@@ -375,7 +358,7 @@ export default function PlayLandingPage() {
               letterSpacing: "-0.358cqw",
             }}
           >
-            Build Your World Cup Quarter-finals to finals XI.
+            Build your Premier League fantasy XI.
           </h1>
 
           <p
@@ -390,10 +373,9 @@ export default function PlayLandingPage() {
               letterSpacing: "-0.03cqw",
             }}
           >
-            Build your dream XI for the knockout rounds, score points every
-            matchday, and invite friends to qualify for a share of{" "}
-            <span className="font-semibold text-white">600 USDC on Base</span>.
-            Free to play.
+            Pick a 15-man squad within £100m, score points every gameweek, and
+            climb the global leaderboard. Free to play — create mini-leagues
+            with friends.
           </p>
 
           {/* Content-sized (no fixed width): the buttons keep a fixed font
@@ -463,12 +445,10 @@ export default function PlayLandingPage() {
               Build your squad and score points
             </h3>
             <p className="text-sm text-text-secondary dark:text-white/50">
-              Pick 15 players within your budget: 2 goalkeepers, 5 defenders,
-              5 midfielders and 3 forwards. Set your starting XI and captain
-              before each round locks. Goals, assists, clean sheets and more
-              earn points through the quarter-finals, semi-finals and the
-              Final, and your rank on the global leaderboard decides your
-              prize.
+              Pick 15 players within £100m: 2 goalkeepers, 5 defenders,
+              5 midfielders and 3 forwards (max 3 per club). Set your starting
+              XI and captain before each gameweek deadline. Official FPL-style
+              scoring across all 38 gameweeks.
             </p>
           </PlayCard>
           <PlayCard className="space-y-3">
@@ -476,55 +456,14 @@ export default function PlayLandingPage() {
               <UserGroupIcon className="size-5 text-lavender-600 dark:text-lavender-300" />
             </div>
             <h3 className="text-sm font-semibold text-text-body dark:text-white">
-              Invite friends to unlock the prize
+              Play with friends in mini-leagues
             </h3>
             <p className="text-sm text-text-secondary dark:text-white/50">
-              Points decide where you rank, but only qualified managers can
-              win. To qualify, invite 5 friends who each complete $5 or more
-              in total on and off-ramp volume on Noblocks before the
-              deadline. The $5 adds up across all of their transactions, so
-              no single large payment is needed.
+              Create or join a private mini-league and compete week to week with
+              friends. Free transfers bank up to 5; extras cost 4 points each.
             </p>
           </PlayCard>
         </div>
-      </section>
-
-      {/* Prize breakdown */}
-      <section className="space-y-4">
-        <h2 className="text-lg font-semibold text-text-body dark:text-white">
-          Prize pool: 600 USDC on Base
-        </h2>
-        <div className="grid gap-4 sm:grid-cols-3">
-          {PRIZE_TIERS.map(({ ranks, amount }, index) => (
-            <PlayCard key={ranks} className="flex items-center gap-4">
-              <div className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-yellow-secondary dark:bg-yellow-primary/10">
-                <ChampionIcon
-                  className={`size-6 ${index === 0 ? "text-yellow-primary" : "text-text-secondary dark:text-white/40"}`}
-                />
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-text-body dark:text-white">
-                  {ranks}
-                </p>
-                <p className="text-sm text-text-secondary dark:text-white/50">
-                  {amount}
-                </p>
-              </div>
-            </PlayCard>
-          ))}
-        </div>
-        <p className="text-xs text-text-secondary dark:text-white/50">
-          Prizes go to the top 20 qualified managers by final rank. Anyone
-          who has not qualified or has opted out is skipped when prizes are
-          assigned. Full details in the{" "}
-          <Link
-            href="/play/terms"
-            className="text-lavender-500 underline hover:text-lavender-600"
-          >
-            terms
-          </Link>
-          .
-        </p>
       </section>
 
       {/* Leaderboard preview */}

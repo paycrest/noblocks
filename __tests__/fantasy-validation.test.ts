@@ -35,29 +35,28 @@ describe("validateUsername", () => {
   });
 });
 
-// ─── Squad validation ─────────────────────────────────────────────────────────
-
 const settings: FantasySettings = {
-  budget: 105,
+  budget: 100,
   squad_size: 15,
   positions: { GK: 2, DEF: 5, MID: 5, FWD: 3 },
   formations: ["4-4-2", "4-3-3", "4-5-1", "3-4-3", "3-5-2", "5-4-1", "5-3-2"],
-  nation_caps: { MD6: 5, MD7: 6, MD8: 8 },
-  free_transfers: { MD6: 4, MD7: 5, MD8: 6 },
-  transfer_penalty: 3,
+  club_cap: 3,
+  free_transfers_max: 5,
+  transfer_penalty: 4,
+  season_matchday_min: 101,
+  season_matchday_max: 138,
+  photos_enabled: false,
+  defcon_def_threshold: 5,
+  defcon_mid_fwd_threshold: 6,
   scoring: {} as FantasySettings["scoring"],
-  qualification_deadline: "2026-07-22T23:59:59Z",
-  referrals_required: 5,
-  referral_min_total_usd: 5,
-  cngn_usd_rate: 0.00065,
-  campaign_start: "2026-06-01T00:00:00Z",
-  campaign_end: "2026-07-19T23:59:59Z",
+  campaign_start: "2026-08-01T00:00:00Z",
+  campaign_end: "2027-05-31T00:00:00Z",
   features: { emails: false, share_cards: true, join_open: true },
 };
 
 /**
  * 15 players: ids 1–2 GK, 3–7 DEF, 8–12 MID, 13–15 FWD, price 5.0 each,
- * spread across nations A–E (3 per nation) so the MD6 cap of 5 passes.
+ * team_id = ceil(id/3) so at most 3 per club.
  */
 function buildPlayers(): Map<number, FantasyPlayer> {
   const positions = (id: number) =>
@@ -68,7 +67,7 @@ function buildPlayers(): Map<number, FantasyPlayer> {
       provider_player_id: id,
       team_id: Math.ceil(id / 3),
       name: `Player ${id}`,
-      nation: `Nation ${Math.ceil(id / 3)}`,
+      nation: `Club ${Math.ceil(id / 3)}`,
       position: positions(id),
       price: 5,
       photo_url: null,
@@ -93,7 +92,7 @@ function validSelection(): SquadSelection {
 }
 
 const validate = (selection: SquadSelection, players = buildPlayers()) =>
-  validateSquad({ selection, players, settings, matchdayLabel: "MD6" });
+  validateSquad({ selection, players, settings });
 
 describe("validateSquad", () => {
   it("accepts a valid 4-4-2 squad within budget", () => {
@@ -108,27 +107,23 @@ describe("validateSquad", () => {
 
   it("rejects budget overruns", () => {
     const players = buildPlayers();
-    players.get(13)!.price = 40; // 14×5 + 40 = 110 > 105
+    players.get(13)!.price = 40; // 14×5 + 40 = 110 > 100
     const result = validate(validSelection(), players);
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.errors.join()).toMatch(/Budget exceeded/);
   });
 
-  it("enforces the per-nation cap for the stage", () => {
+  it("enforces the per-club cap", () => {
     const players = buildPlayers();
-    // 6 players from one nation breaches the MD6 cap of 5
-    for (const id of [1, 3, 4, 5, 6, 8]) players.get(id)!.nation = "Brazil";
+    // Force 4 players onto the same club (cap 3).
+    for (const id of [1, 3, 4, 5]) players.get(id)!.team_id = 99;
     const result = validate(validSelection(), players);
     expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.errors.join()).toMatch(/Brazil/);
+    if (!result.ok) expect(result.errors.join()).toMatch(/club|Club|3/i);
   });
 
   it("rejects invalid formations", () => {
     const selection = validSelection();
-    // Swap a DEF (slot 2 = player 3) with a bench FWD (player 15) → 3-4-3… no,
-    // XI becomes DEF 3 / MID 4 / FWD 3 which IS valid, so swap MID instead:
-    // remove MID 8 for FWD 15 → 4-3-3 valid too; remove DEF 3 AND MID 8 for
-    // FWD 15 + GK 2 → 2 GKs in XI, invalid.
     selection.players = selection.players.map((p) => {
       if (p.playerId === 3) return { playerId: 2, slot: p.slot };
       if (p.playerId === 2) return { playerId: 3, slot: p.slot };

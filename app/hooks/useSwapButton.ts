@@ -48,6 +48,12 @@ interface UseSwapButtonProps {
     segments?: LiquiditySegment[];
     noLiquidity: boolean;
   };
+  /**
+   * Pre-computed insufficient-balance flag from TransactionForm (which guards
+   * against loading state). When provided, useSwapButton uses it directly
+   * instead of recomputing against a potentially-zero balance.
+   */
+  hasInsufficientBalance?: boolean;
 }
 
 /** Unknown segments must not block, so an absent list passes. */
@@ -75,6 +81,7 @@ export function useSwapButton({
   isSwapped = false,
   networkName = "",
   amountBounds,
+  hasInsufficientBalance: hasInsufficientBalanceProp,
 }: UseSwapButtonProps) {
   const { authenticated } = usePrivy();
   const { isInjectedWallet, injectedReady, injectedRequested, injectedStatus } =
@@ -121,8 +128,15 @@ export function useSwapButton({
 
   const totalRequired = Number(amountSent) || 0;
 
-  // Skip balance check in onramp mode (isSwapped = true)
-  const hasInsufficientBalance = isSwapped ? false : totalRequired > balance;
+  // Use the caller's pre-computed flag when provided (TransactionForm guards
+  // against loading state). Fall back to a local recomputation only when the
+  // caller doesn't supply one — this keeps legacy callers working.
+  const hasInsufficientBalance =
+    hasInsufficientBalanceProp !== undefined
+      ? hasInsufficientBalanceProp
+      : isSwapped
+        ? false
+        : totalRequired > balance;
 
   // Check recipient based on mode: valid walletAddress for onramp, recipientName for offramp
   const hasRecipient = isSwapped
@@ -139,11 +153,21 @@ export function useSwapButton({
     if (isInjectedConnecting) return false;
 
     // A corridor with no fillable offers stays disabled even when the wallet
-    // is underfunded: the `hasInsufficientBalance` branch below enables
-    // "Fund wallet" unconditionally on the theory that funding fixes
-    // whatever is wrong, but funding does nothing here — no provider exists
-    // for this corridor at any amount.
-    if (amountBounds?.noLiquidity) return false;
+    // is underfunded — but only when funds are not the clearer constraint.
+    // Underfunded amounts are short-circuited to Fund wallet / Insufficient
+    // balance; market limits apply once the amount is fundable.
+    if (amountBounds?.noLiquidity && !hasInsufficientBalance) return false;
+
+    // Underfunded: fund / show shortfall without requiring a live rate quote
+    // (market + rates are paused for those amounts).
+    // Check this BEFORE the KYC branch so an injected wallet with insufficient
+    // balance cannot reach handleSwap through the verification shortcut.
+    if (isInjectedWallet && hasInsufficientBalance) {
+      return false;
+    }
+    if (hasInsufficientBalance && !isInjectedWallet && authenticated) {
+      return true;
+    }
 
     // Phone / next-tier KYC from the main CTA must work before the user picks a
     // recipient; otherwise the verify label appears on a permanently disabled button.
@@ -160,14 +184,8 @@ export function useSwapButton({
     }
 
     if (!receiveDestinationExplicitlySelected) return false;
-    if (!rate) return false;
-    if (isInjectedWallet && hasInsufficientBalance) {
-      return false;
-    }
 
-    if (hasInsufficientBalance && !isInjectedWallet && authenticated) {
-      return true;
-    }
+    if (!rate) return false;
 
     if (!isCurrencySelected || !isAmountValid) {
       return false;

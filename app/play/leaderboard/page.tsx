@@ -1,9 +1,8 @@
 "use client";
 
 /**
- * /play/leaderboard — the one global leaderboard: rank, movement, username,
- * points and qualification badge, with self-row highlight, "Find me" jump
- * and pagination.
+ * /play/leaderboard — global leaderboard: rank, movement, username and
+ * points, with self-row highlight, "Find me" jump and pagination.
  */
 
 import { useEffect, useState } from "react";
@@ -11,19 +10,12 @@ import { usePrivy } from "@privy-io/react-auth";
 import {
   ArrowLeft01Icon,
   ArrowRight01Icon,
-  Award01Icon,
-  ChampionIcon,
-  LaurelWreath01Icon,
   Search01Icon,
   UserGroupIcon,
 } from "hugeicons-react";
 import { trackEvent } from "@/app/hooks/analytics/client";
 import { LeaderboardTable } from "@/app/components/play/LeaderboardTable";
-import {
-  useJoinStatus,
-  useLeaderboard,
-  useRewards,
-} from "@/app/components/play/hooks";
+import { useJoinStatus, useLeaderboard } from "@/app/components/play/hooks";
 import {
   EmptyState,
   ErrorState,
@@ -38,17 +30,12 @@ export default function LeaderboardPage() {
   const { joined } = useJoinStatus();
 
   const { data, isPending, isError, refetch } = useLeaderboard(page, findMe);
-  // Own qualification progress for the self-row tooltip only (PRD §7.3).
-  const rewards = useRewards(Boolean(joined));
 
   useEffect(() => {
     trackEvent("leaderboard_viewed", { page });
-    // page changes are navigation within the board; log only the first view
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Once find=me resolves, adopt the server-chosen page so pagination
-  // controls stay consistent.
   useEffect(() => {
     if (findMe && data) {
       setPage(data.page);
@@ -78,21 +65,6 @@ export default function LeaderboardPage() {
         )}
       </div>
 
-      <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-text-secondary dark:text-white/50">
-        <span className="inline-flex items-center gap-1">
-          <ChampionIcon className="size-3.5 text-yellow-primary" />
-          Qualified for the giveaway
-        </span>
-        <span className="inline-flex items-center gap-1">
-          <Award01Icon className="size-3.5 opacity-50" />
-          Qualification in progress
-        </span>
-        <span className="inline-flex items-center gap-1">
-          <LaurelWreath01Icon className="size-3.5" />
-          Bragging rights only
-        </span>
-      </div>
-
       {isPending ? (
         <div className="space-y-2">
           {Array.from({ length: 10 }).map((_, i) => (
@@ -112,17 +84,7 @@ export default function LeaderboardPage() {
         />
       ) : (
         <>
-          <LeaderboardTable
-            rows={data.rows}
-            selfProgress={
-              rewards.data
-                ? {
-                  activated: rewards.data.activated,
-                  required: rewards.data.required,
-                }
-                : undefined
-            }
-          />
+          <LeaderboardTable rows={data.rows} />
           <div className="flex items-center justify-between">
             <button
               type="button"
@@ -133,8 +95,8 @@ export default function LeaderboardPage() {
               <ArrowLeft01Icon className="size-4" />
               Prev
             </button>
-            <span className="text-sm text-text-secondary dark:text-white/50">
-              Page {data.page} of {totalPages} · {data.total} managers
+            <span className="text-xs text-text-secondary dark:text-white/50">
+              Page {page} of {totalPages}
             </span>
             <button
               type="button"

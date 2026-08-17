@@ -1,28 +1,20 @@
 import { NextRequest } from "next/server";
 import { supabaseAdmin } from "@/app/lib/supabase";
-import { withRateLimit } from "@/app/lib/rate-limit";
+import { withRateLimitAndAnalytics } from "@/app/lib/analytics-middleware";
 import {
   fantasyDisabledResponse,
   getAuthedWallet,
   getCurrentMatchday,
-  getMatchdayPlayerPoints,
   getParticipant,
-  getPlayersMap,
   getSquad,
-  getTeamLockStates,
   isFantasyEnabled,
   isMatchdayLocked,
   jsonError,
   jsonOk,
 } from "@/app/lib/fantasy/server";
 
-/**
- * POST /api/play/captain — change captain/vice. Free before lock; during a
- * live round the official §6.2 constraints apply: the incoming (vice-)captain
- * must not have played yet and the outgoing one's match must not be in
- * progress. Changing forfeits the old captain's double.
- */
-export const POST = withRateLimit(async (request: NextRequest) => {
+/** POST /api/play/captain — set C/VC before the gameweek deadline. */
+export const POST = withRateLimitAndAnalytics(async (request: NextRequest) => {
   if (!isFantasyEnabled()) return fantasyDisabledResponse();
 
   try {
@@ -33,7 +25,10 @@ export const POST = withRateLimit(async (request: NextRequest) => {
     if (!participant) return jsonError("Join the league first", 403, { code: "NOT_JOINED" });
 
     const matchday = await getCurrentMatchday();
-    if (!matchday) return jsonError("No active matchday", 404);
+    if (!matchday) return jsonError("No active gameweek", 404);
+    if (isMatchdayLocked(matchday)) {
+      return jsonError("This gameweek is locked", 403, { code: "ROUND_LOCKED" });
+    }
 
     const body = await request.json().catch(() => null);
     const captainId = Number(body?.captainId);
@@ -51,51 +46,16 @@ export const POST = withRateLimit(async (request: NextRequest) => {
       return jsonError("Captain and vice-captain must be in your starting XI", 400);
     }
 
-    if (isMatchdayLocked(matchday)) {
-      const [players, lockStates, playerPoints] = await Promise.all([
-        getPlayersMap(),
-        getTeamLockStates(matchday.id),
-        getMatchdayPlayerPoints(matchday.id),
-      ]);
-      const state = (id: number) => {
-        const player = players.get(id);
-        return player ? (lockStates.get(player.team_id) ?? "unlocked") : "unlocked";
-      };
-      const hasPlayed = (id: number) => (playerPoints.get(id)?.minutes ?? 0) > 0;
-
-      const oldCaptain = squad.players.find((p) => p.is_captain)?.player_id;
-      const oldVice = squad.players.find((p) => p.is_vice)?.player_id;
-
-      const checks: [number | undefined, number][] = [];
-      if (oldCaptain !== captainId) checks.push([oldCaptain, captainId]);
-      if (oldVice !== viceId) checks.push([oldVice, viceId]);
-
-      for (const [outgoing, incoming] of checks) {
-        if (state(incoming) !== "unlocked" || hasPlayed(incoming)) {
-          return jsonError("The new (vice-)captain must not have played yet this round", 403, {
-            code: "CAPTAIN_LOCKED",
-          });
-        }
-        if (outgoing != null && state(outgoing) === "locked") {
-          return jsonError(
-            "You can't change (vice-)captain while their match is in progress",
-            403,
-            { code: "CAPTAIN_LOCKED" },
-          );
-        }
-      }
-    }
-
-    const { error: captainError } = await supabaseAdmin.rpc("fantasy_set_captain", {
+    const { error } = await supabaseAdmin.rpc("fantasy_set_captain", {
       p_squad_id: squad.id,
       p_captain_id: captainId,
       p_vice_id: viceId,
     });
-    if (captainError) throw captainError;
+    if (error) throw error;
 
     return jsonOk({ captainId, viceId });
   } catch (error) {
     console.error("[play] captain change failed:", error);
-    return jsonError("Failed to update captaincy", 500);
+    return jsonError("Failed to set captain", 500);
   }
 });

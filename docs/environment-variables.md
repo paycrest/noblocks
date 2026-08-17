@@ -95,6 +95,33 @@ NEXT_PUBLIC_DD_SESSION_REPLAY_SAMPLE_RATE=100 # 0–100; % of RUM sessions that 
 NEXT_PUBLIC_DD_ENABLE_IN_DEV=false          # Send RUM from local dev when true
 ```
 
+### Datadog Server-Side APM and Logs
+
+Server-side tracing (`instrumentation.ts`) and structured JSON logging (`app/lib/logger.ts`). Neither talks to Datadog directly — see [OBSERVABILITY.md](../OBSERVABILITY.md) for the deployment.
+
+The two take different routes, which matters when debugging one of them:
+
+| Signal | How it leaves the app | Behaviour with no agent running |
+| --- | --- | --- |
+| Traces | Sent to the agent over `DD_AGENT_HOST:8126` | Dropped |
+| Logs | Written as JSON to **stdout**; the agent collects the container's output | Still printed — visible in `docker logs` |
+
+**The app does not need `DD_API_KEY`.** Only the agent holds the key, in `.env.datadog` (template: `.env.datadog.example`). Adding an API key to the app's environment is unnecessary and widens its blast radius.
+
+```bash
+DD_SERVICE=noblocks
+DD_ENV=production
+DD_VERSION=                                 # Set from the git SHA in CI
+DD_AGENT_HOST=datadog-agent                 # Agent container name on the Docker network
+DD_TRACE_AGENT_PORT=8126
+DD_TRACE_ENABLED=true                       # "false" disables APM; read once at startup, so it needs a restart
+LOG_LEVEL=info                              # pino level: trace|debug|info|warn|error|fatal
+```
+
+Locally the tracer defaults to `localhost:8126` and is harmless with no agent running — traces are dropped, and logs still print as JSON.
+
+> **Note on `console`:** `next.config.mjs` strips `console.log` from production builds (`warn`/`error`/`info` are preserved). Anything that must be queryable in Datadog should go through `app/lib/logger.ts`, which emits JSON with `dd.trace_id` for trace correlation.
+
 ### Server-Side Analytics
 
 ```bash

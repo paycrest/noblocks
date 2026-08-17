@@ -1802,28 +1802,33 @@ export function TransactionStatus({
                   <p className="flex-1">Time spent</p>
                   <p className="flex-1">{timeSpentLabel}</p>
                 </div>
-                <div className="flex items-center justify-between gap-1">
-                  <p className="flex-1">Onchain receipt</p>
-                  <p className="flex-1">
-                    {transactionStatus === "expired" ? (
-                      <span className="text-text-secondary dark:text-white/40">
-                        Not available
-                      </span>
-                    ) : (
-                      <a
-                        href={getExplorerLink(
-                          selectedNetwork.chain.name,
-                          `${orderDetails?.status === "refunded" ? orderDetails?.txHash : createdHash}`,
-                        )}
-                        className="text-lavender-500 hover:underline dark:text-lavender-500"
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        View in explorer
-                      </a>
-                    )}
-                  </p>
-                </div>
+                {!(
+                  isOnramp &&
+                  ["refunded", "expired"].includes(transactionStatus)
+                ) && (
+                  <div className="flex items-center justify-between gap-1">
+                    <p className="flex-1">Onchain receipt</p>
+                    <p className="flex-1">
+                      {transactionStatus === "expired" ? (
+                        <span className="text-text-secondary dark:text-white/40">
+                          Not available
+                        </span>
+                      ) : (
+                        <a
+                          href={getExplorerLink(
+                            selectedNetwork.chain.name,
+                            `${orderDetails?.status === "refunded" ? orderDetails?.txHash : createdHash}`,
+                          )}
+                          className="text-lavender-500 hover:underline dark:text-lavender-500"
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          View in explorer
+                        </a>
+                      )}
+                    </p>
+                  </div>
+                )}
                 {/* Leg 2: forward to an external wallet — show its own onchain receipt. */}
                 {isOnramp &&
                   config.onrampChainedForwardingEnabled &&

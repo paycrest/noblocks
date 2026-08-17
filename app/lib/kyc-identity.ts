@@ -120,7 +120,12 @@ export function buildIdentityIdKey(
   number: string | null | undefined,
 ): string | null {
   if (!country || !type || !number) return null;
-  return `${normalizeIdPart(country)}:${normalizeIdPart(type)}:${normalizeIdPart(number)}`;
+  const c = normalizeIdPart(country);
+  const t = normalizeIdPart(type);
+  const n = normalizeIdPart(number);
+  // After stripping [[:space:]], empty parts must not form a key (e.g. "::").
+  if (!c || !t || !n) return null;
+  return `${c}:${t}:${n}`;
 }
 
 /**

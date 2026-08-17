@@ -61,9 +61,12 @@ ALTER TABLE public.user_kyc_profiles
   ADD COLUMN IF NOT EXISTS identity_id_key TEXT
   GENERATED ALWAYS AS (
     CASE
-      WHEN id_country IS NOT NULL
-       AND id_type    IS NOT NULL
-       AND id_number  IS NOT NULL
+      -- Reject NULL, '', and whitespace-only parts (same contract as
+      -- buildIdentityIdKey / the 20260817180100 backfill) so empty components
+      -- never produce keys like "::" that would falsely pool unrelated rows.
+      WHEN NULLIF(regexp_replace(upper(id_country), '[[:space:]]', '', 'g'), '') IS NOT NULL
+       AND NULLIF(regexp_replace(upper(id_type),   '[[:space:]]', '', 'g'), '') IS NOT NULL
+       AND NULLIF(regexp_replace(upper(id_number), '[[:space:]]', '', 'g'), '') IS NOT NULL
       -- [[:space:]] is space, tab, newline, vertical tab, form feed, carriage
       -- return — and nothing else. Deliberately NOT btrim(), which strips only
       -- spaces unless given a second argument, and deliberately applied to the

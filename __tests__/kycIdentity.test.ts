@@ -394,6 +394,13 @@ describe("buildIdentityIdKey", () => {
     expect(buildIdentityIdKey("NG", "PASSPORT", "")).toBeNull();
   });
 
+  it("returns null when a part is only whitespace", () => {
+    // Whitespace strips to empty under normalizeIdPart; must not yield "::".
+    expect(buildIdentityIdKey("   ", "PASSPORT", "A123")).toBeNull();
+    expect(buildIdentityIdKey("NG", "\t\n", "A123")).toBeNull();
+    expect(buildIdentityIdKey("NG", "PASSPORT", " \t ")).toBeNull();
+  });
+
   it("canonicalizes case and whitespace", () => {
     expect(buildIdentityIdKey(" ng ", "Passport", " a 123 456 ")).toBe(
       "NG:PASSPORT:A123456",

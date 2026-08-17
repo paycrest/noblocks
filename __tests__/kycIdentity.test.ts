@@ -316,7 +316,7 @@ describe("resolveOwnIdentityFingerprint", () => {
   // These fingerprints key unique indexes, so two spellings of one document must
   // normalize to one value — otherwise both inserts slip past the constraint and
   // the identity collects the reward twice. Must stay in sync with the backfill
-  // in 20260730120000_identity_scoped_referrals.sql.
+  // in 20260817180100_identity_scoped_referrals.sql.
   it("normalizes case and whitespace so one document yields one key", async () => {
     queueQueries(
       ok({
@@ -394,6 +394,13 @@ describe("buildIdentityIdKey", () => {
     expect(buildIdentityIdKey("NG", "PASSPORT", "")).toBeNull();
   });
 
+  it("returns null when a part is only whitespace", () => {
+    // Whitespace strips to empty under normalizeIdPart; must not yield "::".
+    expect(buildIdentityIdKey("   ", "PASSPORT", "A123")).toBeNull();
+    expect(buildIdentityIdKey("NG", "\t\n", "A123")).toBeNull();
+    expect(buildIdentityIdKey("NG", "PASSPORT", " \t ")).toBeNull();
+  });
+
   it("canonicalizes case and whitespace", () => {
     expect(buildIdentityIdKey(" ng ", "Passport", " a 123 456 ")).toBe(
       "NG:PASSPORT:A123456",
@@ -414,7 +421,7 @@ describe("buildIdentityIdKey", () => {
   });
 
   it("maps divergent spellings of one document to one key", () => {
-    // Must match the identity_id_key generated column in 20260805120000.
+    // Must match the identity_id_key generated column in 20260817180400.
     expect(buildIdentityIdKey("ng", "passport", "a 123 456")).toBe(
       buildIdentityIdKey("NG", "PASSPORT", "A123456"),
     );

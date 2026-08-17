@@ -49,8 +49,12 @@ ALTER TABLE public.referral_claims
 
 UPDATE public.referrals r
    SET identity_phone  = NULLIF(regexp_replace(p.phone_number, '^[[:space:]]+|[[:space:]]+$', '', 'g'), ''),
+       -- Match buildIdentityIdKey: reject NULL, '', and whitespace-only parts so
+       -- we never store keys with empty components (e.g. "::" or "NG::A1").
        identity_id_key = CASE
-         WHEN p.id_country IS NOT NULL AND p.id_type IS NOT NULL AND p.id_number IS NOT NULL
+         WHEN NULLIF(regexp_replace(upper(p.id_country), '[[:space:]]', '', 'g'), '') IS NOT NULL
+          AND NULLIF(regexp_replace(upper(p.id_type),    '[[:space:]]', '', 'g'), '') IS NOT NULL
+          AND NULLIF(regexp_replace(upper(p.id_number),  '[[:space:]]', '', 'g'), '') IS NOT NULL
          THEN regexp_replace(upper(p.id_country), '[[:space:]]', '', 'g') || ':'
               || regexp_replace(upper(p.id_type),    '[[:space:]]', '', 'g') || ':'
               || regexp_replace(upper(p.id_number),  '[[:space:]]', '', 'g')
@@ -66,7 +70,9 @@ UPDATE public.referrals r
 UPDATE public.referral_claims c
    SET identity_phone  = NULLIF(regexp_replace(p.phone_number, '^[[:space:]]+|[[:space:]]+$', '', 'g'), ''),
        identity_id_key = CASE
-         WHEN p.id_country IS NOT NULL AND p.id_type IS NOT NULL AND p.id_number IS NOT NULL
+         WHEN NULLIF(regexp_replace(upper(p.id_country), '[[:space:]]', '', 'g'), '') IS NOT NULL
+          AND NULLIF(regexp_replace(upper(p.id_type),    '[[:space:]]', '', 'g'), '') IS NOT NULL
+          AND NULLIF(regexp_replace(upper(p.id_number),  '[[:space:]]', '', 'g'), '') IS NOT NULL
          THEN regexp_replace(upper(p.id_country), '[[:space:]]', '', 'g') || ':'
               || regexp_replace(upper(p.id_type),    '[[:space:]]', '', 'g') || ':'
               || regexp_replace(upper(p.id_number),  '[[:space:]]', '', 'g')

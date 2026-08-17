@@ -110,9 +110,9 @@ function trimSqlSpace(value: string): string {
  * fingerprint indexes — keys on this instead of the raw values.
  *
  * Must stay in sync with two SQL copies of this expression:
- *   * the `identity_id_key` generated column (20260805120000), which is what
+ *   * the `identity_id_key` generated column (20260817180400), which is what
  *     sibling lookups match against
- *   * the referral fingerprint backfill (20260730120000)
+ *   * the referral fingerprint backfill (20260817180100)
  */
 export function buildIdentityIdKey(
   country: string | null | undefined,
@@ -120,7 +120,12 @@ export function buildIdentityIdKey(
   number: string | null | undefined,
 ): string | null {
   if (!country || !type || !number) return null;
-  return `${normalizeIdPart(country)}:${normalizeIdPart(type)}:${normalizeIdPart(number)}`;
+  const c = normalizeIdPart(country);
+  const t = normalizeIdPart(type);
+  const n = normalizeIdPart(number);
+  // After stripping [[:space:]], empty parts must not form a key (e.g. "::").
+  if (!c || !t || !n) return null;
+  return `${c}:${t}:${n}`;
 }
 
 /**
@@ -185,7 +190,7 @@ export async function resolveIdentityScope(
   const phone = profile?.phone_number || null;
   // Canonical, not the raw triple: two spellings of one document must resolve to
   // one identity, or siblings get separate allowances and serialize on separate
-  // advisory locks. See buildIdentityIdKey and 20260805120000.
+  // advisory locks. See buildIdentityIdKey and 20260817180400.
   const idKey = buildIdentityIdKey(
     profile?.id_country,
     profile?.id_type,

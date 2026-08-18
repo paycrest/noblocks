@@ -52,7 +52,7 @@ export const HYPERFX_SUPPORTED_NETWORKS = new Set<string>(
 export function isHyperfxSupportedNetwork(
   network: string,
 ): network is HyperfxNetwork {
-  return network in HYPERFX_NETWORK_CONFIG;
+  return Object.prototype.hasOwnProperty.call(HYPERFX_NETWORK_CONFIG, network);
 }
 
 export function getHyperfxNetworkConfig(network: string) {

@@ -13,6 +13,8 @@ const INTENT_GATEWAY_ABI =
   (IntentGatewayABI as { ABI?: typeof IntentGatewayABI }).ABI ??
   IntentGatewayABI;
 
+export { INTENT_GATEWAY_ABI as HYPERFX_INTENT_GATEWAY_ABI };
+
 const ORDER_FILLED_EVENT = INTENT_GATEWAY_ABI.find(
   (item): item is Extract<(typeof INTENT_GATEWAY_ABI)[number], { type: "event"; name: "OrderFilled" }> =>
     item.type === "event" && item.name === "OrderFilled",

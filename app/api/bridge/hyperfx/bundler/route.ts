@@ -1,15 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withRateLimit } from "@/app/lib/rate-limit";
+import { getPrivyUserIdFromRequest } from "@/app/lib/privy";
 import { requireHyperfxBundlerUrl } from "@/app/utils";
 import {
   HYPERFX_SUPPORTED_NETWORKS,
   isHyperfxSwapEnabled,
 } from "@/app/lib/bridgeFeature";
 
-/** Server-only bundler URL for client-side HyperFX execution (key stays in ALCHEMY_API_KEY). */
+/** Authenticated fallback for client-side HyperFX execution (prefer quote.bundlerUrl). */
 export const GET = withRateLimit(async (request: NextRequest) => {
   if (!isHyperfxSwapEnabled()) {
     return NextResponse.json({ error: "HyperFX is not enabled" }, { status: 404 });
+  }
+
+  const userId = await getPrivyUserIdFromRequest(request);
+  if (!userId) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const network = request.nextUrl.searchParams.get("network")?.trim() ?? "";

@@ -5,17 +5,13 @@ import { getRpcUrl } from "@/app/utils";
 import type { BridgeStatusResult } from "@/app/lib/bridge";
 import {
   HYPERFX_GATEWAY_BY_NETWORK,
+  HYPERFX_INTENT_GATEWAY_ABI,
   orderFromOrderPlacedLog,
   resolveHyperfxOrderStatus,
 } from "@/app/lib/hyperfxStatus";
 import { HYPERFX_VIEM_CHAIN_BY_NETWORK } from "@/app/lib/hyperfxNetworks";
-import { IntentGatewayABI } from "@hyperbridge/sdk";
 
 const CHAIN_BY_NETWORK = HYPERFX_VIEM_CHAIN_BY_NETWORK;
-
-const ABI =
-  (IntentGatewayABI as { ABI?: typeof IntentGatewayABI }).ABI ??
-  IntentGatewayABI;
 
 export const GET = withRateLimit(async (request: NextRequest) => {
   const txHash = request.nextUrl.searchParams.get("txHash")?.trim();
@@ -36,7 +32,7 @@ export const GET = withRateLimit(async (request: NextRequest) => {
   const receipt = await client.getTransactionReceipt({ hash: txHash as `0x${string}` });
 
   const placed = parseEventLogs({
-    abi: ABI,
+    abi: HYPERFX_INTENT_GATEWAY_ABI,
     logs: receipt.logs.filter((log) => log.address.toLowerCase() === gateway.toLowerCase()),
   }).find((event) => event.eventName === "OrderPlaced");
 

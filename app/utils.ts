@@ -61,6 +61,25 @@ export function classNames(...classes: (string | false | undefined | null)[]) {
   return classes.filter(Boolean).join(" ");
 }
 
+/** Browser-safe base64 decode for Solana transaction bytes. */
+export function base64ToUint8Array(base64: string): Uint8Array {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index++) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+  return bytes;
+}
+
+/** Browser-safe base64 encode for signed Solana transactions. */
+export function uint8ArrayToBase64(bytes: Uint8Array): string {
+  let binary = "";
+  for (let index = 0; index < bytes.length; index++) {
+    binary += String.fromCharCode(bytes[index]!);
+  }
+  return btoa(binary);
+}
+
 /**
  * Gets the logo identifier for a token symbol (for transaction history display)
  * @param tokenSymbol - The token symbol (e.g., "USDC", "USDT")
@@ -484,6 +503,8 @@ export const getExplorerLink = (network: string, txHash: string) => {
       return `https://voyager.online/tx/${txHash}`;
     case "Tron":
       return `https://tronscan.org/#/transaction/${txHash}`;
+    case "Solana":
+      return `https://explorer.solana.com/tx/${txHash}`;
     default:
       return "";
   }
@@ -606,6 +627,12 @@ export function getRpcUrl(network: string) {
     case "Tron":
       return (
         process.env.NEXT_PUBLIC_TRON_RPC_URL || "https://api.trongrid.io"
+      );
+    case "Solana":
+      return (
+        process.env.NEXT_PUBLIC_SOLANA_RPC ||
+        process.env.NEXT_PUBLIC_SOLANA_MAINNET_RPC ||
+        "https://api.mainnet-beta.solana.com"
       );
     default:
       return undefined;
@@ -849,6 +876,15 @@ export const FALLBACK_TOKENS: { [key: string]: Token[] } = {
       decimals: 6,
       address: "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
       imageUrl: "/logos/usdt-logo.svg",
+    },
+  ],
+  Solana: [
+    {
+      name: "USD Coin",
+      symbol: "USDC",
+      decimals: 6,
+      address: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+      imageUrl: "/logos/usdc-logo.svg",
     },
   ],
 };
@@ -1396,6 +1432,137 @@ export async function fetchTronBalance(
   };
 }
 
+async function fetchSolanaBalancesUnified(
+  address: string,
+  tokens: Token[],
+): Promise<UnifiedWalletBalances> {
+  const chainName = "Solana";
+
+  const emptyUsd = (): UnifiedWalletBalances => ({
+    chainName,
+    entries: [],
+    total: 0,
+    balances: {},
+    balancesInWei: {},
+    balancesUsd: {},
+  });
+
+  if (!address || !tokens || tokens.length === 0) {
+    return emptyUsd();
+  }
+
+  const rpcUrl = getRpcUrl(chainName);
+  if (!rpcUrl) {
+    return emptyUsd();
+  }
+
+  try {
+    const balances: Record<string, number> = {};
+    const balancesInWei: Record<string, bigint> = {};
+    const balancesUsd: Record<string, number> = {};
+
+    for (const token of tokens) {
+      const response = await fetch(rpcUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id: 1,
+          method: "getTokenAccountsByOwner",
+          params: [
+            address,
+            { mint: token.address },
+            { encoding: "jsonParsed" },
+          ],
+        }),
+      });
+
+      if (!response.ok) {
+        balances[token.symbol] = 0;
+        balancesInWei[token.symbol] = BigInt(0);
+        balancesUsd[token.symbol] = 0;
+        continue;
+      }
+
+      const payload = (await response.json()) as {
+        result?: {
+          value?: Array<{
+            account?: {
+              data?: {
+                parsed?: {
+                  info?: {
+                    tokenAmount?: { amount?: string };
+                  };
+                };
+              };
+            };
+          }>;
+        };
+      };
+
+      const amountStr =
+        payload.result?.value?.reduce((sum, account) => {
+          const raw =
+            account?.account?.data?.parsed?.info?.tokenAmount?.amount ?? "0";
+          try {
+            return sum + BigInt(raw);
+          } catch {
+            return sum;
+          }
+        }, BigInt(0)) ?? BigInt(0);
+      const balanceInWei = amountStr;
+      const balance =
+        Number(balanceInWei) / Math.pow(10, token.decimals);
+      balances[token.symbol] = Number.isNaN(balance) ? 0 : balance;
+      balancesInWei[token.symbol] = balanceInWei;
+      balancesUsd[token.symbol] = balances[token.symbol];
+    }
+
+    const total = Object.values(balances).reduce((sum, v) => sum + v, 0);
+    const entries: ChainBalanceEntry[] = tokens.map((token) => ({
+      chainName,
+      symbol: token.symbol,
+      address: token.address,
+      decimals: token.decimals,
+      balance: balances[token.symbol] ?? 0,
+      balanceWei: balancesInWei[token.symbol],
+    }));
+
+    return {
+      chainName,
+      entries,
+      total,
+      balances,
+      balancesInWei,
+      balancesUsd,
+    };
+  } catch (error) {
+    console.error("Error fetching Solana balances:", error);
+    return emptyUsd();
+  }
+}
+
+/**
+ * Solana mainnet balances for supported SPL tokens (USDC ATA).
+ */
+export async function fetchSolanaBalance(
+  address: string,
+  tokens: Token[],
+): Promise<{
+  total: number;
+  balances: Record<string, number>;
+  balancesInWei: Record<string, bigint>;
+  balancesUsd: Record<string, number>;
+}> {
+  const u = await fetchSolanaBalancesUnified(address, tokens);
+  return {
+    total: u.total,
+    balances: u.balances,
+    balancesInWei: u.balancesInWei ?? {},
+    balancesUsd: u.balancesUsd ?? {},
+  };
+}
+
 /**
  * EVM balances via viem public client. For `entries` / unified shape see {@link fetchBalancesForChain}.
  */
@@ -1634,6 +1801,27 @@ export function isTronChain(chain: {
   return chain.network === "tron-mainnet";
 }
 
+/** True for Solana mainnet-beta (mock chain + aggregator `solana-mainnet-beta` slug). */
+export function isSolanaChain(chain: {
+  name?: string;
+  network?: string;
+} | null | undefined): boolean {
+  if (!chain) return false;
+  if (chain.name === "Solana") return true;
+  return chain.network === "solana-mainnet-beta";
+}
+
+/** EVM swap chains only — excludes Starknet, Tron, and Solana (no EIP-7702 / viem gateway). */
+export function isEvmChain(chain: {
+  name?: string;
+  network?: string;
+} | null | undefined): boolean {
+  if (!chain) return false;
+  return (
+    !isStarknetChain(chain) && !isTronChain(chain) && !isSolanaChain(chain)
+  );
+}
+
 /** Noblocks: Tron is sell (off-ramp) only; buy (on-ramp) is not supported yet. */
 export function networkSupportsOnramp(chain: {
   name?: string;
@@ -1673,6 +1861,9 @@ const NORMALIZED_GATEWAY_ADDRESSES = new Set(
  * @returns The contract address for the specified network, or undefined if the network is not found.
  */
 export function getGatewayContractAddress(network = ""): string | undefined {
+  if (network === "Solana") {
+    return config.solanaGatewayProgramId?.trim() || undefined;
+  }
   return GATEWAY_CONTRACT_ADDRESSES[network as GatewayNetwork];
 }
 
@@ -1897,7 +2088,9 @@ export const handleNetworkSwitch = async (
   }
 
   const isNonEvmNetwork =
-    network.chain.name === "Starknet" || network.chain.name === "Tron";
+    network.chain.name === "Starknet" ||
+    network.chain.name === "Tron" ||
+    network.chain.name === "Solana";
 
   if (useInjectedWallet && window.ethereum && !isNonEvmNetwork) {
     if (!network.chain?.id) {
@@ -2326,9 +2519,9 @@ export const getBlockFestTimeRemaining = (): number => {
 };
 
 /**
- * On-chain quote-rate multiplier for Gateway createOrder `_rate`.
- * Matches aggregator RateScale (×1_000_000) so fee-adjusted local corridors
- * (e.g. CNGN 0.999833) encode distinctly from par 1.0.
+ * On-chain quote-rate multiplier for Gateway createOrder `_rate` (EVM, Solana, etc.).
+ * Matches aggregator `RateScale()` when `RATE_SCALE=1000000`. Solana uses the same
+ * global scale — there is no per-network override in the aggregator.
  */
 export const RATE_SCALE = 1000000;
 

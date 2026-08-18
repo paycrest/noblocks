@@ -154,6 +154,10 @@ export const POST = withRateLimit(async (request: NextRequest) => {
         fee: body.fee,
         recipient,
         status: "pending",
+        network:
+          typeof body.network === "string" && body.network.trim()
+            ? body.network.trim()
+            : undefined,
       },
       { dryRun: true, explorerLink: null, normalizedEmail: null },
     );
@@ -180,10 +184,18 @@ export const POST = withRateLimit(async (request: NextRequest) => {
     }
 
     if (swapResult.kind === "rate_unavailable") {
+      trackApiError(
+        request,
+        PRECHECK_PATH,
+        "POST",
+        new Error("Exchange rate unavailable for KYC limit check"),
+        503,
+      );
       return NextResponse.json(
         {
           success: false,
-          error: "Unable to verify transaction amount. Please try again.",
+          error:
+            "Unable to verify transaction amount. The exchange rate service is unavailable for this network — try again shortly.",
         },
         { status: 503 },
       );

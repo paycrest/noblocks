@@ -612,6 +612,29 @@ export function getRpcUrl(network: string) {
   }
 }
 
+/** ERC-4337 bundler URL for HyperFX IntentGateway fill execution (Base via Alchemy). */
+function alchemyBaseBundlerUrl(apiKey: string) {
+  return `https://base-mainnet.g.alchemy.com/v2/${apiKey.trim()}`;
+}
+
+export function getHyperfxBundlerUrl(network: string): string | undefined {
+  const alchemyKey = process.env.ALCHEMY_API_KEY?.trim();
+  if (network === "Base" && alchemyKey) {
+    return alchemyBaseBundlerUrl(alchemyKey);
+  }
+  return undefined;
+}
+
+export function requireHyperfxBundlerUrl(network: string): string {
+  const url = getHyperfxBundlerUrl(network);
+  if (!url) {
+    throw new Error(
+      `HyperFX bundler URL not configured for ${network}. Set ALCHEMY_API_KEY (Base mainnet).`,
+    );
+  }
+  return url;
+}
+
 // Token caching
 let tokensCache: { [network: string]: Token[] } = {};
 let lastTokenFetch = 0;

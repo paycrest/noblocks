@@ -5,6 +5,10 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // HyperFX client-side fills need the Alchemy bundler URL; expose server key to the browser bundle.
+  env: {
+    ALCHEMY_API_KEY: process.env.ALCHEMY_API_KEY,
+  },
   outputFileTracingRoot: path.join(__dirname),
   // dapvatar assets are loaded via runtime path strings in /api/play/og — include
   // them explicitly so serverless bundles don't silently drop manager portraits.

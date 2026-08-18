@@ -13,6 +13,10 @@ import { buildBatchDigest, encodeExecuteBatch, readBatchNonce } from "./provider
 import { getRpcUrl } from "@/app/utils";
 import { getDelegationContractAddress } from "./config";
 import { get7702AuthorizedImplementationForAddress } from "../hooks/useEIP7702Account";
+import {
+  HYPERFX_SUPPORTED_NETWORKS,
+  isHyperfxSwapEnabled,
+} from "./bridgeFeature";
 
 // ============================================================================
 // TYPES
@@ -69,7 +73,25 @@ export interface LifiTxQuote {
   raw: unknown;
 }
 
-export type BridgeQuote = NearDepositQuote | LifiTxQuote;
+export type BridgeQuote = NearDepositQuote | LifiTxQuote | HyperfxIntentQuote;
+
+/** Hyperbridge IntentGateway quote for same-chain USDC/USDT↔cNGN (HyperFX). */
+export interface HyperfxIntentQuote {
+  kind: "hyperfx-intent";
+  amountOut: string;
+  /** Protocol fee deducted from input, expressed in the receiving token. */
+  fee: string;
+  amountIn: string;
+  rawAmountIn: string;
+  rawAmountOut: string;
+  tokenIn: string;
+  tokenOut: string;
+  network: string;
+  chainId: number;
+  protocolFeeBps: number;
+  /** Quote validity window (ms since epoch). */
+  expiresAt: number;
+}
 
 export type BridgeStatus =
   | "PENDING_DEPOSIT"
@@ -85,18 +107,48 @@ export interface BridgeStatusResult {
   destinationTxHash?: string;
 }
 
-export type BridgeEngine = "near" | "lifi";
+export type BridgeEngine = "near" | "lifi" | "hyperfx";
+
+export { HYPERFX_SUPPORTED_NETWORKS };
+
+export function isHyperfxEnabled(): boolean {
+  return isHyperfxSwapEnabled();
+}
+
+const HYPERFX_STABLES = new Set(["usdc", "usdt"]);
+
+function isHyperfxStableCngnPair(fromSym: string, toSym: string): boolean {
+  return (
+    (HYPERFX_STABLES.has(fromSym) && toSym === "cngn") ||
+    (fromSym === "cngn" && HYPERFX_STABLES.has(toSym))
+  );
+}
+
+/**
+ * True when this leg pair should route through HyperFX (same-chain USDC/USDT↔cNGN).
+ */
+export function isHyperfxRoute(from: BridgeLeg, to: BridgeLeg): boolean {
+  if (!isHyperfxEnabled()) return false;
+  if (from.network !== to.network) return false;
+  if (!HYPERFX_SUPPORTED_NETWORKS.has(from.network)) return false;
+
+  return isHyperfxStableCngnPair(
+    from.token.toLowerCase(),
+    to.token.toLowerCase(),
+  );
+}
 
 // ============================================================================
 // ROUTING
 // ============================================================================
 
 /**
- * Routes to LI.FI for cNGN legs or any Starknet leg; NEAR Intents otherwise (EVM↔EVM stablecoins).
- * Starknet uses LI.FI because NEAR Intents' token list only includes STRK/ZEC/XRP on Starknet —
- * no USDC/stablecoins — so stablecoin routes via NEAR always fail asset resolution.
+ * Routes HyperFX for same-chain USDC/USDT↔cNGN on supported networks; LI.FI for other
+ * cNGN legs or Starknet; NEAR Intents otherwise (EVM↔EVM stablecoins).
  */
 export function selectEngine(from: BridgeLeg, to: BridgeLeg): BridgeEngine {
+  if (isHyperfxRoute(from, to)) return "hyperfx";
+
   const cngn = "cngn";
   const isStarknet = (n: string) => n.toLowerCase() === "starknet";
   if (from.token.toLowerCase() === cngn || to.token.toLowerCase() === cngn) return "lifi";
@@ -221,6 +273,9 @@ export function toRawAmount(amount: string, decimals: number): string {
  * comment there for how the origin-denominated `refundFee` fallback is converted.
  */
 export function bridgeFeeInReceivingToken(quote: BridgeQuote): number {
+  if (quote.kind === "hyperfx-intent") {
+    return parseFloat(quote.fee) || 0;
+  }
   if (quote.kind === "lifi-tx") {
     return parseFloat(quote.feeReceivingToken) || 0;
   }
@@ -460,6 +515,104 @@ export class LifiClient {
       txHash: data.txHash,
       destinationTxHash: data.receiving?.txHash,
     };
+  }
+}
+
+type HyperfxQuoteParams = {
+  network: string;
+  chainId: number;
+  fromToken: string;
+  toToken: string;
+  fromAmount: string;
+  fromDecimals: number;
+  fromAddress: string;
+};
+
+export class HyperfxClient {
+  async getQuote(
+    params: HyperfxQuoteParams,
+    auth?: BridgeAuth | string | null,
+  ): Promise<HyperfxIntentQuote | null> {
+    const { data, status } = await axios.get("/api/bridge/hyperfx/quote", {
+      params: {
+        network: params.network,
+        chainId: params.chainId,
+        fromToken: params.fromToken,
+        toToken: params.toToken,
+        fromAmount: params.fromAmount,
+        fromDecimals: params.fromDecimals,
+        fromAddress: params.fromAddress,
+      },
+      headers: authHeaders(auth),
+      validateStatus: () => true,
+    });
+
+    if (status === 404 || status === 422) return null;
+    if (status >= 400) {
+      throw new Error(data?.error || data?.message || `HyperFX quote failed (${status})`);
+    }
+    if (!data?.quote) return null;
+    return data.quote as HyperfxIntentQuote;
+  }
+
+  /**
+   * HyperFX status via server-side on-chain reads (same pattern as LI.FI status API).
+   */
+  async getStatus(
+    txHash: string,
+    auth?: BridgeAuth | string | null,
+    opts?: { settled?: boolean; fillTxHash?: string },
+  ): Promise<BridgeStatusResult> {
+    if (opts?.settled) {
+      return {
+        status: "SUCCESS",
+        txHash,
+        destinationTxHash: opts.fillTxHash ?? txHash,
+      };
+    }
+    if (typeof window !== "undefined") {
+      try {
+        const fillTxHash = sessionStorage.getItem(`hyperfx-settled-${txHash}`);
+        if (fillTxHash) {
+          return {
+            status: "SUCCESS",
+            txHash,
+            destinationTxHash: fillTxHash,
+          };
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    try {
+      const { data } = await axios.get<BridgeStatusResult>(
+        "/api/bridge/hyperfx/status",
+        {
+          params: { txHash, network: "Base" },
+          headers: authHeaders(auth),
+        },
+      );
+      if (typeof window !== "undefined") {
+        if (data.status === "SUCCESS") {
+          sessionStorage.setItem(
+            `hyperfx-settled-${txHash}`,
+            data.destinationTxHash ?? txHash,
+          );
+          sessionStorage.removeItem(`hyperfx-failed-${txHash}`);
+        } else if (data.status === "FAILED" || data.status === "REFUNDED") {
+          sessionStorage.setItem(
+            `hyperfx-failed-${txHash}`,
+            data.status === "REFUNDED" ? "refunded" : "expired",
+          );
+        }
+      }
+      return data;
+    } catch (err) {
+      console.warn("[HyperFX] Status check failed:", err);
+    }
+
+    return { status: "PROCESSING", txHash };
   }
 }
 

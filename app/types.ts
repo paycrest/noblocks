@@ -493,6 +493,8 @@ export type Config = {
   referralEnabled: boolean;
   /** Bridge/Swap feature flag. Controls Convert button visibility + proxy routes. */
   bridgeEnabled: boolean;
+  /** HyperFX (Hyperbridge IntentGateway) USDC↔cNGN same-chain swaps in Convert. */
+  hyperfxEnabled: boolean;
   onrampChainedForwardingEnabled: boolean;
   /**
    * KES fiat→crypto onramp. Default on (unset env); set

@@ -8,7 +8,7 @@ interface BridgeQuoteCardProps {
   quote: BridgeQuote | null;
   isLoading: boolean;
   error: Error | null;
-  engine: "near" | "lifi" | null;
+  engine: "near" | "lifi" | "hyperfx" | null;
   toToken?: string;
   onExpire?: () => void;
 }
@@ -63,7 +63,12 @@ export const BridgeQuoteCard: React.FC<BridgeQuoteCardProps> = ({
 
   if (!quote) return null;
 
-  const engineLabel = engine === "near" ? "NEAR Intents" : "LI.FI";
+  const engineLabel =
+    engine === "near"
+      ? "NEAR Intents"
+      : engine === "hyperfx"
+        ? "HyperFX"
+        : "LI.FI";
   const routeName =
     quote.kind === "lifi-tx" &&
     quote.raw &&
@@ -131,6 +136,13 @@ export const BridgeQuoteCard: React.FC<BridgeQuoteCardProps> = ({
         <Row
           label="Transaction fee"
           value={`${formatTokenAmount(quote.feeReceivingToken)} ${toToken || ""}`}
+        />
+      )}
+
+      {quote.kind === "hyperfx-intent" && Number(quote.fee) > 0 && (
+        <Row
+          label="Transaction fee"
+          value={`${formatTokenAmount(quote.fee)} ${toToken || ""}`}
         />
       )}
     </div>

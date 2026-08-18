@@ -7,6 +7,7 @@ import {
   selectEngine,
   NearIntentsClient,
   LifiClient,
+  HyperfxClient,
   toLifiChainId,
   resolveNearAssetId,
   toRawAmount,
@@ -24,6 +25,7 @@ const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 
 const nearClient = new NearIntentsClient();
 const lifiClient = new LifiClient();
+const hyperfxClient = new HyperfxClient();
 
 // ============================================================================
 // useBridgeQuote
@@ -69,6 +71,27 @@ async function fetchLifiQuote(
   }, auth);
 }
 
+async function fetchHyperfxQuote(
+  from: BridgeLeg,
+  to: BridgeLeg,
+  amount: string,
+  evmAddress: string,
+  auth: BridgeAuth,
+): Promise<BridgeQuote | null> {
+  return hyperfxClient.getQuote(
+    {
+      network: from.network,
+      chainId: Number(from.chainId),
+      fromToken: from.token,
+      toToken: to.token,
+      fromAmount: amount,
+      fromDecimals: from.decimals,
+      fromAddress: evmAddress,
+    },
+    auth,
+  );
+}
+
 interface UseBridgeQuoteParams {
   from: BridgeLeg | null;
   to: BridgeLeg | null;
@@ -109,6 +132,22 @@ export function useBridgeQuote({
       : { token: (await getAccessToken?.()) ?? null };
     const engine = selectEngine(from, to);
     const rawAmount = toRawAmount(amount, from.decimals);
+
+    if (engine === "hyperfx") {
+      try {
+        const hyperfxQuote = await fetchHyperfxQuote(
+          from,
+          to,
+          amount,
+          evmAddress,
+          auth,
+        );
+        if (hyperfxQuote) return hyperfxQuote;
+      } catch {
+        // Fall through to LI.FI when HyperFX is unavailable.
+      }
+      return fetchLifiQuote(from, to, rawAmount, evmAddress, slippageBps, auth);
+    }
 
     if (engine === "near") {
       const tokensRes = await fetch("/api/bridge/near-intents/tokens", {
@@ -171,6 +210,10 @@ export function useBridgeQuote({
       // LI.FI quotes embed a slippage/validity window but no explicit deadline — refresh on a
       // fixed interval so a stale transactionRequest is never executed (it would revert on-chain).
       if (data.kind === "lifi-tx") return 30_000;
+      if (data.kind === "hyperfx-intent") {
+        const msLeft = data.expiresAt - Date.now();
+        return msLeft > 30_000 ? 30_000 : msLeft > 0 ? msLeft : false;
+      }
       // NEAR deposit quotes: stop refetching once the deposit deadline has nearly passed.
       return data.deadline - Date.now() > 30_000 ? 30_000 : false;
     },
@@ -227,7 +270,9 @@ export function useBridgeStatus({ engine, refId, enabled, getAccessToken, getInj
         const status =
           engine === "near"
             ? await nearClient.getStatus(refId, auth)
-            : await lifiClient.getStatus(refId, auth);
+            : engine === "hyperfx"
+              ? await hyperfxClient.getStatus(refId, auth)
+              : await lifiClient.getStatus(refId, auth);
 
         setResult(status);
         if (status.status === "SUCCESS" || status.status === "REFUNDED" || status.status === "FAILED") {
@@ -565,6 +610,112 @@ export function useBridgeExecute({
           onSuccess?.(evmHash);
           // LI.FI: poll status by txHash, not a separate deposit address
           return { txHash: evmHash, depositRefId: evmHash };
+        } else if (quote.kind === "hyperfx-intent") {
+          const walletAddr = (isInjectedWallet ? injectedAddress : embeddedWallet?.address) as
+            | `0x${string}`
+            | undefined;
+          if (!walletAddr) {
+            throw new Error("EVM wallet not connected");
+          }
+
+          const { runHyperfxSwap } = await import("@/app/lib/hyperfx");
+          type Hex = `0x${string}`;
+
+          const signTransaction = async (tx: {
+            to: Hex;
+            data: Hex;
+            value: bigint;
+          }): Promise<Hex> => {
+            const valueHex =
+              tx.value > BigInt(0) ? (`0x${tx.value.toString(16)}` as Hex) : ("0x0" as Hex);
+
+            if (isInjectedWallet && injectedProvider && injectedAddress) {
+              await injectedProvider.request({
+                method: "wallet_switchEthereumChain",
+                params: [{ chainId: `0x${quote.chainId.toString(16)}` }],
+              });
+              return (await injectedProvider.request({
+                method: "eth_sendTransaction",
+                params: [
+                  {
+                    from: injectedAddress,
+                    to: tx.to,
+                    data: tx.data,
+                    value: valueHex,
+                  },
+                ],
+              })) as Hex;
+            }
+
+            if (!embeddedWallet) {
+              throw new Error("EVM wallet not configured for HyperFX");
+            }
+            await embeddedWallet.switchChain(quote.chainId);
+            const provider = await embeddedWallet.getEthereumProvider();
+            return (await provider.request({
+              method: "eth_sendTransaction",
+              params: [
+                {
+                  from: embeddedWallet.address,
+                  to: tx.to,
+                  data: tx.data,
+                  value: valueHex,
+                },
+              ],
+            })) as Hex;
+          };
+
+          const executeSponsoredBatch =
+            !isInjectedWallet && embeddedWallet && signDelegationAuthorization && getAccessToken
+              ? async (calls: BatchCall[], gasLimit?: number): Promise<Hex> => {
+                  const chain = selectedNetworkRef.current?.chain;
+                  if (!chain) {
+                    throw new Error("Selected network not found");
+                  }
+                  await embeddedWallet!.switchChain(quote.chainId);
+                  const hash = await executeBatchCalls({
+                    chain: chain as any,
+                    calls,
+                    getAccessToken: getAccessToken!,
+                    embeddedWallet: embeddedWallet!,
+                    signDelegationAuthorization: signDelegationAuthorization!,
+                    gasLimit: gasLimit ?? 1_500_000,
+                  });
+                  return hash as Hex;
+                }
+              : undefined;
+
+          const executeSponsoredCall = executeSponsoredBatch
+            ? async (call: BatchCall, gasLimit?: number): Promise<Hex> =>
+                executeSponsoredBatch([call], gasLimit)
+            : undefined;
+
+          const switchChain = async (chainId: number) => {
+            if (isInjectedWallet && injectedProvider) {
+              await injectedProvider.request({
+                method: "wallet_switchEthereumChain",
+                params: [{ chainId: `0x${chainId.toString(16)}` }],
+              });
+              return;
+            }
+            if (embeddedWallet) {
+              await embeddedWallet.switchChain(chainId);
+            }
+          };
+
+          const { placementTxHash } = await runHyperfxSwap(quote, {
+            address: walletAddr,
+            chainId: quote.chainId,
+            signTransaction,
+            executeSponsoredCall,
+            executeSponsoredBatch,
+            switchChain,
+          });
+
+          setTxHash(placementTxHash);
+          setIsSuccess(true);
+          onSuccess?.(placementTxHash);
+          return { txHash: placementTxHash, depositRefId: placementTxHash };
         }
         throw new Error("Unsupported quote type");
       } catch (err) {

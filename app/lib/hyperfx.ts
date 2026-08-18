@@ -49,7 +49,7 @@ const INDEXER_URL =
   process.env.HYPERBRIDGE_INDEXER_URL ||
   "https://nexus.indexer.polytope.technology";
 
-const NOBLOCKS_GRAFFITI = padHex(stringToHex("noblocks"), {
+const NOBLOCKS_GRAFFITI = padHex(stringToHex("noblocks.xyz"), {
   size: 32,
   dir: "right",
 });

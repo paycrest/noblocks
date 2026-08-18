@@ -18,6 +18,7 @@ import {
   HYPERFX_SUPPORTED_NETWORKS,
   isHyperfxSwapEnabled,
 } from "@/app/lib/bridgeFeature";
+import { getHyperfxNetworkConfig } from "@/app/lib/hyperfxNetworks";
 import type { HyperfxIntentQuote } from "@/app/lib/bridge";
 
 const UPSTREAM_TIMEOUT_MS = 20_000;
@@ -63,6 +64,51 @@ function resolveTokenAddress(
   return null;
 }
 
+function resolveTokenDecimals(
+  chain: Awaited<ReturnType<typeof EvmChain.create>>,
+  sourceId: string,
+  symbol: string,
+): number {
+  const sym = symbol.toLowerCase();
+  if (sym === "usdc") {
+    return chain.configService.getUsdcDecimals(sourceId) ?? 6;
+  }
+  if (sym === "usdt") {
+    return chain.configService.getUsdtDecimals(sourceId) ?? 6;
+  }
+  if (sym === "cngn") {
+    return chain.configService.getCNgnDecimals(sourceId) ?? 6;
+  }
+  return 6;
+}
+
+function resolveQuoteChainId(network: string, chainIdRaw: string | null): number {
+  const networkCfg = getHyperfxNetworkConfig(network);
+  const defaultChainId = networkCfg?.chainId ?? 8453;
+  if (!chainIdRaw?.trim()) {
+    return defaultChainId;
+  }
+  const parsed = Number(chainIdRaw);
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    return defaultChainId;
+  }
+  if (networkCfg && parsed !== networkCfg.chainId) {
+    return networkCfg.chainId;
+  }
+  return parsed;
+}
+
+function feeInReceivingToken(
+  feeInInput: bigint,
+  amountIn: bigint,
+  amountOut: bigint,
+): bigint {
+  if (amountIn <= BigInt(0)) {
+    return feeInInput;
+  }
+  return (feeInInput * amountOut) / amountIn;
+}
+
 export const GET = withRateLimit(async (request: NextRequest) => {
   const startTime = Date.now();
 
@@ -76,8 +122,6 @@ export const GET = withRateLimit(async (request: NextRequest) => {
     const fromToken = normalizeTokenSymbol(searchParams.get("fromToken") ?? "");
     const toToken = normalizeTokenSymbol(searchParams.get("toToken") ?? "");
     const fromAmount = searchParams.get("fromAmount")?.trim() ?? "";
-    const fromDecimalsRaw = searchParams.get("fromDecimals");
-    const fromDecimals = fromDecimalsRaw ? Number(fromDecimalsRaw) : 6;
 
     trackApiRequest(request, "/api/bridge/hyperfx/quote", "GET", {
       network,
@@ -122,63 +166,83 @@ export const GET = withRateLimit(async (request: NextRequest) => {
       );
     }
 
-    const timeout = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error("HyperFX quote timed out")), UPSTREAM_TIMEOUT_MS),
-    );
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+    const timeout = new Promise<never>((_, reject) => {
+      timeoutId = setTimeout(
+        () => reject(new Error("HyperFX quote timed out")),
+        UPSTREAM_TIMEOUT_MS,
+      );
+    });
 
     const quotePromise = (async (): Promise<HyperfxIntentQuote> => {
       const bundlerUrl = requireHyperfxBundlerUrl(network);
       const chain = await EvmChain.create(rpcUrl, bundlerUrl);
       const coprocessor = await IntentsCoprocessor.connect(WS_URL);
-      const queryClient = createQueryClient({ url: INDEXER_URL });
-      const gateway = (
-        await IntentGateway.create(chain, chain, coprocessor)
-      ).withQueryClient(queryClient);
+      try {
+        const queryClient = createQueryClient({ url: INDEXER_URL });
+        const gateway = (
+          await IntentGateway.create(chain, chain, coprocessor)
+        ).withQueryClient(queryClient);
 
-      const sourceId = chain.config.stateMachineId;
-      const tokenIn = resolveTokenAddress(chain, sourceId, fromToken);
-      const tokenOut = resolveTokenAddress(chain, sourceId, toToken);
-      if (!tokenIn || !tokenOut) {
-        throw new Error(`Token pair not configured for ${network}`);
+        const sourceId = chain.config.stateMachineId;
+        const tokenIn = resolveTokenAddress(chain, sourceId, fromToken);
+        const tokenOut = resolveTokenAddress(chain, sourceId, toToken);
+        if (!tokenIn || !tokenOut) {
+          throw new Error(`Token pair not configured for ${network}`);
+        }
+
+        const fromDecimals = resolveTokenDecimals(chain, sourceId, fromToken);
+        const toDecimals = resolveTokenDecimals(chain, sourceId, toToken);
+        const amountIn = parseUnits(fromAmount, fromDecimals);
+        const chainId = resolveQuoteChainId(
+          network,
+          searchParams.get("chainId"),
+        );
+
+        const quote = await gateway.quoteIntent({
+          tokenIn: tokenIn as `0x${string}`,
+          tokenOut: tokenOut as `0x${string}`,
+          amountIn,
+        });
+
+        const amountOutFormatted = formatUnits(quote.amountOut, toDecimals);
+        const protocolFeeBps = Number(quote.quoteMetadata?.protocolFeeBps ?? 5);
+        const feeRaw = (amountIn * BigInt(protocolFeeBps)) / BigInt(10000);
+        const feeInReceiving = feeInReceivingToken(
+          feeRaw,
+          amountIn,
+          quote.amountOut,
+        );
+        const feeFormatted = formatUnits(feeInReceiving, toDecimals);
+
+        return {
+          kind: "hyperfx-intent",
+          amountOut: amountOutFormatted,
+          fee: feeFormatted,
+          amountIn: fromAmount,
+          rawAmountIn: amountIn.toString(),
+          rawAmountOut: quote.amountOut.toString(),
+          tokenIn,
+          tokenOut,
+          network,
+          chainId,
+          protocolFeeBps,
+          expiresAt: Date.now() + QUOTE_TTL_MS,
+          bundlerUrl,
+        };
+      } finally {
+        await coprocessor.disconnect().catch(() => undefined);
       }
-
-      const amountIn = parseUnits(fromAmount, fromDecimals);
-      const chainIdParam = Number(searchParams.get("chainId"));
-      const chainId = Number.isFinite(chainIdParam) ? chainIdParam : 8453;
-
-      const quote = await gateway.quoteIntent({
-        tokenIn: tokenIn as `0x${string}`,
-        tokenOut: tokenOut as `0x${string}`,
-        amountIn,
-      });
-
-      const toDecimals = 6;
-      const amountOutFormatted = formatUnits(quote.amountOut, toDecimals);
-      const protocolFeeBps = Number(quote.quoteMetadata?.protocolFeeBps ?? 5);
-      const feeRaw = (amountIn * BigInt(protocolFeeBps)) / BigInt(10000);
-      const feeInReceiving =
-        toToken === "cNGN"
-          ? (feeRaw * quote.amountOut) / (amountIn || BigInt(1))
-          : feeRaw;
-      const feeFormatted = formatUnits(feeInReceiving, toDecimals);
-
-      return {
-        kind: "hyperfx-intent",
-        amountOut: amountOutFormatted,
-        fee: feeFormatted,
-        amountIn: fromAmount,
-        rawAmountIn: amountIn.toString(),
-        rawAmountOut: quote.amountOut.toString(),
-        tokenIn,
-        tokenOut,
-        network,
-        chainId,
-        protocolFeeBps,
-        expiresAt: Date.now() + QUOTE_TTL_MS,
-      };
     })();
 
-    const quote = await Promise.race([quotePromise, timeout]);
+    let quote: HyperfxIntentQuote;
+    try {
+      quote = await Promise.race([quotePromise, timeout]);
+    } finally {
+      if (timeoutId !== undefined) {
+        clearTimeout(timeoutId);
+      }
+    }
 
     trackApiResponse(
       "/api/bridge/hyperfx/quote",
@@ -193,8 +257,9 @@ export const GET = withRateLimit(async (request: NextRequest) => {
     trackApiError(request, "/api/bridge/hyperfx/quote", "GET", err as Error, 502, {
       response_time_ms: Date.now() - startTime,
     });
-    const message =
-      err instanceof Error ? err.message : "Failed to fetch HyperFX quote";
-    return NextResponse.json({ error: message }, { status: 502 });
+    return NextResponse.json(
+      { error: "Failed to fetch HyperFX quote" },
+      { status: 502 },
+    );
   }
 });

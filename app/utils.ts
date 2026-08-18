@@ -23,6 +23,10 @@ import { colors } from "./mocks";
 import { fetchTokens } from "./api/aggregator";
 import { toast } from "sonner";
 import config from "./lib/config";
+import {
+  getHyperfxNetworkConfig,
+  isHyperfxSupportedNetwork,
+} from "./lib/hyperfxNetworks";
 import { logBalanceTelemetry } from "./lib/balanceTelemetry";
 
 /**
@@ -612,27 +616,66 @@ export function getRpcUrl(network: string) {
   }
 }
 
-/** ERC-4337 bundler URL for HyperFX IntentGateway fill execution (Base via Alchemy). */
-function alchemyBaseBundlerUrl(apiKey: string) {
-  return `https://base-mainnet.g.alchemy.com/v2/${apiKey.trim()}`;
+/** ERC-4337 bundler URL for HyperFX IntentGateway fill execution (Alchemy per chain). */
+function buildHyperfxBundlerUrl(network: string, alchemyKey: string): string | undefined {
+  if (!isHyperfxSupportedNetwork(network)) {
+    return undefined;
+  }
+  const cfg = getHyperfxNetworkConfig(network)!;
+  return `https://${cfg.alchemyHost}.g.alchemy.com/v2/${alchemyKey.trim()}`;
 }
 
+/** Server-only: builds bundler URL from ALCHEMY_API_KEY. */
 export function getHyperfxBundlerUrl(network: string): string | undefined {
   const alchemyKey = process.env.ALCHEMY_API_KEY?.trim();
-  if (network === "Base" && alchemyKey) {
-    return alchemyBaseBundlerUrl(alchemyKey);
+  if (!alchemyKey) {
+    return undefined;
   }
-  return undefined;
+  return buildHyperfxBundlerUrl(network, alchemyKey);
 }
 
 export function requireHyperfxBundlerUrl(network: string): string {
   const url = getHyperfxBundlerUrl(network);
   if (!url) {
-    throw new Error(
-      `HyperFX bundler URL not configured for ${network}. Set ALCHEMY_API_KEY (Base mainnet).`,
-    );
+    throw new Error("HyperFX bundler URL not configured");
   }
   return url;
+}
+
+const clientBundlerUrlCache = new Map<string, string>();
+
+/** Server: sync from env. Browser: optional fetch (requires auth) — prefer quote.bundlerUrl. */
+export async function resolveHyperfxBundlerUrl(
+  network: string,
+  authToken?: string | null,
+): Promise<string> {
+  if (typeof window === "undefined") {
+    return requireHyperfxBundlerUrl(network);
+  }
+
+  const cached = clientBundlerUrlCache.get(network);
+  if (cached) {
+    return cached;
+  }
+
+  const headers: HeadersInit = {};
+  if (authToken) {
+    headers.Authorization = `Bearer ${authToken}`;
+  }
+
+  const res = await fetch(
+    `/api/bridge/hyperfx/bundler?network=${encodeURIComponent(network)}`,
+    { headers },
+  );
+  if (!res.ok) {
+    throw new Error("HyperFX bundler URL not configured");
+  }
+  const data = (await res.json()) as { bundlerUrl?: string };
+  if (!data.bundlerUrl) {
+    throw new Error("HyperFX bundler URL not configured");
+  }
+  clientBundlerUrlCache.set(network, data.bundlerUrl);
+  return data.bundlerUrl;
 }
 
 // Token caching

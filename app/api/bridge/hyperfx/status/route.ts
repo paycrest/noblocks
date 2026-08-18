@@ -1,19 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
-import { orderCommitment } from "@hyperbridge/sdk";
 import { createPublicClient, http, parseEventLogs } from "viem";
-import { base } from "viem/chains";
 import { withRateLimit } from "@/app/lib/rate-limit";
 import { getRpcUrl } from "@/app/utils";
 import type { BridgeStatusResult } from "@/app/lib/bridge";
 import {
   HYPERFX_GATEWAY_BY_NETWORK,
+  orderFromOrderPlacedLog,
   resolveHyperfxOrderStatus,
 } from "@/app/lib/hyperfxStatus";
+import { HYPERFX_VIEM_CHAIN_BY_NETWORK } from "@/app/lib/hyperfxNetworks";
 import { IntentGatewayABI } from "@hyperbridge/sdk";
 
-const CHAIN_BY_NETWORK = {
-  Base: base,
-} as const;
+const CHAIN_BY_NETWORK = HYPERFX_VIEM_CHAIN_BY_NETWORK;
 
 const ABI =
   (IntentGatewayABI as { ABI?: typeof IntentGatewayABI }).ABI ??
@@ -28,7 +26,7 @@ export const GET = withRateLimit(async (request: NextRequest) => {
   }
 
   const gateway = HYPERFX_GATEWAY_BY_NETWORK[network];
-  const chain = CHAIN_BY_NETWORK[network as keyof typeof CHAIN_BY_NETWORK];
+  const chain = CHAIN_BY_NETWORK[network];
   const rpcUrl = getRpcUrl(network);
   if (!gateway || !chain || !rpcUrl) {
     return NextResponse.json({ error: `Unsupported network: ${network}` }, { status: 422 });
@@ -47,39 +45,7 @@ export const GET = withRateLimit(async (request: NextRequest) => {
     return NextResponse.json(result);
   }
 
-  const args = placed.args;
-  const order = {
-    user: args.user,
-    source: args.source,
-    destination: args.destination,
-    deadline: args.deadline,
-    nonce: args.nonce,
-    fees: args.fees,
-    session: args.session,
-    predispatch: { assets: args.predispatch, call: args.predispatchCall ?? "0x" },
-    inputs: args.inputs,
-    output: {
-      beneficiary: args.beneficiary,
-      assets: args.outputs,
-      call: args.outputCall ?? "0x",
-    },
-    id: orderCommitment({
-      user: args.user,
-      source: args.source,
-      destination: args.destination,
-      deadline: args.deadline,
-      nonce: args.nonce,
-      fees: args.fees,
-      session: args.session,
-      predispatch: { assets: args.predispatch, call: args.predispatchCall ?? "0x" },
-      inputs: args.inputs,
-      output: {
-        beneficiary: args.beneficiary,
-        assets: args.outputs,
-        call: args.outputCall ?? "0x",
-      },
-    }),
-  };
+  const order = orderFromOrderPlacedLog(placed.args);
 
   const resolved = await resolveHyperfxOrderStatus(
     client,

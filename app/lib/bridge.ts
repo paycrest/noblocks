@@ -91,6 +91,8 @@ export interface HyperfxIntentQuote {
   protocolFeeBps: number;
   /** Quote validity window (ms since epoch). */
   expiresAt: number;
+  /** ERC-4337 bundler URL from the authenticated quote response. */
+  bundlerUrl?: string;
 }
 
 export type BridgeStatus =

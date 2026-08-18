@@ -5,14 +5,18 @@
 import { IntentGatewayABI, orderCommitment, type Order } from "@hyperbridge/sdk";
 import type { Hex, PublicClient } from "viem";
 import { parseEventLogs } from "viem";
+import { HYPERFX_GATEWAY_BY_NETWORK } from "@/app/lib/hyperfxNetworks";
 
-export const HYPERFX_GATEWAY_BY_NETWORK: Record<string, `0x${string}`> = {
-  Base: "0xAe041F7B0CB581876832830baeB6a2Aa2a3C9716",
-};
+export { HYPERFX_GATEWAY_BY_NETWORK };
 
 const INTENT_GATEWAY_ABI =
   (IntentGatewayABI as { ABI?: typeof IntentGatewayABI }).ABI ??
   IntentGatewayABI;
+
+const ORDER_FILLED_EVENT = INTENT_GATEWAY_ABI.find(
+  (item): item is Extract<(typeof INTENT_GATEWAY_ABI)[number], { type: "event"; name: "OrderFilled" }> =>
+    item.type === "event" && item.name === "OrderFilled",
+);
 
 export type HyperfxTerminalStatus = "SUCCESS" | "REFUNDED" | "FAILED" | "PROCESSING";
 
@@ -29,6 +33,46 @@ function tokenBytes32ToAddress(token: Hex): `0x${string}` {
 export function normalizeHyperfxOrder(order: Order): Order {
   const id = order.id ?? orderCommitment(order);
   return { ...order, id };
+}
+
+type OrderPlacedEventArgs = {
+  user: `0x${string}`;
+  source: string;
+  destination: string;
+  deadline: bigint;
+  nonce: bigint;
+  fees: bigint;
+  session: `0x${string}`;
+  beneficiary: `0x${string}`;
+  predispatch: ReadonlyArray<{ token: `0x${string}`; amount: bigint }>;
+  inputs: ReadonlyArray<{ token: `0x${string}`; amount: bigint }>;
+  outputs: ReadonlyArray<{ token: `0x${string}`; amount: bigint }>;
+  predispatchCall?: `0x${string}`;
+  outputCall?: `0x${string}`;
+};
+
+/** Builds a mutable SDK `Order` from an `OrderPlaced` log (viem args are readonly). */
+export function orderFromOrderPlacedLog(args: OrderPlacedEventArgs): Order {
+  const order: Order = {
+    user: args.user,
+    source: args.source,
+    destination: args.destination,
+    deadline: args.deadline,
+    nonce: args.nonce,
+    fees: args.fees,
+    session: args.session,
+    predispatch: {
+      assets: args.predispatch.map((asset) => ({ ...asset })),
+      call: args.predispatchCall ?? "0x",
+    },
+    inputs: args.inputs.map((asset) => ({ ...asset })),
+    output: {
+      beneficiary: args.beneficiary,
+      assets: args.outputs.map((asset) => ({ ...asset })),
+      call: args.outputCall ?? "0x",
+    },
+  };
+  return normalizeHyperfxOrder(order);
 }
 
 export async function isOrderFilledByStorage(
@@ -59,8 +103,14 @@ export async function findOrderFilledTxHash(
   commitment: Hex,
   fromBlock: bigint,
 ): Promise<Hex | null> {
+  if (!ORDER_FILLED_EVENT) {
+    return null;
+  }
+
   const logs = await client.getLogs({
     address: gateway,
+    event: ORDER_FILLED_EVENT,
+    args: { commitment },
     fromBlock,
     toBlock: "latest",
   });
@@ -90,7 +140,7 @@ export async function isOrderEscrowEmpty(
       functionName: "_orders",
       args: [commitment, tokenBytes32ToAddress(input.token as Hex)],
     });
-    if (escrowed !== 0n) return false;
+    if (escrowed !== BigInt(0)) return false;
   }
   return true;
 }
@@ -110,7 +160,15 @@ export async function resolveHyperfxOrderStatus(
   const commitment = order.id as Hex;
 
   if (await isOrderFilledByStorage(client, gateway, commitment)) {
-    return { status: "SUCCESS", fillTxHash: undefined };
+    const fillTxHash = await findOrderFilledTxHash(
+      client,
+      gateway,
+      commitment,
+      placementBlockNumber,
+    );
+    return fillTxHash
+      ? { status: "SUCCESS", fillTxHash }
+      : { status: "SUCCESS" };
   }
 
   const fillTxHash = await findOrderFilledTxHash(

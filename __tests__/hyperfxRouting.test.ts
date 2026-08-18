@@ -5,7 +5,12 @@ jest.mock("../app/hooks/useEIP7702Account", () => ({
 }));
 
 jest.mock("../app/lib/bridgeFeature", () => ({
-  HYPERFX_SUPPORTED_NETWORKS: new Set(["Base"]),
+  HYPERFX_SUPPORTED_NETWORKS: new Set([
+    "Base",
+    "Polygon",
+    "BNB Smart Chain",
+    "Ethereum",
+  ]),
   isHyperfxSwapEnabled: jest.fn(() => true),
 }));
 
@@ -15,13 +20,21 @@ import {
   type BridgeLeg,
 } from "../app/lib/bridge";
 
+const CHAIN_ID: Record<string, number> = {
+  Base: 8453,
+  Polygon: 137,
+  "BNB Smart Chain": 56,
+  Ethereum: 1,
+  Lisk: 1135,
+};
+
 const leg = (
   network: string,
   token: string,
   tokenAddress: string,
 ): BridgeLeg => ({
   network,
-  chainId: network === "Base" ? 8453 : 137,
+  chainId: CHAIN_ID[network] ?? 137,
   token,
   tokenAddress,
   decimals: 6,
@@ -33,6 +46,13 @@ describe("HyperFX routing", () => {
   it("selects hyperfx for same-chain Base USDC→cNGN when enabled", () => {
     const from = leg("Base", "USDC", "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913");
     const to = leg("Base", "cNGN", "0x46C85152bFe9f96829aA94755D9f915F9B10EF5F");
+    expect(isHyperfxRoute(from, to)).toBe(true);
+    expect(selectEngine(from, to)).toBe("hyperfx");
+  });
+
+  it("selects hyperfx for same-chain Polygon USDC→cNGN when enabled", () => {
+    const from = leg("Polygon", "USDC", "0x3c499c542cef5e3811e1192ce70d8cc03d5c3359");
+    const to = leg("Polygon", "cNGN", "0x52828daa48c1a9a06f37500882b42daf0be04c3b");
     expect(isHyperfxRoute(from, to)).toBe(true);
     expect(selectEngine(from, to)).toBe("hyperfx");
   });
@@ -63,9 +83,9 @@ describe("HyperFX routing", () => {
     expect(selectEngine(from, to)).toBe("lifi");
   });
 
-  it("does not route hyperfx on unsupported networks", () => {
-    const from = leg("Polygon", "USDC", "0xabc");
-    const to = leg("Polygon", "cNGN", "0xdef");
+  it("does not route hyperfx on Lisk (cNGN present but not on Hyperbridge)", () => {
+    const from = leg("Lisk", "USDT", "0x05D032ac25d322df992303dCa074EE7392C117b9");
+    const to = leg("Lisk", "cNGN", "0xC7aB2C35Ea37236e644C24A4E4a1911c082887c0");
     expect(isHyperfxRoute(from, to)).toBe(false);
     expect(selectEngine(from, to)).toBe("lifi");
   });

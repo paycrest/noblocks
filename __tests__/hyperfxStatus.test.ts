@@ -1,7 +1,18 @@
 /// <reference types="jest" />
 
 jest.mock("@hyperbridge/sdk", () => ({
-  IntentGatewayABI: { ABI: [] },
+  IntentGatewayABI: {
+    ABI: [
+      {
+        type: "event",
+        name: "OrderFilled",
+        inputs: [
+          { name: "commitment", type: "bytes32", indexed: true },
+          { name: "filler", type: "address", indexed: false },
+        ],
+      },
+    ],
+  },
   orderCommitment: jest.fn(() => "0x0"),
 }));
 
@@ -63,6 +74,24 @@ describe("resolveHyperfxOrderStatus", () => {
   beforeEach(() => {
     const { parseEventLogs } = jest.requireMock("viem");
     parseEventLogs.mockReturnValue([]);
+  });
+
+  it("returns SUCCESS with fill tx when storage slot confirms fill", async () => {
+    const fillTx =
+      "0xfilled123456789012345678901234567890123456789012345678901234567890" as const;
+    const { parseEventLogs } = jest.requireMock("viem");
+    parseEventLogs.mockReturnValue([
+      {
+        eventName: "OrderFilled",
+        args: { commitment },
+        transactionHash: fillTx,
+      },
+    ]);
+
+    const client = mockClient({ filled: true, escrow: 0n, blockNumber: 50n });
+    const result = await resolveHyperfxOrderStatus(client, gateway, order, 10n);
+    expect(result.status).toBe("SUCCESS");
+    expect(result.fillTxHash).toBe(fillTx);
   });
 
   it("returns SUCCESS when escrow is empty but OrderFilled log exists", async () => {

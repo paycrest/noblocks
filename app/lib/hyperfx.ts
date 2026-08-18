@@ -26,12 +26,16 @@ import {
   zeroHash,
   type Hex,
 } from "viem";
-import { base } from "viem/chains";
 import { appendBaseBuilderCode } from "@/app/lib/baseBuilderCode";
 import type { BatchCall } from "@/app/lib/providerBatch";
-import { getRpcUrl, requireHyperfxBundlerUrl } from "@/app/utils";
+import { getRpcUrl, resolveHyperfxBundlerUrl } from "@/app/utils";
+import {
+  HYPERFX_CHAIN_ID_BY_NETWORK,
+  HYPERFX_VIEM_CHAIN_BY_NETWORK,
+} from "@/app/lib/hyperfxNetworks";
 import {
   HYPERFX_GATEWAY_BY_NETWORK,
+  orderFromOrderPlacedLog,
   resolveHyperfxOrderStatus,
 } from "@/app/lib/hyperfxStatus";
 import type { HyperfxIntentQuote } from "./bridge";
@@ -135,13 +139,9 @@ function parseOrderPlacedFromReceipt(
 
 const HYPERFX_GATEWAY = HYPERFX_GATEWAY_BY_NETWORK;
 
-const VIEM_CHAIN = {
-  Base: base,
-} as const;
-
 function createNetworkPublicClient(network: string) {
   const rpcUrl = getRpcUrl(network);
-  const chain = VIEM_CHAIN[network as keyof typeof VIEM_CHAIN];
+  const chain = HYPERFX_VIEM_CHAIN_BY_NETWORK[network];
   if (!rpcUrl || !chain) return null;
   return createPublicClient({ chain, transport: http(rpcUrl) });
 }
@@ -278,30 +278,6 @@ export function saveHyperfxPlacedOrder(
   );
 }
 
-function orderFromPlacedLog(log: DecodedOrderPlacedLog): Order {
-  const { args } = log;
-  const order: Order = {
-    user: args.user,
-    source: args.source,
-    destination: args.destination,
-    deadline: args.deadline,
-    nonce: args.nonce,
-    fees: args.fees,
-    session: args.session,
-    predispatch: {
-      assets: args.predispatch.map((asset) => ({ ...asset })),
-      call: args.predispatchCall ?? "0x",
-    },
-    inputs: args.inputs.map((asset) => ({ ...asset })),
-    output: {
-      beneficiary: args.beneficiary,
-      assets: args.outputs.map((asset) => ({ ...asset })),
-      call: args.outputCall ?? "0x",
-    },
-  };
-  return { ...order, id: orderCommitment(order) };
-}
-
 async function loadHyperfxOrderContext(
   placementTxHash: Hex,
   network: string,
@@ -344,7 +320,7 @@ async function loadHyperfxOrderContext(
   const placedLog = parseOrderPlacedFromReceipt(receipt.logs, gateway);
   if (!placedLog) return null;
 
-  const order = orderFromPlacedLog(placedLog);
+  const order = orderFromOrderPlacedLog(placedLog.args);
   saveHyperfxPlacedOrder(
     placementTxHash,
     network,
@@ -360,7 +336,7 @@ async function resolvePlacementBlockNumber(
   network: string,
 ): Promise<bigint> {
   const publicClient = createNetworkPublicClient(network);
-  if (!publicClient) return 0n;
+  if (!publicClient) return BigInt(0);
   const receipt = await publicClient.getTransactionReceipt({ hash: placementTxHash });
   return receipt.blockNumber;
 }
@@ -374,7 +350,7 @@ export async function resolveHyperfxOnChainStatus(
 ): Promise<HyperfxStatusResult> {
   const txHash = placementTxHash;
   let network = "Base";
-  let chainId = 8453;
+  let chainId = HYPERFX_CHAIN_ID_BY_NETWORK.Base ?? 8453;
 
   if (typeof window !== "undefined") {
     try {
@@ -434,17 +410,20 @@ export async function resolveHyperfxOnChainStatus(
   return { status: "PROCESSING", txHash };
 }
 
-async function createEvmChain(network: string) {
+async function createEvmChain(network: string, bundlerUrl: string) {
   const rpcUrl = getRpcUrl(network);
   if (!rpcUrl) {
     throw new Error(`RPC URL not configured for ${network}`);
   }
-  const bundlerUrl = requireHyperfxBundlerUrl(network);
   return EvmChain.create(rpcUrl, bundlerUrl);
 }
 
-async function createExecutionGateway(network: string, chainId: number) {
-  const chain = await createEvmChain(network);
+async function createExecutionGateway(
+  network: string,
+  chainId: number,
+  bundlerUrl: string,
+) {
+  const chain = await createEvmChain(network, bundlerUrl);
   const coprocessor = await IntentsCoprocessor.connect(WS_URL);
   const queryClient = createQueryClient({ url: INDEXER_URL });
   const gateway = (
@@ -470,7 +449,14 @@ export async function runHyperfxSwap(
     await wallet.switchChain(quote.chainId);
   }
 
-  const { gateway, chain } = await createExecutionGateway(quote.network, quote.chainId);
+  const bundlerUrl =
+    quote.bundlerUrl?.trim() || (await resolveHyperfxBundlerUrl(quote.network));
+
+  const { gateway, chain } = await createExecutionGateway(
+    quote.network,
+    quote.chainId,
+    bundlerUrl,
+  );
   const sourceId = chain.config.stateMachineId;
   const destId = sourceId;
   const sourceGateway = chain.configService.getIntentGatewayAddress(sourceId);
@@ -512,11 +498,10 @@ export async function runHyperfxSwap(
     ? BigInt(quote.rawAmountIn) + fees
     : BigInt(quote.rawAmountIn);
 
-  const rpcUrl = getRpcUrl(quote.network);
-  const publicClient = createPublicClient({
-    chain: chain.config as any,
-    transport: http(rpcUrl),
-  });
+  const publicClient = createNetworkPublicClient(quote.network);
+  if (!publicClient) {
+    throw new Error(`RPC URL not configured for ${quote.network}`);
+  }
 
   const inputApprovalCall: BatchCall = {
     to: quote.tokenIn as Hex,
@@ -620,6 +605,7 @@ export async function runHyperfxSwap(
 
   // Must keep consuming executeBest after placement — it drives the solver auction
   // (autoSelect on BIDS_RECEIVED). Without this, USDC is escrowed but cNGN is never delivered.
+  // Known limitation: if the tab closes before fill completes, rely on on-chain status polling.
   void trackHyperfxFillInBackground(run, placementTxHash);
 
   return { placementTxHash, fillTxHash: placementTxHash };

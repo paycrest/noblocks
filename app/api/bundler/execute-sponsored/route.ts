@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAddress } from "viem";
 import { getClients, parseChainId, parseRpcUrl } from "@/app/lib/bundler/chains";
 import { executeSponsored } from "@/app/lib/bundler/executeSponsored";
-import { isValidEmbedCode } from "@/app/lib/embedCode";
+import { isValidEmbedCode } from "@/app/lib/baseBuilderCode";
 
 /**
  * POST /api/bundler/execute-sponsored

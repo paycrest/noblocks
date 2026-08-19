@@ -26,7 +26,7 @@ import {
   tokensEqual,
 } from "../lib/token-symbol";
 import { swapModeFromSideParam } from "../utils";
-import { computeEmbedCode } from "../lib/embedCode";
+import { computeEmbedCode } from "../lib/baseBuilderCode";
 
 /**
  * Embed (widget) mode context.

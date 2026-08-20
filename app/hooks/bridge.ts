@@ -722,7 +722,17 @@ export function useBridgeExecute({
             });
           }
 
-          await textileClient.submitSwap(built.swapId, evmHash, proxyAuth);
+          try {
+            await textileClient.submitSwap(built.swapId, evmHash, proxyAuth);
+          } catch (submitErr) {
+            const detail =
+              submitErr instanceof Error
+                ? submitErr.message
+                : "Textile submit failed";
+            throw new Error(
+              `On-chain swap sent (${evmHash}) but Textile registration failed: ${detail}`,
+            );
+          }
 
           setTxHash(evmHash);
           setIsSuccess(true);

@@ -703,20 +703,39 @@ export class TextileClient {
     swapId: string,
     txHash: string,
     auth?: BridgeAuth | string | null,
-  ): Promise<boolean> {
-    try {
-      const { status } = await axios.post(
-        `/api/bridge/textile/submit`,
-        { swapId, txHash },
-        {
-          headers: authHeaders(auth),
-          validateStatus: () => true,
-        },
-      );
-      return status >= 200 && status < 300;
-    } catch {
-      return false;
+  ): Promise<void> {
+    const maxAttempts = 3;
+    let lastError: Error | null = null;
+
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      try {
+        const { data, status } = await axios.post(
+          `/api/bridge/textile/submit`,
+          { swapId, txHash },
+          {
+            headers: authHeaders(auth),
+            validateStatus: () => true,
+          },
+        );
+        if (status >= 200 && status < 300) return;
+
+        const message =
+          (data as { error?: { message?: string }; message?: string })?.error
+            ?.message ||
+          (data as { message?: string })?.message ||
+          `Textile submit failed (${status})`;
+        lastError = new Error(message);
+      } catch (err) {
+        lastError =
+          err instanceof Error ? err : new Error("Textile submit request failed");
+      }
+
+      if (attempt < maxAttempts - 1) {
+        await new Promise((resolve) => setTimeout(resolve, 500 * (attempt + 1)));
+      }
     }
+
+    throw lastError ?? new Error("Textile submit failed");
   }
 
   async getStatus(

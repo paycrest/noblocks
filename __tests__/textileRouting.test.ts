@@ -193,3 +193,39 @@ describe("normalizeTextileQuote", () => {
     expect(result).toBeNull();
   });
 });
+
+describe("textileServer validation", () => {
+  it("parseJsonObjectBody rejects null and arrays", () => {
+    const { parseJsonObjectBody, validateTextileSwapBody } = require("../app/lib/textileServer");
+
+    expect(parseJsonObjectBody(null).ok).toBe(false);
+    expect(parseJsonObjectBody([]).ok).toBe(false);
+    expect(parseJsonObjectBody({ chainId: 56 }).ok).toBe(true);
+  });
+
+  it("validateTextileSwapBody rejects zero minRate", () => {
+    const { validateTextileSwapBody } = require("../app/lib/textileServer");
+
+    expect(
+      validateTextileSwapBody({
+        chainId: 56,
+        sellToken: "0xabc",
+        buyToken: "0xdef",
+        sellAmount: "1",
+        minRate: "0",
+        taker: "0x123",
+      }).ok,
+    ).toBe(false);
+
+    expect(
+      validateTextileSwapBody({
+        chainId: 56,
+        sellToken: "0xabc",
+        buyToken: "0xdef",
+        sellAmount: "1",
+        minRate: "1000000000000000000000000000",
+        taker: "0x123",
+      }).ok,
+    ).toBe(true);
+  });
+});

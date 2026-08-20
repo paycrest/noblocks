@@ -10,27 +10,29 @@ import {
   TEXTILE_API_BASE,
   TEXTILE_UPSTREAM_TIMEOUT_MS,
   textileAuthHeaders,
+  parseJsonObjectBody,
+  validateTextileSubmitBody,
 } from "@/app/lib/textileServer";
-
-function isNonEmptyString(value: unknown): value is string {
-  return typeof value === "string" && value.trim().length > 0;
-}
 
 export const POST = withRateLimit(async (request: NextRequest) => {
   const startTime = Date.now();
   try {
-    let body: Record<string, unknown>;
+    let parsed: unknown;
     try {
-      body = (await request.json()) as Record<string, unknown>;
+      parsed = await request.json();
     } catch {
       return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
     }
 
-    if (!isNonEmptyString(body.swapId) || !isNonEmptyString(body.txHash)) {
-      return NextResponse.json(
-        { error: "swapId and txHash are required" },
-        { status: 400 },
-      );
+    const objectBody = parseJsonObjectBody(parsed);
+    if (!objectBody.ok) {
+      return NextResponse.json({ error: objectBody.error }, { status: 400 });
+    }
+
+    const body = objectBody.body;
+    const validation = validateTextileSubmitBody(body);
+    if (!validation.ok) {
+      return NextResponse.json({ error: validation.error }, { status: 400 });
     }
 
     trackApiRequest(request, "/api/bridge/textile/submit", "POST", {
@@ -38,7 +40,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
     });
 
     const { data, status } = await axios.post(
-      `${TEXTILE_API_BASE}/swaps/${encodeURIComponent(body.swapId)}/submit`,
+      `${TEXTILE_API_BASE}/swaps/${encodeURIComponent(body.swapId as string)}/submit`,
       { txHash: body.txHash },
       {
         headers: {

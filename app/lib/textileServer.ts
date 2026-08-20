@@ -25,12 +25,62 @@ export function minRateRayFromEffective(
 }
 
 /** True when a RAY-scaled rate string is a positive integer. */
-export function isPositiveRayRate(value: string): boolean {
+export function isPositiveRayRate(value: unknown): boolean {
+  if (typeof value !== "string" || value.trim().length === 0) return false;
   try {
     return BigInt(value) > BigInt(0);
   } catch {
     return false;
   }
+}
+
+/** Parse request JSON body; rejects null, arrays, and non-objects with 400. */
+export function parseJsonObjectBody(
+  value: unknown,
+): { ok: true; body: Record<string, unknown> } | { ok: false; error: string } {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    return { ok: false, error: "Request body must be a JSON object" };
+  }
+  return { ok: true, body: value as Record<string, unknown> };
+}
+
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+export function validateTextileSwapBody(
+  body: Record<string, unknown>,
+): { ok: true } | { ok: false; error: string } {
+  const missing = [
+    body.chainId === undefined || body.chainId === null ? "chainId" : null,
+    !isNonEmptyString(body.sellToken) ? "sellToken" : null,
+    !isNonEmptyString(body.buyToken) ? "buyToken" : null,
+    !isNonEmptyString(body.sellAmount) ? "sellAmount" : null,
+    !isNonEmptyString(body.minRate) ? "minRate" : null,
+    !isNonEmptyString(body.taker) ? "taker" : null,
+  ].filter(Boolean);
+
+  if (missing.length > 0) {
+    return {
+      ok: false,
+      error: `Missing required fields: ${missing.join(", ")}`,
+    };
+  }
+
+  if (!isPositiveRayRate(body.minRate)) {
+    return { ok: false, error: "minRate must be a positive RAY-scaled integer string" };
+  }
+
+  return { ok: true };
+}
+
+export function validateTextileSubmitBody(
+  body: Record<string, unknown>,
+): { ok: true } | { ok: false; error: string } {
+  if (!isNonEmptyString(body.swapId) || !isNonEmptyString(body.txHash)) {
+    return { ok: false, error: "swapId and txHash are required" };
+  }
+  return { ok: true };
 }
 
 /**

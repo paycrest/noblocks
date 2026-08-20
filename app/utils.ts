@@ -784,6 +784,13 @@ export const FALLBACK_TOKENS: { [key: string]: Token[] } = {
       address: "0x765DE816845861e75A25fCA122bb6898B8B1282a",
       imageUrl: "/logos/cusd-logo.svg",
     },
+    {
+      name: "Compliant Naira",
+      symbol: "cNGN",
+      decimals: 6,
+      address: "0xF6829D7393dAe24509eb1E52eE8e572e2E271a4f",
+      imageUrl: "/logos/cngn-logo.svg",
+    },
   ],
   Lisk: [
     {

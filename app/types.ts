@@ -493,6 +493,8 @@ export type Config = {
   referralEnabled: boolean;
   /** Bridge/Swap feature flag. Controls Convert button visibility + proxy routes. */
   bridgeEnabled: boolean;
+  /** Textile FX for same-chain USDT↔cNGN on BSC and Celo. Requires TEXTILE_API_KEY server-side. */
+  textileEnabled: boolean;
   onrampChainedForwardingEnabled: boolean;
   /**
    * KES fiat→crypto onramp. Default on (unset env); set

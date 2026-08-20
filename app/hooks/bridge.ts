@@ -7,6 +7,8 @@ import {
   selectEngine,
   NearIntentsClient,
   LifiClient,
+  TextileClient,
+  textileIdempotencyKey,
   toLifiChainId,
   resolveNearAssetId,
   toRawAmount,
@@ -15,6 +17,7 @@ import {
   authHeaders,
 } from "@/app/lib/bridge";
 import type { BridgeLeg, BridgeQuote, BridgeStatusResult, BridgeEngine, NearIntentsToken, BridgeAuth } from "@/app/lib/bridge";
+import { textileChainId } from "@/app/lib/textileNetworks";
 import { getRpcUrl } from "@/app/utils";
 import { appendBaseBuilderCode } from "@/app/lib/baseBuilderCode";
 import type { BatchCall } from "@/app/lib/providerBatch";
@@ -24,6 +27,7 @@ const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 
 const nearClient = new NearIntentsClient();
 const lifiClient = new LifiClient();
+const textileClient = new TextileClient();
 
 // ============================================================================
 // useBridgeQuote
@@ -67,6 +71,40 @@ async function fetchLifiQuote(
     toAddress: evmAddress,
     slippage: lifiSlippage,
   }, auth);
+}
+
+async function fetchTextileQuote(
+  from: BridgeLeg,
+  to: BridgeLeg,
+  rawAmount: string,
+  evmAddress: string,
+  slippageBps: number,
+  auth: BridgeAuth,
+): Promise<BridgeQuote | null> {
+  const chainId = textileChainId(from.network);
+  if (!chainId) return null;
+
+  const isCngn =
+    from.token.toLowerCase() === "cngn" || to.token.toLowerCase() === "cngn";
+  const textileSlippage = isCngn
+    ? Math.max(slippageBps, 200)
+    : slippageBps;
+
+  const sellToken = from.tokenAddress;
+  const buyToken = to.tokenAddress;
+  if (!sellToken || !buyToken) return null;
+
+  return textileClient.getQuote(
+    {
+      chainId,
+      sellToken,
+      buyToken,
+      sellAmount: rawAmount,
+      slippageBps: textileSlippage,
+      toDecimals: to.decimals,
+    },
+    auth,
+  );
 }
 
 interface UseBridgeQuoteParams {
@@ -145,6 +183,19 @@ export function useBridgeQuote({
       }, auth, { origin: from.decimals, destination: to.decimals });
     }
 
+    if (engine === "textile") {
+      const textileQuote = await fetchTextileQuote(
+        from,
+        to,
+        rawAmount,
+        evmAddress,
+        slippageBps,
+        auth,
+      );
+      if (textileQuote) return textileQuote;
+      return fetchLifiQuote(from, to, rawAmount, evmAddress, slippageBps, auth);
+    }
+
     return fetchLifiQuote(from, to, rawAmount, evmAddress, slippageBps, auth);
   }, [from, to, amount, evmAddress, starknetAddress, slippageBps, getAccessToken, getInjectedToken]);
 
@@ -168,9 +219,9 @@ export function useBridgeQuote({
     refetchInterval: (q) => {
       const data = q?.state?.data as BridgeQuote | undefined;
       if (!data) return false;
-      // LI.FI quotes embed a slippage/validity window but no explicit deadline — refresh on a
-      // fixed interval so a stale transactionRequest is never executed (it would revert on-chain).
-      if (data.kind === "lifi-tx") return 30_000;
+      // LI.FI / Textile quotes embed a slippage/validity window — refresh on a fixed
+      // interval so stale transaction data is never executed.
+      if (data.kind === "lifi-tx" || data.kind === "textile-swap") return 30_000;
       // NEAR deposit quotes: stop refetching once the deposit deadline has nearly passed.
       return data.deadline - Date.now() > 30_000 ? 30_000 : false;
     },
@@ -227,7 +278,9 @@ export function useBridgeStatus({ engine, refId, enabled, getAccessToken, getInj
         const status =
           engine === "near"
             ? await nearClient.getStatus(refId, auth)
-            : await lifiClient.getStatus(refId, auth);
+            : engine === "textile"
+              ? await textileClient.getStatus(refId, auth)
+              : await lifiClient.getStatus(refId, auth);
 
         setResult(status);
         if (status.status === "SUCCESS" || status.status === "REFUNDED" || status.status === "FAILED") {
@@ -315,6 +368,10 @@ export function useBridgeExecute({
   // without needing it as a useCallback dependency (avoids stale closure).
   const selectedNetworkRef = useRef(selectedNetwork);
   useEffect(() => { selectedNetworkRef.current = selectedNetwork; }, [selectedNetwork]);
+
+  const textileIdempotencyRef = useRef<{ quoteKey: string; key: string } | null>(
+    null,
+  );
 
   // Injected wallets sign and pay for their own transactions directly through
   // their provider — no sponsored bundler, no EIP-7702 delegation. Calls are sent
@@ -565,6 +622,122 @@ export function useBridgeExecute({
           onSuccess?.(evmHash);
           // LI.FI: poll status by txHash, not a separate deposit address
           return { txHash: evmHash, depositRefId: evmHash };
+        } else if (quote.kind === "textile-swap") {
+          const textileQuote = quote;
+          const chain = selectedNetworkRef.current?.chain;
+          if (!chain) {
+            throw new Error("Selected network not found");
+          }
+
+          const injectedToken = isInjectedWallet
+            ? ((await getInjectedToken?.()) ?? null)
+            : null;
+          const proxyAuth: BridgeAuth = injectedToken
+            ? { injectedToken }
+            : { token: (await getAccessToken?.()) ?? null };
+
+          const taker = (isInjectedWallet ? injectedAddress : embeddedWallet?.address) as
+            | string
+            | undefined;
+          if (!taker) throw new Error("Wallet not connected");
+
+          const quoteKey = [
+            textileQuote.chainId,
+            textileQuote.sellToken,
+            textileQuote.buyToken,
+            textileQuote.sellAmount,
+            taker,
+            textileQuote.minRateRay,
+          ].join("|");
+
+          let idempotencyKey = textileIdempotencyRef.current?.key;
+          if (textileIdempotencyRef.current?.quoteKey !== quoteKey) {
+            idempotencyKey = textileIdempotencyKey({
+              chainId: textileQuote.chainId,
+              sellToken: textileQuote.sellToken,
+              buyToken: textileQuote.buyToken,
+              sellAmount: textileQuote.sellAmount,
+              taker,
+              minRate: textileQuote.minRateRay,
+            });
+            textileIdempotencyRef.current = { quoteKey, key: idempotencyKey };
+          }
+
+          const built = await textileClient.buildSwap(
+            {
+              chainId: textileQuote.chainId,
+              sellToken: textileQuote.sellToken,
+              buyToken: textileQuote.buyToken,
+              sellAmount: textileQuote.sellAmount,
+              minRate: textileQuote.minRateRay,
+              taker,
+              idempotencyKey: idempotencyKey!,
+              requireFullFill: textileQuote.fullyFilled,
+            },
+            proxyAuth,
+          );
+          if (!built) {
+            throw new Error("Textile swap unavailable. Please try again.");
+          }
+
+          const calls: BatchCall[] = [];
+          const allowance = BigInt(built.requiredAllowance || "0");
+          if (allowance > BigInt(0)) {
+            if (!built.approvalSpender || built.approvalSpender === ZERO_ADDRESS) {
+              throw new Error("Textile approval details unavailable. Please try again.");
+            }
+            calls.push({
+              to: from.tokenAddress as `0x${string}`,
+              value: BigInt(0),
+              data: encodeFunctionData({
+                abi: erc20Abi,
+                functionName: "approve",
+                args: [built.approvalSpender, allowance],
+              }),
+            });
+          }
+          calls.push({
+            to: built.swap.to as `0x${string}`,
+            value: BigInt(built.swap.value || "0"),
+            data: built.swap.data as `0x${string}`,
+          });
+
+          let evmHash: string;
+          if (isInjectedWallet) {
+            evmHash = await executeInjectedCalls(
+              Number(from.chainId),
+              calls.map((c) => ({ to: c.to, value: c.value, data: c.data })),
+            );
+          } else {
+            if (!embeddedWallet || !signDelegationAuthorization || !getAccessToken) {
+              throw new Error("EVM wallet not configured for Textile execution");
+            }
+            evmHash = await executeBatchCalls({
+              chain: chain as any,
+              calls,
+              getAccessToken,
+              embeddedWallet,
+              signDelegationAuthorization,
+              gasLimit: 600_000,
+            });
+          }
+
+          try {
+            await textileClient.submitSwap(built.swapId, evmHash, proxyAuth);
+          } catch (submitErr) {
+            const detail =
+              submitErr instanceof Error
+                ? submitErr.message
+                : "Textile submit failed";
+            throw new Error(
+              `On-chain swap sent (${evmHash}) but Textile registration failed: ${detail}`,
+            );
+          }
+
+          setTxHash(evmHash);
+          setIsSuccess(true);
+          onSuccess?.(evmHash);
+          return { txHash: evmHash, depositRefId: built.swapId };
         }
         throw new Error("Unsupported quote type");
       } catch (err) {

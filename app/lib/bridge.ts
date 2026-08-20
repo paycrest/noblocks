@@ -13,6 +13,8 @@ import { buildBatchDigest, encodeExecuteBatch, readBatchNonce } from "./provider
 import { getRpcUrl } from "@/app/utils";
 import { getDelegationContractAddress } from "./config";
 import { get7702AuthorizedImplementationForAddress } from "../hooks/useEIP7702Account";
+import { isTextileRoute } from "./bridgeFeature";
+import { minRateRayFromEffective } from "./textileServer";
 
 // ============================================================================
 // TYPES
@@ -69,7 +71,35 @@ export interface LifiTxQuote {
   raw: unknown;
 }
 
-export type BridgeQuote = NearDepositQuote | LifiTxQuote;
+/** Textile FX quote preview — txs built on confirm via POST /v1/swaps. */
+export interface TextileSwapQuote {
+  kind: "textile-swap";
+  amountOut: string;
+  /** Fee in receiving token (Textile taker fee is taken in collateral; 0 when unknown at quote time). */
+  feeReceivingToken: string;
+  chainId: number;
+  sellToken: string;
+  buyToken: string;
+  /** User-requested sell amount in atomic units (may exceed what the book fills). */
+  requestedSellAmount: string;
+  /** Executable sell amount in atomic units — pass to POST /v1/swaps. */
+  sellAmount: string;
+  fullyFilled: boolean;
+  toDecimals: number;
+  /** RAY-scaled min rate passed to POST /v1/swaps on execute. */
+  minRateRay: string;
+  raw: unknown;
+}
+
+/** Built Textile swap with unsigned approval + swap txs (short-lived). */
+export interface TextileBuiltSwap {
+  swapId: string;
+  requiredAllowance: string;
+  approval: { to: string; data: string; value: string; chainId: number };
+  swap: { to: string; data: string; value: string; chainId: number };
+}
+
+export type BridgeQuote = NearDepositQuote | LifiTxQuote | TextileSwapQuote;
 
 export type BridgeStatus =
   | "PENDING_DEPOSIT"
@@ -85,18 +115,19 @@ export interface BridgeStatusResult {
   destinationTxHash?: string;
 }
 
-export type BridgeEngine = "near" | "lifi";
+export type BridgeEngine = "near" | "lifi" | "textile";
 
 // ============================================================================
 // ROUTING
 // ============================================================================
 
 /**
- * Routes to LI.FI for cNGN legs or any Starknet leg; NEAR Intents otherwise (EVM↔EVM stablecoins).
- * Starknet uses LI.FI because NEAR Intents' token list only includes STRK/ZEC/XRP on Starknet —
- * no USDC/stablecoins — so stablecoin routes via NEAR always fail asset resolution.
+ * Routes Textile for same-chain USDT↔cNGN on BSC/Celo; LI.FI for other cNGN legs
+ * or Starknet; NEAR Intents otherwise (EVM↔EVM stablecoins).
  */
 export function selectEngine(from: BridgeLeg, to: BridgeLeg): BridgeEngine {
+  if (isTextileRoute(from, to)) return "textile";
+
   const cngn = "cngn";
   const isStarknet = (n: string) => n.toLowerCase() === "starknet";
   if (from.token.toLowerCase() === cngn || to.token.toLowerCase() === cngn) return "lifi";
@@ -222,6 +253,9 @@ export function toRawAmount(amount: string, decimals: number): string {
  */
 export function bridgeFeeInReceivingToken(quote: BridgeQuote): number {
   if (quote.kind === "lifi-tx") {
+    return parseFloat(quote.feeReceivingToken) || 0;
+  }
+  if (quote.kind === "textile-swap") {
     return parseFloat(quote.feeReceivingToken) || 0;
   }
   return parseFloat(quote.fee) || 0;
@@ -459,6 +493,205 @@ export class LifiClient {
       status: mapLifiStatus(data.status, data.substatus),
       txHash: data.txHash,
       destinationTxHash: data.receiving?.txHash,
+    };
+  }
+}
+
+export function mapTextileStatus(status?: string): BridgeStatus {
+  switch ((status ?? "").toUpperCase()) {
+    case "FILLED":
+      return "SUCCESS";
+    case "FAILED":
+    case "CANCELLED":
+      return "FAILED";
+    case "QUOTED":
+    case "SUBMITTED":
+    default:
+      return "PROCESSING";
+  }
+}
+
+/**
+ * Accept Textile quotes when the book can fill something (partial fills OK).
+ * Falls back to LI.FI only when there is no fillable liquidity at all.
+ */
+export function normalizeTextileQuote(
+  data: unknown,
+  params: {
+    chainId: number;
+    sellToken: string;
+    buyToken: string;
+    sellAmount: string;
+    slippageBps: number;
+    toDecimals: number;
+  },
+): TextileSwapQuote | null {
+  const quote = (data as { data?: Record<string, unknown> })?.data;
+  if (!quote?.hasLiquidity) return null;
+
+  const fillableAmount = String(quote.fillableAmount ?? "0");
+  try {
+    if (BigInt(fillableAmount) <= BigInt(0)) return null;
+  } catch {
+    return null;
+  }
+
+  const proceeds = String(quote.proceeds ?? "0");
+  let amountOut = "0";
+  try {
+    if (BigInt(proceeds) > BigInt(0)) {
+      amountOut = formatUnits(BigInt(proceeds), params.toDecimals);
+    }
+  } catch {
+    return null;
+  }
+  if (parseFloat(amountOut) <= 0) return null;
+
+  const effectiveRateRay = String(quote.effectiveRateRay ?? "0");
+  const slippageBps = Math.max(params.slippageBps, 200);
+  const minRateRay =
+    effectiveRateRay !== "0"
+      ? minRateRayFromEffective(effectiveRateRay, slippageBps)
+      : "0";
+
+  return {
+    kind: "textile-swap",
+    amountOut,
+    feeReceivingToken: "0",
+    chainId: params.chainId,
+    sellToken: params.sellToken,
+    buyToken: params.buyToken,
+    requestedSellAmount: params.sellAmount,
+    sellAmount: fillableAmount,
+    fullyFilled: quote.fullyFilled === true,
+    toDecimals: params.toDecimals,
+    minRateRay,
+    raw: data,
+  };
+}
+
+export class TextileClient {
+  async getQuote(
+    params: {
+      chainId: number;
+      sellToken: string;
+      buyToken: string;
+      sellAmount: string;
+      slippageBps: number;
+      toDecimals: number;
+    },
+    auth?: BridgeAuth | string | null,
+  ): Promise<BridgeQuote | null> {
+    const { data, status } = await axios.get("/api/bridge/textile/quote", {
+      params: {
+        chainId: params.chainId,
+        sellToken: params.sellToken,
+        buyToken: params.buyToken,
+        sellAmount: params.sellAmount,
+        slippageBps: params.slippageBps,
+      },
+      headers: authHeaders(auth),
+      validateStatus: () => true,
+    });
+
+    if (status === 404) return null;
+    if (status === 401 || status === 403) {
+      throw new Error("Authentication required for bridge quote");
+    }
+    if (status === 429) {
+      throw new Error("Textile quote rate-limited. Please retry shortly.");
+    }
+    if (status >= 400 && status < 500) return null;
+    if (status >= 500) {
+      throw new Error(data?.message || `Textile service error (${status})`);
+    }
+
+    return normalizeTextileQuote(data, {
+      chainId: params.chainId,
+      sellToken: params.sellToken,
+      buyToken: params.buyToken,
+      sellAmount: params.sellAmount,
+      slippageBps: params.slippageBps,
+      toDecimals: params.toDecimals,
+    });
+  }
+
+  async buildSwap(
+    params: {
+      chainId: number;
+      sellToken: string;
+      buyToken: string;
+      sellAmount: string;
+      minRate: string;
+      taker: string;
+      idempotencyKey: string;
+      requireFullFill?: boolean;
+    },
+    auth?: BridgeAuth | string | null,
+  ): Promise<TextileBuiltSwap | null> {
+    const { data, status } = await axios.post(
+      "/api/bridge/textile/swap",
+      {
+        chainId: params.chainId,
+        sellToken: params.sellToken,
+        buyToken: params.buyToken,
+        sellAmount: params.sellAmount,
+        minRate: params.minRate,
+        taker: params.taker,
+        requireFullFill: params.requireFullFill ?? false,
+      },
+      {
+        headers: {
+          ...authHeaders(auth),
+          "Idempotency-Key": params.idempotencyKey,
+        },
+        validateStatus: () => true,
+      },
+    );
+
+    if (status === 401 || status === 403) {
+      throw new Error("Authentication required for bridge swap");
+    }
+    if (status >= 500) {
+      throw new Error(data?.message || `Textile service error (${status})`);
+    }
+    if (status >= 400) return null;
+
+    const built = data?.data;
+    if (!built?.fillable || !built.transactions?.swap) return null;
+
+    return {
+      swapId: built.id,
+      requiredAllowance: built.requiredAllowance ?? params.sellAmount,
+      approval: built.transactions.approval,
+      swap: built.transactions.swap,
+    };
+  }
+
+  async submitSwap(
+    swapId: string,
+    txHash: string,
+    auth?: BridgeAuth | string | null,
+  ): Promise<void> {
+    await axios.post(
+      `/api/bridge/textile/submit`,
+      { swapId, txHash },
+      { headers: authHeaders(auth) },
+    );
+  }
+
+  async getStatus(
+    swapId: string,
+    auth?: BridgeAuth | string | null,
+  ): Promise<BridgeStatusResult> {
+    const { data } = await axios.get("/api/bridge/textile/status", {
+      params: { swapId },
+      headers: authHeaders(auth),
+    });
+    const swap = data?.data;
+    return {
+      status: mapTextileStatus(swap?.status),
+      txHash: swap?.txHash,
     };
   }
 }

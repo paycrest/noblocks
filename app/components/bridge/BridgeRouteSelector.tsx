@@ -27,7 +27,7 @@ interface BridgeRouteSelectorProps {
   onFromNetworkChange: (name: string) => void;
   onToNetworkChange: (name: string) => void;
   outputAmount?: string;
-  engine?: "near" | "lifi" | null;
+  engine?: "near" | "lifi" | "textile" | null;
   timeEstimate?: string;
   isQuoteLoading?: boolean;
 }

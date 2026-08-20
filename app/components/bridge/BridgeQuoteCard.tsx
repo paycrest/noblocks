@@ -8,7 +8,7 @@ interface BridgeQuoteCardProps {
   quote: BridgeQuote | null;
   isLoading: boolean;
   error: Error | null;
-  engine: "near" | "lifi" | null;
+  engine: "near" | "lifi" | "textile" | null;
   toToken?: string;
   onExpire?: () => void;
 }
@@ -63,7 +63,12 @@ export const BridgeQuoteCard: React.FC<BridgeQuoteCardProps> = ({
 
   if (!quote) return null;
 
-  const engineLabel = engine === "near" ? "NEAR Intents" : "LI.FI";
+  const engineLabel =
+    engine === "near"
+      ? "NEAR Intents"
+      : engine === "textile"
+        ? "Textile FX"
+        : "LI.FI";
   const routeName =
     quote.kind === "lifi-tx" &&
     quote.raw &&

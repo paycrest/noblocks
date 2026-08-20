@@ -23,3 +23,33 @@ export function minRateRayFromEffective(
     return "0";
   }
 }
+
+/** True when a RAY-scaled rate string is a positive integer. */
+export function isPositiveRayRate(value: string): boolean {
+  try {
+    return BigInt(value) > BigInt(0);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Stable idempotency key for the same swap intent (retries replay Textile's first response).
+ */
+export function textileIdempotencyKey(params: {
+  chainId: number;
+  sellToken: string;
+  buyToken: string;
+  sellAmount: string;
+  taker: string;
+  minRate: string;
+}): string {
+  return [
+    params.chainId,
+    params.sellToken.toLowerCase(),
+    params.buyToken.toLowerCase(),
+    params.sellAmount,
+    params.taker.toLowerCase(),
+    params.minRate,
+  ].join(":");
+}

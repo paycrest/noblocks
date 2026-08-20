@@ -12,10 +12,26 @@ import {
   textileAuthHeaders,
 } from "@/app/lib/textileServer";
 
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
 export const POST = withRateLimit(async (request: NextRequest) => {
   const startTime = Date.now();
   try {
-    const body = await request.json();
+    let body: Record<string, unknown>;
+    try {
+      body = (await request.json()) as Record<string, unknown>;
+    } catch {
+      return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+    }
+
+    if (!isNonEmptyString(body.swapId) || !isNonEmptyString(body.txHash)) {
+      return NextResponse.json(
+        { error: "swapId and txHash are required" },
+        { status: 400 },
+      );
+    }
 
     trackApiRequest(request, "/api/bridge/textile/submit", "POST", {
       swap_id: body.swapId,

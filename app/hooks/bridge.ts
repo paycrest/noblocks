@@ -8,6 +8,7 @@ import {
   NearIntentsClient,
   LifiClient,
   TextileClient,
+  textileIdempotencyKey,
   toLifiChainId,
   resolveNearAssetId,
   toRawAmount,
@@ -368,6 +369,10 @@ export function useBridgeExecute({
   const selectedNetworkRef = useRef(selectedNetwork);
   useEffect(() => { selectedNetworkRef.current = selectedNetwork; }, [selectedNetwork]);
 
+  const textileIdempotencyRef = useRef<{ quoteKey: string; key: string } | null>(
+    null,
+  );
+
   // Injected wallets sign and pay for their own transactions directly through
   // their provider — no sponsored bundler, no EIP-7702 delegation. Calls are sent
   // sequentially, each confirmed before the next, so an approval lands before the
@@ -636,6 +641,28 @@ export function useBridgeExecute({
             | undefined;
           if (!taker) throw new Error("Wallet not connected");
 
+          const quoteKey = [
+            textileQuote.chainId,
+            textileQuote.sellToken,
+            textileQuote.buyToken,
+            textileQuote.sellAmount,
+            taker,
+            textileQuote.minRateRay,
+          ].join("|");
+
+          let idempotencyKey = textileIdempotencyRef.current?.key;
+          if (textileIdempotencyRef.current?.quoteKey !== quoteKey) {
+            idempotencyKey = textileIdempotencyKey({
+              chainId: textileQuote.chainId,
+              sellToken: textileQuote.sellToken,
+              buyToken: textileQuote.buyToken,
+              sellAmount: textileQuote.sellAmount,
+              taker,
+              minRate: textileQuote.minRateRay,
+            });
+            textileIdempotencyRef.current = { quoteKey, key: idempotencyKey };
+          }
+
           const built = await textileClient.buildSwap(
             {
               chainId: textileQuote.chainId,
@@ -644,7 +671,7 @@ export function useBridgeExecute({
               sellAmount: textileQuote.sellAmount,
               minRate: textileQuote.minRateRay,
               taker,
-              idempotencyKey: crypto.randomUUID(),
+              idempotencyKey: idempotencyKey!,
               requireFullFill: textileQuote.fullyFilled,
             },
             proxyAuth,
@@ -654,11 +681,19 @@ export function useBridgeExecute({
           }
 
           const calls: BatchCall[] = [];
-          if (built.approval?.data && built.approval.data !== "0x") {
+          const allowance = BigInt(built.requiredAllowance || "0");
+          if (allowance > BigInt(0)) {
+            if (!built.approvalSpender || built.approvalSpender === ZERO_ADDRESS) {
+              throw new Error("Textile approval details unavailable. Please try again.");
+            }
             calls.push({
-              to: built.approval.to as `0x${string}`,
-              value: BigInt(built.approval.value || "0"),
-              data: built.approval.data as `0x${string}`,
+              to: from.tokenAddress as `0x${string}`,
+              value: BigInt(0),
+              data: encodeFunctionData({
+                abi: erc20Abi,
+                functionName: "approve",
+                args: [built.approvalSpender, allowance],
+              }),
             });
           }
           calls.push({

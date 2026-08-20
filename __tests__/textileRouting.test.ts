@@ -158,4 +158,38 @@ describe("normalizeTextileQuote", () => {
     expect(result?.fullyFilled).toBe(true);
     expect(result?.sellAmount).toBe("500000000000000000");
   });
+
+  it("rejects when fillableAmount exceeds requested sellAmount", () => {
+    const result = normalizeTextileQuote(
+      {
+        data: {
+          hasLiquidity: true,
+          fullyFilled: true,
+          fillableAmount: "600000000000000000",
+          proceeds: "812500000",
+          effectiveRateRay: "1000000000000000000000000000",
+        },
+      },
+      baseParams,
+    );
+
+    expect(result).toBeNull();
+  });
+
+  it("rejects when effectiveRateRay is zero", () => {
+    const result = normalizeTextileQuote(
+      {
+        data: {
+          hasLiquidity: true,
+          fullyFilled: true,
+          fillableAmount: "500000000000000000",
+          proceeds: "812500000",
+          effectiveRateRay: "0",
+        },
+      },
+      baseParams,
+    );
+
+    expect(result).toBeNull();
+  });
 });

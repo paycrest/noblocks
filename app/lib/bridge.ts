@@ -4,7 +4,7 @@
  */
 
 import axios from "axios";
-import { encodeFunctionData, parseUnits, formatUnits, http, createPublicClient, erc20Abi } from "viem";
+import { encodeFunctionData, decodeFunctionData, parseUnits, formatUnits, http, createPublicClient, erc20Abi } from "viem";
 import type { SignedAuthorization } from "viem";
 import { networks } from "@/app/mocks";
 import type { Token, Network } from "@/app/types";
@@ -14,7 +14,11 @@ import { getRpcUrl } from "@/app/utils";
 import { getDelegationContractAddress } from "./config";
 import { get7702AuthorizedImplementationForAddress } from "../hooks/useEIP7702Account";
 import { isTextileRoute } from "./bridgeFeature";
-import { minRateRayFromEffective } from "./textileServer";
+import {
+  isPositiveRayRate,
+  minRateRayFromEffective,
+  textileIdempotencyKey,
+} from "./textileServer";
 
 // ============================================================================
 // TYPES
@@ -95,9 +99,13 @@ export interface TextileSwapQuote {
 export interface TextileBuiltSwap {
   swapId: string;
   requiredAllowance: string;
+  /** ERC-20 approve spender decoded from upstream approval calldata. */
+  approvalSpender?: `0x${string}`;
   approval: { to: string; data: string; value: string; chainId: number };
   swap: { to: string; data: string; value: string; chainId: number };
 }
+
+export { textileIdempotencyKey };
 
 export type BridgeQuote = NearDepositQuote | LifiTxQuote | TextileSwapQuote;
 
@@ -531,7 +539,9 @@ export function normalizeTextileQuote(
 
   const fillableAmount = String(quote.fillableAmount ?? "0");
   try {
-    if (BigInt(fillableAmount) <= BigInt(0)) return null;
+    const fillable = BigInt(fillableAmount);
+    const requested = BigInt(params.sellAmount);
+    if (fillable <= BigInt(0) || fillable > requested) return null;
   } catch {
     return null;
   }
@@ -548,11 +558,11 @@ export function normalizeTextileQuote(
   if (parseFloat(amountOut) <= 0) return null;
 
   const effectiveRateRay = String(quote.effectiveRateRay ?? "0");
+  if (!isPositiveRayRate(effectiveRateRay)) return null;
+
   const slippageBps = Math.max(params.slippageBps, 200);
-  const minRateRay =
-    effectiveRateRay !== "0"
-      ? minRateRayFromEffective(effectiveRateRay, slippageBps)
-      : "0";
+  const minRateRay = minRateRayFromEffective(effectiveRateRay, slippageBps);
+  if (!isPositiveRayRate(minRateRay)) return null;
 
   return {
     kind: "textile-swap",
@@ -568,6 +578,24 @@ export function normalizeTextileQuote(
     minRateRay,
     raw: data,
   };
+}
+
+function parseTextileApprovalSpender(
+  approvalData?: string,
+): `0x${string}` | undefined {
+  if (!approvalData || approvalData === "0x") return undefined;
+  try {
+    const decoded = decodeFunctionData({
+      abi: erc20Abi,
+      data: approvalData as `0x${string}`,
+    });
+    if (decoded.functionName === "approve" && decoded.args[0]) {
+      return decoded.args[0] as `0x${string}`;
+    }
+  } catch {
+    // ignore malformed calldata
+  }
+  return undefined;
 }
 
 export class TextileClient {
@@ -660,9 +688,12 @@ export class TextileClient {
     const built = data?.data;
     if (!built?.fillable || !built.transactions?.swap) return null;
 
+    const approvalData = built.transactions.approval?.data as string | undefined;
+
     return {
       swapId: built.id,
       requiredAllowance: built.requiredAllowance ?? params.sellAmount,
+      approvalSpender: parseTextileApprovalSpender(approvalData),
       approval: built.transactions.approval,
       swap: built.transactions.swap,
     };
@@ -672,12 +703,20 @@ export class TextileClient {
     swapId: string,
     txHash: string,
     auth?: BridgeAuth | string | null,
-  ): Promise<void> {
-    await axios.post(
-      `/api/bridge/textile/submit`,
-      { swapId, txHash },
-      { headers: authHeaders(auth) },
-    );
+  ): Promise<boolean> {
+    try {
+      const { status } = await axios.post(
+        `/api/bridge/textile/submit`,
+        { swapId, txHash },
+        {
+          headers: authHeaders(auth),
+          validateStatus: () => true,
+        },
+      );
+      return status >= 200 && status < 300;
+    } catch {
+      return false;
+    }
   }
 
   async getStatus(

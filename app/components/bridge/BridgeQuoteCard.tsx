@@ -17,7 +17,7 @@ export const BridgeQuoteCard: React.FC<BridgeQuoteCardProps> = ({
   quote,
   isLoading,
   error,
-  engine,
+  engine: _engine,
   toToken,
   onExpire,
 }) => {
@@ -64,9 +64,9 @@ export const BridgeQuoteCard: React.FC<BridgeQuoteCardProps> = ({
   if (!quote) return null;
 
   const engineLabel =
-    engine === "near"
+    quote.kind === "near-deposit"
       ? "NEAR Intents"
-      : engine === "textile"
+      : quote.kind === "textile-swap"
         ? "Textile FX"
         : "LI.FI";
   const routeName =

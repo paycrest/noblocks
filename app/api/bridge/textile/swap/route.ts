@@ -12,10 +12,36 @@ import {
   textileAuthHeaders,
 } from "@/app/lib/textileServer";
 
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
 export const POST = withRateLimit(async (request: NextRequest) => {
   const startTime = Date.now();
   try {
-    const body = await request.json();
+    let body: Record<string, unknown>;
+    try {
+      body = (await request.json()) as Record<string, unknown>;
+    } catch {
+      return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+    }
+
+    const missing = [
+      !body.chainId && "chainId",
+      !isNonEmptyString(body.sellToken) && "sellToken",
+      !isNonEmptyString(body.buyToken) && "buyToken",
+      !isNonEmptyString(body.sellAmount) && "sellAmount",
+      !isNonEmptyString(body.minRate) && "minRate",
+      !isNonEmptyString(body.taker) && "taker",
+    ].filter(Boolean);
+
+    if (missing.length > 0) {
+      return NextResponse.json(
+        { error: `Missing required fields: ${missing.join(", ")}` },
+        { status: 400 },
+      );
+    }
+
     const idempotencyKey = request.headers.get("Idempotency-Key") ?? undefined;
 
     trackApiRequest(request, "/api/bridge/textile/swap", "POST", {

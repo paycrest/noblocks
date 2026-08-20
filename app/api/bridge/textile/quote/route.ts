@@ -11,6 +11,7 @@ import {
   TEXTILE_UPSTREAM_TIMEOUT_MS,
   textileAuthHeaders,
   minRateRayFromEffective,
+  isPositiveRayRate,
 } from "@/app/lib/textileServer";
 
 export const GET = withRateLimit(async (request: NextRequest) => {
@@ -50,11 +51,14 @@ export const GET = withRateLimit(async (request: NextRequest) => {
     }
 
     const quote = data?.data;
-    if (quote?.effectiveRateRay) {
-      quote.minRateRay = minRateRayFromEffective(
-        quote.effectiveRateRay,
+    if (quote?.effectiveRateRay && isPositiveRayRate(String(quote.effectiveRateRay))) {
+      const minRateRay = minRateRayFromEffective(
+        String(quote.effectiveRateRay),
         slippageBps,
       );
+      if (isPositiveRayRate(minRateRay)) {
+        quote.minRateRay = minRateRay;
+      }
     }
 
     return NextResponse.json(data, { status });

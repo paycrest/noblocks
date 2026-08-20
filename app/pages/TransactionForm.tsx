@@ -54,6 +54,8 @@ import {
   isAmountFillable,
   liquidityMaxMessage,
   liquidityMinMessage,
+  minOffRampTokenAmount,
+  minOnRampFiatAmount,
   nearestFillableAmount,
   nearestFillableMessage,
   noLiquidityMessage,
@@ -372,7 +374,7 @@ export const TransactionForm = ({
     const liquidityMin = liquidity?.viable ? liquidity.min : null;
     const liquidityMax = liquidity?.viable ? liquidity.max : null;
 
-    let min = 0.5;
+    let min = minOffRampTokenAmount(token, cngnRate);
     let max = 10000;
 
     if (swapMode === "onramp") {
@@ -383,10 +385,9 @@ export const TransactionForm = ({
       max = getOnrampFiatMaxAmount(safeCurrency);
       // The fiat floor tracks the rate, and is only enforceable once a receive
       // token and a rate exist; 0 stands for "no floor yet".
-      min = token && rate && rate > 0 ? 0.5 * rate : 0;
-    } else if (tokensEqual(token, "cNGN") && cngnRate && cngnRate > 0) {
+      min = token && rate && rate > 0 ? minOnRampFiatAmount(rate) : 0;
+    } else if (tokensEqual(token, "cNGN")) {
       max = 50000000;
-      min = 0.5 * cngnRate;
     }
 
     // Live capacity replaces the static ceiling and can only raise the floor.
@@ -849,7 +850,7 @@ export const TransactionForm = ({
               // Min fiat depends on rate; only enforce once receive token is chosen and rate exists.
               if (!token || !rate || rate <= 0) return true;
               const n = Number(value);
-              const rateFloor = 0.5 * rate;
+              const rateFloor = minOnRampFiatAmount(rate);
               const floor = minAmountSentValue;
               if (n >= floor) return true;
               return floor > rateFloor

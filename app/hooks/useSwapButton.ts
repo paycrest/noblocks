@@ -1,7 +1,11 @@
 import { usePrivy } from "@privy-io/react-auth";
 import { UseFormWatch } from "react-hook-form";
 import { useInjectedWallet } from "../context";
-import type { LiquiditySegment } from "../lib/marketLiquidity";
+import {
+  MIN_SWAP_USD,
+  minOnRampFiatAmount,
+  type LiquiditySegment,
+} from "../lib/marketLiquidity";
 import { validateWalletAddress } from "../lib/validation";
 
 /** Primary CTA when limits require upgrading verification (opens limit / KYC flow from swap). */
@@ -113,8 +117,10 @@ export function useSwapButton({
   // static limits, the rate-derived floor and live provider capacity together.
   // Segments additionally reject a hole between two providers' bands, since one
   // order is filled by one provider. Without bounds the legacy floors stand:
-  // 0.5 token off-ramp, 0.5×rate on-ramp once a receive token and rate exist.
-  const amountFloor = amountBounds?.min ?? (isSwapped ? 0.5 * Number(rate) : 0.5);
+  // $MIN_SWAP_USD off-ramp, same USD equivalent on-ramp once a rate exists.
+  const amountFloor =
+    amountBounds?.min ??
+    (isSwapped ? minOnRampFiatAmount(Number(rate)) : MIN_SWAP_USD);
   const amountCeiling = amountBounds?.max ?? Infinity;
   const withinBounds =
     !amountBounds?.noLiquidity &&

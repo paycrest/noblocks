@@ -9,6 +9,7 @@ import { useBalance, useTokens, useInjectedWallet } from "@/app/context";
 import { useBridgeQuote, useBridgeExecute, useBridgeStatus } from "@/app/hooks/bridge";
 import { selectEngine, toRawAmount, bridgeFeeInReceivingToken } from "@/app/lib/bridge";
 import type { BridgeLeg, BridgeEngine } from "@/app/lib/bridge";
+import { minOffRampTokenAmount } from "@/app/lib/marketLiquidity";
 import { BridgeRouteSelector } from "./BridgeRouteSelector";
 import { BridgeQuoteCard } from "./BridgeQuoteCard";
 import {
@@ -20,13 +21,14 @@ import {
 } from "hugeicons-react";
 import { useDelegationContractAuth } from "@/app/hooks/useEIP7702Account";
 import { primaryBtnClasses, outlineBtnClasses } from "../Styles";
-import { classNames, formatTokenAmount, getExplorerLink } from "@/app/utils";
+import { classNames, formatTokenAmount, getExplorerLink, formatNumberWithCommas } from "@/app/utils";
 import type { MobileSheetView } from "@/app/types";
 import { saveTransaction } from "@/app/api/aggregator";
 import { networks } from "@/app/mocks";
 import Link from "next/link";
 import { mapReportAndAct } from "@/app/lib/toastMappedError";
 import { format } from "date-fns";
+import { useCNGNRate, CNGN_CROSS_CHAIN_QUOTE_NETWORK } from "@/app/hooks/useCNGNRate";
 
 const CONVERSION_FAILED_MESSAGE = "Please try again.";
 
@@ -82,6 +84,9 @@ export const BridgeForm: React.FC<BridgeFormProps> = ({
   const { allTokens } = useTokens();
   const { signDelegationAuthorization } = useDelegationContractAuth();
   const { refreshBalance } = useBalance();
+  const { rate: cngnRate } = useCNGNRate({
+    network: CNGN_CROSS_CHAIN_QUOTE_NETWORK,
+  });
   const [step, setStep] = useState<"form" | "status" | "failed">("form");
   const [isFinalizing, setIsFinalizing] = useState(false);
   const [failureMessage, setFailureMessage] = useState<string | null>(null);
@@ -118,6 +123,20 @@ export const BridgeForm: React.FC<BridgeFormProps> = ({
     process.env.NEXT_PUBLIC_BRIDGE_DEFAULT_SLIPPAGE_BPS ?? "50",
     10,
   );
+
+  const parsedAmount = Number(amount);
+  const minConvertAmount = from
+    ? minOffRampTokenAmount(from.token, cngnRate)
+    : null;
+  const amountBelowMin =
+    minConvertAmount !== null &&
+    Number.isFinite(parsedAmount) &&
+    parsedAmount > 0 &&
+    parsedAmount < minConvertAmount;
+  const convertMinMessage =
+    from && minConvertAmount !== null
+      ? `Minimum amount is ${formatNumberWithCommas(minConvertAmount)} ${from.token}`
+      : null;
 
   const embeddedWallet = wallets.find((w) => w.walletClientType === "privy");
 
@@ -165,7 +184,11 @@ export const BridgeForm: React.FC<BridgeFormProps> = ({
     evmAddress,
     starknetAddress,
     slippageBps,
-    enabled: (authenticated || (isInjectedWallet && injectedReady)) && !routeUnsupported && !!(evmAddress || starknetAddress),
+    enabled:
+      (authenticated || (isInjectedWallet && injectedReady)) &&
+      !routeUnsupported &&
+      !!(evmAddress || starknetAddress) &&
+      (!minConvertAmount || parsedAmount >= minConvertAmount),
     getAccessToken,
     getInjectedToken:
       isInjectedWallet && injectedReady ? getInjectedTokenPassive : undefined,
@@ -237,9 +260,17 @@ export const BridgeForm: React.FC<BridgeFormProps> = ({
   const handleConfirm = async () => {
     if (!quote || !from || !to) return;
     const parsedAmount = Number(amount);
+    const minAmount = minOffRampTokenAmount(from.token, cngnRate);
     const rawAmount = toRawAmount(amount, from.decimals);
     if (!Number.isFinite(parsedAmount) || parsedAmount <= 0 || rawAmount === "0") {
       setFailureMessage("Enter a valid amount for the selected token.");
+      setStep("failed");
+      return;
+    }
+    if (parsedAmount < minAmount) {
+      setFailureMessage(
+        `Minimum amount is ${formatNumberWithCommas(minAmount)} ${from.token}`,
+      );
       setStep("failed");
       return;
     }
@@ -338,15 +369,17 @@ export const BridgeForm: React.FC<BridgeFormProps> = ({
       quote === null &&
       !!from &&
       !!to &&
-      parseFloat(amount || "0") > 0);
+      parsedAmount >= (minConvertAmount ?? 0) &&
+      !amountBelowMin);
 
   const canConfirm =
     !noRailAvailable &&
     !isQuoteExpired &&
+    !amountBelowMin &&
     !!quote &&
     !quoteLoading &&
     !quoteError &&
-    parseFloat(amount || "0") > 0 &&
+    parsedAmount >= (minConvertAmount ?? 0) &&
     !!from &&
     !!to;
 
@@ -405,6 +438,12 @@ export const BridgeForm: React.FC<BridgeFormProps> = ({
                     Funds route through {fromNetworkName} to {toNetworkName} and
                     may take a few minutes longer.
                   </span>
+                </div>
+              )}
+
+              {amountBelowMin && convertMinMessage && (
+                <div className="rounded-xl border border-amber-100 bg-amber-50 p-3 text-sm text-amber-700 dark:border-amber-900/30 dark:bg-amber-900/20 dark:text-amber-400">
+                  {convertMinMessage}
                 </div>
               )}
 

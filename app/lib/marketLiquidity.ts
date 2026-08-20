@@ -8,6 +8,27 @@
 
 import type { RateSide, V2MarketOffer } from "../types";
 import { formatNumberWithCommas, getCurrencySymbol } from "../utils";
+import { tokensEqual } from "./token-symbol";
+
+/** Minimum swap/convert size in USD terms (product floor across the app). */
+export const MIN_SWAP_USD = 0.5;
+
+/** Off-ramp / convert: minimum Send amount in token units for $MIN_SWAP_USD equivalent. */
+export function minOffRampTokenAmount(
+  token: string | null | undefined,
+  cngnRate?: number | null,
+): number {
+  if (tokensEqual(token, "cNGN") && cngnRate && cngnRate > 0) {
+    return MIN_SWAP_USD * cngnRate;
+  }
+  return MIN_SWAP_USD;
+}
+
+/** On-ramp: minimum fiat Send amount for $MIN_SWAP_USD equivalent once a rate exists. */
+export function minOnRampFiatAmount(rate: number | null | undefined): number {
+  if (!rate || rate <= 0) return 0;
+  return MIN_SWAP_USD * rate;
+}
 
 /** One continuous run of fillable amounts, in Send-field units. */
 export type LiquiditySegment = { min: number; max: number };

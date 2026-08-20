@@ -195,8 +195,17 @@ describe("normalizeTextileQuote", () => {
 });
 
 describe("textileServer validation", () => {
+  const validBscSwap = {
+    chainId: 56,
+    sellToken: "0x55d398326f99059ff775485246999027b3197955",
+    buyToken: "0xa8aea66b361a8d53e8865c62d142167af28af058",
+    sellAmount: "1000000000000000000",
+    minRate: "1000000000000000000000000000",
+    taker: "0x0000000000000000000000000000000000000001",
+  };
+
   it("parseJsonObjectBody rejects null and arrays", () => {
-    const { parseJsonObjectBody, validateTextileSwapBody } = require("../app/lib/textileServer");
+    const { parseJsonObjectBody } = require("../app/lib/textileServer");
 
     expect(parseJsonObjectBody(null).ok).toBe(false);
     expect(parseJsonObjectBody([]).ok).toBe(false);
@@ -208,23 +217,60 @@ describe("textileServer validation", () => {
 
     expect(
       validateTextileSwapBody({
-        chainId: 56,
-        sellToken: "0xabc",
-        buyToken: "0xdef",
-        sellAmount: "1",
+        ...validBscSwap,
         minRate: "0",
-        taker: "0x123",
       }).ok,
     ).toBe(false);
 
+    expect(validateTextileSwapBody(validBscSwap).ok).toBe(true);
+  });
+
+  it("validateTextileSwapBody rejects unsupported chainId", () => {
+    const { validateTextileSwapBody } = require("../app/lib/textileServer");
+
+    expect(
+      validateTextileSwapBody({ ...validBscSwap, chainId: 8453 }).ok,
+    ).toBe(false);
+  });
+
+  it("validateTextileSwapBody rejects non-positive sellAmount", () => {
+    const { validateTextileSwapBody } = require("../app/lib/textileServer");
+
+    expect(
+      validateTextileSwapBody({ ...validBscSwap, sellAmount: "0" }).ok,
+    ).toBe(false);
+  });
+
+  it("validateTextileSwapBody rejects invalid addresses", () => {
+    const { validateTextileSwapBody } = require("../app/lib/textileServer");
+
+    expect(
+      validateTextileSwapBody({ ...validBscSwap, taker: "not-an-address" }).ok,
+    ).toBe(false);
+  });
+
+  it("validateTextileSwapBody rejects unsupported token pairs", () => {
+    const { validateTextileSwapBody } = require("../app/lib/textileServer");
+
     expect(
       validateTextileSwapBody({
-        chainId: 56,
-        sellToken: "0xabc",
-        buyToken: "0xdef",
-        sellAmount: "1",
+        ...validBscSwap,
+        buyToken: "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d",
+      }).ok,
+    ).toBe(false);
+  });
+
+  it("validateTextileSwapBody accepts Celo USDT to cNGN", () => {
+    const { validateTextileSwapBody } = require("../app/lib/textileServer");
+
+    expect(
+      validateTextileSwapBody({
+        chainId: 42220,
+        sellToken: "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e",
+        buyToken: "0xF6829D7393dAe24509eb1E52eE8e572e2E271a4f",
+        sellAmount: "1000000",
         minRate: "1000000000000000000000000000",
-        taker: "0x123",
+        taker: "0x0000000000000000000000000000000000000001",
       }).ok,
     ).toBe(true);
   });

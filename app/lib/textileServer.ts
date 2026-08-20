@@ -1,5 +1,10 @@
 /** Shared Textile FX upstream helpers for server proxy routes. */
 
+import {
+  isTextileCorridorPair,
+  TEXTILE_SUPPORTED_CHAIN_IDS,
+} from "./textileNetworks";
+
 export const TEXTILE_API_BASE = "https://api.textilecredit.com/v1";
 export const TEXTILE_UPSTREAM_TIMEOUT_MS = 15_000;
 
@@ -48,6 +53,28 @@ function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0;
 }
 
+function isEvmAddress(value: string): boolean {
+  return /^0x[0-9a-fA-F]{40}$/.test(value);
+}
+
+function parseChainId(value: unknown): number | null {
+  if (typeof value === "number" && Number.isInteger(value)) return value;
+  if (typeof value === "string" && /^\d+$/.test(value.trim())) {
+    const parsed = Number(value);
+    return Number.isInteger(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function isPositiveAtomicAmount(value: unknown): boolean {
+  if (typeof value !== "string" || value.trim().length === 0) return false;
+  try {
+    return BigInt(value) > BigInt(0);
+  } catch {
+    return false;
+  }
+}
+
 export function validateTextileSwapBody(
   body: Record<string, unknown>,
 ): { ok: true } | { ok: false; error: string } {
@@ -65,6 +92,37 @@ export function validateTextileSwapBody(
       ok: false,
       error: `Missing required fields: ${missing.join(", ")}`,
     };
+  }
+
+  const chainId = parseChainId(body.chainId);
+  if (chainId === null || !TEXTILE_SUPPORTED_CHAIN_IDS.has(chainId)) {
+    return {
+      ok: false,
+      error: "chainId must be a supported Textile corridor (56 or 42220)",
+    };
+  }
+
+  const sellToken = body.sellToken as string;
+  const buyToken = body.buyToken as string;
+  const taker = body.taker as string;
+
+  if (!isEvmAddress(sellToken) || !isEvmAddress(buyToken) || !isEvmAddress(taker)) {
+    return { ok: false, error: "sellToken, buyToken, and taker must be valid EVM addresses" };
+  }
+
+  if (sellToken.toLowerCase() === buyToken.toLowerCase()) {
+    return { ok: false, error: "sellToken and buyToken must differ" };
+  }
+
+  if (!isTextileCorridorPair(chainId, sellToken, buyToken)) {
+    return {
+      ok: false,
+      error: "Token pair is not a supported Textile USDT↔cNGN corridor on this chain",
+    };
+  }
+
+  if (!isPositiveAtomicAmount(body.sellAmount)) {
+    return { ok: false, error: "sellAmount must be a positive atomic amount string" };
   }
 
   if (!isPositiveRayRate(body.minRate)) {

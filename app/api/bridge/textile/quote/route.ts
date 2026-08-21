@@ -7,67 +7,73 @@ import {
   trackApiError,
 } from "@/app/lib/server-analytics";
 import {
-  TEXTILE_API_BASE,
-  TEXTILE_UPSTREAM_TIMEOUT_MS,
+  TEXTILE_API_V2_BASE,
+  TEXTILE_PREVIEW_TIMEOUT_MS,
   textileAuthHeaders,
-  minRateRayFromEffective,
-  isPositiveRayRate,
+  parseJsonObjectBody,
+  validateTextilePreviewBody,
 } from "@/app/lib/textileServer";
 
-export const GET = withRateLimit(async (request: NextRequest) => {
+/** Proxies Textile v2 RFQ preview (indicative price while user types). */
+export const POST = withRateLimit(async (request: NextRequest) => {
   const startTime = Date.now();
   try {
-    const params = Object.fromEntries(request.nextUrl.searchParams.entries());
-    const slippageBps = Math.max(Number(params.slippageBps) || 50, 200);
+    let parsed: unknown;
+    try {
+      parsed = await request.json();
+    } catch {
+      return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+    }
 
-    trackApiRequest(request, "/api/bridge/textile/quote", "GET", {
-      chain_id: params.chainId,
-      sell_token: params.sellToken,
-      buy_token: params.buyToken,
+    const objectBody = parseJsonObjectBody(parsed);
+    if (!objectBody.ok) {
+      return NextResponse.json({ error: objectBody.error }, { status: 400 });
+    }
+
+    const body = objectBody.body;
+    const validation = validateTextilePreviewBody(body);
+    if (!validation.ok) {
+      return NextResponse.json({ error: validation.error }, { status: 400 });
+    }
+
+    trackApiRequest(request, "/api/bridge/textile/quote", "POST", {
+      chain_id: body.chainId,
+      sell_token: body.sellToken,
+      buy_token: body.buyToken,
     });
 
-    const { data, status } = await axios.get(`${TEXTILE_API_BASE}/quote`, {
-      params: {
-        chainId: params.chainId,
-        sellToken: params.sellToken,
-        buyToken: params.buyToken,
-        sellAmount: params.sellAmount,
-        minRate: params.minRate ?? "0",
+    const { data, status } = await axios.post(
+      `${TEXTILE_API_V2_BASE}/rfq/preview`,
+      {
+        chainId: body.chainId,
+        sellToken: body.sellToken,
+        buyToken: body.buyToken,
+        sellAmount: body.sellAmount,
       },
-      headers: textileAuthHeaders(),
-      validateStatus: () => true,
-      timeout: TEXTILE_UPSTREAM_TIMEOUT_MS,
-    });
+      {
+        headers: {
+          ...textileAuthHeaders(),
+          "Content-Type": "application/json",
+        },
+        validateStatus: () => true,
+        timeout: TEXTILE_PREVIEW_TIMEOUT_MS,
+      },
+    );
 
     trackApiResponse(
       "/api/bridge/textile/quote",
-      "GET",
+      "POST",
       status,
       Date.now() - startTime,
     );
 
-    if (status >= 400) {
-      return NextResponse.json(data, { status });
-    }
-
-    const quote = data?.data;
-    if (quote?.effectiveRateRay && isPositiveRayRate(String(quote.effectiveRateRay))) {
-      const minRateRay = minRateRayFromEffective(
-        String(quote.effectiveRateRay),
-        slippageBps,
-      );
-      if (isPositiveRayRate(minRateRay)) {
-        quote.minRateRay = minRateRay;
-      }
-    }
-
     return NextResponse.json(data, { status });
   } catch (err) {
-    trackApiError(request, "/api/bridge/textile/quote", "GET", err as Error, 502, {
+    trackApiError(request, "/api/bridge/textile/quote", "POST", err as Error, 502, {
       response_time_ms: Date.now() - startTime,
     });
     return NextResponse.json(
-      { error: "Failed to fetch Textile quote" },
+      { error: "Failed to fetch Textile RFQ preview" },
       { status: 502 },
     );
   }

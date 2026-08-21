@@ -5,7 +5,10 @@ import {
   TEXTILE_SUPPORTED_CHAIN_IDS,
 } from "./textileNetworks";
 
-export const TEXTILE_API_BASE = "https://api.textilecredit.com/v1";
+export const TEXTILE_API_V2_BASE = "https://api.textilecredit.com/v2";
+export const TEXTILE_PREVIEW_TIMEOUT_MS = 15_000;
+/** RFQ request blocks while makers reply (~750 ms default); allow headroom for network. */
+export const TEXTILE_RFQ_REQUEST_TIMEOUT_MS = 20_000;
 export const TEXTILE_UPSTREAM_TIMEOUT_MS = 15_000;
 
 export function textileAuthHeaders(): Record<string, string> {
@@ -15,18 +18,12 @@ export function textileAuthHeaders(): Record<string, string> {
   return headers;
 }
 
-/** Debt-per-collateral floor (RAY) after applying slippage tolerance. */
-export function minRateRayFromEffective(
-  effectiveRateRay: string,
-  slippageBps: number,
-): string {
-  try {
-    const rate = BigInt(effectiveRateRay);
-    const factor = BigInt(Math.max(0, 10_000 - slippageBps));
-    return ((rate * factor) / BigInt(10_000)).toString();
-  } catch {
-    return "0";
-  }
+/** Optional claim token for RFQ cancel/submit/status when not using the requesting API key. */
+export function textileRfqClaimHeaders(
+  claimToken?: string | null,
+): Record<string, string> {
+  if (!claimToken?.trim()) return {};
+  return { "X-Rfq-Claim": claimToken.trim() };
 }
 
 /** True when a RAY-scaled rate string is a positive integer. */
@@ -75,16 +72,16 @@ function isPositiveAtomicAmount(value: unknown): boolean {
   }
 }
 
-export function validateTextileSwapBody(
+function validateTextileCorridorBody(
   body: Record<string, unknown>,
+  requireTaker: boolean,
 ): { ok: true } | { ok: false; error: string } {
   const missing = [
     body.chainId === undefined || body.chainId === null ? "chainId" : null,
     !isNonEmptyString(body.sellToken) ? "sellToken" : null,
     !isNonEmptyString(body.buyToken) ? "buyToken" : null,
     !isNonEmptyString(body.sellAmount) ? "sellAmount" : null,
-    !isNonEmptyString(body.minRate) ? "minRate" : null,
-    !isNonEmptyString(body.taker) ? "taker" : null,
+    requireTaker && !isNonEmptyString(body.taker) ? "taker" : null,
   ].filter(Boolean);
 
   if (missing.length > 0) {
@@ -104,10 +101,16 @@ export function validateTextileSwapBody(
 
   const sellToken = body.sellToken as string;
   const buyToken = body.buyToken as string;
-  const taker = body.taker as string;
 
-  if (!isEvmAddress(sellToken) || !isEvmAddress(buyToken) || !isEvmAddress(taker)) {
-    return { ok: false, error: "sellToken, buyToken, and taker must be valid EVM addresses" };
+  if (!isEvmAddress(sellToken) || !isEvmAddress(buyToken)) {
+    return { ok: false, error: "sellToken and buyToken must be valid EVM addresses" };
+  }
+
+  if (requireTaker) {
+    const taker = body.taker as string;
+    if (!isEvmAddress(taker)) {
+      return { ok: false, error: "taker must be a valid EVM address" };
+    }
   }
 
   if (sellToken.toLowerCase() === buyToken.toLowerCase()) {
@@ -125,39 +128,49 @@ export function validateTextileSwapBody(
     return { ok: false, error: "sellAmount must be a positive atomic amount string" };
   }
 
-  if (!isPositiveRayRate(body.minRate)) {
-    return { ok: false, error: "minRate must be a positive RAY-scaled integer string" };
-  }
-
   return { ok: true };
 }
+
+/** POST /v2/rfq/preview — same body as request minus taker. */
+export function validateTextilePreviewBody(
+  body: Record<string, unknown>,
+): { ok: true } | { ok: false; error: string } {
+  return validateTextileCorridorBody(body, false);
+}
+
+/** POST /v2/rfq/request — firm quote with taker wallet. */
+export function validateTextileRequestBody(
+  body: Record<string, unknown>,
+): { ok: true } | { ok: false; error: string } {
+  return validateTextileCorridorBody(body, true);
+}
+
+/** @deprecated v1 name — use validateTextileRequestBody */
+export const validateTextileSwapBody = validateTextileRequestBody;
 
 export function validateTextileSubmitBody(
   body: Record<string, unknown>,
-): { ok: true } | { ok: false; error: string } {
-  if (!isNonEmptyString(body.swapId) || !isNonEmptyString(body.txHash)) {
-    return { ok: false, error: "swapId and txHash are required" };
+): { ok: true; rfqId: string } | { ok: false; error: string } {
+  const rfqId =
+    (isNonEmptyString(body.rfqId) && body.rfqId) ||
+    (isNonEmptyString(body.swapId) && body.swapId) ||
+    null;
+
+  if (!rfqId || !isNonEmptyString(body.txHash)) {
+    return { ok: false, error: "rfqId and txHash are required" };
   }
-  return { ok: true };
+  return { ok: true, rfqId };
 }
 
-/**
- * Stable idempotency key for the same swap intent (retries replay Textile's first response).
- */
-export function textileIdempotencyKey(params: {
-  chainId: number;
-  sellToken: string;
-  buyToken: string;
-  sellAmount: string;
-  taker: string;
-  minRate: string;
-}): string {
-  return [
-    params.chainId,
-    params.sellToken.toLowerCase(),
-    params.buyToken.toLowerCase(),
-    params.sellAmount,
-    params.taker.toLowerCase(),
-    params.minRate,
-  ].join(":");
+const TEXTILE_RFQ_CLAIM_PREFIX = "textile-rfq-claim:";
+
+/** Persist RFQ claim token for status polling (browser only). */
+export function storeTextileRfqClaim(rfqId: string, claimToken: string): void {
+  if (typeof sessionStorage === "undefined") return;
+  sessionStorage.setItem(`${TEXTILE_RFQ_CLAIM_PREFIX}${rfqId}`, claimToken);
+}
+
+export function getTextileRfqClaim(rfqId: string): string | null {
+  if (typeof sessionStorage === "undefined") return null;
+  return sessionStorage.getItem(`${TEXTILE_RFQ_CLAIM_PREFIX}${rfqId}`);
 }

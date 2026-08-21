@@ -8,7 +8,6 @@ import {
   NearIntentsClient,
   LifiClient,
   TextileClient,
-  textileIdempotencyKey,
   toLifiChainId,
   resolveNearAssetId,
   toRawAmount,
@@ -77,18 +76,12 @@ async function fetchTextileQuote(
   from: BridgeLeg,
   to: BridgeLeg,
   rawAmount: string,
-  evmAddress: string,
-  slippageBps: number,
+  _evmAddress: string,
+  _slippageBps: number,
   auth: BridgeAuth,
 ): Promise<BridgeQuote | null> {
   const chainId = textileChainId(from.network);
   if (!chainId) return null;
-
-  const isCngn =
-    from.token.toLowerCase() === "cngn" || to.token.toLowerCase() === "cngn";
-  const textileSlippage = isCngn
-    ? Math.max(slippageBps, 200)
-    : slippageBps;
 
   const sellToken = from.tokenAddress;
   const buyToken = to.tokenAddress;
@@ -100,7 +93,6 @@ async function fetchTextileQuote(
       sellToken,
       buyToken,
       sellAmount: rawAmount,
-      slippageBps: textileSlippage,
       toDecimals: to.decimals,
     },
     auth,
@@ -368,10 +360,6 @@ export function useBridgeExecute({
   // without needing it as a useCallback dependency (avoids stale closure).
   const selectedNetworkRef = useRef(selectedNetwork);
   useEffect(() => { selectedNetworkRef.current = selectedNetwork; }, [selectedNetwork]);
-
-  const textileIdempotencyRef = useRef<{ quoteKey: string; key: string } | null>(
-    null,
-  );
 
   // Injected wallets sign and pay for their own transactions directly through
   // their provider — no sponsored bundler, no EIP-7702 delegation. Calls are sent
@@ -641,38 +629,13 @@ export function useBridgeExecute({
             | undefined;
           if (!taker) throw new Error("Wallet not connected");
 
-          const quoteKey = [
-            textileQuote.chainId,
-            textileQuote.sellToken,
-            textileQuote.buyToken,
-            textileQuote.sellAmount,
-            taker,
-            textileQuote.minRateRay,
-          ].join("|");
-
-          let idempotencyKey = textileIdempotencyRef.current?.key;
-          if (textileIdempotencyRef.current?.quoteKey !== quoteKey) {
-            idempotencyKey = textileIdempotencyKey({
-              chainId: textileQuote.chainId,
-              sellToken: textileQuote.sellToken,
-              buyToken: textileQuote.buyToken,
-              sellAmount: textileQuote.sellAmount,
-              taker,
-              minRate: textileQuote.minRateRay,
-            });
-            textileIdempotencyRef.current = { quoteKey, key: idempotencyKey };
-          }
-
-          const built = await textileClient.buildSwap(
+          const built = await textileClient.requestQuote(
             {
               chainId: textileQuote.chainId,
               sellToken: textileQuote.sellToken,
               buyToken: textileQuote.buyToken,
               sellAmount: textileQuote.sellAmount,
-              minRate: textileQuote.minRateRay,
               taker,
-              idempotencyKey: idempotencyKey!,
-              requireFullFill: textileQuote.fullyFilled,
             },
             proxyAuth,
           );
@@ -680,27 +643,48 @@ export function useBridgeExecute({
             throw new Error("Textile swap unavailable. Please try again.");
           }
 
+          if (built.expiresAt) {
+            const expiresMs = Date.parse(built.expiresAt);
+            if (!Number.isNaN(expiresMs) && Date.now() >= expiresMs) {
+              throw new Error("Textile quote expired. Please refresh and try again.");
+            }
+          }
+
           const calls: BatchCall[] = [];
-          const allowance = BigInt(built.requiredAllowance || "0");
+          const allowance = BigInt(built.takerPays || "0");
           if (allowance > BigInt(0)) {
-            if (!built.approvalSpender || built.approvalSpender === ZERO_ADDRESS) {
+            if (built.approval?.data && built.approval.data !== "0x") {
+              calls.push({
+                to: built.approval.to as `0x${string}`,
+                value: BigInt(built.approval.value || "0"),
+                data: built.approval.data as `0x${string}`,
+              });
+            } else if (built.reactor && built.reactor !== ZERO_ADDRESS) {
+              calls.push({
+                to: from.tokenAddress as `0x${string}`,
+                value: BigInt(0),
+                data: encodeFunctionData({
+                  abi: erc20Abi,
+                  functionName: "approve",
+                  args: [built.reactor, allowance],
+                }),
+              });
+            } else {
               throw new Error("Textile approval details unavailable. Please try again.");
             }
-            calls.push({
-              to: from.tokenAddress as `0x${string}`,
-              value: BigInt(0),
-              data: encodeFunctionData({
-                abi: erc20Abi,
-                functionName: "approve",
-                args: [built.approvalSpender, allowance],
-              }),
-            });
           }
           calls.push({
             to: built.swap.to as `0x${string}`,
             value: BigInt(built.swap.value || "0"),
             data: built.swap.data as `0x${string}`,
           });
+
+          if (built.expiresAt) {
+            const expiresMs = Date.parse(built.expiresAt);
+            if (!Number.isNaN(expiresMs) && Date.now() >= expiresMs) {
+              throw new Error("Textile quote expired before broadcast. Please refresh and try again.");
+            }
+          }
 
           let evmHash: string;
           if (isInjectedWallet) {
@@ -723,7 +707,12 @@ export function useBridgeExecute({
           }
 
           try {
-            await textileClient.submitSwap(built.swapId, evmHash, proxyAuth);
+            await textileClient.submitSwap(
+              built.rfqId,
+              evmHash,
+              proxyAuth,
+              built.claimToken,
+            );
           } catch (submitErr) {
             const detail =
               submitErr instanceof Error
@@ -737,7 +726,7 @@ export function useBridgeExecute({
           setTxHash(evmHash);
           setIsSuccess(true);
           onSuccess?.(evmHash);
-          return { txHash: evmHash, depositRefId: built.swapId };
+          return { txHash: evmHash, depositRefId: built.rfqId };
         }
         throw new Error("Unsupported quote type");
       } catch (err) {

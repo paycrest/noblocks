@@ -93,45 +93,41 @@ describe("textile routing", () => {
   });
 });
 
-describe("normalizeTextileQuote", () => {
+describe("normalizeTextileQuote (v2 RFQ preview)", () => {
   const baseParams = {
     chainId: 56,
     sellToken: "0x55d398326f99059ff775485246999027b3197955",
     buyToken: "0xa8aea66b361a8d53e8865c62d142167af28af058",
-    sellAmount: "500000000000000000",
-    slippageBps: 200,
+    sellAmount: "1000000000000000000",
     toDecimals: 6,
   };
 
-  it("accepts partial fills when fillableAmount > 0", () => {
+  it("accepts preview status with buyAmount", () => {
     const result = normalizeTextileQuote(
       {
         data: {
-          hasLiquidity: true,
-          fullyFilled: false,
-          fillableAmount: "400000000000000000",
-          proceeds: "650000000",
-          effectiveRateRay: "1000000000000000000000000000",
+          status: "preview",
+          sellAmount: "1000000000000000000",
+          buyAmount: "1625000000",
+          feeAmount: "99990",
+          takerPays: "1000000000000000000",
+          rateRay: "1625000000000000000000000000",
         },
       },
       baseParams,
     );
 
     expect(result).not.toBeNull();
-    expect(result?.sellAmount).toBe("400000000000000000");
-    expect(result?.requestedSellAmount).toBe("500000000000000000");
-    expect(result?.fullyFilled).toBe(false);
-    expect(result?.amountOut).toBe("650");
+    expect(result?.amountOut).toBe("1625");
+    expect(result?.sellAmount).toBe("1000000000000000000");
   });
 
-  it("rejects when fillableAmount is zero", () => {
+  it("rejects no_quote preview", () => {
     const result = normalizeTextileQuote(
       {
         data: {
-          hasLiquidity: true,
-          fullyFilled: false,
-          fillableAmount: "0",
-          proceeds: "0",
+          status: "no_quote",
+          reason: "no_valid_quote",
         },
       },
       baseParams,
@@ -140,34 +136,12 @@ describe("normalizeTextileQuote", () => {
     expect(result).toBeNull();
   });
 
-  it("accepts full fills", () => {
+  it("rejects zero buyAmount", () => {
     const result = normalizeTextileQuote(
       {
         data: {
-          hasLiquidity: true,
-          fullyFilled: true,
-          fillableAmount: "500000000000000000",
-          proceeds: "812500000",
-          effectiveRateRay: "1000000000000000000000000000",
-        },
-      },
-      baseParams,
-    );
-
-    expect(result).not.toBeNull();
-    expect(result?.fullyFilled).toBe(true);
-    expect(result?.sellAmount).toBe("500000000000000000");
-  });
-
-  it("rejects when fillableAmount exceeds requested sellAmount", () => {
-    const result = normalizeTextileQuote(
-      {
-        data: {
-          hasLiquidity: true,
-          fullyFilled: true,
-          fillableAmount: "600000000000000000",
-          proceeds: "812500000",
-          effectiveRateRay: "1000000000000000000000000000",
+          status: "preview",
+          buyAmount: "0",
         },
       },
       baseParams,
@@ -176,15 +150,11 @@ describe("normalizeTextileQuote", () => {
     expect(result).toBeNull();
   });
 
-  it("rejects when effectiveRateRay is zero", () => {
+  it("rejects missing status", () => {
     const result = normalizeTextileQuote(
       {
         data: {
-          hasLiquidity: true,
-          fullyFilled: true,
-          fillableAmount: "500000000000000000",
-          proceeds: "812500000",
-          effectiveRateRay: "0",
+          buyAmount: "1625000000",
         },
       },
       baseParams,
@@ -195,12 +165,15 @@ describe("normalizeTextileQuote", () => {
 });
 
 describe("textileServer validation", () => {
-  const validBscSwap = {
+  const validBscPreview = {
     chainId: 56,
     sellToken: "0x55d398326f99059ff775485246999027b3197955",
     buyToken: "0xa8aea66b361a8d53e8865c62d142167af28af058",
     sellAmount: "1000000000000000000",
-    minRate: "1000000000000000000000000000",
+  };
+
+  const validBscRequest = {
+    ...validBscPreview,
     taker: "0x0000000000000000000000000000000000000001",
   };
 
@@ -212,65 +185,89 @@ describe("textileServer validation", () => {
     expect(parseJsonObjectBody({ chainId: 56 }).ok).toBe(true);
   });
 
-  it("validateTextileSwapBody rejects zero minRate", () => {
-    const { validateTextileSwapBody } = require("../app/lib/textileServer");
+  it("validateTextilePreviewBody accepts BSC USDT to cNGN", () => {
+    const { validateTextilePreviewBody } = require("../app/lib/textileServer");
 
-    expect(
-      validateTextileSwapBody({
-        ...validBscSwap,
-        minRate: "0",
-      }).ok,
-    ).toBe(false);
-
-    expect(validateTextileSwapBody(validBscSwap).ok).toBe(true);
+    expect(validateTextilePreviewBody(validBscPreview).ok).toBe(true);
   });
 
-  it("validateTextileSwapBody rejects unsupported chainId", () => {
-    const { validateTextileSwapBody } = require("../app/lib/textileServer");
+  it("validateTextilePreviewBody rejects missing sellAmount", () => {
+    const { validateTextilePreviewBody } = require("../app/lib/textileServer");
 
-    expect(
-      validateTextileSwapBody({ ...validBscSwap, chainId: 8453 }).ok,
-    ).toBe(false);
+    const { sellAmount: _, ...rest } = validBscPreview;
+    expect(validateTextilePreviewBody(rest).ok).toBe(false);
   });
 
-  it("validateTextileSwapBody rejects non-positive sellAmount", () => {
-    const { validateTextileSwapBody } = require("../app/lib/textileServer");
+  it("validateTextileRequestBody requires taker", () => {
+    const { validateTextileRequestBody } = require("../app/lib/textileServer");
 
-    expect(
-      validateTextileSwapBody({ ...validBscSwap, sellAmount: "0" }).ok,
-    ).toBe(false);
+    expect(validateTextileRequestBody(validBscPreview).ok).toBe(false);
+    expect(validateTextileRequestBody(validBscRequest).ok).toBe(true);
   });
 
-  it("validateTextileSwapBody rejects invalid addresses", () => {
-    const { validateTextileSwapBody } = require("../app/lib/textileServer");
+  it("validateTextileRequestBody rejects unsupported chainId", () => {
+    const { validateTextileRequestBody } = require("../app/lib/textileServer");
 
     expect(
-      validateTextileSwapBody({ ...validBscSwap, taker: "not-an-address" }).ok,
+      validateTextileRequestBody({ ...validBscRequest, chainId: 8453 }).ok,
     ).toBe(false);
   });
 
-  it("validateTextileSwapBody rejects unsupported token pairs", () => {
-    const { validateTextileSwapBody } = require("../app/lib/textileServer");
+  it("validateTextileRequestBody rejects non-positive sellAmount", () => {
+    const { validateTextileRequestBody } = require("../app/lib/textileServer");
 
     expect(
-      validateTextileSwapBody({
-        ...validBscSwap,
+      validateTextileRequestBody({ ...validBscRequest, sellAmount: "0" }).ok,
+    ).toBe(false);
+  });
+
+  it("validateTextileRequestBody rejects invalid addresses", () => {
+    const { validateTextileRequestBody } = require("../app/lib/textileServer");
+
+    expect(
+      validateTextileRequestBody({ ...validBscRequest, taker: "not-an-address" }).ok,
+    ).toBe(false);
+  });
+
+  it("validateTextileRequestBody rejects unsupported token pairs", () => {
+    const { validateTextileRequestBody } = require("../app/lib/textileServer");
+
+    expect(
+      validateTextileRequestBody({
+        ...validBscRequest,
         buyToken: "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d",
       }).ok,
     ).toBe(false);
   });
 
-  it("validateTextileSwapBody accepts Celo USDT to cNGN", () => {
-    const { validateTextileSwapBody } = require("../app/lib/textileServer");
+  it("validateTextileRequestBody accepts Celo USDT to cNGN", () => {
+    const { validateTextileRequestBody } = require("../app/lib/textileServer");
 
     expect(
-      validateTextileSwapBody({
+      validateTextileRequestBody({
         chainId: 42220,
         sellToken: "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e",
         buyToken: "0xF6829D7393dAe24509eb1E52eE8e572e2E271a4f",
         sellAmount: "1000000",
-        minRate: "1000000000000000000000000000",
         taker: "0x0000000000000000000000000000000000000001",
+      }).ok,
+    ).toBe(true);
+  });
+
+  it("validateTextileSubmitBody accepts rfqId alias swapId", () => {
+    const { validateTextileSubmitBody } = require("../app/lib/textileServer");
+
+    expect(
+      validateTextileSubmitBody({
+        rfqId: "rfq_abc",
+        txHash: "0xabc",
+      }).ok,
+    ).toBe(true);
+
+    expect(
+      validateTextileSubmitBody({
+        swapId: "rfq_legacy",
+        txHash: "0xabc",
       }).ok,
     ).toBe(true);
   });

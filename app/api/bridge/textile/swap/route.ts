@@ -7,13 +7,14 @@ import {
   trackApiError,
 } from "@/app/lib/server-analytics";
 import {
-  TEXTILE_API_BASE,
-  TEXTILE_UPSTREAM_TIMEOUT_MS,
+  TEXTILE_API_V2_BASE,
+  TEXTILE_RFQ_REQUEST_TIMEOUT_MS,
   textileAuthHeaders,
   parseJsonObjectBody,
-  validateTextileSwapBody,
+  validateTextileRequestBody,
 } from "@/app/lib/textileServer";
 
+/** Proxies Textile v2 RFQ request (firm quote + transactions on confirm). */
 export const POST = withRateLimit(async (request: NextRequest) => {
   const startTime = Date.now();
   try {
@@ -30,12 +31,10 @@ export const POST = withRateLimit(async (request: NextRequest) => {
     }
 
     const body = objectBody.body;
-    const validation = validateTextileSwapBody(body);
+    const validation = validateTextileRequestBody(body);
     if (!validation.ok) {
       return NextResponse.json({ error: validation.error }, { status: 400 });
     }
-
-    const idempotencyKey = request.headers.get("Idempotency-Key") ?? undefined;
 
     trackApiRequest(request, "/api/bridge/textile/swap", "POST", {
       chain_id: body.chainId,
@@ -43,27 +42,22 @@ export const POST = withRateLimit(async (request: NextRequest) => {
       buy_token: body.buyToken,
     });
 
-    const headers: Record<string, string> = {
-      ...textileAuthHeaders(),
-      "Content-Type": "application/json",
-    };
-    if (idempotencyKey) headers["Idempotency-Key"] = idempotencyKey;
-
     const { data, status } = await axios.post(
-      `${TEXTILE_API_BASE}/swaps`,
+      `${TEXTILE_API_V2_BASE}/rfq/request`,
       {
         chainId: body.chainId,
         sellToken: body.sellToken,
         buyToken: body.buyToken,
         sellAmount: body.sellAmount,
-        minRate: body.minRate,
         taker: body.taker,
-        requireFullFill: body.requireFullFill ?? false,
       },
       {
-        headers,
+        headers: {
+          ...textileAuthHeaders(),
+          "Content-Type": "application/json",
+        },
         validateStatus: () => true,
-        timeout: TEXTILE_UPSTREAM_TIMEOUT_MS,
+        timeout: TEXTILE_RFQ_REQUEST_TIMEOUT_MS,
       },
     );
 
@@ -79,7 +73,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
       response_time_ms: Date.now() - startTime,
     });
     return NextResponse.json(
-      { error: "Failed to build Textile swap" },
+      { error: "Failed to request Textile RFQ" },
       { status: 502 },
     );
   }

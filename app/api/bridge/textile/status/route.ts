@@ -7,27 +7,38 @@ import {
   trackApiError,
 } from "@/app/lib/server-analytics";
 import {
-  TEXTILE_API_BASE,
+  TEXTILE_API_V2_BASE,
   TEXTILE_UPSTREAM_TIMEOUT_MS,
   textileAuthHeaders,
+  textileRfqClaimHeaders,
 } from "@/app/lib/textileServer";
 
 export const GET = withRateLimit(async (request: NextRequest) => {
   const startTime = Date.now();
   try {
-    const swapId = request.nextUrl.searchParams.get("swapId");
-    if (!swapId) {
-      return NextResponse.json({ error: "swapId required" }, { status: 400 });
+    const rfqId =
+      request.nextUrl.searchParams.get("rfqId") ??
+      request.nextUrl.searchParams.get("swapId");
+    if (!rfqId) {
+      return NextResponse.json({ error: "rfqId required" }, { status: 400 });
     }
 
+    const claimToken =
+      request.nextUrl.searchParams.get("claimToken") ??
+      request.headers.get("X-Rfq-Claim") ??
+      undefined;
+
     trackApiRequest(request, "/api/bridge/textile/status", "GET", {
-      swap_id: swapId,
+      rfq_id: rfqId,
     });
 
     const { data, status } = await axios.get(
-      `${TEXTILE_API_BASE}/swaps/${encodeURIComponent(swapId)}`,
+      `${TEXTILE_API_V2_BASE}/rfq/${encodeURIComponent(rfqId)}`,
       {
-        headers: textileAuthHeaders(),
+        headers: {
+          ...textileAuthHeaders(),
+          ...textileRfqClaimHeaders(claimToken),
+        },
         validateStatus: () => true,
         timeout: TEXTILE_UPSTREAM_TIMEOUT_MS,
       },
@@ -45,7 +56,7 @@ export const GET = withRateLimit(async (request: NextRequest) => {
       response_time_ms: Date.now() - startTime,
     });
     return NextResponse.json(
-      { error: "Failed to fetch Textile swap status" },
+      { error: "Failed to fetch Textile RFQ status" },
       { status: 502 },
     );
   }

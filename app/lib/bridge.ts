@@ -4,7 +4,7 @@
  */
 
 import axios from "axios";
-import { encodeFunctionData, decodeFunctionData, parseUnits, formatUnits, http, createPublicClient, erc20Abi } from "viem";
+import { encodeFunctionData, parseUnits, formatUnits, http, createPublicClient, erc20Abi } from "viem";
 import type { SignedAuthorization } from "viem";
 import { networks } from "@/app/mocks";
 import type { Token, Network } from "@/app/types";
@@ -15,9 +15,8 @@ import { getDelegationContractAddress } from "./config";
 import { get7702AuthorizedImplementationForAddress } from "../hooks/useEIP7702Account";
 import { isTextileRoute } from "./bridgeFeature";
 import {
-  isPositiveRayRate,
-  minRateRayFromEffective,
-  textileIdempotencyKey,
+  getTextileRfqClaim,
+  storeTextileRfqClaim,
 } from "./textileServer";
 
 // ============================================================================
@@ -75,37 +74,34 @@ export interface LifiTxQuote {
   raw: unknown;
 }
 
-/** Textile FX quote preview — txs built on confirm via POST /v1/swaps. */
+/** Textile FX v2 RFQ preview — firm quote + txs fetched on confirm via POST /v2/rfq/request. */
 export interface TextileSwapQuote {
   kind: "textile-swap";
   amountOut: string;
-  /** Fee in receiving token (Textile taker fee is taken in collateral; 0 when unknown at quote time). */
+  /** Protocol fee in receiving token (0 when not surfaced at preview time). */
   feeReceivingToken: string;
   chainId: number;
   sellToken: string;
   buyToken: string;
-  /** User-requested sell amount in atomic units (may exceed what the book fills). */
-  requestedSellAmount: string;
-  /** Executable sell amount in atomic units — pass to POST /v1/swaps. */
+  /** Exact-input sell cap in atomic units — pass to POST /v2/rfq/request. */
   sellAmount: string;
-  fullyFilled: boolean;
   toDecimals: number;
-  /** RAY-scaled min rate passed to POST /v1/swaps on execute. */
-  minRateRay: string;
   raw: unknown;
 }
 
-/** Built Textile swap with unsigned approval + swap txs (short-lived). */
+/** Built Textile v2 RFQ with unsigned approval + swap txs (short-lived). */
 export interface TextileBuiltSwap {
-  swapId: string;
-  requiredAllowance: string;
-  /** ERC-20 approve spender decoded from upstream approval calldata. */
-  approvalSpender?: `0x${string}`;
-  approval: { to: string; data: string; value: string; chainId: number };
+  rfqId: string;
+  claimToken: string;
+  /** Gross sell-token debit including protocol fee — approve this to reactor. */
+  takerPays: string;
+  reactor: `0x${string}`;
+  expiresAt: string;
+  approval?: { to: string; data: string; value: string; chainId: number };
   swap: { to: string; data: string; value: string; chainId: number };
 }
 
-export { textileIdempotencyKey };
+export { storeTextileRfqClaim, getTextileRfqClaim };
 
 export type BridgeQuote = NearDepositQuote | LifiTxQuote | TextileSwapQuote;
 
@@ -506,22 +502,24 @@ export class LifiClient {
 }
 
 export function mapTextileStatus(status?: string): BridgeStatus {
-  switch ((status ?? "").toUpperCase()) {
-    case "FILLED":
+  switch ((status ?? "").toLowerCase()) {
+    case "filled":
       return "SUCCESS";
-    case "FAILED":
-    case "CANCELLED":
+    case "failed":
+    case "expired":
+    case "no_quote":
       return "FAILED";
-    case "QUOTED":
-    case "SUBMITTED":
+    case "quoted":
+    case "submitted":
+    case "soliciting":
     default:
       return "PROCESSING";
   }
 }
 
 /**
- * Accept Textile quotes when the book can fill something (partial fills OK).
- * Falls back to LI.FI only when there is no fillable liquidity at all.
+ * Accept Textile v2 RFQ previews with status `preview`.
+ * Falls back to LI.FI on `no_quote` or missing liquidity.
  */
 export function normalizeTextileQuote(
   data: unknown,
@@ -530,39 +528,22 @@ export function normalizeTextileQuote(
     sellToken: string;
     buyToken: string;
     sellAmount: string;
-    slippageBps: number;
     toDecimals: number;
   },
 ): TextileSwapQuote | null {
-  const quote = (data as { data?: Record<string, unknown> })?.data;
-  if (!quote?.hasLiquidity) return null;
+  const preview = (data as { data?: Record<string, unknown> })?.data;
+  if (!preview || preview.status !== "preview") return null;
 
-  const fillableAmount = String(quote.fillableAmount ?? "0");
-  try {
-    const fillable = BigInt(fillableAmount);
-    const requested = BigInt(params.sellAmount);
-    if (fillable <= BigInt(0) || fillable > requested) return null;
-  } catch {
-    return null;
-  }
-
-  const proceeds = String(quote.proceeds ?? "0");
+  const buyAmount = String(preview.buyAmount ?? "0");
   let amountOut = "0";
   try {
-    if (BigInt(proceeds) > BigInt(0)) {
-      amountOut = formatUnits(BigInt(proceeds), params.toDecimals);
+    if (BigInt(buyAmount) > BigInt(0)) {
+      amountOut = formatUnits(BigInt(buyAmount), params.toDecimals);
     }
   } catch {
     return null;
   }
   if (parseFloat(amountOut) <= 0) return null;
-
-  const effectiveRateRay = String(quote.effectiveRateRay ?? "0");
-  if (!isPositiveRayRate(effectiveRateRay)) return null;
-
-  const slippageBps = Math.max(params.slippageBps, 200);
-  const minRateRay = minRateRayFromEffective(effectiveRateRay, slippageBps);
-  if (!isPositiveRayRate(minRateRay)) return null;
 
   return {
     kind: "textile-swap",
@@ -571,31 +552,10 @@ export function normalizeTextileQuote(
     chainId: params.chainId,
     sellToken: params.sellToken,
     buyToken: params.buyToken,
-    requestedSellAmount: params.sellAmount,
-    sellAmount: fillableAmount,
-    fullyFilled: quote.fullyFilled === true,
+    sellAmount: params.sellAmount,
     toDecimals: params.toDecimals,
-    minRateRay,
     raw: data,
   };
-}
-
-function parseTextileApprovalSpender(
-  approvalData?: string,
-): `0x${string}` | undefined {
-  if (!approvalData || approvalData === "0x") return undefined;
-  try {
-    const decoded = decodeFunctionData({
-      abi: erc20Abi,
-      data: approvalData as `0x${string}`,
-    });
-    if (decoded.functionName === "approve" && decoded.args[0]) {
-      return decoded.args[0] as `0x${string}`;
-    }
-  } catch {
-    // ignore malformed calldata
-  }
-  return undefined;
 }
 
 export class TextileClient {
@@ -605,22 +565,23 @@ export class TextileClient {
       sellToken: string;
       buyToken: string;
       sellAmount: string;
-      slippageBps: number;
       toDecimals: number;
     },
     auth?: BridgeAuth | string | null,
   ): Promise<BridgeQuote | null> {
-    const { data, status } = await axios.get("/api/bridge/textile/quote", {
-      params: {
+    const { data, status } = await axios.post(
+      "/api/bridge/textile/quote",
+      {
         chainId: params.chainId,
         sellToken: params.sellToken,
         buyToken: params.buyToken,
         sellAmount: params.sellAmount,
-        slippageBps: params.slippageBps,
       },
-      headers: authHeaders(auth),
-      validateStatus: () => true,
-    });
+      {
+        headers: authHeaders(auth),
+        validateStatus: () => true,
+      },
+    );
 
     if (status === 404) return null;
     if (status === 401 || status === 403) {
@@ -639,21 +600,17 @@ export class TextileClient {
       sellToken: params.sellToken,
       buyToken: params.buyToken,
       sellAmount: params.sellAmount,
-      slippageBps: params.slippageBps,
       toDecimals: params.toDecimals,
     });
   }
 
-  async buildSwap(
+  async requestQuote(
     params: {
       chainId: number;
       sellToken: string;
       buyToken: string;
       sellAmount: string;
-      minRate: string;
       taker: string;
-      idempotencyKey: string;
-      requireFullFill?: boolean;
     },
     auth?: BridgeAuth | string | null,
   ): Promise<TextileBuiltSwap | null> {
@@ -664,15 +621,10 @@ export class TextileClient {
         sellToken: params.sellToken,
         buyToken: params.buyToken,
         sellAmount: params.sellAmount,
-        minRate: params.minRate,
         taker: params.taker,
-        requireFullFill: params.requireFullFill ?? false,
       },
       {
-        headers: {
-          ...authHeaders(auth),
-          "Idempotency-Key": params.idempotencyKey,
-        },
+        headers: authHeaders(auth),
         validateStatus: () => true,
       },
     );
@@ -685,25 +637,47 @@ export class TextileClient {
     }
     if (status >= 400) return null;
 
-    const built = data?.data;
-    if (!built?.fillable || !built.transactions?.swap) return null;
+    const rfq = data?.data;
+    if (rfq?.status !== "quoted" || !rfq.transactions?.swap) return null;
 
-    const approvalData = built.transactions.approval?.data as string | undefined;
+    const firm = rfq.quote as Record<string, unknown> | undefined;
+    const reactor = firm?.reactor as string | undefined;
+    if (!rfq.rfqId || !rfq.claimToken || !reactor || !firm?.takerPays) return null;
+
+    storeTextileRfqClaim(String(rfq.rfqId), String(rfq.claimToken));
 
     return {
-      swapId: built.id,
-      requiredAllowance: built.requiredAllowance ?? params.sellAmount,
-      approvalSpender: parseTextileApprovalSpender(approvalData),
-      approval: built.transactions.approval,
-      swap: built.transactions.swap,
+      rfqId: String(rfq.rfqId),
+      claimToken: String(rfq.claimToken),
+      takerPays: String(firm.takerPays),
+      reactor: reactor as `0x${string}`,
+      expiresAt: String(firm.expiresAt ?? ""),
+      approval: rfq.transactions.approval,
+      swap: rfq.transactions.swap,
     };
   }
 
+  /** @deprecated use requestQuote — kept as alias for call sites */
+  async buildSwap(
+    params: {
+      chainId: number;
+      sellToken: string;
+      buyToken: string;
+      sellAmount: string;
+      taker: string;
+    },
+    auth?: BridgeAuth | string | null,
+  ): Promise<TextileBuiltSwap | null> {
+    return this.requestQuote(params, auth);
+  }
+
   async submitSwap(
-    swapId: string,
+    rfqId: string,
     txHash: string,
     auth?: BridgeAuth | string | null,
+    claimToken?: string | null,
   ): Promise<void> {
+    const claim = claimToken ?? getTextileRfqClaim(rfqId);
     const maxAttempts = 3;
     let lastError: Error | null = null;
 
@@ -711,7 +685,7 @@ export class TextileClient {
       try {
         const { data, status } = await axios.post(
           `/api/bridge/textile/submit`,
-          { swapId, txHash },
+          { rfqId, txHash, claimToken: claim ?? undefined },
           {
             headers: authHeaders(auth),
             validateStatus: () => true,
@@ -739,17 +713,22 @@ export class TextileClient {
   }
 
   async getStatus(
-    swapId: string,
+    rfqId: string,
     auth?: BridgeAuth | string | null,
+    claimToken?: string | null,
   ): Promise<BridgeStatusResult> {
+    const claim = claimToken ?? getTextileRfqClaim(rfqId);
     const { data } = await axios.get("/api/bridge/textile/status", {
-      params: { swapId },
+      params: {
+        rfqId,
+        ...(claim ? { claimToken: claim } : {}),
+      },
       headers: authHeaders(auth),
     });
-    const swap = data?.data;
+    const rfq = data?.data;
     return {
-      status: mapTextileStatus(swap?.status),
-      txHash: swap?.txHash,
+      status: mapTextileStatus(rfq?.status),
+      txHash: rfq?.txHash,
     };
   }
 }

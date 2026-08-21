@@ -7,9 +7,10 @@ import {
   trackApiError,
 } from "@/app/lib/server-analytics";
 import {
-  TEXTILE_API_BASE,
+  TEXTILE_API_V2_BASE,
   TEXTILE_UPSTREAM_TIMEOUT_MS,
   textileAuthHeaders,
+  textileRfqClaimHeaders,
   parseJsonObjectBody,
   validateTextileSubmitBody,
 } from "@/app/lib/textileServer";
@@ -35,16 +36,20 @@ export const POST = withRateLimit(async (request: NextRequest) => {
       return NextResponse.json({ error: validation.error }, { status: 400 });
     }
 
+    const claimToken =
+      typeof body.claimToken === "string" ? body.claimToken : undefined;
+
     trackApiRequest(request, "/api/bridge/textile/submit", "POST", {
-      swap_id: body.swapId,
+      rfq_id: validation.rfqId,
     });
 
     const { data, status } = await axios.post(
-      `${TEXTILE_API_BASE}/swaps/${encodeURIComponent(body.swapId as string)}/submit`,
+      `${TEXTILE_API_V2_BASE}/rfq/${encodeURIComponent(validation.rfqId)}/submit`,
       { txHash: body.txHash },
       {
         headers: {
           ...textileAuthHeaders(),
+          ...textileRfqClaimHeaders(claimToken),
           "Content-Type": "application/json",
         },
         validateStatus: () => true,
@@ -64,7 +69,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
       response_time_ms: Date.now() - startTime,
     });
     return NextResponse.json(
-      { error: "Failed to submit Textile swap" },
+      { error: "Failed to submit Textile RFQ transaction" },
       { status: 502 },
     );
   }

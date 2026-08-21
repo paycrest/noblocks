@@ -3,7 +3,7 @@ import { applyAutoSubs } from "../autosubs";
 import { computeSquadPoints } from "../scoring";
 import { getFantasySettings, invalidateFantasySettingsCache } from "../settings";
 import { getPlayersMap, invalidatePlayersCache } from "../players";
-import { fetchAll } from "../pagination";
+import { chunkArray, fetchAll, IN_CHUNK } from "../pagination";
 import type { FantasySettings, Position } from "../types";
 
 /** Skip overlapping ticks when another run started within this window (seconds). */
@@ -30,6 +30,10 @@ export async function releaseWorkerRun(token: string): Promise<void> {
   if (error) throw error;
 }
 
+/**
+ * Batch-merge score/rank patches onto existing participants.
+ * Preflight existence so upsert never inserts (join owns creation + terms_accepted_at).
+ */
 export async function batchUpsertParticipants(
   rows: {
     wallet_address: string;
@@ -41,20 +45,34 @@ export async function batchUpsertParticipants(
 ): Promise<void> {
   if (rows.length === 0) return;
 
-  const termsAt = new Date().toISOString();
   for (let i = 0; i < rows.length; i += batchSize) {
-    const batch = rows.slice(i, i + batchSize).map((row) => {
-      const payload: Record<string, unknown> = {
-        wallet_address: row.wallet_address.trim().toLowerCase(),
-        // Required on upsert insert path (NOT NULL, no default). Active managers
-        // in the scoring pipeline have accepted terms by definition.
-        terms_accepted_at: termsAt,
-      };
-      if (row.total_points !== undefined) payload.total_points = row.total_points;
-      if (row.current_rank !== undefined) payload.current_rank = row.current_rank;
-      if (row.previous_rank !== undefined) payload.previous_rank = row.previous_rank;
-      return payload;
-    });
+    const chunk = rows.slice(i, i + batchSize);
+    const wallets = [...new Set(chunk.map((r) => r.wallet_address.trim().toLowerCase()))];
+
+    const existing = new Set<string>();
+    for (const walletChunk of chunkArray(wallets, IN_CHUNK)) {
+      const { data, error } = await supabaseAdmin
+        .from("fantasy_participants")
+        .select("wallet_address")
+        .in("wallet_address", walletChunk);
+      if (error) throw error;
+      for (const row of data ?? []) existing.add(row.wallet_address);
+    }
+
+    const batch = chunk
+      .filter((row) => existing.has(row.wallet_address.trim().toLowerCase()))
+      .map((row) => {
+        const payload: Record<string, unknown> = {
+          wallet_address: row.wallet_address.trim().toLowerCase(),
+        };
+        if (row.total_points !== undefined) payload.total_points = row.total_points;
+        if (row.current_rank !== undefined) payload.current_rank = row.current_rank;
+        if (row.previous_rank !== undefined) payload.previous_rank = row.previous_rank;
+        return payload;
+      });
+
+    if (batch.length === 0) continue;
+
     const { error } = await supabaseAdmin
       .from("fantasy_participants")
       .upsert(batch, { onConflict: "wallet_address", defaultToNull: false });

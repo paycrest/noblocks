@@ -61,6 +61,22 @@ export { recomputeScores } from "./worker/scoring";
 
 let tickRunning = false;
 
+/** PostgREST errors are plain objects — String(error) yields "[object Object]". */
+function formatWorkerError(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (error && typeof error === "object") {
+    const e = error as { message?: string; code?: string; details?: string; hint?: string };
+    const parts = [
+      e.message,
+      e.code ? `code=${e.code}` : undefined,
+      e.details,
+      e.hint,
+    ].filter((part): part is string => typeof part === "string" && part.length > 0);
+    if (parts.length > 0) return parts.join(" | ");
+  }
+  return String(error);
+}
+
 export async function runWorkerTick(options?: { force?: boolean }): Promise<WorkerReport> {
   const force = options?.force ?? false;
   const nowDate = new Date();
@@ -132,7 +148,7 @@ export async function runWorkerTick(options?: { force?: boolean }): Promise<Work
           fixtures = await loadFixtures(settings);
         }
       } catch (error) {
-        report.alerts.push(`timelapse fixture advance failed: ${String(error)}`);
+        report.alerts.push(`timelapse fixture advance failed: ${formatWorkerError(error)}`);
       }
     } else if (refreshDue) {
       try {
@@ -141,7 +157,7 @@ export async function runWorkerTick(options?: { force?: boolean }): Promise<Work
         fixtures = await loadFixtures(settings);
         checkFrozenDeadlinePostponements(matchdays, fixtures, now, report.alerts);
       } catch (error) {
-        report.alerts.push(`fixture refresh failed: ${String(error)}`);
+        report.alerts.push(`fixture refresh failed: ${formatWorkerError(error)}`);
       }
     }
 
@@ -167,7 +183,7 @@ export async function runWorkerTick(options?: { force?: boolean }): Promise<Work
           if (pass === "reconcile_final") report.fixtures_finalized++;
         } catch (error) {
           report.alerts.push(
-            `stats sync failed for fixture ${fixture.provider_fixture_id} (${pass}): ${String(error)}`,
+            `stats sync failed for fixture ${fixture.provider_fixture_id} (${pass}): ${formatWorkerError(error)}`,
           );
         }
       }
@@ -191,7 +207,7 @@ export async function runWorkerTick(options?: { force?: boolean }): Promise<Work
           await rolloverMatchday(md, matchdays, settings, report.alerts);
           report.rolled_over_to = nextMatchday(matchdays, md.id)?.id ?? null;
         } catch (error) {
-          report.alerts.push(`rollover after MD${md.id} failed: ${String(error)}`);
+          report.alerts.push(`rollover after MD${md.id} failed: ${formatWorkerError(error)}`);
         }
       }
 
@@ -244,7 +260,7 @@ export async function runWorkerTick(options?: { force?: boolean }): Promise<Work
         if (pendingRescore.length > 0) await clearPendingRescore(report.alerts);
       } catch (error) {
         recomputeSucceeded = false;
-        report.alerts.push(`score recompute failed: ${String(error)}`);
+        report.alerts.push(`score recompute failed: ${formatWorkerError(error)}`);
       }
     }
 
@@ -255,7 +271,7 @@ export async function runWorkerTick(options?: { force?: boolean }): Promise<Work
           const n = await resolveChallengesForGameweek(md.id, report.alerts);
           if (n > 0) report.transitions.push(`MD${md.id}: resolved ${n} challenge(s)`);
         } catch (error) {
-          report.alerts.push(`challenge resolve after MD${md.id} failed: ${String(error)}`);
+          report.alerts.push(`challenge resolve after MD${md.id} failed: ${formatWorkerError(error)}`);
         }
       }
     } else {
@@ -277,7 +293,7 @@ export async function runWorkerTick(options?: { force?: boolean }): Promise<Work
           report.alerts,
         );
       } catch (error) {
-        report.alerts.push(`notifications failed: ${String(error)}`);
+        report.alerts.push(`notifications failed: ${formatWorkerError(error)}`);
       }
     }
 

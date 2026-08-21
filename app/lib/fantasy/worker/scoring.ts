@@ -39,10 +39,25 @@ export async function batchUpsertParticipants(
   }[],
   batchSize = 500,
 ): Promise<void> {
+  if (rows.length === 0) return;
+
+  const termsAt = new Date().toISOString();
   for (let i = 0; i < rows.length; i += batchSize) {
+    const batch = rows.slice(i, i + batchSize).map((row) => {
+      const payload: Record<string, unknown> = {
+        wallet_address: row.wallet_address.trim().toLowerCase(),
+        // Required on upsert insert path (NOT NULL, no default). Active managers
+        // in the scoring pipeline have accepted terms by definition.
+        terms_accepted_at: termsAt,
+      };
+      if (row.total_points !== undefined) payload.total_points = row.total_points;
+      if (row.current_rank !== undefined) payload.current_rank = row.current_rank;
+      if (row.previous_rank !== undefined) payload.previous_rank = row.previous_rank;
+      return payload;
+    });
     const { error } = await supabaseAdmin
       .from("fantasy_participants")
-      .upsert(rows.slice(i, i + batchSize), { onConflict: "wallet_address" });
+      .upsert(batch, { onConflict: "wallet_address", defaultToNull: false });
     if (error) throw error;
   }
 }

@@ -30,24 +30,44 @@ export async function releaseWorkerRun(token: string): Promise<void> {
   if (error) throw error;
 }
 
+export type ParticipantPatch = {
+  wallet_address: string;
+  total_points?: number;
+  current_rank?: number;
+  previous_rank?: number | null;
+};
+
+/** One patch per normalized wallet; later rows override defined fields. */
+export function mergeParticipantPatches(rows: ParticipantPatch[]): ParticipantPatch[] {
+  const byWallet = new Map<string, ParticipantPatch>();
+  for (const row of rows) {
+    const wallet = row.wallet_address.trim().toLowerCase();
+    const merged: ParticipantPatch = { ...(byWallet.get(wallet) ?? { wallet_address: wallet }) };
+    merged.wallet_address = wallet;
+    if (row.total_points !== undefined) merged.total_points = row.total_points;
+    if (row.current_rank !== undefined) merged.current_rank = row.current_rank;
+    if (row.previous_rank !== undefined) merged.previous_rank = row.previous_rank;
+    byWallet.set(wallet, merged);
+  }
+  return [...byWallet.values()];
+}
+
 /**
  * Batch-merge score/rank patches onto existing participants.
  * Preflight existence so upsert never inserts (join owns creation + terms_accepted_at).
  */
 export async function batchUpsertParticipants(
-  rows: {
-    wallet_address: string;
-    total_points?: number;
-    current_rank?: number;
-    previous_rank?: number | null;
-  }[],
+  rows: ParticipantPatch[],
   batchSize = 500,
 ): Promise<void> {
   if (rows.length === 0) return;
+  if (!Number.isInteger(batchSize) || batchSize <= 0) {
+    throw new Error("batchSize must be a positive integer");
+  }
 
   for (let i = 0; i < rows.length; i += batchSize) {
-    const chunk = rows.slice(i, i + batchSize);
-    const wallets = [...new Set(chunk.map((r) => r.wallet_address.trim().toLowerCase()))];
+    const chunk = mergeParticipantPatches(rows.slice(i, i + batchSize));
+    const wallets = chunk.map((r) => r.wallet_address);
 
     const existing = new Set<string>();
     for (const walletChunk of chunkArray(wallets, IN_CHUNK)) {
@@ -60,10 +80,10 @@ export async function batchUpsertParticipants(
     }
 
     const batch = chunk
-      .filter((row) => existing.has(row.wallet_address.trim().toLowerCase()))
+      .filter((row) => existing.has(row.wallet_address))
       .map((row) => {
         const payload: Record<string, unknown> = {
-          wallet_address: row.wallet_address.trim().toLowerCase(),
+          wallet_address: row.wallet_address,
         };
         if (row.total_points !== undefined) payload.total_points = row.total_points;
         if (row.current_rank !== undefined) payload.current_rank = row.current_rank;

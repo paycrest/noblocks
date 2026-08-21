@@ -54,6 +54,7 @@ import {
   isAmountFillable,
   liquidityMaxMessage,
   liquidityMinMessage,
+  MIN_SWAP_USD,
   minOffRampTokenAmount,
   minOnRampFiatAmount,
   nearestFillableAmount,
@@ -374,7 +375,8 @@ export const TransactionForm = ({
     const liquidityMin = liquidity?.viable ? liquidity.min : null;
     const liquidityMax = liquidity?.viable ? liquidity.max : null;
 
-    let min = minOffRampTokenAmount(token, cngnRate);
+    let cngnMinUnavailable = false;
+    let min = MIN_SWAP_USD;
     let max = 10000;
 
     if (swapMode === "onramp") {
@@ -386,17 +388,28 @@ export const TransactionForm = ({
       // The fiat floor tracks the rate, and is only enforceable once a receive
       // token and a rate exist; 0 stands for "no floor yet".
       min = token && rate && rate > 0 ? minOnRampFiatAmount(rate) : 0;
-    } else if (tokensEqual(token, "cNGN")) {
-      max = 50000000;
+    } else {
+      const offRampMin = minOffRampTokenAmount(token, cngnRate);
+      if (offRampMin.status === "cngn_rate_unavailable") {
+        cngnMinUnavailable = true;
+        min = 0;
+      } else {
+        min = offRampMin.min;
+      }
+      if (tokensEqual(token, "cNGN")) {
+        max = 50000000;
+      }
     }
 
     // Live capacity replaces the static ceiling and can only raise the floor.
     // An unknown or empty book leaves both untouched, so a markets outage
     // degrades to the previous behavior instead of blocking the form.
     if (liquidityMax !== null) max = liquidityMax;
-    if (liquidityMin !== null) min = Math.max(min, liquidityMin);
+    if (liquidityMin !== null && !cngnMinUnavailable) {
+      min = Math.max(min, liquidityMin);
+    }
 
-    return { min, max, liquidityMin, liquidityMax };
+    return { min, max, liquidityMin, liquidityMax, cngnMinUnavailable };
   }, [swapMode, currency, token, rate, cngnRate, liquidity]);
 
   const fetchedTokens: Token[] = allTokens[selectedNetwork.chain.name] || [];
@@ -810,6 +823,7 @@ export const TransactionForm = ({
           max: maxAmountSentValue,
           liquidityMin,
           liquidityMax,
+          cngnMinUnavailable,
         } = amountBounds;
 
         const maxMessage =
@@ -824,7 +838,7 @@ export const TransactionForm = ({
         formMethods.register("amountSent", {
           required: { value: true, message: "Amount is required" },
           disabled: isSwapped ? !currency : !token,
-          ...(!isSwapped
+          ...(!isSwapped && !cngnMinUnavailable
             ? {
                 min: {
                   value: minAmountSentValue,
@@ -837,6 +851,10 @@ export const TransactionForm = ({
             message: maxMessage,
           },
           validate: {
+            cngnRateReady: () => {
+              if (!cngnMinUnavailable) return true;
+              return cngnRateError || "No available quote";
+            },
             decimals: (value: number) => {
               const decimals = value.toString().split(".")[1];
               return (
@@ -996,6 +1014,7 @@ export const TransactionForm = ({
           ? undefined
           : liquidity.segments,
       noLiquidity: hasInsufficientBalance ? false : noLiquidity,
+      cngnMinUnavailable: amountBounds.cngnMinUnavailable,
     },
     hasInsufficientBalance,
   });

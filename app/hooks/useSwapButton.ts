@@ -51,6 +51,8 @@ interface UseSwapButtonProps {
     /** Fillable runs within [min, max]; absent means unknown, so not enforced. */
     segments?: LiquiditySegment[];
     noLiquidity: boolean;
+    /** cNGN off-ramp min cannot be computed until cngnRate is positive. */
+    cngnMinUnavailable?: boolean;
   };
   /**
    * Pre-computed insufficient-balance flag from TransactionForm (which guards
@@ -122,14 +124,17 @@ export function useSwapButton({
     amountBounds?.min ??
     (isSwapped ? minOnRampFiatAmount(Number(rate)) : MIN_SWAP_USD);
   const amountCeiling = amountBounds?.max ?? Infinity;
+  const cngnMinUnavailable = amountBounds?.cngnMinUnavailable ?? false;
   const withinBounds =
     !amountBounds?.noLiquidity &&
     Number(amountSent) <= amountCeiling &&
     fitsLiquiditySegment(amountBounds?.segments, Number(amountSent));
-  const isAmountValid = isSwapped
-    ? !token ||
-      (withinBounds && Number(rate) > 0 && Number(amountSent) >= amountFloor)
-    : withinBounds && Number(amountSent) >= amountFloor;
+  const isAmountValid = cngnMinUnavailable
+    ? false
+    : isSwapped
+      ? !token ||
+        (withinBounds && Number(rate) > 0 && Number(amountSent) >= amountFloor)
+      : withinBounds && Number(amountSent) >= amountFloor;
   const isCurrencySelected = Boolean(currency);
 
   const totalRequired = Number(amountSent) || 0;
@@ -163,6 +168,7 @@ export function useSwapButton({
     // Underfunded amounts are short-circuited to Fund wallet / Insufficient
     // balance; market limits apply once the amount is fundable.
     if (amountBounds?.noLiquidity && !hasInsufficientBalance) return false;
+    if (amountBounds?.cngnMinUnavailable && Number(amountSent) > 0) return false;
 
     // Underfunded: fund / show shortfall without requiring a live rate quote
     // (market + rates are paused for those amounts).

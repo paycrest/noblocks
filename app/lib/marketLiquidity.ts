@@ -13,15 +13,22 @@ import { tokensEqual } from "./token-symbol";
 /** Minimum swap/convert size in USD terms (product floor across the app). */
 export const MIN_SWAP_USD = 0.5;
 
+export type MinOffRampTokenAmountResult =
+  | { status: "ok"; min: number }
+  | { status: "cngn_rate_unavailable" };
+
 /** Off-ramp / convert: minimum Send amount in token units for $MIN_SWAP_USD equivalent. */
 export function minOffRampTokenAmount(
   token: string | null | undefined,
   cngnRate?: number | null,
-): number {
-  if (tokensEqual(token, "cNGN") && cngnRate && cngnRate > 0) {
-    return MIN_SWAP_USD * cngnRate;
+): MinOffRampTokenAmountResult {
+  if (tokensEqual(token, "cNGN")) {
+    if (cngnRate && cngnRate > 0) {
+      return { status: "ok", min: MIN_SWAP_USD * cngnRate };
+    }
+    return { status: "cngn_rate_unavailable" };
   }
-  return MIN_SWAP_USD;
+  return { status: "ok", min: MIN_SWAP_USD };
 }
 
 /** On-ramp: minimum fiat Send amount for $MIN_SWAP_USD equivalent once a rate exists. */

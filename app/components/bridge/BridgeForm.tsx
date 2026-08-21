@@ -45,6 +45,8 @@ interface BridgeFormProps {
   onBridgeSubmit?: (info: BridgeSubmitInfo) => void;
 }
 
+const CNGN_RATE_UNAVAILABLE_MESSAGE = "No available quote";
+
 export const BridgeForm: React.FC<BridgeFormProps> = ({
   onClose,
   setCurrentView,
@@ -125,16 +127,21 @@ export const BridgeForm: React.FC<BridgeFormProps> = ({
   );
 
   const parsedAmount = Number(amount);
-  const minConvertAmount = from
+  const minConvertResult = from
     ? minOffRampTokenAmount(from.token, cngnRate)
     : null;
+  const cngnRateUnavailable =
+    minConvertResult?.status === "cngn_rate_unavailable";
+  const minConvertAmount =
+    minConvertResult?.status === "ok" ? minConvertResult.min : null;
   const amountBelowMin =
+    !cngnRateUnavailable &&
     minConvertAmount !== null &&
     Number.isFinite(parsedAmount) &&
     parsedAmount > 0 &&
     parsedAmount < minConvertAmount;
   const convertMinMessage =
-    from && minConvertAmount !== null
+    amountBelowMin && from && minConvertAmount !== null
       ? `Minimum amount is ${formatNumberWithCommas(minConvertAmount)} ${from.token}`
       : null;
 
@@ -188,7 +195,8 @@ export const BridgeForm: React.FC<BridgeFormProps> = ({
       (authenticated || (isInjectedWallet && injectedReady)) &&
       !routeUnsupported &&
       !!(evmAddress || starknetAddress) &&
-      (!minConvertAmount || parsedAmount >= minConvertAmount),
+      !cngnRateUnavailable &&
+      (minConvertAmount === null || parsedAmount >= minConvertAmount),
     getAccessToken,
     getInjectedToken:
       isInjectedWallet && injectedReady ? getInjectedTokenPassive : undefined,
@@ -260,16 +268,21 @@ export const BridgeForm: React.FC<BridgeFormProps> = ({
   const handleConfirm = async () => {
     if (!quote || !from || !to) return;
     const parsedAmount = Number(amount);
-    const minAmount = minOffRampTokenAmount(from.token, cngnRate);
+    const minResult = minOffRampTokenAmount(from.token, cngnRate);
     const rawAmount = toRawAmount(amount, from.decimals);
     if (!Number.isFinite(parsedAmount) || parsedAmount <= 0 || rawAmount === "0") {
       setFailureMessage("Enter a valid amount for the selected token.");
       setStep("failed");
       return;
     }
-    if (parsedAmount < minAmount) {
+    if (minResult.status === "cngn_rate_unavailable") {
+      setFailureMessage(CNGN_RATE_UNAVAILABLE_MESSAGE);
+      setStep("failed");
+      return;
+    }
+    if (parsedAmount < minResult.min) {
       setFailureMessage(
-        `Minimum amount is ${formatNumberWithCommas(minAmount)} ${from.token}`,
+        `Minimum amount is ${formatNumberWithCommas(minResult.min)} ${from.token}`,
       );
       setStep("failed");
       return;
@@ -362,24 +375,28 @@ export const BridgeForm: React.FC<BridgeFormProps> = ({
   // never ran (unauthenticated, wallet address not ready) leaves `quote` null too, and
   // treating that as a dead route showed this error to every user before they connected.
   const noRailAvailable =
-    routeUnsupported ||
-    (quoteFetched &&
-      !quoteLoading &&
-      !quoteError &&
-      quote === null &&
-      !!from &&
-      !!to &&
-      parsedAmount >= (minConvertAmount ?? 0) &&
-      !amountBelowMin);
+    !cngnRateUnavailable &&
+    (routeUnsupported ||
+      (quoteFetched &&
+        !quoteLoading &&
+        !quoteError &&
+        quote === null &&
+        !!from &&
+        !!to &&
+        minConvertAmount !== null &&
+        parsedAmount >= minConvertAmount &&
+        !amountBelowMin));
 
   const canConfirm =
+    !cngnRateUnavailable &&
     !noRailAvailable &&
     !isQuoteExpired &&
     !amountBelowMin &&
     !!quote &&
     !quoteLoading &&
     !quoteError &&
-    parsedAmount >= (minConvertAmount ?? 0) &&
+    minConvertAmount !== null &&
+    parsedAmount >= minConvertAmount &&
     !!from &&
     !!to;
 
@@ -429,6 +446,7 @@ export const BridgeForm: React.FC<BridgeFormProps> = ({
                 engine={engine}
                 timeEstimate={timeEstimate}
                 isQuoteLoading={quoteLoading}
+                amountHasError={amountBelowMin}
               />
 
               {fromNetworkName !== toNetworkName && (
@@ -441,8 +459,14 @@ export const BridgeForm: React.FC<BridgeFormProps> = ({
                 </div>
               )}
 
-              {amountBelowMin && convertMinMessage && (
+              {cngnRateUnavailable && (
                 <div className="rounded-xl border border-amber-100 bg-amber-50 p-3 text-sm text-amber-700 dark:border-amber-900/30 dark:bg-amber-900/20 dark:text-amber-400">
+                  {CNGN_RATE_UNAVAILABLE_MESSAGE}
+                </div>
+              )}
+
+              {amountBelowMin && convertMinMessage && (
+                <div className="rounded-xl border border-red-100 bg-red-50 p-3 text-sm text-red-600 dark:border-red-900/30 dark:bg-red-900/20 dark:text-red-400">
                   {convertMinMessage}
                 </div>
               )}

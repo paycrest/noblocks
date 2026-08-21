@@ -14,6 +14,8 @@ import {
   nearestFillableMessage,
   noLiquidityMessage,
   shouldSuppressNoProviderForLiquidity,
+  minOffRampTokenAmount,
+  MIN_SWAP_USD,
   type LiquidityCorridor,
 } from "../app/lib/marketLiquidity";
 
@@ -660,5 +662,30 @@ describe("copy", () => {
     expect(nearestFillableMessage(100, "buy", "NGN", "cNGN")).toBe(
       "Try ₦100 — the nearest amount available right now",
     );
+  });
+});
+
+describe("minOffRampTokenAmount", () => {
+  it("returns MIN_SWAP_USD for USD-pegged tokens", () => {
+    expect(minOffRampTokenAmount("USDC", null)).toEqual({
+      status: "ok",
+      min: MIN_SWAP_USD,
+    });
+  });
+
+  it("scales cNGN by rate when available", () => {
+    expect(minOffRampTokenAmount("cNGN", 1500)).toEqual({
+      status: "ok",
+      min: MIN_SWAP_USD * 1500,
+    });
+  });
+
+  it("returns unavailable when cNGN rate is missing", () => {
+    expect(minOffRampTokenAmount("cNGN", null)).toEqual({
+      status: "cngn_rate_unavailable",
+    });
+    expect(minOffRampTokenAmount("CNGN", 0)).toEqual({
+      status: "cngn_rate_unavailable",
+    });
   });
 });

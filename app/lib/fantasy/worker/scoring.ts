@@ -54,7 +54,8 @@ export function mergeParticipantPatches(rows: ParticipantPatch[]): ParticipantPa
 
 /**
  * Batch-merge score/rank patches onto existing participants.
- * Preflight existence so upsert never inserts (join owns creation + terms_accepted_at).
+ * Preflight resolves canonical wallet_address values, then UPDATE-only (join
+ * owns inserts + terms_accepted_at; upsert partial rows can still INSERT).
  */
 export async function batchUpsertParticipants(
   rows: ParticipantPatch[],
@@ -69,34 +70,38 @@ export async function batchUpsertParticipants(
     const chunk = mergeParticipantPatches(rows.slice(i, i + batchSize));
     const wallets = chunk.map((r) => r.wallet_address);
 
-    const existing = new Set<string>();
+    const canonical = new Map<string, string>();
     for (const walletChunk of chunkArray(wallets, IN_CHUNK)) {
       const { data, error } = await supabaseAdmin
         .from("fantasy_participants")
         .select("wallet_address")
         .in("wallet_address", walletChunk);
       if (error) throw error;
-      for (const row of data ?? []) existing.add(row.wallet_address);
+      for (const row of data ?? []) {
+        const key = row.wallet_address.trim().toLowerCase();
+        canonical.set(key, row.wallet_address);
+      }
     }
 
-    const batch = chunk
-      .filter((row) => existing.has(row.wallet_address))
-      .map((row) => {
-        const payload: Record<string, unknown> = {
-          wallet_address: row.wallet_address,
+    const patches = chunk.filter((row) => canonical.has(row.wallet_address));
+    if (patches.length === 0) continue;
+
+    await Promise.all(
+      patches.map(async (row) => {
+        const patch: Record<string, unknown> = {
+          updated_at: new Date().toISOString(),
         };
-        if (row.total_points !== undefined) payload.total_points = row.total_points;
-        if (row.current_rank !== undefined) payload.current_rank = row.current_rank;
-        if (row.previous_rank !== undefined) payload.previous_rank = row.previous_rank;
-        return payload;
-      });
+        if (row.total_points !== undefined) patch.total_points = row.total_points;
+        if (row.current_rank !== undefined) patch.current_rank = row.current_rank;
+        if (row.previous_rank !== undefined) patch.previous_rank = row.previous_rank;
 
-    if (batch.length === 0) continue;
-
-    const { error } = await supabaseAdmin
-      .from("fantasy_participants")
-      .upsert(batch, { onConflict: "wallet_address", defaultToNull: false });
-    if (error) throw error;
+        const { error } = await supabaseAdmin
+          .from("fantasy_participants")
+          .update(patch)
+          .eq("wallet_address", canonical.get(row.wallet_address)!);
+        if (error) throw error;
+      }),
+    );
   }
 }
 

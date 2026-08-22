@@ -9,6 +9,9 @@ import type { FantasySettings, Position } from "../types";
 /** Skip overlapping ticks when another run started within this window (seconds). */
 const WORKER_STALE_SECONDS = 90;
 
+/** In-flight participant UPDATEs allowed at once (one request each). */
+const UPDATE_CONCURRENCY = 25;
+
 /**
  * Claim the cross-instance run lock. Resolves to a uuid ownership token, or
  * null when another tick holds a non-stale claim. The token must be handed
@@ -56,6 +59,8 @@ export function mergeParticipantPatches(rows: ParticipantPatch[]): ParticipantPa
  * Batch-merge score/rank patches onto existing participants.
  * Preflight resolves canonical wallet_address values, then UPDATE-only (join
  * owns inserts + terms_accepted_at; upsert partial rows can still INSERT).
+ * Updates are one request per participant, so they go out in fixed-size
+ * groups: a full batchSize chunk would otherwise open 500 at once.
  */
 export async function batchUpsertParticipants(
   rows: ParticipantPatch[],
@@ -86,22 +91,24 @@ export async function batchUpsertParticipants(
     const patches = chunk.filter((row) => canonical.has(row.wallet_address));
     if (patches.length === 0) continue;
 
-    await Promise.all(
-      patches.map(async (row) => {
-        const patch: Record<string, unknown> = {
-          updated_at: new Date().toISOString(),
-        };
-        if (row.total_points !== undefined) patch.total_points = row.total_points;
-        if (row.current_rank !== undefined) patch.current_rank = row.current_rank;
-        if (row.previous_rank !== undefined) patch.previous_rank = row.previous_rank;
+    for (const group of chunkArray(patches, UPDATE_CONCURRENCY)) {
+      await Promise.all(
+        group.map(async (row) => {
+          const patch: Record<string, unknown> = {
+            updated_at: new Date().toISOString(),
+          };
+          if (row.total_points !== undefined) patch.total_points = row.total_points;
+          if (row.current_rank !== undefined) patch.current_rank = row.current_rank;
+          if (row.previous_rank !== undefined) patch.previous_rank = row.previous_rank;
 
-        const { error } = await supabaseAdmin
-          .from("fantasy_participants")
-          .update(patch)
-          .eq("wallet_address", canonical.get(row.wallet_address)!);
-        if (error) throw error;
-      }),
-    );
+          const { error } = await supabaseAdmin
+            .from("fantasy_participants")
+            .update(patch)
+            .eq("wallet_address", canonical.get(row.wallet_address)!);
+          if (error) throw error;
+        }),
+      );
+    }
   }
 }
 

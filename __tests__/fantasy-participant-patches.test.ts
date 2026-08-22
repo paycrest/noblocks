@@ -66,4 +66,63 @@ describe("batchUpsertParticipants", () => {
       expect(from).not.toHaveBeenCalled();
     }
   });
+
+  it("caps in-flight participant updates regardless of batch size", async () => {
+    const rows = Array.from({ length: 120 }, (_, i) => ({
+      wallet_address: `0x${i}`,
+      total_points: i,
+    }));
+
+    let inFlight = 0;
+    let peakInFlight = 0;
+    const updated: string[] = [];
+
+    from.mockImplementation((table: string) => {
+      if (table !== "fantasy_participants") throw new Error(`unexpected table ${table}`);
+      return {
+        select: () => ({
+          in: (_col: string, wallets: string[]) =>
+            Promise.resolve({
+              data: wallets.map((w) => ({ wallet_address: w })),
+              error: null,
+            }),
+        }),
+        update: () => ({
+          eq: async (_col: string, wallet: string) => {
+            inFlight += 1;
+            peakInFlight = Math.max(peakInFlight, inFlight);
+            await new Promise((resolve) => setTimeout(resolve, 0));
+            inFlight -= 1;
+            updated.push(wallet);
+            return { error: null };
+          },
+        }),
+      };
+    });
+
+    await batchUpsertParticipants(rows);
+
+    expect(updated).toHaveLength(120);
+    expect(peakInFlight).toBeGreaterThan(1);
+    expect(peakInFlight).toBeLessThanOrEqual(25);
+  });
+
+  it("propagates the first update error", async () => {
+    from.mockImplementation(() => ({
+      select: () => ({
+        in: (_col: string, wallets: string[]) =>
+          Promise.resolve({
+            data: wallets.map((w) => ({ wallet_address: w })),
+            error: null,
+          }),
+      }),
+      update: () => ({
+        eq: async () => ({ error: { message: "boom" } }),
+      }),
+    }));
+
+    await expect(
+      batchUpsertParticipants([{ wallet_address: "0x1", total_points: 1 }]),
+    ).rejects.toEqual({ message: "boom" });
+  });
 });

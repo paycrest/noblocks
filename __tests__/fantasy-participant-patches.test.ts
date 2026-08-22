@@ -11,10 +11,14 @@ jest.mock("@/lib/fantasy/players", () => ({
   invalidatePlayersCache: jest.fn(),
 }));
 
+import { supabaseAdmin } from "../app/lib/supabase";
+
 import {
   batchUpsertParticipants,
   mergeParticipantPatches,
 } from "@/app/lib/fantasy/worker/scoring";
+
+const from = supabaseAdmin.from as unknown as jest.Mock;
 
 describe("mergeParticipantPatches", () => {
   it("merges duplicate normalized wallets into one payload", () => {
@@ -52,15 +56,14 @@ describe("mergeParticipantPatches", () => {
 });
 
 describe("batchUpsertParticipants", () => {
+  beforeEach(() => from.mockReset());
+
   it("rejects invalid batchSize before any DB access", async () => {
-    await expect(
-      batchUpsertParticipants([{ wallet_address: "0x1", total_points: 1 }], 0),
-    ).rejects.toThrow("batchSize must be a positive integer");
-    await expect(
-      batchUpsertParticipants([{ wallet_address: "0x1", total_points: 1 }], -1),
-    ).rejects.toThrow("batchSize must be a positive integer");
-    await expect(
-      batchUpsertParticipants([{ wallet_address: "0x1", total_points: 1 }], 1.5),
-    ).rejects.toThrow("batchSize must be a positive integer");
+    for (const batchSize of [0, -1, 1.5]) {
+      await expect(
+        batchUpsertParticipants([{ wallet_address: "0x1", total_points: 1 }], batchSize),
+      ).rejects.toThrow("batchSize must be a positive integer");
+      expect(from).not.toHaveBeenCalled();
+    }
   });
 });

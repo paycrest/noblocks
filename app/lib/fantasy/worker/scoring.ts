@@ -3,11 +3,14 @@ import { applyAutoSubs } from "../autosubs";
 import { computeSquadPoints } from "../scoring";
 import { getFantasySettings, invalidateFantasySettingsCache } from "../settings";
 import { getPlayersMap, invalidatePlayersCache } from "../players";
-import { fetchAll } from "../pagination";
+import { chunkArray, fetchAll, IN_CHUNK } from "../pagination";
 import type { FantasySettings, Position } from "../types";
 
 /** Skip overlapping ticks when another run started within this window (seconds). */
 const WORKER_STALE_SECONDS = 90;
+
+/** In-flight participant UPDATEs allowed at once (one request each). */
+const UPDATE_CONCURRENCY = 25;
 
 /**
  * Claim the cross-instance run lock. Resolves to a uuid ownership token, or
@@ -30,20 +33,82 @@ export async function releaseWorkerRun(token: string): Promise<void> {
   if (error) throw error;
 }
 
+export type ParticipantPatch = {
+  wallet_address: string;
+  total_points?: number;
+  current_rank?: number;
+  previous_rank?: number | null;
+};
+
+/** One patch per normalized wallet; later rows override defined fields. */
+export function mergeParticipantPatches(rows: ParticipantPatch[]): ParticipantPatch[] {
+  const byWallet = new Map<string, ParticipantPatch>();
+  for (const row of rows) {
+    const wallet = row.wallet_address.trim().toLowerCase();
+    const merged: ParticipantPatch = { ...(byWallet.get(wallet) ?? { wallet_address: wallet }) };
+    merged.wallet_address = wallet;
+    if (row.total_points !== undefined) merged.total_points = row.total_points;
+    if (row.current_rank !== undefined) merged.current_rank = row.current_rank;
+    if (row.previous_rank !== undefined) merged.previous_rank = row.previous_rank;
+    byWallet.set(wallet, merged);
+  }
+  return [...byWallet.values()];
+}
+
+/**
+ * Batch-merge score/rank patches onto existing participants.
+ * Preflight resolves canonical wallet_address values, then UPDATE-only (join
+ * owns inserts + terms_accepted_at; upsert partial rows can still INSERT).
+ * Updates are one request per participant, so they go out in fixed-size
+ * groups: a full batchSize chunk would otherwise open 500 at once.
+ */
 export async function batchUpsertParticipants(
-  rows: {
-    wallet_address: string;
-    total_points?: number;
-    current_rank?: number;
-    previous_rank?: number | null;
-  }[],
+  rows: ParticipantPatch[],
   batchSize = 500,
 ): Promise<void> {
+  if (rows.length === 0) return;
+  if (!Number.isInteger(batchSize) || batchSize <= 0) {
+    throw new Error("batchSize must be a positive integer");
+  }
+
   for (let i = 0; i < rows.length; i += batchSize) {
-    const { error } = await supabaseAdmin
-      .from("fantasy_participants")
-      .upsert(rows.slice(i, i + batchSize), { onConflict: "wallet_address" });
-    if (error) throw error;
+    const chunk = mergeParticipantPatches(rows.slice(i, i + batchSize));
+    const wallets = chunk.map((r) => r.wallet_address);
+
+    const canonical = new Map<string, string>();
+    for (const walletChunk of chunkArray(wallets, IN_CHUNK)) {
+      const { data, error } = await supabaseAdmin
+        .from("fantasy_participants")
+        .select("wallet_address")
+        .in("wallet_address", walletChunk);
+      if (error) throw error;
+      for (const row of data ?? []) {
+        const key = row.wallet_address.trim().toLowerCase();
+        canonical.set(key, row.wallet_address);
+      }
+    }
+
+    const patches = chunk.filter((row) => canonical.has(row.wallet_address));
+    if (patches.length === 0) continue;
+
+    for (const group of chunkArray(patches, UPDATE_CONCURRENCY)) {
+      await Promise.all(
+        group.map(async (row) => {
+          const patch: Record<string, unknown> = {
+            updated_at: new Date().toISOString(),
+          };
+          if (row.total_points !== undefined) patch.total_points = row.total_points;
+          if (row.current_rank !== undefined) patch.current_rank = row.current_rank;
+          if (row.previous_rank !== undefined) patch.previous_rank = row.previous_rank;
+
+          const { error } = await supabaseAdmin
+            .from("fantasy_participants")
+            .update(patch)
+            .eq("wallet_address", canonical.get(row.wallet_address)!);
+          if (error) throw error;
+        }),
+      );
+    }
   }
 }
 

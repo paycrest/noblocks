@@ -2,17 +2,18 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import config from "@/app/lib/config";
 import { PlayShell } from "@/app/components/play/PlayShell";
+import { CampaignEnded } from "@/app/components/play/CampaignEnded";
 
 export const metadata: Metadata = config.fantasyCampaignEnded
   ? {
-      title: "Noblocks Play — World Cup Fantasy League",
+      title: "Noblocks Play — Coming soon",
       description:
-        "The World Cup fantasy league has ended. Follow Noblocks on X for the winners announcement — Play returns for Premier League and Champions League.",
+        "Premier League fantasy on Noblocks launches Wednesday 19 August 2026. Build your squad and compete with friends.",
     }
   : {
-      title: "Noblocks Play — World Cup Fantasy League",
+      title: "Noblocks Play — Premier League Fantasy",
       description:
-        "Build your World Cup fantasy squad, climb the leaderboard and qualify for a share of 600 USDC on Base.",
+        "Build your Premier League fantasy squad, climb the leaderboard and compete with friends in mini-leagues.",
     };
 
 export default function PlayLayout({
@@ -20,11 +21,15 @@ export default function PlayLayout({
 }: {
   children: React.ReactNode;
 }) {
-  // Feature-flagged: pre-launch the whole surface 404s (middleware mirrors
-  // this for /api/play/*).
   if (!config.fantasyEnabled) notFound();
 
-  return (
-    <PlayShell campaignEnded={config.fantasyCampaignEnded}>{children}</PlayShell>
-  );
+  if (config.fantasyCampaignEnded) {
+    return (
+      <PlayShell prelaunch>
+        <CampaignEnded />
+      </PlayShell>
+    );
+  }
+
+  return <PlayShell>{children}</PlayShell>;
 }

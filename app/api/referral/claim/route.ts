@@ -13,6 +13,10 @@ import { erc20Abi } from "viem";
 import { cashbackConfig } from "@/app/lib/server-config";
 import config from "@/app/lib/config";
 import { isReferralEnabled } from "@/app/utils";
+import {
+  resolveIdentityScope,
+  resolveOwnIdentityFingerprint,
+} from "@/app/lib/kyc-identity";
 
 // Referral program configuration
 const referralRewardAmountUsd = config.referralRewardAmountUsd;
@@ -23,6 +27,27 @@ function isUniqueViolation(error: { code?: string; message?: string } | null): b
         error?.code === "23505" ||
         Boolean(error?.message?.toLowerCase().includes("duplicate")) ||
         Boolean(error?.message?.toLowerCase().includes("unique"))
+    );
+}
+
+// Distinguishes a conflict on the identity-scoped referee-reward indexes from the
+// pre-existing (referral_id, wallet_address) conflict: the former means a sibling
+// wallet already collected this identity's referee reward (terminal, no row to
+// recover), the latter means this exact claim raced itself (recoverable via lookup).
+// Gated on the stable SQLSTATE first; the index name is then looked for across
+// message/details/hint because PostgREST has moved constraint details between
+// those fields across versions.
+function isIdentityConflict(
+    error: { code?: string; message?: string; details?: string; hint?: string } | null,
+): boolean {
+    if (error?.code !== "23505") return false;
+    const haystack = [error.message, error.details, error.hint]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+    return (
+        haystack.includes("referral_claims_referee_identity_phone_unique") ||
+        haystack.includes("referral_claims_referee_identity_id_key_unique")
     );
 }
 
@@ -336,6 +361,42 @@ async function tryClaimOne(
     };
   }
 
+  // ── Identity-level self-referral guard ──────────────────────────────────────
+  // submit/route.ts rejects self-referral by *address*, but one person can hold
+  // several wallets sharing one verified phone/ID — injected wallets are exempt
+  // from the identity uniqueness indexes (see 20260726120100), by design.
+  //
+  // The fingerprint indexes below stop a sibling wallet collecting a second
+  // *referee* reward, but nothing stops the referrer side: it stamps no
+  // fingerprint (a referrer legitimately earns on many referrals), so A referring
+  // its own siblings B, C, D still pays A once per wallet. Address equality can't
+  // see that; identity scope can.
+  //
+  // Placed after the completed-claim short-circuit so already-paid claims stay
+  // idempotent rather than being retroactively rejected, and applied to both
+  // sides — if the two parties are one person, neither reward is owed.
+  //
+  // Fail closed: a lookup error must not let the pair through unchecked.
+  let refereeScopeWallets: string[];
+  try {
+    refereeScopeWallets = (await resolveIdentityScope(referredWallet)).wallets;
+  } catch {
+    return {
+      success: false,
+      code: "IDENTITY_CHECK_FAILED",
+      message: "Unable to verify referral eligibility. Please try again later.",
+    };
+  }
+
+  if (refereeScopeWallets.includes(referrerWallet)) {
+    return {
+      success: false,
+      code: "SELF_REFERRAL",
+      message:
+        "The referring and referred wallets belong to the same verified identity. Referral rewards require two different people.",
+    };
+  }
+
   // ── Build and run qualification checks ──────────────────────────────────────
   // Referrer must unlock once (volume since first referral + KYC) before earning
   // on any referral. After unlock, referrer volume is never checked again.
@@ -398,6 +459,25 @@ async function tryClaimOne(
     }
     pendingClaimRow = retried;
   } else {
+    // Referee claims are fingerprinted so a sibling wallet on the same verified
+    // identity can't independently collect its own referee reward. Fail closed:
+    // a lookup error must not proceed as if there's no sibling.
+    let fingerprint: { phone: string | null; idKey: string | null } = {
+      phone: null,
+      idKey: null,
+    };
+    if (!isReferrerClaim) {
+      try {
+        fingerprint = await resolveOwnIdentityFingerprint(referredWallet);
+      } catch {
+        return {
+          success: false,
+          code: "IDENTITY_CHECK_FAILED",
+          message: "Unable to verify referral eligibility. Please try again later.",
+        };
+      }
+    }
+
     const { data: inserted, error: insertError } = await supabaseAdmin
       .from("referral_claims")
       .insert({
@@ -405,11 +485,20 @@ async function tryClaimOne(
         wallet_address: walletAddress,
         reward_amount: referralRewardAmountUsd,
         status: "pending",
+        identity_phone: fingerprint.phone,
+        identity_id_key: fingerprint.idKey,
       })
       .select()
       .single();
 
-    if (insertError && isUniqueViolation(insertError)) {
+    if (insertError && isIdentityConflict(insertError)) {
+      return {
+        success: false,
+        code: "ALREADY_REFERRED",
+        message:
+          "A wallet linked to your verified identity has already collected this referral reward.",
+      };
+    } else if (insertError && isUniqueViolation(insertError)) {
       const { data: raced, error: raceErr } = await supabaseAdmin
         .from("referral_claims")
         .select("*")
@@ -763,9 +852,12 @@ export const POST = withRateLimit(async (request: NextRequest) => {
           ? 400
           : result.code === "INSUFFICIENT_BALANCE" || result.code === "SERVICE_UNAVAILABLE"
             ? 503
-            : result.code === "UNAUTHORIZED_REFERRAL"
+            : result.code === "UNAUTHORIZED_REFERRAL" ||
+                result.code === "SELF_REFERRAL"
               ? 403
-              : 500;
+              : result.code === "ALREADY_REFERRED"
+                ? 409
+                : 500;
 
       return NextResponse.json(
         {

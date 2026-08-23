@@ -30,8 +30,9 @@ export type InstitutionProps = {
   type: "bank" | "mobile_money";
 };
 
-/** Onramp refund bank account (persisted per wallet; v2 order source.refundAccount). */
+/** Onramp refund bank account (persisted per wallet + fiat currency; v2 order source.refundAccount). */
 export type RefundAccountDetails = {
+  currency: string;
   institutionCode: string;
   institutionName: string;
   accountName: string;

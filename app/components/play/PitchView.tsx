@@ -13,6 +13,7 @@ import {
   Add01Icon,
 } from "hugeicons-react";
 import type { FantasyPlayer, LockState, Position } from "./types";
+import { ClubJersey } from "./ClubJersey";
 
 export interface SlotView {
   /** Stable UI key (player id or `empty-<pos>-<i>`). */
@@ -33,7 +34,7 @@ export interface SlotView {
   dimmed?: boolean;
   /** Empty slot that targets the bench (build mode). */
   benchSlot?: boolean;
-  /** Player's team is out of the tournament (flown home). */
+  /** Player/club marked inactive (unavailable to pick or captain). */
   eliminated?: boolean;
 }
 
@@ -53,9 +54,16 @@ const initials = (name: string) =>
     .join("");
 
 /**
- * API-Football headshot with graceful fallback (photo_url can be null and
- * the CDN occasionally 404s a player) — the fallback keeps the tinted
- * initials/position look.
+ * Player mark, in preference order: provider headshot → stylized club jersey →
+ * `fallback` (initials/position).
+ *
+ * No flag is threaded here on purpose. The APIs null `photo_url` unless
+ * `fantasy_settings.photos_enabled` is on, so the setting alone decides whether
+ * faces appear, and a broken headshot degrades to the kit rather than a hole.
+ *
+ * Photo styling lives here rather than at the call sites: they pass size-only
+ * classes that suit the jersey SVG, and a headshot additionally needs to be
+ * cropped round and anchored to the top of the frame.
  */
 export const PlayerPhoto = ({
   player,
@@ -66,26 +74,35 @@ export const PlayerPhoto = ({
   className: string;
   fallback: ReactNode;
 }) => {
-  const [failed, setFailed] = useState(false);
-  if (!player.photo_url || failed) return <>{fallback}</>;
+  // Store the URL that failed, not a boolean: these components are reused
+  // across players in scrolling lists, and a boolean would keep suppressing
+  // the next player's perfectly good photo.
+  const [failedUrl, setFailedUrl] = useState<string | null>(null);
+  const photo = player.photo_url;
+
+  if (photo && photo !== failedUrl) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={photo}
+        alt=""
+        loading="lazy"
+        draggable={false}
+        onError={() => setFailedUrl(photo)}
+        className={`${className} rounded-full bg-white/90 object-cover object-top`}
+      />
+    );
+  }
+
+  if (!player.team_id) return <>{fallback}</>;
   return (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img
-      src={player.photo_url}
-      alt=""
-      loading="lazy"
-      draggable={false}
-      onError={() => setFailed(true)}
+    <ClubJersey
+      teamId={player.team_id}
+      position={player.position}
       className={className}
+      title={`${player.nation} kit`}
     />
   );
-};
-
-const POSITION_RING: Record<Position, string> = {
-  GK: "ring-yellow-primary",
-  DEF: "ring-sky-500",
-  MID: "ring-emerald-500",
-  FWD: "ring-rose-500",
 };
 
 export const PlayerSlotCard = ({
@@ -127,20 +144,26 @@ export const PlayerSlotCard = ({
       } ${slot.highlighted ? "scale-105" : ""}`}
     >
       <span
-        className={`relative flex size-11 items-center justify-center overflow-visible rounded-full text-xs font-bold shadow-md sm:size-12 ${POSITION_TINT[slot.position]} ${
+        className={`relative flex size-11 items-center justify-center overflow-visible sm:size-12 ${
           slot.highlighted
-            ? "ring-4 ring-white"
+            ? "ring-4 ring-white rounded-lg"
             : slot.markedOut
-              ? "ring-2 ring-accent-red"
+              ? "ring-2 ring-accent-red rounded-lg"
               : slot.markedIn
-                ? "ring-2 ring-emerald-400"
-                : `ring-2 ${POSITION_RING[slot.position]}`
+                ? "ring-2 ring-emerald-400 rounded-lg"
+                : ""
         }`}
       >
         <PlayerPhoto
           player={player}
-          className="size-full rounded-full bg-white/90 object-cover object-top"
-          fallback={initials(player.name)}
+          className="size-11 drop-shadow-md sm:size-12"
+          fallback={
+            <span
+              className={`flex size-full items-center justify-center rounded-full text-xs font-bold ${POSITION_TINT[slot.position]}`}
+            >
+              {initials(player.name)}
+            </span>
+          }
         />
         {(slot.isCaptain || slot.isVice) && (
           <span
@@ -177,8 +200,8 @@ export const PlayerSlotCard = ({
           slot.lockState !== "played" && (
             <span
               className="absolute -right-1 -top-1 flex size-5 items-center justify-center rounded-full bg-accent-red text-white shadow"
-              aria-label="Team eliminated"
-              title="Team eliminated — flown home"
+              aria-label="Player unavailable"
+              title="Player unavailable — transfer out when the window opens"
             >
               <AirplaneTakeOff01Icon className="size-3" />
             </span>

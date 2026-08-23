@@ -69,8 +69,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   // (PlayShell renders the game chrome and a CTA back to the main app).
   const isPlayExperience =
     pathname === "/play" ||
-    pathname.startsWith("/play/") ||
-    pathname === "/play-demo";
+    pathname.startsWith("/play/");
   // Embedded widget (/widget, iframed by whitelisted partners): compact
   // chrome-less shell like Play — WidgetShell renders its own card chrome.
   const isWidgetExperience =

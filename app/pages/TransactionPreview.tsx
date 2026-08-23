@@ -192,9 +192,10 @@ export const TransactionPreview = ({
   }, [isInjectedWallet, injectedReady, getInjectedToken]);
 
   useEffect(() => {
-    if (!isOnramp) return;
-    // Reset on every currency change so a cached NGN account isn't submitted for KES/TZS/UGX orders.
     setRefundAccount(null);
+    setRefundAccountModalOpen(false);
+    if (!isOnramp || !currency?.trim()) return;
+    const orderCurrency = currency.trim().toUpperCase();
     let cancelled = false;
     void (async () => {
       try {
@@ -203,8 +204,13 @@ export const TransactionPreview = ({
           interactive: false,
         });
         if ((!accessToken && !injectedToken) || cancelled) return;
-        const saved = await fetchRefundAccount(accessToken, injectedToken);
-        if (!cancelled && saved) {
+        const saved = await fetchRefundAccount(
+          orderCurrency,
+          accessToken,
+          injectedToken,
+        );
+        if (cancelled) return;
+        if (saved) {
           setRefundAccount(saved);
         }
       } catch {
@@ -870,6 +876,15 @@ export const TransactionPreview = ({
     if (isOnramp) {
       if (!refundAccount) {
         toast.error("Add a refund account to continue");
+        return;
+      }
+      const orderCurrency = currency?.trim().toUpperCase() ?? "";
+      if (
+        !orderCurrency ||
+        refundAccount.currency.trim().toUpperCase() !== orderCurrency
+      ) {
+        toast.error("Add a refund account for this currency to continue");
+        setRefundAccount(null);
         return;
       }
       if (!walletAddress) {

@@ -30,6 +30,46 @@ const lifiClient = new LifiClient();
 // useBridgeQuote
 // ============================================================================
 
+/**
+ * LI.FI quote for a leg pair. Serves both the routes LI.FI owns outright (cNGN) and the
+ * NEAR fallback below, so the slippage rule and native-token handling live in one place.
+ * Returns null when either chain is outside LI.FI's coverage (Starknet has no chain id here).
+ */
+async function fetchLifiQuote(
+  from: BridgeLeg,
+  to: BridgeLeg,
+  rawAmount: string,
+  evmAddress: string,
+  slippageBps: number,
+  auth: BridgeAuth,
+): Promise<BridgeQuote | null> {
+  const fromChain = toLifiChainId(from.network);
+  const toChain = toLifiChainId(to.network);
+  if (!fromChain || !toChain) return null;
+
+  // Honor the configured slippage for liquid pairs; only illiquid cNGN routes need the
+  // 2% floor. Forcing 2% on every route silently widens slippage and risks value loss.
+  const isCngn =
+    from.token.toLowerCase() === "cngn" || to.token.toLowerCase() === "cngn";
+  const lifiSlippage = isCngn
+    ? Math.max(slippageBps / 10000, 0.02)
+    : slippageBps / 10000;
+
+  // Our token data uses an empty address for native tokens; LI.FI expects the zero address.
+  const lifiToken = (address: string) => address || ZERO_ADDRESS;
+
+  return lifiClient.getQuote({
+    fromChain,
+    toChain,
+    fromToken: lifiToken(from.tokenAddress),
+    toToken: lifiToken(to.tokenAddress),
+    fromAmount: rawAmount,
+    fromAddress: evmAddress,
+    toAddress: evmAddress,
+    slippage: lifiSlippage,
+  }, auth);
+}
+
 interface UseBridgeQuoteParams {
   from: BridgeLeg | null;
   to: BridgeLeg | null;
@@ -80,7 +120,12 @@ export function useBridgeQuote({
       const originAsset = resolveNearAssetId(from.token, from.network, tokenList);
       const destinationAsset = resolveNearAssetId(to.token, to.network, tokenList);
 
-      if (!originAsset || !destinationAsset) return null;
+      // NEAR Intents solvers only quote assets they hold inventory in, which leaves real
+      // gaps: no USDT on Base, and no Lisk/Celo/Tron at all. Those pairs are still routable
+      // through LI.FI's DEX aggregators, so fall back instead of reporting "no rail".
+      if (!originAsset || !destinationAsset) {
+        return fetchLifiQuote(from, to, rawAmount, evmAddress, slippageBps, auth);
+      }
 
       const addrFor = (network: string) =>
         network === "Starknet" ? starknetAddress : evmAddress;
@@ -101,28 +146,7 @@ export function useBridgeQuote({
       }, auth, { origin: from.decimals, destination: to.decimals });
     }
 
-    const fromChain = toLifiChainId(from.network);
-    const toChain = toLifiChainId(to.network);
-    if (!fromChain || !toChain) return null;
-
-    // Honor the configured slippage for liquid pairs; only illiquid cNGN routes need the
-    // 2% floor. Forcing 2% on every route silently widens slippage and risks value loss.
-    const isCngn =
-      from.token.toLowerCase() === "cngn" || to.token.toLowerCase() === "cngn";
-    const lifiSlippage = isCngn
-      ? Math.max(slippageBps / 10000, 0.02)
-      : slippageBps / 10000;
-
-    return lifiClient.getQuote({
-      fromChain,
-      toChain,
-      fromToken: from.tokenAddress,
-      toToken: to.tokenAddress,
-      fromAmount: rawAmount,
-      fromAddress: evmAddress,
-      toAddress: evmAddress,
-      slippage: lifiSlippage,
-    }, auth);
+    return fetchLifiQuote(from, to, rawAmount, evmAddress, slippageBps, auth);
   }, [from, to, amount, evmAddress, starknetAddress, slippageBps, getAccessToken, getInjectedToken]);
 
   const queryKey = useMemo(
@@ -136,7 +160,7 @@ export function useBridgeQuote({
     ? !!starknetAddress
     : !!evmAddress;
 
-  const { data: quote, isLoading, error, refetch } = useQuery({
+  const { data: quote, isLoading, isFetched, error, refetch } = useQuery({
     queryKey,
     queryFn: fetchQuote,
     enabled: enabled && !!from && !!to && parseFloat(amount || "0") > 0 && addressReady,
@@ -153,7 +177,9 @@ export function useBridgeQuote({
     },
   });
 
-  return { quote: quote ?? null, isLoading, error, refetch };
+  // `isFetched` distinguishes "both engines resolved to no route" from "the query never ran"
+  // (disabled: unauthenticated, or wallet address not ready). Only the former is a dead route.
+  return { quote: quote ?? null, isLoading, isFetched, error, refetch };
 }
 
 // ============================================================================

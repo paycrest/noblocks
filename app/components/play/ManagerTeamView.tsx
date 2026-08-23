@@ -7,7 +7,7 @@
  */
 
 import Link from "next/link";
-import { ArrowLeft01Icon, ChampionIcon } from "hugeicons-react";
+import { ArrowLeft01Icon } from "hugeicons-react";
 import { PitchView, type SlotView } from "./PitchView";
 import { BenchRow } from "./BenchRow";
 import type {
@@ -21,12 +21,12 @@ import { Chip, secondaryButtonClasses } from "./ui";
 /** Minimal FantasyPlayer for the slot card (price/team never shown here). */
 const toFantasyPlayer = (p: PublicTeamPlayer): FantasyPlayer => ({
   provider_player_id: p.player_id,
-  team_id: 0,
+  team_id: p.team_id,
   name: p.name,
   nation: p.nation,
   position: p.position,
   price: 0,
-  photo_url: p.photo_url,
+  photo_url: p.photo_url, // null unless photos_enabled; PlayerPhoto falls back to the kit
   is_active: true,
 });
 
@@ -73,11 +73,6 @@ export const ManagerTeamView = ({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="flex items-center gap-2 text-xl font-semibold text-text-body dark:text-white">
           {manager.username}
-          {manager.badge === "qualified" && (
-            <span title="Qualified for the giveaway">
-              <ChampionIcon className="size-5 text-yellow-primary" />
-            </span>
-          )}
         </h1>
         <div className="flex flex-wrap items-center gap-2">
           {manager.rank != null && <Chip>Rank #{manager.rank}</Chip>}

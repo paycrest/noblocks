@@ -270,9 +270,8 @@ export function PlayPromoModal() {
                       letterSpacing: "-0.0456cqw",
                     }}
                   >
-                    Build your fantasy squad, earn points from real World Cup
-                    performances, climb the leaderboard, and win exclusive
-                    rewards.
+                    Build your fantasy squad, earn points from real Premier
+                    League performances, and climb the leaderboard.
                   </p>
 
                   <Link
@@ -389,7 +388,7 @@ export function PlayPromoBanner() {
               <p className="translate-y-0.5 text-[8.9px] font-medium leading-[1.35] tracking-[-0.03em] text-white">
                 Build your fantasy squad, earn points from real World
                 <br />
-                Cup performances, and win exclusive rewards.
+                Cup performances, and climb the leaderboard.
               </p>
             </div>
           </div>
@@ -412,8 +411,8 @@ export function PlayPromoBanner() {
               Predict. Compete. Win.
             </h2>
             <p className="max-w-[26rem] shrink-0 translate-y-0.5 text-[13px] leading-[1.3] text-[#F5F5F5] xl:max-w-[28rem] xl:text-sm">
-              Build your fantasy squad, earn points from real World Cup
-              performances, climb the leaderboard, and win exclusive rewards.
+              Build your fantasy squad, earn points from real Premier League
+              performances, and climb the leaderboard.
             </p>
           </div>
 

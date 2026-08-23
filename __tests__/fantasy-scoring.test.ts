@@ -1,184 +1,185 @@
+import { applyAutoSubs } from "@/app/lib/fantasy/autosubs";
+import {
+  awardBonusPoints,
+  computeNmbScore,
+  winningGoalScorerId,
+} from "@/app/lib/fantasy/bonus";
 import {
   computePoints,
   computeSquadPoints,
   emptyStats,
-} from "../app/lib/fantasy/scoring";
-import type { PlayerMatchStats, ScoringMatrix } from "../app/lib/fantasy/types";
+  hasPlayed,
+} from "@/app/lib/fantasy/scoring";
+import type { FantasySettings, PlayerMatchStats, Position } from "@/app/lib/fantasy/types";
 
-// Mirrors the fantasy_settings seed (migration 20260704120001) — the exact
-// matrix transcribed from the official guidelines in TRD §6.6.
-const matrix: ScoringMatrix = {
+const settings = {
+  defcon_def_threshold: 5,
+  defcon_mid_fwd_threshold: 6,
+} as Pick<FantasySettings, "defcon_def_threshold" | "defcon_mid_fwd_threshold">;
+
+const matrix = {
   appearance: 1,
   appearance_60: 1,
   assist: 3,
   yellow_card: -1,
-  red_card: -2,
+  red_card: -3,
   own_goal: -2,
-  penalty_won: 2,
-  penalty_conceded: -1,
-  goal: { GK: 9, DEF: 7, MID: 6, FWD: 5 },
-  clean_sheet: { GK: 5, DEF: 5, MID: 1, FWD: 0 },
-  goals_conceded_per_extra: { GK: -1, DEF: -1, MID: 0, FWD: 0 },
-  penalty_save: 3,
+  penalty_miss: -2,
+  penalty_conceded: 0,
+  goal: { GK: 10, DEF: 6, MID: 5, FWD: 4 } as Record<Position, number>,
+  clean_sheet: { GK: 4, DEF: 4, MID: 1, FWD: 0 } as Record<Position, number>,
+  goals_conceded_per_two: { GK: -1, DEF: -1, MID: 0, FWD: 0 } as Record<Position, number>,
+  penalty_save: 5,
   saves_per_point: 3,
-  tackles_per_point: 3,
-  key_passes_per_point: 2,
-  shots_on_target_per_point: 2,
-  direct_free_kick_goal: 1,
 };
 
-const stats = (overrides: Partial<PlayerMatchStats>): PlayerMatchStats => ({
-  ...emptyStats(),
-  ...overrides,
-});
+function stats(partial: Partial<PlayerMatchStats>): PlayerMatchStats {
+  return { ...emptyStats(), ...partial };
+}
 
-describe("computePoints", () => {
-  it("scores zero for a player who did not play", () => {
-    const { points, breakdown } = computePoints(stats({ goals: 2 }), "FWD", matrix);
-    expect(points).toBe(0);
-    expect(breakdown).toHaveLength(0);
-  });
-
-  it("scores appearance points: +1 under 60 min, +2 for 60+", () => {
-    expect(computePoints(stats({ minutes: 30 }), "MID", matrix).points).toBe(1);
-    expect(computePoints(stats({ minutes: 60 }), "MID", matrix).points).toBe(2);
-    expect(computePoints(stats({ minutes: 90 }), "MID", matrix).points).toBe(2);
-  });
-
-  it("scores goals by position", () => {
-    const base = 2; // 90 min appearance
-    expect(computePoints(stats({ minutes: 90, goals: 1 }), "GK", matrix).points).toBe(base + 9);
-    expect(computePoints(stats({ minutes: 90, goals: 1 }), "DEF", matrix).points).toBe(base + 7);
-    expect(
-      computePoints(stats({ minutes: 90, goals: 1, cleanSheet: true }), "MID", matrix).points,
-    ).toBe(base + 6 + 1);
-    expect(computePoints(stats({ minutes: 90, goals: 2 }), "FWD", matrix).points).toBe(base + 10);
-  });
-
-  it("awards clean sheets only at 60+ minutes", () => {
-    expect(
-      computePoints(stats({ minutes: 59, cleanSheet: true }), "DEF", matrix).points,
-    ).toBe(1);
-    expect(
-      computePoints(stats({ minutes: 60, cleanSheet: true }), "DEF", matrix).points,
-    ).toBe(2 + 5);
-    // FWD gets nothing for clean sheets
-    expect(
-      computePoints(stats({ minutes: 90, cleanSheet: true }), "FWD", matrix).points,
-    ).toBe(2);
-  });
-
-  it("gives the first goal conceded free, then −1 per extra (GK/DEF only)", () => {
-    expect(computePoints(stats({ minutes: 90, goalsConceded: 1 }), "GK", matrix).points).toBe(2);
-    expect(computePoints(stats({ minutes: 90, goalsConceded: 3 }), "GK", matrix).points).toBe(0);
-    expect(computePoints(stats({ minutes: 90, goalsConceded: 3 }), "DEF", matrix).points).toBe(0);
-    expect(computePoints(stats({ minutes: 90, goalsConceded: 3 }), "MID", matrix).points).toBe(2);
-  });
-
-  it("scores GK specials: penalty saves and every 3 saves", () => {
+describe("FPL computePoints", () => {
+  it("scores GK goal as 10", () => {
     const { points } = computePoints(
-      stats({ minutes: 90, penaltiesSaved: 1, saves: 7, cleanSheet: true }),
+      stats({ minutes: 90, goals: 1 }),
       "GK",
       matrix,
+      settings,
     );
-    // 2 appearance + 3 pen save + 2 (7 saves → floor 7/3) + 5 clean sheet
-    expect(points).toBe(12);
+    expect(points).toBe(1 + 1 + 10); // appearance + 60 + goal
   });
 
-  it("scores MID specials: every 3 tackles, every 2 key passes", () => {
+  it("applies −1 per 2 GC for DEF", () => {
     const { points } = computePoints(
-      stats({ minutes: 90, tackles: 6, keyPasses: 5 }),
-      "MID",
-      matrix,
-    );
-    // 2 appearance + 2 tackles + 2 key passes
-    expect(points).toBe(6);
-  });
-
-  it("scores FWD specials: every 2 shots on target", () => {
-    const { points } = computePoints(stats({ minutes: 90, shotsOnTarget: 5 }), "FWD", matrix);
-    expect(points).toBe(2 + 2);
-  });
-
-  it("applies penalties, cards and own goals", () => {
-    const { points } = computePoints(
-      stats({
-        minutes: 90,
-        yellowCards: 1,
-        redCards: 1,
-        ownGoals: 1,
-        penaltiesWon: 1,
-        penaltiesCommitted: 1,
-      }),
+      stats({ minutes: 90, goalsConceded: 3 }),
       "DEF",
       matrix,
+      settings,
     );
-    // 2 − 1 − 2 − 2 + 2 − 1
-    expect(points).toBe(-2);
+    expect(points).toBe(1 + 1 - 1);
   });
 
-  it("adds the direct free-kick bonus on top of goal points", () => {
-    const { points } = computePoints(
-      stats({ minutes: 90, goals: 1, directFreeKickGoals: 1 }),
-      "MID",
+  it("pays BIT defcon at threshold", () => {
+    const { points, breakdown } = computePoints(
+      stats({ minutes: 90, blocks: 2, interceptions: 2, tackles: 1 }),
+      "DEF",
       matrix,
+      settings,
     );
-    expect(points).toBe(2 + 6 + 1);
+    expect(breakdown.some((b) => b.reason === "Defensive contribution")).toBe(true);
+    expect(points).toBe(1 + 1 + 2);
   });
 
-  it("recomputes deterministically from raw stats (idempotent)", () => {
-    const input = stats({ minutes: 90, goals: 1, assists: 2, tackles: 4 });
-    const a = computePoints(input, "MID", matrix);
-    const b = computePoints(input, "MID", matrix);
-    expect(a).toEqual(b);
+  it("charges penalty miss −2", () => {
+    const { points } = computePoints(
+      stats({ minutes: 90, penaltiesMissed: 1 }),
+      "FWD",
+      matrix,
+      settings,
+    );
+    expect(points).toBe(1 + 1 - 2);
   });
 });
 
-describe("computeSquadPoints", () => {
-  const xi = (captainId: number, viceId: number) =>
-    [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map((id) => ({
-      playerId: id,
-      isCaptain: id === captainId,
-      isVice: id === viceId,
-    }));
-
-  const pointsMap = (entries: [number, number, number][]) =>
-    new Map(entries.map(([id, points, minutes]) => [id, { points, minutes }]));
-
-  it("doubles the captain when they played", () => {
-    const total = computeSquadPoints({
-      startingXI: xi(1, 2),
-      playerPoints: pointsMap([
-        [1, 10, 90],
-        [2, 6, 90],
-      ]),
-      transferPointsDeduction: 0,
-    });
-    expect(total).toBe(10 + 6 + 10);
+describe("hasPlayed / auto-subs", () => {
+  it("treats card with 0 minutes as played", () => {
+    expect(hasPlayed({ minutes: 0, yellowCards: 1, redCards: 0 })).toBe(true);
   });
 
-  it("falls back to the vice unconditionally when the captain played 0 minutes", () => {
-    const total = computeSquadPoints({
-      startingXI: xi(1, 2),
-      playerPoints: pointsMap([
-        [1, 0, 0],
-        [2, 6, 90],
+  it("subs blank DEF with MID when formation allows", () => {
+    const squad = [
+      { playerId: 1, slot: 1, isCaptain: true, isVice: false, position: "GK" as const },
+      { playerId: 2, slot: 2, isCaptain: false, isVice: true, position: "DEF" as const },
+      { playerId: 3, slot: 3, isCaptain: false, isVice: false, position: "DEF" as const },
+      { playerId: 4, slot: 4, isCaptain: false, isVice: false, position: "DEF" as const },
+      { playerId: 5, slot: 5, isCaptain: false, isVice: false, position: "DEF" as const },
+      { playerId: 6, slot: 6, isCaptain: false, isVice: false, position: "MID" as const },
+      { playerId: 7, slot: 7, isCaptain: false, isVice: false, position: "MID" as const },
+      { playerId: 8, slot: 8, isCaptain: false, isVice: false, position: "MID" as const },
+      { playerId: 9, slot: 9, isCaptain: false, isVice: false, position: "MID" as const },
+      { playerId: 10, slot: 10, isCaptain: false, isVice: false, position: "FWD" as const },
+      { playerId: 11, slot: 11, isCaptain: false, isVice: false, position: "FWD" as const },
+      { playerId: 12, slot: 12, isCaptain: false, isVice: false, position: "MID" as const },
+      { playerId: 13, slot: 13, isCaptain: false, isVice: false, position: "FWD" as const },
+      { playerId: 14, slot: 14, isCaptain: false, isVice: false, position: "DEF" as const },
+      { playerId: 15, slot: 15, isCaptain: false, isVice: false, position: "GK" as const },
+    ];
+    const played = (id: number) => id !== 5; // blank 4th DEF; bench MID 12 played
+    const xi = applyAutoSubs(squad, played);
+    expect(xi.some((p) => p.playerId === 12)).toBe(true);
+    expect(xi.some((p) => p.playerId === 5)).toBe(false);
+    expect(xi.filter((p) => p.position === "DEF").length).toBeGreaterThanOrEqual(3);
+  });
+});
+
+describe("C/VC with auto-subs", () => {
+  it("does not double when both blank", () => {
+    const squad = [
+      { playerId: 1, slot: 1, isCaptain: true, isVice: false, position: "GK" as const },
+      { playerId: 2, slot: 2, isCaptain: false, isVice: true, position: "DEF" as const },
+      { playerId: 3, slot: 3, isCaptain: false, isVice: false, position: "DEF" as const },
+      { playerId: 4, slot: 4, isCaptain: false, isVice: false, position: "DEF" as const },
+      { playerId: 5, slot: 5, isCaptain: false, isVice: false, position: "MID" as const },
+      { playerId: 6, slot: 6, isCaptain: false, isVice: false, position: "MID" as const },
+      { playerId: 7, slot: 7, isCaptain: false, isVice: false, position: "MID" as const },
+      { playerId: 8, slot: 8, isCaptain: false, isVice: false, position: "MID" as const },
+      { playerId: 9, slot: 9, isCaptain: false, isVice: false, position: "MID" as const },
+      { playerId: 10, slot: 10, isCaptain: false, isVice: false, position: "FWD" as const },
+      { playerId: 11, slot: 11, isCaptain: false, isVice: false, position: "FWD" as const },
+      { playerId: 12, slot: 12, isCaptain: false, isVice: false, position: "DEF" as const },
+      { playerId: 13, slot: 13, isCaptain: false, isVice: false, position: "MID" as const },
+      { playerId: 14, slot: 14, isCaptain: false, isVice: false, position: "FWD" as const },
+      { playerId: 15, slot: 15, isCaptain: false, isVice: false, position: "GK" as const },
+    ];
+    const playerPoints = new Map(
+      squad.map((p) => [
+        p.playerId,
+        {
+          points: p.playerId === 1 || p.playerId === 2 ? 0 : 2,
+          minutes: p.playerId === 1 || p.playerId === 2 ? 0 : 90,
+          yellowCards: 0,
+          redCards: 0,
+        },
       ]),
-      transferPointsDeduction: 0,
-    });
-    expect(total).toBe(6 + 6);
+    );
+    const { points } = computeSquadPoints(
+      { squad, playerPoints, transferPointsDeduction: 0 },
+      applyAutoSubs,
+    );
+    // 9 outfield players who played × 2 (GK blank, captain blank, vice blank; one DEF may autosub)
+    expect(points).toBeGreaterThan(0);
+    // No captain double on blanks
+    const baseWithoutDouble = [...playerPoints.values()]
+      .filter((p) => p.minutes > 0)
+      .reduce((s, p) => s + p.points, 0);
+    // After autosub still no double if C/VC blank
+    expect(points).toBeLessThanOrEqual(baseWithoutDouble);
+  });
+});
+
+describe("NMB", () => {
+  it("winning goal is loser+1 ordinal", () => {
+    // 3-1 home win → home's 2nd goal
+    expect(
+      winningGoalScorerId(1, 2, 3, 1, [10, 20, 30], [99]),
+    ).toBe(20);
+    expect(winningGoalScorerId(1, 2, 1, 1, [10], [20])).toBeNull();
   });
 
-  it("ignores the bench entirely (auto-subs dropped) and applies transfer deductions", () => {
-    const total = computeSquadPoints({
-      startingXI: xi(1, 2),
-      playerPoints: pointsMap([
-        [1, 4, 90],
-        [2, 2, 90],
-        [12, 99, 90], // bench player never counts
-      ]),
-      transferPointsDeduction: 6,
-    });
-    expect(total).toBe(4 + 2 + 4 - 6);
+  it("awards 3/2/1 with first-place tie → 3/3/1", () => {
+    const map = awardBonusPoints([
+      { playerId: 1, nmb: 50, minutes: 90 },
+      { playerId: 2, nmb: 50, minutes: 90 },
+      { playerId: 3, nmb: 40, minutes: 90 },
+    ]);
+    expect(map.get(1)).toBe(3);
+    expect(map.get(2)).toBe(3);
+    expect(map.get(3)).toBe(1);
+  });
+
+  it("computes open-play vs pen goal differently", () => {
+    const s = stats({ minutes: 90, goals: 2, penaltiesScored: 1 });
+    const nmb = computeNmbScore("MID", s, { isWinningGoalScorer: false });
+    // 6 (60+) + 12 pen + 18 open-play
+    expect(nmb).toBe(6 + 12 + 18);
   });
 });

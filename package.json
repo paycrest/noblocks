@@ -24,6 +24,8 @@
     "test:security": "jest __tests__/security",
     "test:integration": "jest __tests__/integration",
     "test:e2e": "cypress run",
+    "seed:fantasy": "tsx scripts/seed-fantasy.ts",
+    "seed:fantasy:timelapse": "SEED_TIMELAPSE_HOURS=48 SEED_TIMELAPSE_GWS=4 tsx scripts/seed-fantasy.ts",
     "sanity:dev": "sanity dev --studio studio",
     "sanity:build": "sanity build --studio studio",
     "sanity:deploy": "sanity deploy",
@@ -31,8 +33,6 @@
   },
   "dependencies": {
     "@datadog/browser-rum": "^7.6.1",
-    "@dicebear/collection": "^9.2.2",
-    "@dicebear/core": "^9.4.2",
     "@headlessui/react": "^2.2.4",
     "@hotjar/browser": "^1.0.9",
     "@hpke/chacha20poly1305": "^1.6.2",
@@ -51,7 +51,9 @@
     "axios": "^1.15.0",
     "canvas-confetti": "^1.9.3",
     "critters": "^0.0.25",
+    "dapvatar": "^0.1.4",
     "date-fns": "^4.1.0",
+    "dd-trace": "^6.10.0",
     "framer-motion": "^11.18.2",
     "https-proxy-agent": "^9.0.0",
     "hugeicons-react": "^0.3.0",
@@ -68,6 +70,7 @@
     "next-sanity": "^10.0.4",
     "next-themes": "^0.4.6",
     "permissionless": "^0.2.47",
+    "pino": "^10.3.1",
     "rate-limiter-flexible": "^7.1.1",
     "react": "^19.0.1",
     "react-dom": "^19.0.1",
@@ -116,6 +119,11 @@
   },
   "packageManager": "pnpm@10.27.0",
   "pnpm": {
+    "onlyBuiltDependencies": [
+      "@datadog/native-metrics",
+      "@datadog/native-appsec",
+      "@datadog/native-iast-taint-tracking"
+    ],
     "overrides": {
       "@types/react": "^19.0.8",
       "@types/react-dom": "^19.0.3",

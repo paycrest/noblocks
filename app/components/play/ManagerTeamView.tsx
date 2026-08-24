@@ -103,6 +103,13 @@ export const ManagerTeamView = ({
           <div className="flex flex-wrap items-center gap-2">
             <Chip>{team.matchday.display_name}</Chip>
             <Chip>{team.points} pts this round</Chip>
+            {/* The hit is already inside team.points, so the cards on the
+                pitch sum to team.points + this. Shown so that still adds up. */}
+            {team.transfer_points_deduction > 0 && (
+              <Chip tone="red">
+                −{team.transfer_points_deduction} pts transfers
+              </Chip>
+            )}
           </div>
           <PitchView rows={rows} showPrice={false} onSlotClick={() => {}} />
           {bench.length > 0 && (

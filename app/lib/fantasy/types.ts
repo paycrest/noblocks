@@ -141,7 +141,10 @@ export interface PublicManagerTeam {
   badge: string;
   team: {
     matchday: { id: number; display_name: string; status: MatchdayStatus };
+    /** Round score as stored: the scoring XI minus `transfer_points_deduction`. */
     points: number;
+    /** Paid-transfer hit already subtracted from `points`. */
+    transfer_points_deduction: number;
     players: PublicTeamPlayer[];
   } | null;
 }

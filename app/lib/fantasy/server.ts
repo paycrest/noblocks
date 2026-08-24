@@ -246,7 +246,7 @@ export async function getPublicManagerTeam(
     const { data: squadRow, error: squadError } = await supabaseAdmin
       .from("fantasy_squads")
       .select(
-        "matchday_id, players:fantasy_squad_players(player_id, slot, is_captain, is_vice)",
+        "matchday_id, transfer_points_deduction, players:fantasy_squad_players(player_id, slot, is_captain, is_vice)",
       )
       .eq("wallet_address", row.wallet_address)
       .gte("matchday_id", seasonMin)
@@ -307,6 +307,7 @@ export async function getPublicManagerTeam(
           status: matchday.status,
         },
         points: Number(score?.points ?? 0),
+        transfer_points_deduction: Number(squadRow.transfer_points_deduction ?? 0),
         players: entries
           .sort((a, b) => a.slot - b.slot)
           .map((entry) => {

@@ -242,8 +242,11 @@ async function squadImage(usernameParam: string, anton: Buffer) {
   }
   const { team } = manager;
 
-  const xi = team.players.filter((p) => p.slot <= 11);
-  const bench = team.players.filter((p) => p.slot > 11);
+  const displayedPlayers = [...team.players].sort(
+    (a, b) => a.display_slot - b.display_slot,
+  );
+  const xi = displayedPlayers.filter((p) => p.display_slot <= 11);
+  const bench = displayedPlayers.filter((p) => p.display_slot > 11);
 
   const marks = await loadPlayerMarks(xi);
 

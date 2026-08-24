@@ -256,7 +256,11 @@ export async function runWorkerTick(options?: { force?: boolean }): Promise<Work
       force
     ) {
       try {
-        report.scores_recomputed = await recomputeScores(scoreTargets, report.alerts);
+        report.scores_recomputed = await recomputeScores(
+          scoreTargets,
+          report.alerts,
+          new Set(matchdays.filter((md) => md.status === "final").map((md) => md.id)),
+        );
         if (pendingRescore.length > 0) await clearPendingRescore(report.alerts);
       } catch (error) {
         recomputeSucceeded = false;

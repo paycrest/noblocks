@@ -30,9 +30,8 @@ export interface SlotView {
   /** Just transferred in (pending). */
   markedIn?: boolean;
   /**
-   * Auto-sub outcome for a scored round: "in" = came off the bench and
-   * counted, "out" = started but was replaced, so the 0 shown is exclusion
-   * rather than a blank. Cards stay in their picked slot either way.
+   * Final auto-sub outcome: "in" = moved from the bench onto the pitch,
+   * "out" = moved from the pitch to the bench.
    */
   subState?: "in" | "out" | null;
   /** Highlighted as an eligible swap target. */

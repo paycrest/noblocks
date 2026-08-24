@@ -6,7 +6,7 @@
  */
 import { getAddress, type Hash } from 'viem';
 import type { PublicClient, WalletClient, Chain } from 'viem';
-import { appendBaseBuilderCode } from '../baseBuilderCode';
+import { appendAttributionSuffix } from '../baseBuilderCode';
 
 const RE_DELEGATE_GAS = BigInt(120000);
 const GAS_LIMIT = BigInt(500000);
@@ -111,6 +111,8 @@ export interface ExecuteSponsoredParams {
   callData: `0x${string}`;
   eip7702Authorization?: unknown;
   gasLimit?: bigint;
+  /** Embed code for onchain host attribution (e_ + 8 hex chars). */
+  embedCode?: string;
 }
 
 export interface ExecuteSponsoredResult {
@@ -124,7 +126,7 @@ export async function executeSponsored(
   chain: Chain,
   params: ExecuteSponsoredParams
 ): Promise<ExecuteSponsoredResult> {
-  const callData = appendBaseBuilderCode(chain.id, params.callData);
+  const callData = appendAttributionSuffix(chain.id, params.callData, params.embedCode);
   let delegationTransactionHash: Hash | undefined;
 
   if (params.eip7702Authorization) {

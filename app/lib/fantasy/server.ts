@@ -7,8 +7,14 @@ import { getFantasySettings } from "./settings";
 import { getPlayersMap } from "./players";
 import { fetchAll } from "./pagination";
 import { LIVE_STATUSES, FINISHED_STATUSES } from "./provider";
-import { applyAutoSubs } from "./autosubs";
-import { hasPlayed, subStateFor, type SquadPlayerRow } from "./scoring";
+import { applyAutoSubs, autoSubDisplaySlots } from "./autosubs";
+import {
+  computeDisplayedMatchdayPoints,
+  adjustTotalPointsForLiveRound,
+  hasPlayed,
+  subStateFor,
+  type SquadPlayerRow,
+} from "./scoring";
 import type {
   FantasySettings,
   MatchdayStatus,
@@ -259,18 +265,10 @@ export async function getPublicManagerTeam(
     if (squadRow) {
       const matchdayId = Number(squadRow.matchday_id);
       const matchday = matchdays.find((md) => md.id === matchdayId)!;
-      const [players, playerPoints, scoreResult] = await Promise.all([
+      const [players, playerPoints] = await Promise.all([
         getPlayersMap(),
         getMatchdayPlayerPoints(matchdayId),
-        supabaseAdmin
-          .from("fantasy_matchday_scores")
-          .select("points")
-          .eq("wallet_address", row.wallet_address)
-          .eq("matchday_id", matchdayId)
-          .maybeSingle(),
       ]);
-      if (scoreResult.error) throw scoreResult.error;
-      const score = scoreResult.data;
 
       const entries = (squadRow.players ?? []).map((p) => ({
         player_id: Number(p.player_id),
@@ -288,17 +286,32 @@ export async function getPublicManagerTeam(
         position: players.get(entry.player_id)?.position ?? ("MID" as Position),
       }));
       const played = (id: number) => hasPlayed(live(id));
-      const scoringXi = applyAutoSubs(squadRows, played);
+      const settleLineup = matchday.status === "final";
+      const scoringXi = settleLineup
+        ? applyAutoSubs(squadRows, played)
+        : squadRows.filter((player) => player.slot <= 11);
       const scoringIds = new Set(scoringXi.map((p) => p.playerId));
+      const displaySlots = settleLineup
+        ? autoSubDisplaySlots(squadRows, scoringXi)
+        : new Map(squadRows.map((player) => [player.playerId, player.slot]));
       const startingXi = squadRows.filter((p) => p.slot <= 11);
       const captain = startingXi.find((p) => p.isCaptain);
       const vice = startingXi.find((p) => p.isVice);
       const doubledId =
         captain && played(captain.playerId)
           ? captain.playerId
-          : vice && played(vice.playerId)
+          : settleLineup && vice && played(vice.playerId)
             ? vice.playerId
             : null;
+      const roundPoints = computeDisplayedMatchdayPoints(
+        {
+          squadRows,
+          playerPoints,
+          transferPointsDeduction: Number(squadRow.transfer_points_deduction ?? 0),
+          matchdayStatus: matchday.status,
+        },
+        applyAutoSubs,
+      );
 
       team = {
         matchday: {
@@ -306,7 +319,7 @@ export async function getPublicManagerTeam(
           display_name: matchday.display_name,
           status: matchday.status,
         },
-        points: Number(score?.points ?? 0),
+        points: roundPoints,
         transfer_points_deduction: Number(squadRow.transfer_points_deduction ?? 0),
         players: entries
           .sort((a, b) => a.slot - b.slot)
@@ -314,11 +327,12 @@ export async function getPublicManagerTeam(
             const player = players.get(entry.player_id);
             const stats = live(entry.player_id);
             const earnsPoints = scoringIds.has(entry.player_id);
-            // Slot stays as picked; membership of the post-auto-sub XI is
-            // reported separately so the pitch can badge the swap in place.
-            const subState = subStateFor(entry.slot, earnsPoints);
+            const subState = settleLineup
+              ? subStateFor(entry.slot, earnsPoints)
+              : null;
             return {
               ...entry,
+              display_slot: displaySlots.get(entry.player_id) ?? entry.slot,
               name: player?.name ?? "Unknown",
               position: player?.position ?? ("MID" as Position),
               nation: player?.nation ?? "",
@@ -339,10 +353,33 @@ export async function getPublicManagerTeam(
     }
   }
 
+  const storedTotal = Number(row.total_points);
+  let totalPoints = storedTotal;
+  if (team && team.matchday.status !== "final") {
+    const { data: scoreRows, error: scoresError } = await supabaseAdmin
+      .from("fantasy_matchday_scores")
+      .select("matchday_id, points")
+      .eq("wallet_address", row.wallet_address)
+      .gte("matchday_id", seasonMin)
+      .lte("matchday_id", settings.season_matchday_max);
+    if (scoresError) throw scoresError;
+    const matchdayScores = (scoreRows ?? []).map((score) => ({
+      matchday_id: Number(score.matchday_id),
+      points: Number(score.points),
+    }));
+    totalPoints = adjustTotalPointsForLiveRound(
+      storedTotal,
+      matchdayScores,
+      team.matchday.id,
+      team.matchday.status,
+      team.points,
+    );
+  }
+
   return {
     username: row.username as string,
     rank: row.rank != null ? Number(row.rank) : null,
-    total_points: Number(row.total_points),
+    total_points: totalPoints,
     activated_referrals: activatedReferrals ?? 0,
     badge: String(row.badge),
     team,

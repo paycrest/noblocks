@@ -106,15 +106,18 @@ export interface SquadSelection {
 }
 
 /**
- * Auto-sub outcome for a picked slot. "in" = promoted off the bench and
- * scoring, "out" = picked to start but replaced, so the 0 shown is exclusion
- * rather than a blank. null = counted as picked, or an unused bench player.
+ * Final auto-sub outcome. "in" = promoted off the bench and scoring, "out" =
+ * picked to start but replaced. Null until the gameweek is final, or when no
+ * substitution affected the player.
  */
 export type SubState = "in" | "out" | null;
 
 export interface PublicTeamPlayer {
   player_id: number;
+  /** Original saved slot. */
   slot: number;
+  /** Final rendered slot after auto-subs; equals `slot` before the GW is final. */
+  display_slot: number;
   is_captain: boolean;
   is_vice: boolean;
   name: string;
@@ -125,9 +128,7 @@ export interface PublicTeamPlayer {
   points: number;
   minutes: number;
   /**
-   * Auto-sub outcome for this round. Players keep their picked slot either
-   * way; this is what lets the UI badge the swap in place instead of
-   * relocating the card.
+   * Auto-sub outcome for this round, populated only once the GW is final.
    */
   sub_state: SubState;
 }

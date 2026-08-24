@@ -1,9 +1,8 @@
 "use client";
 
 /**
- * Bench row (slots 12–15). Bench players keep their picked slot even after
- * an auto-sub promotes them into the scoring XI — the swap is badged on the
- * card (see SlotView.subState) rather than moving the card onto the pitch.
+ * Bench row (slots 12–15). After a gameweek is final, substituted-out
+ * starters occupy the slots vacated by promoted bench players.
  */
 
 import type { ReactNode } from "react";

@@ -219,6 +219,41 @@ describe("bench never scores unless auto-subbed in", () => {
     expect(points).toBe(10 * 2 + 9 + 2);
   });
 
+  it("keeps the picked XI and captaincy unchanged until the gameweek is final", () => {
+    const squad = buildSquad().map((player) =>
+      player.playerId === 9
+        ? { ...player, isCaptain: true }
+        : player.playerId === 10
+          ? { ...player, isCaptain: false, isVice: true }
+          : { ...player, isCaptain: false, isVice: false },
+    );
+    const playerPoints = new Map(
+      squad.map((player) => [
+        player.playerId,
+        player.playerId === 9
+          ? blanked
+          : played(player.slot <= 11 ? (player.playerId === 10 ? 5 : 2) : 9),
+      ]),
+    );
+
+    const { points, scoringXi } = computeSquadPoints(
+      {
+        squad,
+        playerPoints,
+        transferPointsDeduction: 0,
+        settleLineup: false,
+      },
+      applyAutoSubs,
+    );
+
+    expect(scoringXi.map((player) => player.playerId)).toEqual(
+      squad.filter((player) => player.slot <= 11).map((player) => player.playerId),
+    );
+    expect(scoringXi.map((player) => player.playerId)).not.toContain(13);
+    // Ten scoring starters; the blank captain stays captain, so vice is not doubled yet.
+    expect(points).toBe(9 * 2 + 5);
+  });
+
   it("subtracts the transfer hit from the XI total, not from the bench", () => {
     const squad = buildSquad();
     const playerPoints = new Map(

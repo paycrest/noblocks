@@ -5,9 +5,8 @@
  * the latest locked round's XI + bench with effective points (captain
  * double included). Reuses the same pitch the owner sees on /play/team.
  *
- * Players stay in the slot they were picked in. Auto-subs are badged in
- * place (SUB ON / SUB OFF), so a promoted bench player still renders on the
- * bench while carrying the points that count towards the round total.
+ * Final auto-subs move promoted players onto the pitch and replaced starters
+ * to the vacated bench slots. SUB ON / SUB OFF rings remain visible.
  */
 
 import Link from "next/link";
@@ -58,22 +57,18 @@ export const ManagerTeamView = ({
     FWD: [],
   };
   const bench: SlotView[] = [];
-  // Players arrive sorted by slot; a single pass keeps the bench in slot
-  // order (12–15) while the XI still groups by position via `rows`.
-  for (const p of team?.players ?? []) {
-    if (p.slot <= 11) rows[p.position].push(toSlotView(p));
+  const players = [...(team?.players ?? [])].sort(
+    (a, b) => a.display_slot - b.display_slot,
+  );
+  for (const p of players) {
+    if (p.display_slot <= 11) rows[p.position].push(toSlotView(p));
     else bench.push(toSlotView(p));
   }
 
-  // Reconciles the header: the round total is the badged-on bench players
-  // plus the starters who were not badged off, never the raw pitch row.
   const subsOn = (team?.players ?? []).filter((p) => p.sub_state === "in").length;
-  // Auto-subs only settle when the round does: a starter whose fixture has
-  // not kicked off yet reads as a blank mid-round, so say "so far" until final.
-  const provisional = team != null && team.matchday.status !== "final";
   const benchNote =
     subsOn > 0
-      ? `${subsOn} auto-sub${subsOn === 1 ? "" : "s"} counted below${provisional ? " so far" : ""}`
+      ? `${subsOn} auto-sub${subsOn === 1 ? "" : "s"} applied`
       : team?.matchday.status === "final"
         ? "no auto-subs this round"
         : undefined;

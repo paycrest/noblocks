@@ -7,9 +7,9 @@ import { NoblocksLogoIcon } from "./ImageAssets";
  * Mobile brand icon that hard-cuts through a loop of states, by default:
  *   0. the default Noblocks "n" icon
  *   1. a spinning soccer ball
- *   2. the World Cup trophy
+ *   2. the World Cup trophy (legacy), or the Premier League lion watermark
  * The `phases` prop picks which states to include (see below) — e.g. a spot
- * that shouldn't show the Noblocks brand mark can cycle just ball → trophy.
+ * that shouldn't show the Noblocks brand mark can cycle just ball → lion.
  *
  * Each state is held for ~2s with an instant swap (no cross-fade), inside a
  * fixed bounding box so surrounding UI never shifts.
@@ -27,6 +27,7 @@ const PHASE_MS = 2000;
 
 const BALL_SRC = "/logos/worldcup/ball.svg?v=1";
 const TROPHY_SRC = "/logos/worldcup/trophy.svg?v=1";
+const LION_SRC = "/images/play-promo/pl-lion-watermark.svg";
 
 // Module-scope cache so the markup is fetched/parsed once across remounts.
 const cache: Record<string, string> = {};
@@ -37,7 +38,7 @@ const stripSize = (svg: string) =>
     tag.replace(/\swidth="[^"]*"/, "").replace(/\sheight="[^"]*"/, ""),
   );
 
-type Phase = "logo" | "ball" | "trophy";
+type Phase = "logo" | "ball" | "trophy" | "lion";
 const DEFAULT_PHASES: Phase[] = ["logo", "ball", "trophy"];
 
 export const NoblocksAnimatedIcon = ({
@@ -46,15 +47,15 @@ export const NoblocksAnimatedIcon = ({
 }: {
   className?: string;
   /** States to cycle through, in order. Defaults to the full
-   * logo → ball → trophy loop; pass e.g. `["ball", "trophy"]` to skip the
-   * Noblocks "n" (for spots where our own brand mark isn't appropriate). */
+   * logo → ball → trophy loop; pass e.g. `["ball", "lion"]` for Play promo. */
   phases?: Phase[];
 }) => {
   const [phaseIndex, setPhaseIndex] = useState(0);
   const [ball, setBall] = useState<string | null>(cache[BALL_SRC] ?? null);
   const [trophy, setTrophy] = useState<string | null>(cache[TROPHY_SRC] ?? null);
+  const [lion, setLion] = useState<string | null>(cache[LION_SRC] ?? null);
 
-  // Prefetch both assets up front so cycling never flashes a blank frame.
+  // Prefetch assets up front so cycling never flashes a blank frame.
   useEffect(() => {
     let active = true;
     const load = (src: string, set: (v: string) => void) => {
@@ -69,12 +70,13 @@ export const NoblocksAnimatedIcon = ({
           /* decorative; the wrapping button already carries an aria-label */
         });
     };
-    load(BALL_SRC, setBall);
-    load(TROPHY_SRC, setTrophy);
+    if (phases.includes("ball")) load(BALL_SRC, setBall);
+    if (phases.includes("trophy")) load(TROPHY_SRC, setTrophy);
+    if (phases.includes("lion")) load(LION_SRC, setLion);
     return () => {
       active = false;
     };
-  }, []);
+  }, [phases.join(",")]);
 
   // Drive the loop, staying reactive to runtime changes of the user's motion
   // preference (WCAG 2.3.3): if reduced motion is turned on mid-session we stop
@@ -131,6 +133,15 @@ export const NoblocksAnimatedIcon = ({
             // correctly at any container size, not just the 18px nav icon.
             className="flex size-full items-center justify-center [&>svg]:h-[71.11%] [&>svg]:w-auto [&>svg]:shrink-0 [&>svg]:scale-150"
             dangerouslySetInnerHTML={{ __html: trophy }}
+          />
+        ) : (
+          fallback
+        ))}
+      {current === "lion" &&
+        (lion ? (
+          <span
+            className="flex size-full items-center justify-center [&>svg]:size-full"
+            dangerouslySetInnerHTML={{ __html: lion }}
           />
         ) : (
           fallback

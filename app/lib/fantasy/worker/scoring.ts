@@ -116,6 +116,7 @@ export async function batchUpsertParticipants(
 export async function recomputeScores(
   matchdayIds: number[],
   alerts: string[] = [],
+  finalMatchdayIds: ReadonlySet<number> = new Set(),
 ): Promise<number> {
   if (matchdayIds.length === 0) return 0;
   let updated = 0;
@@ -211,6 +212,7 @@ export async function recomputeScores(
           squad: squadRows,
           playerPoints,
           transferPointsDeduction: squad.transfer_points_deduction,
+          settleLineup: finalMatchdayIds.has(matchdayId),
         },
         applyAutoSubs,
       );

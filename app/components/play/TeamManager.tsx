@@ -134,25 +134,36 @@ export const TeamManager = ({
       squad?.players.find((p) => p.player_id === id)?.lock_state ?? "unlocked",
     [squad],
   );
-  // The armband holder whose points currently count double: the captain once
-  // they've played, otherwise the vice (mirrors computeSquadPoints server-side).
+  // Captain fallback to the vice settles only after the gameweek is final.
   const doubledId = useMemo(() => {
     const captain = squad?.players.find((p) => p.is_captain);
     const vice = squad?.players.find((p) => p.is_vice);
-    if (captain && captain.live.minutes > 0) return captain.player_id;
-    if (vice && vice.live.minutes > 0) return vice.player_id;
+    const played = (entry: NonNullable<typeof captain>) =>
+      entry.live.minutes > 0 ||
+      entry.live.yellowCards > 0 ||
+      entry.live.redCards > 0;
+    if (captain && played(captain)) return captain.player_id;
+    if (
+      matchday.status === "final" &&
+      vice &&
+      played(vice)
+    )
+      return vice.player_id;
     return null;
-  }, [squad]);
+  }, [squad, matchday.status]);
   const livePointsOf = useCallback(
     (id: number) => {
-      const points =
-        squad?.players.find((p) => p.player_id === id)?.live.points ?? 0;
+      const entry = squad?.players.find((p) => p.player_id === id);
+      if (!entry) return 0;
+      if (matchday.status === "final" && entry.sub_state === "out") return 0;
+      // Bench points never count until auto-subs settle at gameweek end.
+      if (locked && matchday.status !== "final" && entry.slot > 11) return 0;
+      const points = entry.live.points ?? 0;
       return id === doubledId ? points * 2 : points;
     },
-    [squad, doubledId],
+    [squad, doubledId, matchday.status, locked],
   );
-  // Server-side auto-sub outcome. Only meaningful once the round is locked;
-  // while editing, the pitch shows the squad as picked and nothing is badged.
+  // The server leaves this null until the round is final.
   const subStateOf = useCallback(
     (id: number) =>
       locked
@@ -164,12 +175,10 @@ export const TeamManager = ({
     () => (squad?.players ?? []).filter((p) => p.sub_state === "in").length,
     [squad],
   );
-  // Auto-subs only settle when the round does: a starter whose fixture has
-  // not kicked off yet reads as a blank mid-round, so say "so far" until final.
   const benchNote = !locked
     ? undefined
     : subsOn > 0
-      ? `${subsOn} auto-sub${subsOn === 1 ? "" : "s"} counted${matchday.status === "final" ? "" : " so far"}`
+      ? `${subsOn} auto-sub${subsOn === 1 ? "" : "s"} applied`
       : matchday.status === "final"
         ? "no auto-subs this round"
         : undefined;
@@ -661,7 +670,20 @@ export const TeamManager = ({
     };
   };
 
-  const benchedSet = new Set(view.benched);
+  const settledDisplay = locked && matchday.status === "final";
+  const displaySlotOf = (id: number) => {
+    const entry = squad?.players.find((player) => player.player_id === id);
+    return settledDisplay
+      ? (entry?.display_slot ?? entry?.slot ?? Number.MAX_SAFE_INTEGER)
+      : (entry?.slot ?? Number.MAX_SAFE_INTEGER);
+  };
+  const benchedSet = settledDisplay
+    ? new Set(
+        (squad?.players ?? [])
+          .filter((player) => player.display_slot > 11)
+          .map((player) => player.player_id),
+      )
+    : new Set(view.benched);
   const rows: Record<Position, SlotView[]> = {
     GK: [],
     DEF: [],
@@ -671,10 +693,13 @@ export const TeamManager = ({
   const benchSlots: SlotView[] = [];
   for (const pos of POS_ORDER) {
     const idsForPos = view.byPos[pos];
-    rows[pos] = idsForPos.filter((id) => !benchedSet.has(id)).map(slotViewFor);
-    const benchIds = idsForPos.filter(
-      (id) => benchedSet.has(id) && viewIds.has(id),
-    );
+    rows[pos] = idsForPos
+      .filter((id) => !benchedSet.has(id))
+      .sort((a, b) => displaySlotOf(a) - displaySlotOf(b))
+      .map(slotViewFor);
+    const benchIds = idsForPos
+      .filter((id) => benchedSet.has(id) && viewIds.has(id))
+      .sort((a, b) => displaySlotOf(a) - displaySlotOf(b));
     benchSlots.push(...benchIds.map(slotViewFor));
 
     // While building, remaining capacity shows as add buttons — the pitch is
@@ -707,6 +732,11 @@ export const TeamManager = ({
         });
       }
     }
+  }
+  if (settledDisplay) {
+    benchSlots.sort(
+      (a, b) => displaySlotOf(Number(a.key)) - displaySlotOf(Number(b.key)),
+    );
   }
 
   const handleSlotClick = (slot: SlotView) => {

@@ -61,12 +61,20 @@ export type LockState = "unlocked" | "locked" | "played";
 
 export interface SquadPlayerEntry {
   player_id: number;
+  /** Original saved slot. */
   slot: number;
+  /** Rendered slot after final auto-subs; equals `slot` before final. */
+  display_slot: number;
   is_captain: boolean;
   is_vice: boolean;
   player?: FantasyPlayer;
   lock_state: LockState;
-  live: { points: number; minutes: number };
+  live: {
+    points: number;
+    minutes: number;
+    yellowCards: number;
+    redCards: number;
+  };
   /** Auto-sub outcome for the round — see PublicTeamPlayer.sub_state. */
   sub_state: SubState;
 }

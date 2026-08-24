@@ -5,10 +5,17 @@ import { trackBusinessEvent } from "@/app/lib/server-analytics";
 import { getFantasySettings } from "@/app/lib/fantasy/settings";
 import { getPlayersMap } from "@/app/lib/fantasy/players";
 import { validateSquad } from "@/app/lib/fantasy/validation";
-import { applyAutoSubs } from "@/app/lib/fantasy/autosubs";
+import {
+  applyAutoSubs,
+  autoSubDisplaySlots,
+} from "@/app/lib/fantasy/autosubs";
 import { hasPlayed, subStateFor, type SquadPlayerRow } from "@/app/lib/fantasy/scoring";
 import type { Position, SquadSelection } from "@/app/lib/fantasy/types";
 import { hasActiveFixtures } from "@/app/lib/fantasy/fixture-activity";
+import {
+  adjustTotalPointsForLiveRound,
+  computeDisplayedMatchdayPoints,
+} from "@/app/lib/fantasy/scoring";
 import {
   fantasyDisabledResponse,
   getAuthedWallet,
@@ -70,26 +77,56 @@ export const GET = withRateLimitAndAnalytics(async (request: NextRequest) => {
 
     const players = await getPlayersMap();
 
-    // Same auto-sub pass the scorer runs, so the pitch can badge promotions
-    // in place and the round total reconciles against the cards on screen.
-    // Before kickoff nobody has played, so this resolves to no subs at all.
     const live = (id: number) =>
       playerPoints.get(id) ?? { points: 0, minutes: 0, yellowCards: 0, redCards: 0 };
-    const scoringIds = new Set(
-      squad
-        ? applyAutoSubs(
-            squad.players.map(
-              (entry): SquadPlayerRow => ({
-                playerId: entry.player_id,
-                slot: entry.slot,
-                isCaptain: entry.is_captain,
-                isVice: entry.is_vice,
-                position: players.get(entry.player_id)?.position ?? ("MID" as Position),
-              }),
-            ),
-            (id) => hasPlayed(live(id)),
-          ).map((p) => p.playerId)
-        : [],
+    const squadRows: SquadPlayerRow[] =
+      squad?.players.map((entry) => ({
+        playerId: entry.player_id,
+        slot: entry.slot,
+        isCaptain: entry.is_captain,
+        isVice: entry.is_vice,
+        position: players.get(entry.player_id)?.position ?? ("MID" as Position),
+      })) ?? [];
+    const settleLineup = matchday.status === "final";
+    const scoringXi = settleLineup
+      ? applyAutoSubs(squadRows, (id) => hasPlayed(live(id)))
+      : squadRows.filter((player) => player.slot <= 11);
+    const scoringIds = new Set(scoringXi.map((player) => player.playerId));
+    const displaySlots = settleLineup
+      ? autoSubDisplaySlots(squadRows, scoringXi)
+      : new Map(squadRows.map((player) => [player.playerId, player.slot]));
+    const roundPoints = computeDisplayedMatchdayPoints(
+      {
+        squadRows,
+        playerPoints,
+        transferPointsDeduction: squad?.transfer_points_deduction ?? 0,
+        matchdayStatus: matchday.status,
+      },
+      applyAutoSubs,
+    );
+    const matchdayScores = (matchdayScoresResult.data ?? []).map((s) => ({
+      matchday_id: Number(s.matchday_id),
+      points: Number(s.points),
+    }));
+    if (matchday.status !== "final") {
+      const currentIndex = matchdayScores.findIndex(
+        (score) => score.matchday_id === matchday.id,
+      );
+      if (currentIndex >= 0) {
+        matchdayScores[currentIndex] = {
+          matchday_id: matchday.id,
+          points: roundPoints,
+        };
+      } else {
+        matchdayScores.push({ matchday_id: matchday.id, points: roundPoints });
+      }
+    }
+    const totalPoints = adjustTotalPointsForLiveRound(
+      participant.total_points,
+      matchdayScores,
+      matchday.id,
+      matchday.status,
+      roundPoints,
     );
 
     return jsonOk({
@@ -113,7 +150,10 @@ export const GET = withRateLimitAndAnalytics(async (request: NextRequest) => {
                   : undefined,
                 lock_state: "unlocked" as const,
                 live: live(entry.player_id),
-                sub_state: subStateFor(entry.slot, scoringIds.has(entry.player_id)),
+                sub_state: settleLineup
+                  ? subStateFor(entry.slot, scoringIds.has(entry.player_id))
+                  : null,
+                display_slot: displaySlots.get(entry.player_id) ?? entry.slot,
               };
             }),
           }
@@ -122,12 +162,9 @@ export const GET = withRateLimitAndAnalytics(async (request: NextRequest) => {
       free_transfers_max: settings.free_transfers_max,
       club_cap: settings.club_cap,
       photos_enabled: settings.photos_enabled,
-      total_points: participant.total_points,
+      total_points: totalPoints,
       username: (profileResult.data?.username as string | null) ?? null,
-      matchday_scores: (matchdayScoresResult.data ?? []).map((s) => ({
-        matchday_id: Number(s.matchday_id),
-        points: Number(s.points),
-      })),
+      matchday_scores: matchdayScores,
     });
   } catch (error) {
     console.error("[play] squad fetch failed:", error);

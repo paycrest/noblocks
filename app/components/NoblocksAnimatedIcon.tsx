@@ -59,7 +59,13 @@ export const NoblocksAnimatedIcon = ({
   useEffect(() => {
     let active = true;
     const load = (src: string, set: (v: string) => void) => {
-      if (cache[src]) return;
+      // Hydrate from the cache rather than bailing: this instance may have
+      // rendered (seeding null) before another instance's fetch filled it,
+      // and without the setter it would show the fallback forever.
+      if (cache[src]) {
+        set(cache[src]);
+        return;
+      }
       fetch(src)
         .then((res) => (res.ok ? res.text() : Promise.reject(res.status)))
         .then((markup) => {

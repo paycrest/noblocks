@@ -8,7 +8,7 @@ import { getPlayersMap } from "./players";
 import { fetchAll } from "./pagination";
 import { LIVE_STATUSES, FINISHED_STATUSES } from "./provider";
 import { applyAutoSubs } from "./autosubs";
-import { hasPlayed, type SquadPlayerRow } from "./scoring";
+import { hasPlayed, subStateFor, type SquadPlayerRow } from "./scoring";
 import type {
   FantasySettings,
   MatchdayStatus,
@@ -313,6 +313,9 @@ export async function getPublicManagerTeam(
             const player = players.get(entry.player_id);
             const stats = live(entry.player_id);
             const earnsPoints = scoringIds.has(entry.player_id);
+            // Slot stays as picked; membership of the post-auto-sub XI is
+            // reported separately so the pitch can badge the swap in place.
+            const subState = subStateFor(entry.slot, earnsPoints);
             return {
               ...entry,
               name: player?.name ?? "Unknown",
@@ -328,6 +331,7 @@ export async function getPublicManagerTeam(
                 ? stats.points * (entry.player_id === doubledId ? 2 : 1)
                 : 0,
               minutes: stats.minutes,
+              sub_state: subState,
             };
           }),
       };

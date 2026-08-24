@@ -4,6 +4,7 @@ import type {
   PointsBreakdownEntry,
   Position,
   ScoringMatrix,
+  SubState,
 } from "./types";
 
 /**
@@ -88,6 +89,17 @@ export function computePoints(
 
   const points = breakdown.reduce((sum, e) => sum + e.points, 0);
   return { points, breakdown };
+}
+
+/**
+ * Badge state for a picked slot, given whether the player ended up in the
+ * post-auto-sub XI. Players keep the slot they were picked in, so this is
+ * what tells a UI that a bench card is scoring ("in") or that a starter's 0
+ * is exclusion rather than a blank ("out").
+ */
+export function subStateFor(slot: number, inScoringXi: boolean): SubState {
+  if (inScoringXi) return slot > 11 ? "in" : null;
+  return slot <= 11 ? "out" : null;
 }
 
 /** Appearance or yellow/red ⇒ played (FPL auto-sub definition). */

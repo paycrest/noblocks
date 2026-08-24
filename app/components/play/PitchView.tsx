@@ -29,6 +29,12 @@ export interface SlotView {
   markedOut?: boolean;
   /** Just transferred in (pending). */
   markedIn?: boolean;
+  /**
+   * Auto-sub outcome for a scored round: "in" = came off the bench and
+   * counted, "out" = started but was replaced, so the 0 shown is exclusion
+   * rather than a blank. Cards stay in their picked slot either way.
+   */
+  subState?: "in" | "out" | null;
   /** Highlighted as an eligible swap target. */
   highlighted?: boolean;
   dimmed?: boolean;
@@ -140,7 +146,7 @@ export const PlayerSlotCard = ({
       type="button"
       onClick={onClick}
       className={`relative flex w-16 flex-col items-center gap-1 transition-opacity sm:w-20 ${
-        slot.dimmed ? "opacity-40" : ""
+        slot.dimmed || slot.subState === "out" ? "opacity-40" : ""
       } ${slot.highlighted ? "scale-105" : ""}`}
     >
       <span
@@ -151,7 +157,11 @@ export const PlayerSlotCard = ({
               ? "ring-2 ring-accent-red rounded-lg"
               : slot.markedIn
                 ? "ring-2 ring-emerald-400 rounded-lg"
-                : ""
+                : slot.subState === "in"
+                  ? "ring-2 ring-emerald-400 rounded-lg"
+                  : slot.subState === "out"
+                    ? "ring-2 ring-white/40 rounded-lg"
+                    : ""
         }`}
       >
         <PlayerPhoto
@@ -214,6 +224,27 @@ export const PlayerSlotCard = ({
         {slot.markedIn && (
           <span className="absolute -bottom-1 rounded bg-emerald-500 px-1 text-[9px] font-bold text-white">
             IN
+          </span>
+        )}
+        {/* Auto-sub badges never coexist with the transfer pills: those are
+            pending-edit state on an open round, these only exist once a round
+            has been scored. */}
+        {slot.subState === "in" && !slot.markedIn && (
+          <span
+            className="absolute -bottom-1 rounded bg-emerald-500 px-1 text-[9px] font-bold text-white"
+            aria-label="Auto-substituted on"
+            title="Auto-substituted on — these points count"
+          >
+            SUB ON
+          </span>
+        )}
+        {slot.subState === "out" && !slot.markedOut && (
+          <span
+            className="absolute -bottom-1 rounded bg-black/70 px-1 text-[9px] font-bold text-white"
+            aria-label="Auto-substituted off"
+            title="Auto-substituted off — replaced by a bench player, scores nothing"
+          >
+            SUB OFF
           </span>
         )}
       </span>

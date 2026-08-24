@@ -12,6 +12,7 @@ import type {
   PublicManagerTeam,
   PublicTeamPlayer,
   ScoringMatrix,
+  SubState,
 } from "@/app/lib/fantasy/types";
 
 export type {
@@ -22,6 +23,7 @@ export type {
   PublicManagerTeam,
   PublicTeamPlayer,
   ScoringMatrix,
+  SubState,
 };
 
 export interface PlayMatchday {
@@ -65,6 +67,8 @@ export interface SquadPlayerEntry {
   player?: FantasyPlayer;
   lock_state: LockState;
   live: { points: number; minutes: number };
+  /** Auto-sub outcome for the round — see PublicTeamPlayer.sub_state. */
+  sub_state: SubState;
 }
 
 export interface SquadData {

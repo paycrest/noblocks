@@ -9,8 +9,8 @@ import { isEvmEarnFlow } from "../lib/earnFeature";
 import { useEarnSourcePosition } from "./useEarnSourcePosition";
 
 /**
- * Selected-chain wallet total for Phase 2 EVM earn: liquid on-chain + Vesu
- * position sourced from that chain (localStorage).
+ * Cross-chain wallet total for Phase 2 EVM earn: liquid on all chains + Vesu
+ * position sourced from the selected chain (localStorage).
  */
 export function useEvmWalletDisplayTotal(params: {
   chainName: string;

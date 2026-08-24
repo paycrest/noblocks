@@ -105,6 +105,13 @@ export interface SquadSelection {
   viceId: number;
 }
 
+/**
+ * Auto-sub outcome for a picked slot. "in" = promoted off the bench and
+ * scoring, "out" = picked to start but replaced, so the 0 shown is exclusion
+ * rather than a blank. null = counted as picked, or an unused bench player.
+ */
+export type SubState = "in" | "out" | null;
+
 export interface PublicTeamPlayer {
   player_id: number;
   slot: number;
@@ -117,6 +124,12 @@ export interface PublicTeamPlayer {
   photo_url: string | null;
   points: number;
   minutes: number;
+  /**
+   * Auto-sub outcome for this round. Players keep their picked slot either
+   * way; this is what lets the UI badge the swap in place instead of
+   * relocating the card.
+   */
+  sub_state: SubState;
 }
 
 export interface PublicManagerTeam {
@@ -128,7 +141,10 @@ export interface PublicManagerTeam {
   badge: string;
   team: {
     matchday: { id: number; display_name: string; status: MatchdayStatus };
+    /** Round score as stored: the scoring XI minus `transfer_points_deduction`. */
     points: number;
+    /** Paid-transfer hit already subtracted from `points`. */
+    transfer_points_deduction: number;
     players: PublicTeamPlayer[];
   } | null;
 }

@@ -9,6 +9,7 @@ import {
   computeSquadPoints,
   emptyStats,
   hasPlayed,
+  subStateFor,
 } from "@/app/lib/fantasy/scoring";
 import type { FantasySettings, PlayerMatchStats, Position } from "@/app/lib/fantasy/types";
 
@@ -153,6 +154,93 @@ describe("C/VC with auto-subs", () => {
       .reduce((s, p) => s + p.points, 0);
     // After autosub still no double if C/VC blank
     expect(points).toBeLessThanOrEqual(baseWithoutDouble);
+  });
+});
+
+describe("bench never scores unless auto-subbed in", () => {
+  /** 1-4-4-2 in slots 1–11, bench GK/DEF/MID/FWD in 12–15. */
+  const buildSquad = () => [
+    { playerId: 1, slot: 1, isCaptain: false, isVice: false, position: "GK" as const },
+    { playerId: 2, slot: 2, isCaptain: false, isVice: false, position: "DEF" as const },
+    { playerId: 3, slot: 3, isCaptain: false, isVice: false, position: "DEF" as const },
+    { playerId: 4, slot: 4, isCaptain: false, isVice: false, position: "DEF" as const },
+    { playerId: 5, slot: 5, isCaptain: false, isVice: false, position: "DEF" as const },
+    { playerId: 6, slot: 6, isCaptain: false, isVice: false, position: "MID" as const },
+    { playerId: 7, slot: 7, isCaptain: false, isVice: false, position: "MID" as const },
+    { playerId: 8, slot: 8, isCaptain: false, isVice: false, position: "MID" as const },
+    { playerId: 9, slot: 9, isCaptain: false, isVice: false, position: "MID" as const },
+    { playerId: 10, slot: 10, isCaptain: true, isVice: false, position: "FWD" as const },
+    { playerId: 11, slot: 11, isCaptain: false, isVice: true, position: "FWD" as const },
+    { playerId: 12, slot: 12, isCaptain: false, isVice: false, position: "GK" as const },
+    { playerId: 13, slot: 13, isCaptain: false, isVice: false, position: "DEF" as const },
+    { playerId: 14, slot: 14, isCaptain: false, isVice: false, position: "MID" as const },
+    { playerId: 15, slot: 15, isCaptain: false, isVice: false, position: "FWD" as const },
+  ];
+
+  /** Everyone plays; bench carries fat scores that must not leak into the total. */
+  const played = (points: number) => ({ points, minutes: 90, yellowCards: 0, redCards: 0 });
+  const blanked = { points: 0, minutes: 0, yellowCards: 0, redCards: 0 };
+
+  it("ignores points-scoring bench players when no starter blanks", () => {
+    const squad = buildSquad();
+    const playerPoints = new Map(
+      squad.map((p) => [p.playerId, played(p.slot <= 11 ? 2 : 9)]),
+    );
+    const { points, scoringXi } = computeSquadPoints(
+      { squad, playerPoints, transferPointsDeduction: 0 },
+      applyAutoSubs,
+    );
+    expect(scoringXi).toHaveLength(11);
+    expect(scoringXi.every((p) => p.slot <= 11)).toBe(true);
+    // 11 starters × 2 + captain double. The 36 bench points contribute nothing.
+    expect(points).toBe(11 * 2 + 2);
+  });
+
+  it("counts a bench player only once auto-subbed in for a blank", () => {
+    const squad = buildSquad();
+    const playerPoints = new Map(
+      squad.map((p) => [
+        p.playerId,
+        p.playerId === 9 ? blanked : played(p.slot <= 11 ? 2 : 9),
+      ]),
+    );
+    const { points, scoringXi } = computeSquadPoints(
+      { squad, playerPoints, transferPointsDeduction: 0 },
+      applyAutoSubs,
+    );
+    expect(scoringXi).toHaveLength(11);
+    // Subs are not like-for-like: the highest-priority outfield bench player
+    // who played takes the slot, so DEF 13 (not MID 14) covers the blanked
+    // MID — 5 DEF / 3 MID / 2 FWD still clears the floors.
+    expect(scoringXi.map((p) => p.playerId)).toContain(13);
+    expect(scoringXi.map((p) => p.playerId)).not.toContain(9);
+    expect(scoringXi.map((p) => p.playerId)).not.toContain(14);
+    // 10 surviving starters × 2 + sub 9 + captain double.
+    expect(points).toBe(10 * 2 + 9 + 2);
+  });
+
+  it("subtracts the transfer hit from the XI total, not from the bench", () => {
+    const squad = buildSquad();
+    const playerPoints = new Map(
+      squad.map((p) => [p.playerId, played(p.slot <= 11 ? 2 : 9)]),
+    );
+    const { points } = computeSquadPoints(
+      { squad, playerPoints, transferPointsDeduction: 4 },
+      applyAutoSubs,
+    );
+    expect(points).toBe(11 * 2 + 2 - 4);
+  });
+});
+
+describe("subStateFor", () => {
+  it("badges a promoted bench player and an excluded starter", () => {
+    expect(subStateFor(14, true)).toBe("in");
+    expect(subStateFor(9, false)).toBe("out");
+  });
+
+  it("stays silent for counted starters and unused bench players", () => {
+    expect(subStateFor(9, true)).toBeNull();
+    expect(subStateFor(14, false)).toBeNull();
   });
 });
 

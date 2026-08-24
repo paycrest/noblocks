@@ -5,7 +5,9 @@ import { trackBusinessEvent } from "@/app/lib/server-analytics";
 import { getFantasySettings } from "@/app/lib/fantasy/settings";
 import { getPlayersMap } from "@/app/lib/fantasy/players";
 import { validateSquad } from "@/app/lib/fantasy/validation";
-import type { SquadSelection } from "@/app/lib/fantasy/types";
+import { applyAutoSubs } from "@/app/lib/fantasy/autosubs";
+import { hasPlayed, subStateFor, type SquadPlayerRow } from "@/app/lib/fantasy/scoring";
+import type { Position, SquadSelection } from "@/app/lib/fantasy/types";
 import { hasActiveFixtures } from "@/app/lib/fantasy/fixture-activity";
 import {
   fantasyDisabledResponse,
@@ -68,6 +70,28 @@ export const GET = withRateLimitAndAnalytics(async (request: NextRequest) => {
 
     const players = await getPlayersMap();
 
+    // Same auto-sub pass the scorer runs, so the pitch can badge promotions
+    // in place and the round total reconciles against the cards on screen.
+    // Before kickoff nobody has played, so this resolves to no subs at all.
+    const live = (id: number) =>
+      playerPoints.get(id) ?? { points: 0, minutes: 0, yellowCards: 0, redCards: 0 };
+    const scoringIds = new Set(
+      squad
+        ? applyAutoSubs(
+            squad.players.map(
+              (entry): SquadPlayerRow => ({
+                playerId: entry.player_id,
+                slot: entry.slot,
+                isCaptain: entry.is_captain,
+                isVice: entry.is_vice,
+                position: players.get(entry.player_id)?.position ?? ("MID" as Position),
+              }),
+            ),
+            (id) => hasPlayed(live(id)),
+          ).map((p) => p.playerId)
+        : [],
+    );
+
     return jsonOk({
       matchday,
       locked: isMatchdayLocked(matchday),
@@ -88,12 +112,8 @@ export const GET = withRateLimitAndAnalytics(async (request: NextRequest) => {
                     }
                   : undefined,
                 lock_state: "unlocked" as const,
-                live: playerPoints.get(entry.player_id) ?? {
-                  points: 0,
-                  minutes: 0,
-                  yellowCards: 0,
-                  redCards: 0,
-                },
+                live: live(entry.player_id),
+                sub_state: subStateFor(entry.slot, scoringIds.has(entry.player_id)),
               };
             }),
           }

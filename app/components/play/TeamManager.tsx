@@ -151,6 +151,28 @@ export const TeamManager = ({
     },
     [squad, doubledId],
   );
+  // Server-side auto-sub outcome. Only meaningful once the round is locked;
+  // while editing, the pitch shows the squad as picked and nothing is badged.
+  const subStateOf = useCallback(
+    (id: number) =>
+      locked
+        ? (squad?.players.find((p) => p.player_id === id)?.sub_state ?? null)
+        : null,
+    [squad, locked],
+  );
+  const subsOn = useMemo(
+    () => (squad?.players ?? []).filter((p) => p.sub_state === "in").length,
+    [squad],
+  );
+  // Auto-subs only settle when the round does: a starter whose fixture has
+  // not kicked off yet reads as a blank mid-round, so say "so far" until final.
+  const benchNote = !locked
+    ? undefined
+    : subsOn > 0
+      ? `${subsOn} auto-sub${subsOn === 1 ? "" : "s"} counted${matchday.status === "final" ? "" : " so far"}`
+      : matchday.status === "final"
+        ? "no auto-subs this round"
+        : undefined;
 
   /* --------------------------- editor state --------------------------- */
 
@@ -631,6 +653,7 @@ export const TeamManager = ({
       isVice: view.viceId === id,
       lockState: locked ? lockStateOf(id) : undefined,
       livePoints: livePointsOf(id),
+      subState: subStateOf(id),
       markedIn: pendingIn.has(id),
       eliminated: player ? !player.is_active : false,
       highlighted: swapTargets?.has(id) ?? false,
@@ -863,6 +886,7 @@ export const TeamManager = ({
           slots={benchSlots}
           showPrice={showPrice}
           onSlotClick={handleSlotClick}
+          note={benchNote}
         />
       )}
 

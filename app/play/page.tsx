@@ -411,7 +411,7 @@ export default function PlayLandingPage() {
           >
             <div className="flex flex-col gap-[2.71cqw]">
               <h1
-                className="font-bold text-text-body dark:text-white"
+                className="font-bold text-white dark:text-white"
                 style={{
                   fontSize: "4.75cqw",
                   lineHeight: 0.861,
@@ -505,7 +505,7 @@ export default function PlayLandingPage() {
           src={ASSET("pl-lion-watermark.svg")}
           alt=""
           aria-hidden
-          className={`${BOTTOM_CTA_WATERMARK} left-1/2 top-1/2 h-50 w-[28%] -translate-x-1/2 -translate-y-1/2`}
+          className={`${BOTTOM_CTA_WATERMARK} left-1/2 top-1/2 h-[12.5rem] w-[28%] -translate-x-1/2 -translate-y-1/2`}
         />
         <div aria-hidden className={BOTTOM_CTA_SCRIM} />
 

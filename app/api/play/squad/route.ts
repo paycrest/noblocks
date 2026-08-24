@@ -104,10 +104,14 @@ export const GET = withRateLimitAndAnalytics(async (request: NextRequest) => {
       },
       applyAutoSubs,
     );
-    const matchdayScores = (matchdayScoresResult.data ?? []).map((s) => ({
+    const storedMatchdayScores = (matchdayScoresResult.data ?? []).map((s) => ({
       matchday_id: Number(s.matchday_id),
       points: Number(s.points),
     }));
+    // The response carries the gated live round; the season total is derived
+    // from the untouched DB rows, so adjustTotalPointsForLiveRound can still
+    // swap the stored round out for the freshly computed one.
+    const matchdayScores = [...storedMatchdayScores];
     if (matchday.status !== "final") {
       const currentIndex = matchdayScores.findIndex(
         (score) => score.matchday_id === matchday.id,
@@ -123,7 +127,7 @@ export const GET = withRateLimitAndAnalytics(async (request: NextRequest) => {
     }
     const totalPoints = adjustTotalPointsForLiveRound(
       participant.total_points,
-      matchdayScores,
+      storedMatchdayScores,
       matchday.id,
       matchday.status,
       roundPoints,

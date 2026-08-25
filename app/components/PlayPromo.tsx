@@ -2,8 +2,8 @@
 
 /**
  * Noblocks Play promo — homepage-only modal + banner (Figma:
- * node 2135-87421 modal, node 2135-79717 banner). Assets are the exact
- * exports from the design (public/images/play-promo/).
+ * node 2135-87421 modal, node 2135-79717 banner). Premier League assets
+ * live in public/images/play-promo/.
  *
  * Modal: shown once per visitor (dismiss = never again, via localStorage),
  * fixed to the mobile design size on every breakpoint.
@@ -11,7 +11,7 @@
  * or a new visit). Shown under the navbar while Noblocks Play is enabled.
  */
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, type CSSProperties } from "react";
 import Link from "next/link";
 import { IoClose } from "react-icons/io5";
 import { ArrowDown01Icon } from "hugeicons-react";
@@ -21,6 +21,25 @@ import config from "../lib/config";
 import { NoblocksAnimatedIcon } from "./NoblocksAnimatedIcon";
 
 const ASSET = (name: string) => `/images/play-promo/${name}`;
+
+const PROMO_BODY_COPY =
+  "Build your fantasy squad, earn points from real Premier League performances, and climb the leaderboard.";
+
+const PlLionWatermark = ({
+  className = "",
+  style,
+}: {
+  className?: string;
+  style?: CSSProperties;
+}) => (
+  <img
+    src={ASSET("pl-lion-watermark.svg")}
+    alt=""
+    aria-hidden
+    className={`pointer-events-none max-w-none ${className}`}
+    style={style}
+  />
+);
 
 // ---------------------------------------------------------------------------
 // Decorative swoosh (the visible wave shape behind the players) + the very
@@ -62,16 +81,13 @@ const BannerBackdrop = () => (
 );
 
 // ---------------------------------------------------------------------------
-// Shared collage layer (trophy + the three player cutouts) — reused at
-// modal scale and, cropped small, at banner scale.
+// Shared collage layer (PL lion + the three player cutouts) — modal scale.
 // ---------------------------------------------------------------------------
 
 const Collage = () => (
   <div className="pointer-events-none absolute inset-0 z-[1]" aria-hidden="true">
-    <img
-      src={ASSET("trophy.svg")}
-      alt=""
-      className="pointer-events-none absolute"
+    <PlLionWatermark
+      className="pointer-events-none absolute object-contain"
       style={{ left: "43.24%", top: "-0.83%", width: "27.48%", height: "53.25%" }}
     />
     <img
@@ -218,7 +234,7 @@ export function PlayPromoModal() {
                 transition={{ type: "spring", stiffness: 300, damping: 30 }}
               >
                 <div
-                  className="relative overflow-hidden rounded-[28px] bg-lavender-500 shadow-2xl w-[315px] h-[393px] md:w-[450px] md:h-[560px]"
+                  className="relative overflow-hidden rounded-[28px] bg-lavender-500 shadow-2xl dark:bg-lavender-600 w-[315px] h-[393px] md:w-[450px] md:h-[560px]"
                   style={{ containerType: "inline-size" }}
                 >
                   <ModalBackdrop />
@@ -228,7 +244,7 @@ export function PlayPromoModal() {
                     className="absolute z-20 flex items-center justify-center"
                     style={{ left: "5.99%", top: "5.52%", width: "13.71%", height: "11.13%" }}
                   >
-                    <NoblocksAnimatedIcon phases={["ball", "trophy"]} className="size-[32px]" />
+                    <NoblocksAnimatedIcon phases={["ball", "lion"]} className="size-[32px]" />
                   </div>
 
                   <button
@@ -242,7 +258,7 @@ export function PlayPromoModal() {
                   </button>
 
                   <h2
-                    className="absolute z-10 font-bold text-[#F5F5F5]"
+                    className="absolute z-10 font-bold text-white dark:text-white"
                     style={{
                       left: "8.4943%",
                       top: "54.2398%",
@@ -260,7 +276,7 @@ export function PlayPromoModal() {
                   </h2>
 
                   <p
-                    className="absolute z-10 text-[#F5F5F5]"
+                    className="absolute z-10 text-white/90 dark:text-white/80"
                     style={{
                       left: "8.4943%",
                       top: "76.5802%",
@@ -270,14 +286,13 @@ export function PlayPromoModal() {
                       letterSpacing: "-0.0456cqw",
                     }}
                   >
-                    Build your fantasy squad, earn points from real Premier
-                    League performances, and climb the leaderboard.
+                    {PROMO_BODY_COPY}
                   </p>
 
                   <Link
                     href="/play"
                     onClick={dismiss}
-                    className="absolute z-30 flex items-center justify-center rounded-full bg-white font-semibold text-black transition-transform active:scale-[0.98]"
+                    className="absolute z-30 flex items-center justify-center rounded-full bg-white font-semibold text-text-body transition-transform active:scale-[0.98] dark:bg-white dark:text-text-body"
                     style={{
                       left: "6.9182%",
                       top: "86.9085%",
@@ -302,34 +317,34 @@ export function PlayPromoModal() {
 // Persistent top banner — visible for as long as Play is enabled.
 // ---------------------------------------------------------------------------
 
-/** Mini collage thumbnail exactly as cropped in the banner design (Figma
- * node 2135-76998) — different crop points than the modal's Collage. */
+// Same seven photos as the /play hero. `height` zooms and `top`/`faceX` shift
+// each one so every face sits at the same height across the row.
+const HERO_PLAYERS = [
+  { src: ASSET("hero-player-1.png"), height: "105%", top: "-3%", faceX: "-67%" },
+  { src: ASSET("hero-player-2.png"), height: "126%", top: "-4%", faceX: "-48%" },
+  { src: ASSET("hero-player-3.png"), height: "107%", top: "-5%", faceX: "-49%" },
+  { src: ASSET("hero-player-4.png"), height: "133%", top: "-9%", faceX: "-49%" },
+  { src: ASSET("hero-player-5.png"), height: "147%", top: "-1%", faceX: "-53%" },
+  { src: ASSET("hero-player-6.png"), height: "153%", top: "-21%", faceX: "-41%" },
+  { src: ASSET("hero-player-7.png"), height: "104%", top: "-1%", faceX: "-61%" },
+];
+
+/** Mini collage for the banner — PL lion watermark + player strips. */
 const MiniCollage = () => (
-  <div className="relative h-full w-full overflow-hidden">
-    <img
-      src={ASSET("trophy.svg")}
-      alt=""
-      className="pointer-events-none absolute"
-      style={{ left: "16.15%", top: "0%", width: "36.93%", height: "110.12%" }}
-    />
-    <img
-      src={ASSET("olise.png")}
-      alt=""
-      className="pointer-events-none absolute object-cover object-top"
-      style={{ left: "23.68%", top: "10.01%", width: "62.74%", height: "109.42%" }}
-    />
-    <img
-      src={ASSET("ronaldo.png")}
-      alt=""
-      className="pointer-events-none absolute object-cover object-top"
-      style={{ left: "33.86%", top: "2.73%", width: "63.08%", height: "223.80%" }}
-    />
-    <img
-      src={ASSET("messi.png")}
-      alt=""
-      className="pointer-events-none absolute object-cover object-top"
-      style={{ left: "-35.09%", top: "14.14%", width: "134.57%", height: "147.26%" }}
-    />
+  <div className="relative size-full overflow-hidden">
+    <PlLionWatermark className="pointer-events-none absolute inset-0 size-full object-contain opacity-50 dark:opacity-40" />
+    <div className="absolute inset-x-0 bottom-0 top-[2%] flex items-end overflow-hidden">
+      {HERO_PLAYERS.map(({ src, height, top, faceX }) => (
+        <div key={src} className="relative top-8 h-[92%] min-w-0 flex-1 overflow-hidden">
+          <img
+            src={src}
+            alt=""
+            className="pointer-events-none absolute left-1/2 max-w-none"
+            style={{ height, top, transform: `translateX(${faceX})` }}
+          />
+        </div>
+      ))}
+    </div>
   </div>
 );
 
@@ -377,25 +392,23 @@ export function PlayPromoBanner() {
         </button>
         {/* Mobile */}
         <div className="relative h-[65px] md:hidden">
-          <div className="absolute inset-0 overflow-hidden bg-lavender-500">
+          <div className="absolute inset-0 overflow-hidden bg-lavender-500 dark:bg-lavender-600">
             <BannerBackdrop />
           </div>
-          <div className="relative z-20 flex h-full items-center py-2 pr-[3.25rem] pl-[24%] xsm:pr-[3.5rem]">
+          <div className="relative z-20 flex h-full items-center py-2 pl-4 pr-[3.25rem] xsm:pr-[3.5rem]">
             <div className="flex min-w-0 flex-col justify-center gap-0.5">
-              <h2 className="whitespace-nowrap text-[22px] font-bold leading-[0.76] tracking-[-0.07em] text-black">
+              <h2 className="whitespace-nowrap text-[22px] font-bold leading-[0.76] tracking-[-0.07em] text-text-body dark:text-white">
                 Predict. Compete. Win.
               </h2>
-              <p className="translate-y-0.5 text-[8.9px] font-medium leading-[1.35] tracking-[-0.03em] text-white">
-                Build your fantasy squad, earn points from real World
-                <br />
-                Cup performances, and climb the leaderboard.
+              <p className="translate-y-0.5 text-[8.9px] font-medium leading-[1.35] tracking-[-0.03em] text-white/90 dark:text-white/80">
+                {PROMO_BODY_COPY}
               </p>
             </div>
           </div>
           <Link
             href="/play"
             onClick={dismiss}
-            className="pointer-events-auto absolute right-8 top-1/2 z-30 -translate-y-1/2 shrink-0 rounded-md bg-white px-1.5 py-1.5 text-[8px] font-semibold leading-none text-black transition-colors hover:bg-white/90 xsm:right-9 xsm:px-4 xsm:text-[9px]"
+            className="pointer-events-auto absolute right-8 top-1/2 z-30 -translate-y-1/2 shrink-0 rounded-md bg-white px-1.5 py-1.5 text-[8px] font-semibold leading-none text-text-body transition-colors hover:bg-white/90 xsm:right-9 xsm:px-4 xsm:text-[9px] dark:bg-white dark:text-text-body"
           >
             Join
           </Link>
@@ -403,16 +416,15 @@ export function PlayPromoBanner() {
 
         {/* Desktop — Figma: strip with the collage flush left, popping above */}
         <div className="relative hidden h-[64px] items-center md:flex">
-          <div className="absolute inset-0 overflow-hidden bg-lavender-500">
+          <div className="absolute inset-0 overflow-hidden bg-lavender-500 dark:bg-lavender-600">
             <BannerBackdrop />
           </div>
-          <div className="relative z-20 flex h-full w-full items-center gap-4 py-2 pl-[min(210px,16.5vw)] pr-[220px] lg:gap-5 lg:pr-[260px]">
-            <h2 className="ml-12 shrink-0 whitespace-nowrap text-[26px] font-bold leading-[0.76] tracking-[-0.07em] text-black lg:ml-24 xl:text-[35px]">
+          <div className="relative z-20 flex h-full w-full items-center gap-4 py-2 pl-[min(120px,16.5vw)] pr-[220px] lg:gap-5 lg:pr-[260px]">
+            <h2 className="ml-2 shrink-0 whitespace-nowrap text-[26px] font-bold leading-[0.76] tracking-[-0.07em] text-text-body dark:text-white lg:ml-24 xl:text-[35px]">
               Predict. Compete. Win.
             </h2>
-            <p className="max-w-[26rem] shrink-0 translate-y-0.5 text-[13px] leading-[1.3] text-[#F5F5F5] xl:max-w-[28rem] xl:text-sm">
-              Build your fantasy squad, earn points from real Premier League
-              performances, and climb the leaderboard.
+            <p className="max-w-[24rem] shrink-0 translate-y-0.5 text-[13px] leading-[1.3] text-white/90 xl:max-w-[28rem] xl:text-sm dark:text-white/80">
+              {PROMO_BODY_COPY}
             </p>
           </div>
 
@@ -425,7 +437,7 @@ export function PlayPromoBanner() {
                 <Link
                   href="/play"
                   onClick={dismiss}
-                  className="pointer-events-auto shrink-0 rounded-xl bg-white px-5 py-2 text-sm font-semibold text-black transition-colors hover:bg-white/90"
+                  className="pointer-events-auto shrink-0 rounded-xl bg-white px-5 py-2 text-sm font-semibold text-text-body transition-colors hover:bg-white/90 dark:bg-white dark:text-text-body"
                 >
                   Join the league
                 </Link>
@@ -443,30 +455,17 @@ export function PlayPromoBanner() {
         </div>
       </motion.div>
 
-      {/* Collage on its own fixed layer above the banner strip (z-30) so the trophy
-        tip + heads pop over the strip's top edge. Logo dropdown is portaled at
-        z-[60] in Navbar so it still appears above this layer. */}
-      <div className="pointer-events-none fixed left-0 right-0 top-16 z-30 mt-1 overflow-visible">
-        {/* Mobile */}
-        <div className="relative h-[65px] md:hidden">
-          <div
-            className="absolute bottom-0 left-0 w-[26%] min-w-[80px] max-w-[116px] overflow-hidden"
-            style={{ top: "-28px" }}
-          >
-            <div className="absolute inset-0" style={{ transform: "translate(-10px, 22px)" }}>
-              <MiniCollage />
-            </div>
-          </div>
-        </div>
-        {/* Desktop */}
+      {/* Collage on its own fixed layer above the banner strip (z-30) so player
+        heads pop over the strip's top edge. Desktop only — the mobile strip is
+        too narrow for it. Logo dropdown is portaled at z-[60] in Navbar so it
+        still appears above this layer. */}
+      <div className="pointer-events-none fixed left-0 right-0 top-16 z-30 mt-1">
         <div className="relative hidden h-[64px] md:block">
           <div
             className="absolute bottom-0 left-0 w-[min(240px,18vw)] overflow-hidden"
-            style={{ top: "-42px" }}
+            style={{ top: "-48px" }}
           >
-            <div className="absolute inset-0" style={{ transform: "translateY(22px)" }}>
-              <MiniCollage />
-            </div>
+            <MiniCollage />
           </div>
         </div>
       </div>

@@ -85,4 +85,30 @@ export function applyAutoSubs(
   return xi;
 }
 
+/**
+ * UI slot for every picked player after settled auto-subs. The scorer copies
+ * an incoming bench player into the replaced starter's slot; this mirrors the
+ * other half of that swap by moving the displaced starter into the incoming
+ * player's original bench slot.
+ */
+export function autoSubDisplaySlots(
+  squad: SquadPlayerRow[],
+  scoringXi: SquadPlayerRow[],
+): Map<number, number> {
+  const originalById = new Map(squad.map((player) => [player.playerId, player]));
+  const originalBySlot = new Map(squad.map((player) => [player.slot, player]));
+  const displaySlots = new Map(squad.map((player) => [player.playerId, player.slot]));
+
+  for (const scoringPlayer of scoringXi) {
+    const original = originalById.get(scoringPlayer.playerId);
+    if (!original || original.slot <= 11 || scoringPlayer.slot > 11) continue;
+
+    const displaced = originalBySlot.get(scoringPlayer.slot);
+    displaySlots.set(scoringPlayer.playerId, scoringPlayer.slot);
+    if (displaced) displaySlots.set(displaced.playerId, original.slot);
+  }
+
+  return displaySlots;
+}
+
 export type { Position };

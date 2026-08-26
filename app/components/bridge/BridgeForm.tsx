@@ -9,6 +9,7 @@ import { useBalance, useTokens, useInjectedWallet } from "@/app/context";
 import { useBridgeQuote, useBridgeExecute, useBridgeStatus } from "@/app/hooks/bridge";
 import { selectEngine, toRawAmount, bridgeFeeInReceivingToken } from "@/app/lib/bridge";
 import type { BridgeLeg, BridgeEngine } from "@/app/lib/bridge";
+import { minOffRampTokenAmount } from "@/app/lib/marketLiquidity";
 import { BridgeRouteSelector } from "./BridgeRouteSelector";
 import { BridgeQuoteCard } from "./BridgeQuoteCard";
 import {
@@ -20,13 +21,14 @@ import {
 } from "hugeicons-react";
 import { useDelegationContractAuth } from "@/app/hooks/useEIP7702Account";
 import { primaryBtnClasses, outlineBtnClasses } from "../Styles";
-import { classNames, formatTokenAmount, getExplorerLink } from "@/app/utils";
+import { classNames, formatTokenAmount, getExplorerLink, formatNumberWithCommas } from "@/app/utils";
 import type { MobileSheetView } from "@/app/types";
 import { saveTransaction } from "@/app/api/aggregator";
 import { networks } from "@/app/mocks";
 import Link from "next/link";
 import { mapReportAndAct } from "@/app/lib/toastMappedError";
 import { format } from "date-fns";
+import { useCNGNRate, CNGN_CROSS_CHAIN_QUOTE_NETWORK } from "@/app/hooks/useCNGNRate";
 
 const CONVERSION_FAILED_MESSAGE = "Please try again.";
 
@@ -42,6 +44,8 @@ interface BridgeFormProps {
   layout?: "modal" | "mobile";
   onBridgeSubmit?: (info: BridgeSubmitInfo) => void;
 }
+
+const CNGN_RATE_UNAVAILABLE_MESSAGE = "No available quote";
 
 export const BridgeForm: React.FC<BridgeFormProps> = ({
   onClose,
@@ -82,6 +86,9 @@ export const BridgeForm: React.FC<BridgeFormProps> = ({
   const { allTokens } = useTokens();
   const { signDelegationAuthorization } = useDelegationContractAuth();
   const { refreshBalance } = useBalance();
+  const { rate: cngnRate } = useCNGNRate({
+    network: CNGN_CROSS_CHAIN_QUOTE_NETWORK,
+  });
   const [step, setStep] = useState<"form" | "status" | "failed">("form");
   const [isFinalizing, setIsFinalizing] = useState(false);
   const [failureMessage, setFailureMessage] = useState<string | null>(null);
@@ -118,6 +125,25 @@ export const BridgeForm: React.FC<BridgeFormProps> = ({
     process.env.NEXT_PUBLIC_BRIDGE_DEFAULT_SLIPPAGE_BPS ?? "50",
     10,
   );
+
+  const parsedAmount = Number(amount);
+  const minConvertResult = from
+    ? minOffRampTokenAmount(from.token, cngnRate)
+    : null;
+  const cngnRateUnavailable =
+    minConvertResult?.status === "cngn_rate_unavailable";
+  const minConvertAmount =
+    minConvertResult?.status === "ok" ? minConvertResult.min : null;
+  const amountBelowMin =
+    !cngnRateUnavailable &&
+    minConvertAmount !== null &&
+    Number.isFinite(parsedAmount) &&
+    parsedAmount > 0 &&
+    parsedAmount < minConvertAmount;
+  const convertMinMessage =
+    amountBelowMin && from && minConvertAmount !== null
+      ? `Minimum amount is ${formatNumberWithCommas(minConvertAmount)} ${from.token}`
+      : null;
 
   const embeddedWallet = wallets.find((w) => w.walletClientType === "privy");
 
@@ -165,7 +191,12 @@ export const BridgeForm: React.FC<BridgeFormProps> = ({
     evmAddress,
     starknetAddress,
     slippageBps,
-    enabled: (authenticated || (isInjectedWallet && injectedReady)) && !routeUnsupported && !!(evmAddress || starknetAddress),
+    enabled:
+      (authenticated || (isInjectedWallet && injectedReady)) &&
+      !routeUnsupported &&
+      !!(evmAddress || starknetAddress) &&
+      !cngnRateUnavailable &&
+      (minConvertAmount === null || parsedAmount >= minConvertAmount),
     getAccessToken,
     getInjectedToken:
       isInjectedWallet && injectedReady ? getInjectedTokenPassive : undefined,
@@ -239,9 +270,22 @@ export const BridgeForm: React.FC<BridgeFormProps> = ({
   const handleConfirm = async () => {
     if (!quote || !from || !to) return;
     const parsedAmount = Number(amount);
+    const minResult = minOffRampTokenAmount(from.token, cngnRate);
     const rawAmount = toRawAmount(amount, from.decimals);
     if (!Number.isFinite(parsedAmount) || parsedAmount <= 0 || rawAmount === "0") {
       setFailureMessage("Enter a valid amount for the selected token.");
+      setStep("failed");
+      return;
+    }
+    if (minResult.status === "cngn_rate_unavailable") {
+      setFailureMessage(CNGN_RATE_UNAVAILABLE_MESSAGE);
+      setStep("failed");
+      return;
+    }
+    if (parsedAmount < minResult.min) {
+      setFailureMessage(
+        `Minimum amount is ${formatNumberWithCommas(minResult.min)} ${from.token}`,
+      );
       setStep("failed");
       return;
     }
@@ -344,22 +388,28 @@ export const BridgeForm: React.FC<BridgeFormProps> = ({
   // never ran (unauthenticated, wallet address not ready) leaves `quote` null too, and
   // treating that as a dead route showed this error to every user before they connected.
   const noRailAvailable =
-    routeUnsupported ||
-    (quoteFetched &&
-      !quoteLoading &&
-      !quoteError &&
-      quote === null &&
-      !!from &&
-      !!to &&
-      parseFloat(amount || "0") > 0);
+    !cngnRateUnavailable &&
+    (routeUnsupported ||
+      (quoteFetched &&
+        !quoteLoading &&
+        !quoteError &&
+        quote === null &&
+        !!from &&
+        !!to &&
+        minConvertAmount !== null &&
+        parsedAmount >= minConvertAmount &&
+        !amountBelowMin));
 
   const canConfirm =
+    !cngnRateUnavailable &&
     !noRailAvailable &&
     !isQuoteExpired &&
+    !amountBelowMin &&
     !!quote &&
     !quoteLoading &&
     !quoteError &&
-    parseFloat(amount || "0") > 0 &&
+    minConvertAmount !== null &&
+    parsedAmount >= minConvertAmount &&
     !!from &&
     !!to;
 
@@ -409,6 +459,7 @@ export const BridgeForm: React.FC<BridgeFormProps> = ({
                 engine={engine}
                 timeEstimate={timeEstimate}
                 isQuoteLoading={quoteLoading}
+                amountHasError={amountBelowMin}
               />
 
               {fromNetworkName !== toNetworkName && (
@@ -418,6 +469,18 @@ export const BridgeForm: React.FC<BridgeFormProps> = ({
                     Funds route through {fromNetworkName} to {toNetworkName} and
                     may take a few minutes longer.
                   </span>
+                </div>
+              )}
+
+              {cngnRateUnavailable && (
+                <div className="rounded-xl border border-amber-100 bg-amber-50 p-3 text-sm text-amber-700 dark:border-amber-900/30 dark:bg-amber-900/20 dark:text-amber-400">
+                  {CNGN_RATE_UNAVAILABLE_MESSAGE}
+                </div>
+              )}
+
+              {amountBelowMin && convertMinMessage && (
+                <div className="rounded-xl border border-red-100 bg-red-50 p-3 text-sm text-red-600 dark:border-red-900/30 dark:bg-red-900/20 dark:text-red-400">
+                  {convertMinMessage}
                 </div>
               )}
 

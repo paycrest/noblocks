@@ -772,6 +772,8 @@ export interface ExecuteBatchCallsParams {
   signDelegationAuthorization: (chainId: number) => Promise<SignedAuthorization>;
   /** Optional gas override (LI.FI swaps need more than the bundler default). */
   gasLimit?: number;
+  /** Embed partner attribution code; the bundler appends the ERC-8021 suffix. */
+  embedCode?: string | null;
 }
 
 /**
@@ -787,6 +789,7 @@ export async function executeBatchCalls({
   embeddedWallet,
   signDelegationAuthorization,
   gasLimit,
+  embedCode,
 }: ExecuteBatchCallsParams): Promise<string> {
   const chainId =
     typeof chain.id === "number" ? chain.id : parseInt(String(chain.id));
@@ -843,6 +846,7 @@ export async function executeBatchCalls({
     delegationContractAddress,
     ...(gasLimit != null && { gasLimit }),
     ...(authorization != null && { eip7702Authorization: authorization }),
+    ...(embedCode ? { embedCode } : {}),
   };
 
   const accessToken = await getAccessToken();
@@ -889,6 +893,8 @@ export interface EvmBatchExecuteParams {
   getAccessToken: () => Promise<string | null>;
   embeddedWallet: EmbeddedWalletLike;
   signDelegationAuthorization: (chainId: number) => Promise<SignedAuthorization>;
+  /** Embed partner attribution code; forwarded to executeBatchCalls. */
+  embedCode?: string | null;
 }
 
 /**
@@ -904,6 +910,7 @@ export async function evmBatchExecute({
   getAccessToken,
   embeddedWallet,
   signDelegationAuthorization,
+  embedCode,
 }: EvmBatchExecuteParams): Promise<string> {
   // Filter to EVM tokens only (address is empty for native or 42 chars "0x"+20bytes).
   // Starknet/Solana tokens share symbols with EVM tokens but have 66-char addresses.
@@ -946,5 +953,6 @@ export async function evmBatchExecute({
     getAccessToken,
     embeddedWallet,
     signDelegationAuthorization,
+    embedCode,
   });
 }

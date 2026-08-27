@@ -19,9 +19,10 @@ import {
 import type { BridgeLeg, BridgeQuote, BridgeStatusResult, BridgeEngine, NearIntentsToken, BridgeAuth } from "@/app/lib/bridge";
 import { textileChainId } from "@/app/lib/textileNetworks";
 import { getRpcUrl } from "@/app/utils";
-import { appendBaseBuilderCode } from "@/app/lib/baseBuilderCode";
+import { appendAttributionSuffix } from "@/app/lib/baseBuilderCode";
 import type { BatchCall } from "@/app/lib/providerBatch";
 import { STARKNET_READY_ACCOUNT_CLASSHASH } from "@/app/lib/config";
+import { useEmbed } from "@/app/context/EmbedContext";
 
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 
@@ -363,6 +364,7 @@ export function useBridgeExecute({
   const [error, setError] = useState<string | null>(null);
   const [txHash, setTxHash] = useState<string | null>(null);
   const [isSuccess, setIsSuccess] = useState(false);
+  const { embedCode } = useEmbed();
 
   // Use a ref so the execute callback always reads the latest selectedNetwork
   // without needing it as a useCallback dependency (avoids stale closure).
@@ -372,6 +374,9 @@ export function useBridgeExecute({
   const textileIdempotencyRef = useRef<{ quoteKey: string; key: string } | null>(
     null,
   );
+  // Use a ref for embedCode to avoid stale closure issues
+  const embedCodeRef = useRef(embedCode);
+  useEffect(() => { embedCodeRef.current = embedCode; }, [embedCode]);
 
   // Injected wallets sign and pay for their own transactions directly through
   // their provider — no sponsored bundler, no EIP-7702 delegation. Calls are sent
@@ -405,12 +410,12 @@ export function useBridgeExecute({
 
       let lastHash = "";
       for (const call of calls) {
-        // Only append the Base builder-code suffix to real contract-call data.
+        // Only append attribution suffixes to real contract-call data.
         // A bare native transfer (data "0x") stays bare — appending calldata could
         // revert a transfer to a contract deposit address without a matching fallback.
         const hasCallData = !!call.data && call.data !== "0x";
         const data = hasCallData
-          ? appendBaseBuilderCode(chainId, call.data as `0x${string}`)
+          ? appendAttributionSuffix(chainId, call.data as `0x${string}`, embedCodeRef.current)
           : "0x";
         const hash = (await injectedProvider.request({
           method: "eth_sendTransaction",
@@ -543,6 +548,7 @@ export function useBridgeExecute({
               getAccessToken,
               embeddedWallet,
               signDelegationAuthorization,
+              embedCode: embedCodeRef.current,
             });
 
             setTxHash(evmHash);
@@ -615,6 +621,7 @@ export function useBridgeExecute({
             embeddedWallet,
             signDelegationAuthorization,
             gasLimit,
+            embedCode: embedCodeRef.current,
           });
 
           setTxHash(evmHash);

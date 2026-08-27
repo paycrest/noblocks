@@ -4,6 +4,9 @@
  * Read-only view of another manager's team (/play/manager/[username]):
  * the latest locked round's XI + bench with effective points (captain
  * double included). Reuses the same pitch the owner sees on /play/team.
+ *
+ * Final auto-subs move promoted players onto the pitch and replaced starters
+ * to the vacated bench slots. SUB ON / SUB OFF rings remain visible.
  */
 
 import Link from "next/link";
@@ -37,6 +40,7 @@ const toSlotView = (p: PublicTeamPlayer): SlotView => ({
   isCaptain: p.is_captain,
   isVice: p.is_vice,
   livePoints: p.points,
+  subState: p.sub_state,
 });
 
 export const ManagerTeamView = ({
@@ -53,12 +57,21 @@ export const ManagerTeamView = ({
     FWD: [],
   };
   const bench: SlotView[] = [];
-  // Players arrive sorted by slot; a single pass keeps the bench in slot
-  // order (12–15) while the XI still groups by position via `rows`.
-  for (const p of team?.players ?? []) {
-    if (p.slot <= 11) rows[p.position].push(toSlotView(p));
+  const players = [...(team?.players ?? [])].sort(
+    (a, b) => a.display_slot - b.display_slot,
+  );
+  for (const p of players) {
+    if (p.display_slot <= 11) rows[p.position].push(toSlotView(p));
     else bench.push(toSlotView(p));
   }
+
+  const subsOn = (team?.players ?? []).filter((p) => p.sub_state === "in").length;
+  const benchNote =
+    subsOn > 0
+      ? `${subsOn} auto-sub${subsOn === 1 ? "" : "s"} applied`
+      : team?.matchday.status === "final"
+        ? "no auto-subs this round"
+        : undefined;
 
   return (
     <div className="space-y-4 max-lg:pb-10">
@@ -85,10 +98,22 @@ export const ManagerTeamView = ({
           <div className="flex flex-wrap items-center gap-2">
             <Chip>{team.matchday.display_name}</Chip>
             <Chip>{team.points} pts this round</Chip>
+            {/* The hit is already inside team.points, so the cards on the
+                pitch sum to team.points + this. Shown so that still adds up. */}
+            {team.transfer_points_deduction > 0 && (
+              <Chip tone="red">
+                −{team.transfer_points_deduction} pts transfers
+              </Chip>
+            )}
           </div>
           <PitchView rows={rows} showPrice={false} onSlotClick={() => {}} />
           {bench.length > 0 && (
-            <BenchRow slots={bench} showPrice={false} onSlotClick={() => {}} />
+            <BenchRow
+              slots={bench}
+              showPrice={false}
+              onSlotClick={() => {}}
+              note={benchNote}
+            />
           )}
         </>
       ) : (

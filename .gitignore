@@ -25,6 +25,7 @@ PR_DESCRIPTION.md
 .vercel
 .vscode
 .cursor
+.hyperbridge-cache/
 
 # debug
 npm-debug.log*

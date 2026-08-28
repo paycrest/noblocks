@@ -208,7 +208,9 @@ export const BridgeForm: React.FC<BridgeFormProps> = ({
   const engine: BridgeEngine | null = quote
     ? quote.kind === "lifi-tx"
       ? "lifi"
-      : "near"
+      : quote.kind === "hyperfx-intent"
+        ? "hyperfx"
+        : "near"
     : from && to
       ? selectEngine(from, to)
       : null;
@@ -295,7 +297,13 @@ export const BridgeForm: React.FC<BridgeFormProps> = ({
     try {
       setIsFinalizing(true);
       const { txHash, depositRefId } = await execute(quote, fromWithAmount);
-      const resolvedEngine: BridgeEngine = quote.kind === "lifi-tx" ? "lifi" : "near";
+      const resolvedEngine: BridgeEngine =
+        quote.kind === "lifi-tx"
+          ? "lifi"
+          : quote.kind === "hyperfx-intent"
+            ? "hyperfx"
+            : "near";
+      const initialDbStatus = "pending";
 
       // Injected wallets authenticate saves via the x-injected-token session
       // JWT (interactive: the user just executed a convert, so a re-prompt on
@@ -318,12 +326,17 @@ export const BridgeForm: React.FC<BridgeFormProps> = ({
             fee: bridgeFeeInReceivingToken(quote),
             recipient: {
               account_name: "Convert",
-              institution: quote.kind === "lifi-tx" ? "LI.FI" : "NEAR Intents",
+              institution:
+                quote.kind === "lifi-tx"
+                  ? "LI.FI"
+                  : quote.kind === "hyperfx-intent"
+                    ? "HyperFX"
+                    : "NEAR Intents",
               account_identifier: txHash,
               // network is the source; persist the destination here (no schema change).
               to_network: to.network,
             },
-            status: "pending",
+            status: initialDbStatus,
             network: from.network,
             txHash,
             orderId: depositRefId,

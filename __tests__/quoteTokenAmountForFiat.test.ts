@@ -1,5 +1,6 @@
 import {
   MAX_QUOTE_DECIMALS,
+  ONRAMP_FIAT_DECIMALS,
   getQuoteDecimals,
   quoteTokenAmountForFiat,
 } from "../app/utils";
@@ -61,6 +62,33 @@ describe("quoteTokenAmountForFiat", () => {
     expect(quoteTokenAmountForFiat(50000, -1, 6)).toBe(0);
     expect(quoteTokenAmountForFiat(NaN, 1370.79, 6)).toBe(0);
     expect(quoteTokenAmountForFiat(50000, NaN, 6)).toBe(0);
+  });
+
+  it("returns 0 for a nonpositive fiat target rather than a negative amount", () => {
+    // Rounding up through zero would also round the wrong way: Math.ceil(-729.5)
+    // is -729, shrinking the magnitude instead of growing it.
+    expect(quoteTokenAmountForFiat(-1, 1370.79, 6)).toBe(0);
+    expect(quoteTokenAmountForFiat(-50000, 1370.79, 6)).toBe(0);
+    expect(quoteTokenAmountForFiat(0, 1370.79, 6)).toBe(0);
+  });
+});
+
+describe("onramp Send precision", () => {
+  // `amountSent` is fiat on onramp, so it must not follow the token's decimals:
+  // the form picks ONRAMP_FIAT_DECIMALS over quoteDecimals when isSwapped.
+  const amountSentDecimals = (isSwapped: boolean, tokenDecimals: number) =>
+    isSwapped ? ONRAMP_FIAT_DECIMALS : getQuoteDecimals(tokenDecimals);
+
+  it("keeps four places on onramp whatever the token's precision", () => {
+    expect(amountSentDecimals(true, 6)).toBe(4);
+    expect(amountSentDecimals(true, 18)).toBe(4);
+    expect(amountSentDecimals(true, 2)).toBe(4);
+  });
+
+  it("follows the token only on offramp", () => {
+    expect(amountSentDecimals(false, 6)).toBe(6);
+    expect(amountSentDecimals(false, 18)).toBe(MAX_QUOTE_DECIMALS);
+    expect(amountSentDecimals(false, 2)).toBe(2);
   });
 });
 

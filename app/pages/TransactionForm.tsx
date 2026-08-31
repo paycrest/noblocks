@@ -45,6 +45,7 @@ import {
   formatRateForDisplay,
   getQuoteDecimals,
   quoteTokenAmountForFiat,
+  ONRAMP_FIAT_DECIMALS,
 } from "../utils";
 import { ArrowUpDownIcon, NoteEditIcon, Wallet01Icon } from "hugeicons-react";
 import { useSwapButton } from "../hooks/useSwapButton";
@@ -423,6 +424,11 @@ export const TransactionForm = ({
     fetchedTokens.find((t) => t.symbol.toUpperCase() === token?.toUpperCase())
       ?.decimals,
   );
+
+  // `amountSent` is the token leg on offramp but the fiat leg on onramp, where
+  // the token's precision means nothing. Only the token leg follows the token;
+  // onramp fiat keeps the four places it has always allowed.
+  const amountSentDecimals = isSwapped ? ONRAMP_FIAT_DECIMALS : quoteDecimals;
 
   const { handleFundWallet } = useFundWalletHandler("Transaction form");
 
@@ -875,8 +881,8 @@ export const TransactionForm = ({
               const decimals = value.toString().split(".")[1];
               return (
                 !decimals ||
-                decimals.length <= quoteDecimals ||
-                `Maximum ${quoteDecimals} decimal places allowed`
+                decimals.length <= amountSentDecimals ||
+                `Maximum ${amountSentDecimals} decimal places allowed`
               );
             },
             onrampFiatMin: (value: number) => {
@@ -1366,7 +1372,7 @@ export const TransactionForm = ({
     // Only limit decimal places, allow any whole number
     if (cleanedValue.includes(".")) {
       const decimals: string | undefined = cleanedValue.split(".")[1];
-      if (decimals?.length > quoteDecimals) return;
+      if (decimals?.length > amountSentDecimals) return;
     } // Update the form value
     setValue("amountSent", value, {
       shouldValidate: true,

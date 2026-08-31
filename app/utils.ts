@@ -342,6 +342,12 @@ export function roundAmountForCurrency(amount: number): number {
  */
 export const MAX_QUOTE_DECIMALS = 6;
 
+/**
+ * Decimal places the onramp Send field accepts. That leg is fiat, not token, so
+ * it is unaffected by token precision and keeps its long-standing limit.
+ */
+export const ONRAMP_FIAT_DECIMALS = 4;
+
 export function getQuoteDecimals(tokenDecimals: number | undefined): number {
   const decimals = Math.trunc(Number(tokenDecimals));
   if (!Number.isFinite(decimals) || decimals <= 0) return MAX_QUOTE_DECIMALS;
@@ -374,7 +380,12 @@ export function quoteTokenAmountForFiat(
   rate: number,
   tokenDecimals: number | undefined,
 ): number {
-  if (!Number.isFinite(fiatAmount) || !Number.isFinite(rate) || rate <= 0) {
+  if (
+    !Number.isFinite(fiatAmount) ||
+    fiatAmount <= 0 ||
+    !Number.isFinite(rate) ||
+    rate <= 0
+  ) {
     return 0;
   }
 

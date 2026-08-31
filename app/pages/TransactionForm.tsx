@@ -43,6 +43,8 @@ import {
   swapModeFromSideParam,
   RATE_DECIMALS,
   formatRateForDisplay,
+  getQuoteDecimals,
+  quoteTokenAmountForFiat,
 } from "../utils";
 import { ArrowUpDownIcon, NoteEditIcon, Wallet01Icon } from "hugeicons-react";
 import { useSwapButton } from "../hooks/useSwapButton";
@@ -414,6 +416,14 @@ export const TransactionForm = ({
 
   const fetchedTokens: Token[] = allTokens[selectedNetwork.chain.name] || [];
 
+  // Precision the token leg is quoted and validated at. Derived from the
+  // selected token so the amount that goes on-chain is not rounded below what
+  // the recipient was quoted — see quoteTokenAmountForFiat.
+  const quoteDecimals = getQuoteDecimals(
+    fetchedTokens.find((t) => t.symbol.toUpperCase() === token?.toUpperCase())
+      ?.decimals,
+  );
+
   const { handleFundWallet } = useFundWalletHandler("Transaction form");
 
   const handleFundWalletClick = async (
@@ -731,8 +741,14 @@ export const TransactionForm = ({
           } else {
             // Not swapped: Receive = Currency, so calculate Send (Token)
             // Send = Receive / Rate (1400 NGN / 1400 = 1 USDC)
-            const calculatedAmount = Number(
-              (Number(amountReceived) / rate).toFixed(4),
+            //
+            // This amount is deposited on-chain verbatim and multiplied back by
+            // the rate to pay the recipient, so it rounds up at the token's own
+            // precision rather than to a fixed 4 places.
+            const calculatedAmount = quoteTokenAmountForFiat(
+              Number(amountReceived),
+              rate,
+              quoteDecimals,
             );
             setValue("amountSent", calculatedAmount, {
               shouldDirty: true,
@@ -758,7 +774,7 @@ export const TransactionForm = ({
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [amountSent, amountReceived, rate, isSwapped],
+    [amountSent, amountReceived, rate, isSwapped, quoteDecimals],
   );
 
   // Derive swap eligibility from tier + spend limits. Always set explicitly so we
@@ -859,8 +875,8 @@ export const TransactionForm = ({
               const decimals = value.toString().split(".")[1];
               return (
                 !decimals ||
-                decimals.length <= 4 ||
-                "Maximum 4 decimal places allowed"
+                decimals.length <= quoteDecimals ||
+                `Maximum ${quoteDecimals} decimal places allowed`
               );
             },
             onrampFiatMin: (value: number) => {
@@ -1350,7 +1366,7 @@ export const TransactionForm = ({
     // Only limit decimal places, allow any whole number
     if (cleanedValue.includes(".")) {
       const decimals: string | undefined = cleanedValue.split(".")[1];
-      if (decimals?.length > 4) return;
+      if (decimals?.length > quoteDecimals) return;
     } // Update the form value
     setValue("amountSent", value, {
       shouldValidate: true,

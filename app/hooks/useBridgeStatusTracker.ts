@@ -5,12 +5,18 @@ import { usePrivy } from "@privy-io/react-auth";
 import { useWalletAddress } from "@/app/hooks/useWalletAddress";
 import { useInjectedWallet } from "@/app/context";
 import { updateBridgeTransactionStatus } from "@/app/api/aggregator";
-import { NearIntentsClient, LifiClient, TextileClient } from "@/app/lib/bridge";
+import {
+  NearIntentsClient,
+  LifiClient,
+  TextileClient,
+  HyperfxClient,
+} from "@/app/lib/bridge";
 import type { BridgeEngine, BridgeAuth } from "@/app/lib/bridge";
 
 const nearClient = new NearIntentsClient();
 const lifiClient = new LifiClient();
 const textileClient = new TextileClient();
+const hyperfxClient = new HyperfxClient();
 
 export interface BridgeSubmitInfo {
   savedTxId: string;
@@ -98,7 +104,9 @@ export function useBridgeStatusTracker() {
               ? await nearClient.getStatus(bridge.depositRefId, auth)
               : bridge.engine === "textile"
                 ? await textileClient.getStatus(bridge.depositRefId, auth)
-                : await lifiClient.getStatus(bridge.depositRefId, auth);
+                : bridge.engine === "hyperfx"
+                  ? await hyperfxClient.getStatus(bridge.depositRefId, auth)
+                  : await lifiClient.getStatus(bridge.depositRefId, auth);
 
           if (status.status === "SUCCESS") {
             await updateBridgeTransactionStatus(

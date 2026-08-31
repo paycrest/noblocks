@@ -74,6 +74,7 @@ const config: Config = {
   referralEnabled: (process.env.NEXT_PUBLIC_REFERRAL_ENABLED || "").trim().toLowerCase() !== "false",
   bridgeEnabled: process.env.NEXT_PUBLIC_BRIDGE_ENABLED === "true",
   textileEnabled: process.env.NEXT_PUBLIC_TEXTILE_ENABLED === "true",
+  hyperfxEnabled: process.env.NEXT_PUBLIC_HYPERFX_ENABLED === "true",
   onrampChainedForwardingEnabled:
     process.env.NEXT_PUBLIC_ONRAMP_CHAINED_FORWARDING_ENABLED === "true",
   kesOnrampEnabled: process.env.NEXT_PUBLIC_KES_ONRAMP_ENABLED !== "false",

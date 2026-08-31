@@ -13,6 +13,16 @@ export function selectedChainLiquidUsd(
   return typeof total === "number" && Number.isFinite(total) ? total : 0;
 }
 
+/** Sum liquid USD across all cross-chain balance entries. */
+export function sumAllChainLiquidUsd(
+  crossChainBalances: CrossChainBalanceEntry[],
+): number {
+  return crossChainBalances.reduce((sum, entry) => {
+    const total = entry.balances.total;
+    return sum + (typeof total === "number" && Number.isFinite(total) ? total : 0);
+  }, 0);
+}
+
 export function parseEarnDepositedUsd(
   suppliedFormatted?: string | null,
 ): number {
@@ -35,10 +45,7 @@ export function resolveEvmEarnWalletDisplayTotal(params: {
   earnDepositedUsd: number;
 }): { liquidUsd: number; displayTotalUsd: number; includesEarn: boolean } {
   const includesEarn = isEvmEarnFlow(params.chainName);
-  const liquidUsd = selectedChainLiquidUsd(
-    params.crossChainBalances,
-    params.chainName,
-  );
+  const liquidUsd = sumAllChainLiquidUsd(params.crossChainBalances);
   const displayTotalUsd = includesEarn
     ? evmWalletDisplayTotalUsd(liquidUsd, params.earnDepositedUsd)
     : liquidUsd;

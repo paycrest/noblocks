@@ -1,6 +1,9 @@
 import config from "./config";
 import type { BridgeLeg } from "./bridge";
 import { TEXTILE_SUPPORTED_NETWORKS } from "./textileNetworks";
+import { HYPERFX_SUPPORTED_NETWORKS } from "./hyperfxNetworks";
+
+export { HYPERFX_SUPPORTED_NETWORKS };
 
 export function isBridgeUiVisible(): boolean {
   return config.bridgeEnabled;
@@ -8,6 +11,10 @@ export function isBridgeUiVisible(): boolean {
 
 export function isTextileSwapEnabled(): boolean {
   return config.bridgeEnabled && config.textileEnabled;
+}
+
+export function isHyperfxSwapEnabled(): boolean {
+  return config.bridgeEnabled && config.hyperfxEnabled;
 }
 
 /**

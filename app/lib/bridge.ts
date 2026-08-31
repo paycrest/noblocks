@@ -15,6 +15,10 @@ import { getDelegationContractAddress } from "./config";
 import { get7702AuthorizedImplementationForAddress } from "../hooks/useEIP7702Account";
 import { isTextileRoute } from "./bridgeFeature";
 import {
+  HYPERFX_SUPPORTED_NETWORKS,
+  isHyperfxSwapEnabled,
+} from "./bridgeFeature";
+import {
   getTextileRfqClaim,
   storeTextileRfqClaim,
 } from "./textileServer";
@@ -101,9 +105,33 @@ export interface TextileBuiltSwap {
   swap: { to: string; data: string; value: string; chainId: number };
 }
 
+/** Hyperbridge IntentGateway quote for same-chain USDC/USDT↔cNGN (HyperFX). */
+export interface HyperfxIntentQuote {
+  kind: "hyperfx-intent";
+  amountOut: string;
+  /** Protocol fee deducted from input, expressed in the receiving token. */
+  fee: string;
+  amountIn: string;
+  rawAmountIn: string;
+  rawAmountOut: string;
+  tokenIn: string;
+  tokenOut: string;
+  network: string;
+  chainId: number;
+  protocolFeeBps: number;
+  /** Quote validity window (ms since epoch). */
+  expiresAt: number;
+  /** ERC-4337 bundler URL from the authenticated quote response. */
+  bundlerUrl?: string;
+}
+
 export { storeTextileRfqClaim, getTextileRfqClaim };
 
-export type BridgeQuote = NearDepositQuote | LifiTxQuote | TextileSwapQuote;
+export type BridgeQuote =
+  | NearDepositQuote
+  | LifiTxQuote
+  | TextileSwapQuote
+  | HyperfxIntentQuote;
 
 export type BridgeStatus =
   | "PENDING_DEPOSIT"
@@ -119,18 +147,49 @@ export interface BridgeStatusResult {
   destinationTxHash?: string;
 }
 
-export type BridgeEngine = "near" | "lifi" | "textile";
+export type BridgeEngine = "near" | "lifi" | "textile" | "hyperfx";
+
+export { HYPERFX_SUPPORTED_NETWORKS };
+
+export function isHyperfxEnabled(): boolean {
+  return isHyperfxSwapEnabled();
+}
+
+const HYPERFX_STABLES = new Set(["usdc", "usdt"]);
+
+function isHyperfxStableCngnPair(fromSym: string, toSym: string): boolean {
+  return (
+    (HYPERFX_STABLES.has(fromSym) && toSym === "cngn") ||
+    (fromSym === "cngn" && HYPERFX_STABLES.has(toSym))
+  );
+}
+
+/**
+ * True when this leg pair should route through HyperFX (same-chain USDC/USDT↔cNGN).
+ */
+export function isHyperfxRoute(from: BridgeLeg, to: BridgeLeg): boolean {
+  if (!isHyperfxEnabled()) return false;
+  if (from.network !== to.network) return false;
+  if (!HYPERFX_SUPPORTED_NETWORKS.has(from.network)) return false;
+
+  return isHyperfxStableCngnPair(
+    from.token.toLowerCase(),
+    to.token.toLowerCase(),
+  );
+}
 
 // ============================================================================
 // ROUTING
 // ============================================================================
 
 /**
- * Routes Textile for same-chain USDT↔cNGN on BSC/Celo; LI.FI for other cNGN legs
- * or Starknet; NEAR Intents otherwise (EVM↔EVM stablecoins).
+ * Routes Textile for same-chain USDT↔cNGN on BSC/Celo; HyperFX for same-chain
+ * USDC/USDT↔cNGN on supported networks; LI.FI for other cNGN legs or Starknet;
+ * NEAR Intents otherwise (EVM↔EVM stablecoins).
  */
 export function selectEngine(from: BridgeLeg, to: BridgeLeg): BridgeEngine {
   if (isTextileRoute(from, to)) return "textile";
+  if (isHyperfxRoute(from, to)) return "hyperfx";
 
   const cngn = "cngn";
   const isStarknet = (n: string) => n.toLowerCase() === "starknet";
@@ -256,6 +315,9 @@ export function toRawAmount(amount: string, decimals: number): string {
  * comment there for how the origin-denominated `refundFee` fallback is converted.
  */
 export function bridgeFeeInReceivingToken(quote: BridgeQuote): number {
+  if (quote.kind === "hyperfx-intent") {
+    return parseFloat(quote.fee) || 0;
+  }
   if (quote.kind === "lifi-tx") {
     return parseFloat(quote.feeReceivingToken) || 0;
   }
@@ -501,6 +563,7 @@ export class LifiClient {
   }
 }
 
+
 export function mapTextileStatus(status?: string): BridgeStatus {
   switch ((status ?? "").toLowerCase()) {
     case "filled":
@@ -733,6 +796,104 @@ export class TextileClient {
   }
 }
 
+type HyperfxQuoteParams = {
+  network: string;
+  chainId: number;
+  fromToken: string;
+  toToken: string;
+  fromAmount: string;
+  fromDecimals: number;
+  fromAddress: string;
+};
+
+export class HyperfxClient {
+  async getQuote(
+    params: HyperfxQuoteParams,
+    auth?: BridgeAuth | string | null,
+  ): Promise<HyperfxIntentQuote | null> {
+    const { data, status } = await axios.get("/api/bridge/hyperfx/quote", {
+      params: {
+        network: params.network,
+        chainId: params.chainId,
+        fromToken: params.fromToken,
+        toToken: params.toToken,
+        fromAmount: params.fromAmount,
+        fromDecimals: params.fromDecimals,
+        fromAddress: params.fromAddress,
+      },
+      headers: authHeaders(auth),
+      validateStatus: () => true,
+    });
+
+    if (status === 404 || status === 422) return null;
+    if (status >= 400) {
+      throw new Error(data?.error || data?.message || `HyperFX quote failed (${status})`);
+    }
+    if (!data?.quote) return null;
+    return data.quote as HyperfxIntentQuote;
+  }
+
+  /**
+   * HyperFX status via server-side on-chain reads (same pattern as LI.FI status API).
+   */
+  async getStatus(
+    txHash: string,
+    auth?: BridgeAuth | string | null,
+    opts?: { settled?: boolean; fillTxHash?: string },
+  ): Promise<BridgeStatusResult> {
+    if (opts?.settled) {
+      return {
+        status: "SUCCESS",
+        txHash,
+        destinationTxHash: opts.fillTxHash ?? txHash,
+      };
+    }
+    if (typeof window !== "undefined") {
+      try {
+        const fillTxHash = sessionStorage.getItem(`hyperfx-settled-${txHash}`);
+        if (fillTxHash) {
+          return {
+            status: "SUCCESS",
+            txHash,
+            destinationTxHash: fillTxHash,
+          };
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    try {
+      const { data } = await axios.get<BridgeStatusResult>(
+        "/api/bridge/hyperfx/status",
+        {
+          params: { txHash, network: "Base" },
+          headers: authHeaders(auth),
+        },
+      );
+      if (typeof window !== "undefined") {
+        if (data.status === "SUCCESS") {
+          sessionStorage.setItem(
+            `hyperfx-settled-${txHash}`,
+            data.destinationTxHash ?? txHash,
+          );
+          sessionStorage.removeItem(`hyperfx-failed-${txHash}`);
+        } else if (data.status === "FAILED" || data.status === "REFUNDED") {
+          sessionStorage.setItem(
+            `hyperfx-failed-${txHash}`,
+            data.status === "REFUNDED" ? "refunded" : "expired",
+          );
+        }
+      }
+      return data;
+    } catch (err) {
+      console.warn("[HyperFX] Status check failed:", err);
+    }
+
+    return { status: "PROCESSING", txHash };
+  }
+}
+
 // ============================================================================
 // EVM BATCH EXECUTION
 // ============================================================================
@@ -751,6 +912,8 @@ export interface ExecuteBatchCallsParams {
   signDelegationAuthorization: (chainId: number) => Promise<SignedAuthorization>;
   /** Optional gas override (LI.FI swaps need more than the bundler default). */
   gasLimit?: number;
+  /** Embed partner attribution code; the bundler appends the ERC-8021 suffix. */
+  embedCode?: string | null;
 }
 
 /**
@@ -766,6 +929,7 @@ export async function executeBatchCalls({
   embeddedWallet,
   signDelegationAuthorization,
   gasLimit,
+  embedCode,
 }: ExecuteBatchCallsParams): Promise<string> {
   const chainId =
     typeof chain.id === "number" ? chain.id : parseInt(String(chain.id));
@@ -822,6 +986,7 @@ export async function executeBatchCalls({
     delegationContractAddress,
     ...(gasLimit != null && { gasLimit }),
     ...(authorization != null && { eip7702Authorization: authorization }),
+    ...(embedCode ? { embedCode } : {}),
   };
 
   const accessToken = await getAccessToken();
@@ -868,6 +1033,8 @@ export interface EvmBatchExecuteParams {
   getAccessToken: () => Promise<string | null>;
   embeddedWallet: EmbeddedWalletLike;
   signDelegationAuthorization: (chainId: number) => Promise<SignedAuthorization>;
+  /** Embed partner attribution code; forwarded to executeBatchCalls. */
+  embedCode?: string | null;
 }
 
 /**
@@ -883,6 +1050,7 @@ export async function evmBatchExecute({
   getAccessToken,
   embeddedWallet,
   signDelegationAuthorization,
+  embedCode,
 }: EvmBatchExecuteParams): Promise<string> {
   // Filter to EVM tokens only (address is empty for native or 42 chars "0x"+20bytes).
   // Starknet/Solana tokens share symbols with EVM tokens but have 66-char addresses.
@@ -925,5 +1093,6 @@ export async function evmBatchExecute({
     getAccessToken,
     embeddedWallet,
     signDelegationAuthorization,
+    embedCode,
   });
 }

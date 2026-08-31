@@ -1,7 +1,11 @@
 import { usePrivy } from "@privy-io/react-auth";
 import { UseFormWatch } from "react-hook-form";
 import { useInjectedWallet } from "../context";
-import type { LiquiditySegment } from "../lib/marketLiquidity";
+import {
+  MIN_SWAP_USD,
+  minOnRampFiatAmount,
+  type LiquiditySegment,
+} from "../lib/marketLiquidity";
 import { validateWalletAddress } from "../lib/validation";
 
 /** Primary CTA when limits require upgrading verification (opens limit / KYC flow from swap). */
@@ -47,6 +51,8 @@ interface UseSwapButtonProps {
     /** Fillable runs within [min, max]; absent means unknown, so not enforced. */
     segments?: LiquiditySegment[];
     noLiquidity: boolean;
+    /** cNGN off-ramp min cannot be computed until cngnRate is positive. */
+    cngnMinUnavailable?: boolean;
   };
   /**
    * Pre-computed insufficient-balance flag from TransactionForm (which guards
@@ -113,17 +119,22 @@ export function useSwapButton({
   // static limits, the rate-derived floor and live provider capacity together.
   // Segments additionally reject a hole between two providers' bands, since one
   // order is filled by one provider. Without bounds the legacy floors stand:
-  // 0.5 token off-ramp, 0.5×rate on-ramp once a receive token and rate exist.
-  const amountFloor = amountBounds?.min ?? (isSwapped ? 0.5 * Number(rate) : 0.5);
+  // $MIN_SWAP_USD off-ramp, same USD equivalent on-ramp once a rate exists.
+  const amountFloor =
+    amountBounds?.min ??
+    (isSwapped ? minOnRampFiatAmount(Number(rate)) : MIN_SWAP_USD);
   const amountCeiling = amountBounds?.max ?? Infinity;
+  const cngnMinUnavailable = amountBounds?.cngnMinUnavailable ?? false;
   const withinBounds =
     !amountBounds?.noLiquidity &&
     Number(amountSent) <= amountCeiling &&
     fitsLiquiditySegment(amountBounds?.segments, Number(amountSent));
-  const isAmountValid = isSwapped
-    ? !token ||
-      (withinBounds && Number(rate) > 0 && Number(amountSent) >= amountFloor)
-    : withinBounds && Number(amountSent) >= amountFloor;
+  const isAmountValid = cngnMinUnavailable
+    ? false
+    : isSwapped
+      ? !token ||
+        (withinBounds && Number(rate) > 0 && Number(amountSent) >= amountFloor)
+      : withinBounds && Number(amountSent) >= amountFloor;
   const isCurrencySelected = Boolean(currency);
 
   const totalRequired = Number(amountSent) || 0;
@@ -157,6 +168,7 @@ export function useSwapButton({
     // Underfunded amounts are short-circuited to Fund wallet / Insufficient
     // balance; market limits apply once the amount is fundable.
     if (amountBounds?.noLiquidity && !hasInsufficientBalance) return false;
+    if (amountBounds?.cngnMinUnavailable && Number(amountSent) > 0) return false;
 
     // Underfunded: fund / show shortfall without requiring a live rate quote
     // (market + rates are paused for those amounts).

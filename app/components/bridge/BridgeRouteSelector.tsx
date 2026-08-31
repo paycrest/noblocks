@@ -27,9 +27,11 @@ interface BridgeRouteSelectorProps {
   onFromNetworkChange: (name: string) => void;
   onToNetworkChange: (name: string) => void;
   outputAmount?: string;
-  engine?: "near" | "lifi" | "textile" | null;
+  engine?: "near" | "lifi" | "textile" | "hyperfx" | null;
   timeEstimate?: string;
   isQuoteLoading?: boolean;
+  /** When true, styles the From amount like swap validation errors. */
+  amountHasError?: boolean;
 }
 
 function getNetworkImgSrc(network: (typeof networks)[0]): string {
@@ -83,6 +85,7 @@ export const BridgeRouteSelector: React.FC<BridgeRouteSelectorProps> = ({
   onToNetworkChange,
   outputAmount,
   isQuoteLoading,
+  amountHasError = false,
 }) => {
   const { crossChainBalances } = useBalance();
   const { allTokens } = useTokens();
@@ -307,7 +310,12 @@ export const BridgeRouteSelector: React.FC<BridgeRouteSelectorProps> = ({
             value={amount}
             onChange={(e) => onAmountChange(e.target.value)}
             placeholder="0.00"
-            className={amountInputCls}
+            className={classNames(
+              "w-full min-w-0 bg-transparent text-2xl font-normal outline-none placeholder-gray-300 dark:placeholder-white/20",
+              amountHasError
+                ? "text-red-500 dark:text-red-500"
+                : "text-gray-900 dark:text-white",
+            )}
           />
           {from && fromBalance > 0 && (
             <div className="flex shrink-0 flex-col items-end gap-1">

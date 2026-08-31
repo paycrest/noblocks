@@ -3,7 +3,10 @@
  * Covers: evolving XI, formation-floor skip case, GK like-for-like, bench
  * priority, and the armband NEVER transferring to an incoming substitute.
  */
-import { applyAutoSubs } from "@/app/lib/fantasy/autosubs";
+import {
+  applyAutoSubs,
+  autoSubDisplaySlots,
+} from "@/app/lib/fantasy/autosubs";
 import { computeSquadPoints, type SquadPlayerRow } from "@/app/lib/fantasy/scoring";
 
 const row = (
@@ -157,6 +160,23 @@ describe("bench priority and formation floors", () => {
       playedFrom([1, 2, 3, 4, 6, 7, 8, 9, 10, 11]), // DEF #5 blank; whole bench blank
     );
     expect(xi.map((p) => p.playerId)).toContain(5);
+  });
+});
+
+describe("auto-sub display slots", () => {
+  it("moves the promoted player onto the pitch and the replaced starter to the vacated bench slot", () => {
+    const picked = squad();
+    const scoringXi = applyAutoSubs(
+      picked,
+      playedFrom([...ALL_XI.filter((id) => id !== 6), 12, 13, 14, 15]),
+    );
+
+    const displaySlots = autoSubDisplaySlots(picked, scoringXi);
+
+    expect(displaySlots.get(12)).toBe(6);
+    expect(displaySlots.get(6)).toBe(12);
+    expect(displaySlots.get(7)).toBe(7);
+    expect(displaySlots.get(13)).toBe(13);
   });
 });
 

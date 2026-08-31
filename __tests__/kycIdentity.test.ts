@@ -1,6 +1,8 @@
 import {
+  buildIdentityIdKey,
   identityScopeHasVerifiedPhone,
   resolveIdentityScope,
+  resolveOwnIdentityFingerprint,
 } from "../app/lib/kyc-identity";
 import { supabaseAdmin } from "../app/lib/supabase";
 
@@ -21,10 +23,16 @@ type QueryResult = { data: unknown; error: unknown };
  * A chainable stand-in for a PostgREST query builder. Every filter returns itself; the
  * builder is awaitable directly (sibling queries) and via maybeSingle (profile lookup).
  */
+/** Every `.eq(column, value)` issued across all builders, in call order. */
+const eqCalls: Array<[string, unknown]> = [];
+
 function query(result: QueryResult) {
   const builder: Record<string, unknown> = {};
   for (const method of ["select", "eq", "gte", "neq", "limit", "in", "not"]) {
-    builder[method] = () => builder;
+    builder[method] = (...args: unknown[]) => {
+      if (method === "eq") eqCalls.push([args[0] as string, args[1]]);
+      return builder;
+    };
   }
   builder.maybeSingle = () => Promise.resolve(result);
   builder.then = (onFulfilled: unknown, onRejected: unknown) =>
@@ -50,6 +58,7 @@ const PHONE = "+2348001112222";
 
 beforeEach(() => {
   mockedFrom.mockReset();
+  eqCalls.length = 0;
 });
 
 describe("resolveIdentityScope", () => {
@@ -121,6 +130,34 @@ describe("resolveIdentityScope", () => {
     expect(scope.wallets).toEqual([CALLER, SIBLING].sort());
     expect(scope.effectiveTier).toBe(3);
     expect(scope.identityKeys).toEqual(["id:NG:BVN:12345678901"]);
+  });
+
+  it("pools two spellings of the same ID document", async () => {
+    // The id_* columns hold raw input, so one document can be stored several
+    // ways. Matching them raw would give each sibling its own allowance, let
+    // them serialize on different advisory locks, and hide a sibling from the
+    // self-referral guard. The query must go through the canonical column.
+    queueQueries(
+      ok({
+        tier: 2,
+        phone_number: null,
+        id_country: " ng ",
+        id_type: "Passport",
+        id_number: "a 123 456",
+      }),
+      ok([{ wallet_address: SIBLING, tier: 2 }]),
+    );
+
+    const scope = await resolveIdentityScope(CALLER);
+
+    expect(eqCalls).toContainEqual([
+      "identity_id_key",
+      "NG:PASSPORT:A123456",
+    ]);
+    // No raw-triple filter survives — that was the bypass.
+    expect(eqCalls.map(([column]) => column)).not.toContain("id_number");
+    expect(scope.wallets).toEqual([CALLER, SIBLING].sort());
+    expect(scope.identityKeys).toEqual(["id:NG:PASSPORT:A123456"]);
   });
 
   it("returns both identity keys sorted when phone and ID are present", async () => {
@@ -245,5 +282,157 @@ describe("identityScopeHasVerifiedPhone", () => {
     await expect(
       identityScopeHasVerifiedPhone([CALLER, SIBLING]),
     ).rejects.toEqual({ message: "phone boom" });
+  });
+});
+
+describe("resolveOwnIdentityFingerprint", () => {
+  it("returns nulls when the wallet has no profile", async () => {
+    queueQueries(ok(null));
+
+    await expect(resolveOwnIdentityFingerprint(CALLER)).resolves.toEqual({
+      phone: null,
+      idKey: null,
+    });
+  });
+
+  it("returns nulls when the profile has neither a phone nor a full ID triple", async () => {
+    // A partial ID (country + type, no number) must not produce a key: it would
+    // collide across every wallet from that country holding that document type.
+    queueQueries(
+      ok({
+        phone_number: null,
+        id_country: "NG",
+        id_type: "passport",
+        id_number: null,
+      }),
+    );
+
+    await expect(resolveOwnIdentityFingerprint(CALLER)).resolves.toEqual({
+      phone: null,
+      idKey: null,
+    });
+  });
+
+  // These fingerprints key unique indexes, so two spellings of one document must
+  // normalize to one value — otherwise both inserts slip past the constraint and
+  // the identity collects the reward twice. Must stay in sync with the backfill
+  // in 20260817180100_identity_scoped_referrals.sql.
+  it("normalizes case and whitespace so one document yields one key", async () => {
+    queueQueries(
+      ok({
+        phone_number: PHONE,
+        id_country: " ng ",
+        id_type: "Passport",
+        id_number: " a 123 456 ",
+      }),
+    );
+
+    await expect(resolveOwnIdentityFingerprint(CALLER)).resolves.toEqual({
+      phone: PHONE,
+      idKey: "NG:PASSPORT:A123456",
+    });
+  });
+
+  it("produces the same key for divergent spellings of the same document", async () => {
+    queueQueries(
+      ok({
+        phone_number: null,
+        id_country: "NG",
+        id_type: "PASSPORT",
+        id_number: "A123456",
+      }),
+    );
+    const canonical = await resolveOwnIdentityFingerprint(CALLER);
+
+    queueQueries(
+      ok({
+        phone_number: null,
+        id_country: "ng",
+        id_type: "passport",
+        id_number: "a 123 456",
+      }),
+    );
+    const messy = await resolveOwnIdentityFingerprint(SIBLING);
+
+    expect(messy.idKey).toBe(canonical.idKey);
+  });
+
+  it("trims the phone and treats a blank one as absent", async () => {
+    queueQueries(
+      ok({
+        phone_number: "   ",
+        id_country: null,
+        id_type: null,
+        id_number: null,
+      }),
+    );
+
+    await expect(resolveOwnIdentityFingerprint(CALLER)).resolves.toEqual({
+      phone: null,
+      idKey: null,
+    });
+  });
+
+  it("throws when the lookup fails so callers fail closed", async () => {
+    // Swallowing this would insert NULL fingerprints, which the partial unique
+    // indexes ignore — handing the identity a fresh reward slot.
+    queueQueries({ data: null, error: { message: "profile boom" } });
+
+    await expect(resolveOwnIdentityFingerprint(CALLER)).rejects.toEqual({
+      message: "profile boom",
+    });
+  });
+});
+
+describe("buildIdentityIdKey", () => {
+  it("returns null unless all three parts are present", () => {
+    // A partial triple would collide across every holder of that document type
+    // in the country, pooling unrelated people into one identity.
+    expect(buildIdentityIdKey(null, "PASSPORT", "A123")).toBeNull();
+    expect(buildIdentityIdKey("NG", null, "A123")).toBeNull();
+    expect(buildIdentityIdKey("NG", "PASSPORT", null)).toBeNull();
+    expect(buildIdentityIdKey("NG", "PASSPORT", "")).toBeNull();
+  });
+
+  it("returns null when a part is only whitespace", () => {
+    // Whitespace strips to empty under normalizeIdPart; must not yield "::".
+    expect(buildIdentityIdKey("   ", "PASSPORT", "A123")).toBeNull();
+    expect(buildIdentityIdKey("NG", "\t\n", "A123")).toBeNull();
+    expect(buildIdentityIdKey("NG", "PASSPORT", " \t ")).toBeNull();
+  });
+
+  it("canonicalizes case and whitespace", () => {
+    expect(buildIdentityIdKey(" ng ", "Passport", " a 123 456 ")).toBe(
+      "NG:PASSPORT:A123456",
+    );
+  });
+
+  // Regression: Postgres btrim() strips spaces only, so an earlier version of
+  // the generated column left tab padding in place while trim() removed it —
+  // one document, two keys, which defeats the whole canonicalization. Both
+  // sides now strip exactly [[:space:]].
+  it("strips every character in the SQL space class, not just spaces", () => {
+    expect(buildIdentityIdKey("\tng\t", "\tpassport\t", "\ta 123 456\t")).toBe(
+      "NG:PASSPORT:A123456",
+    );
+    expect(buildIdentityIdKey("\nNG\r", "PASS\vPORT", "A\f123456")).toBe(
+      "NG:PASSPORT:A123456",
+    );
+  });
+
+  it("maps divergent spellings of one document to one key", () => {
+    // Must match the identity_id_key generated column in 20260817180400.
+    expect(buildIdentityIdKey("ng", "passport", "a 123 456")).toBe(
+      buildIdentityIdKey("NG", "PASSPORT", "A123456"),
+    );
+  });
+
+  it("keeps genuinely different documents apart", () => {
+    expect(buildIdentityIdKey("NG", "PASSPORT", "A123456")).not.toBe(
+      buildIdentityIdKey("NG", "PASSPORT", "A123457"),
+    );
+    expect(buildIdentityIdKey("NG", "BVN", "A123456")).not.toBe(
+      buildIdentityIdKey("NG", "PASSPORT", "A123456"),
+    );
   });
 });

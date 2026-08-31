@@ -23,6 +23,10 @@ import { colors } from "./mocks";
 import { fetchTokens } from "./api/aggregator";
 import { toast } from "sonner";
 import config from "./lib/config";
+import {
+  getHyperfxNetworkConfig,
+  isHyperfxSupportedNetwork,
+} from "./lib/hyperfxNetworks";
 import { logBalanceTelemetry } from "./lib/balanceTelemetry";
 
 /**
@@ -287,6 +291,17 @@ export function isOnrampFiatCurrencyCode(code: string): boolean {
   return getOnrampFiatCurrencyCodes().has(code.toUpperCase());
 }
 
+/** Normalizes and validates an onramp fiat code for refund-account storage. */
+export function normalizeRefundAccountCurrency(
+  raw: string | null | undefined,
+): string | null {
+  const code = String(raw ?? "").trim().toUpperCase();
+  if (!code || !isOnrampFiatCurrencyCode(code)) {
+    return null;
+  }
+  return code;
+}
+
 /**
  * Max send amount for on-ramp in local fiat units (product caps per corridor).
  * Tune KES with product/compliance when backend limits are finalized.
@@ -333,6 +348,78 @@ export function roundAmountForCurrency(amount: number): number {
   return Number(
     `${Math.round(Number(`${amount}e${decimals}`))}e-${decimals}`,
   );
+}
+
+/**
+ * Decimal places a quoted token amount is carried at.
+ *
+ * Capped below the token's own precision so an 18-decimal token does not put
+ * `36.475317147039290123` in the amount field. Six places is finer than one
+ * minor unit of fiat at every corridor rate Noblocks quotes (the highest is
+ * ~3,700 fiat per token, where one subunit is worth ~0.004), so the cap costs
+ * the sender at most a rounding crumb.
+ */
+export const MAX_QUOTE_DECIMALS = 6;
+
+/**
+ * Decimal places the onramp Send field accepts. That leg is fiat, not token, so
+ * it is unaffected by token precision and keeps its long-standing limit.
+ */
+export const ONRAMP_FIAT_DECIMALS = 4;
+
+export function getQuoteDecimals(tokenDecimals: number | undefined): number {
+  const decimals = Math.trunc(Number(tokenDecimals));
+  if (!Number.isFinite(decimals) || decimals <= 0) return MAX_QUOTE_DECIMALS;
+  return Math.min(decimals, MAX_QUOTE_DECIMALS);
+}
+
+/**
+ * Scales by a power of ten through the decimal string, so 36.4753 * 1e6 lands on
+ * 36475300 rather than 36475299.999999996. Values already in exponential form
+ * cannot take a second exponent, so those fall back to plain multiplication.
+ */
+function shiftDecimalPoint(value: number, exponent: number): number {
+  const shifted = Number(`${value}e${exponent}`);
+  return Number.isFinite(shifted) ? shifted : value * 10 ** exponent;
+}
+
+/**
+ * Token amount to send so the recipient is paid `fiatAmount`, rounded **up** to
+ * the last subunit.
+ *
+ * Rounding down here is a real loss. The deposited token amount is what the
+ * aggregator multiplies back by the rate to decide the payout, so an amount
+ * short of `fiatAmount / rate` pays the recipient less than the quote — at 4
+ * decimal places a ₦50,000 order at rate 1370.79 deposited 36.4753 USDC and
+ * paid out ₦49,999.98. Rounding up costs the sender at most one subunit and can
+ * only land the recipient on or above the quote.
+ */
+export function quoteTokenAmountForFiat(
+  fiatAmount: number,
+  rate: number,
+  tokenDecimals: number | undefined,
+): number {
+  if (
+    !Number.isFinite(fiatAmount) ||
+    fiatAmount <= 0 ||
+    !Number.isFinite(rate) ||
+    rate <= 0
+  ) {
+    return 0;
+  }
+
+  const decimals = getQuoteDecimals(tokenDecimals);
+  const subunits = shiftDecimalPoint(fiatAmount / rate, decimals);
+  if (!Number.isFinite(subunits)) return 0;
+
+  // A division that is mathematically exact can still land a hair off in binary
+  // (3 as 3.0000000000000004). Snapping those back keeps the amount field clean
+  // instead of charging a whole extra subunit for float noise.
+  const nearest = Math.round(subunits);
+  const rounded =
+    Math.abs(subunits - nearest) < 1e-6 ? nearest : Math.ceil(subunits);
+
+  return shiftDecimalPoint(rounded, -decimals);
 }
 
 /**
@@ -626,6 +713,68 @@ export function getRpcUrl(network: string) {
     default:
       return undefined;
   }
+}
+
+/** ERC-4337 bundler URL for HyperFX IntentGateway fill execution (Alchemy per chain). */
+function buildHyperfxBundlerUrl(network: string, alchemyKey: string): string | undefined {
+  if (!isHyperfxSupportedNetwork(network)) {
+    return undefined;
+  }
+  const cfg = getHyperfxNetworkConfig(network)!;
+  return `https://${cfg.alchemyHost}.g.alchemy.com/v2/${alchemyKey.trim()}`;
+}
+
+/** Server-only: builds bundler URL from ALCHEMY_API_KEY. */
+export function getHyperfxBundlerUrl(network: string): string | undefined {
+  const alchemyKey = process.env.ALCHEMY_API_KEY?.trim();
+  if (!alchemyKey) {
+    return undefined;
+  }
+  return buildHyperfxBundlerUrl(network, alchemyKey);
+}
+
+export function requireHyperfxBundlerUrl(network: string): string {
+  const url = getHyperfxBundlerUrl(network);
+  if (!url) {
+    throw new Error("HyperFX bundler URL not configured");
+  }
+  return url;
+}
+
+const clientBundlerUrlCache = new Map<string, string>();
+
+/** Server: sync from env. Browser: optional fetch (requires auth) — prefer quote.bundlerUrl. */
+export async function resolveHyperfxBundlerUrl(
+  network: string,
+  authToken?: string | null,
+): Promise<string> {
+  if (typeof window === "undefined") {
+    return requireHyperfxBundlerUrl(network);
+  }
+
+  const cached = clientBundlerUrlCache.get(network);
+  if (cached) {
+    return cached;
+  }
+
+  const headers: HeadersInit = {};
+  if (authToken) {
+    headers.Authorization = `Bearer ${authToken}`;
+  }
+
+  const res = await fetch(
+    `/api/bridge/hyperfx/bundler?network=${encodeURIComponent(network)}`,
+    { headers },
+  );
+  if (!res.ok) {
+    throw new Error("HyperFX bundler URL not configured");
+  }
+  const data = (await res.json()) as { bundlerUrl?: string };
+  if (!data.bundlerUrl) {
+    throw new Error("HyperFX bundler URL not configured");
+  }
+  clientBundlerUrlCache.set(network, data.bundlerUrl);
+  return data.bundlerUrl;
 }
 
 // Token caching

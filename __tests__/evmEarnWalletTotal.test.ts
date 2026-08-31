@@ -3,6 +3,7 @@ import {
   parseEarnDepositedUsd,
   resolveEvmEarnWalletDisplayTotal,
   selectedChainLiquidUsd,
+  sumAllChainLiquidUsd,
 } from "../app/lib/evmEarnWalletTotal";
 import type { CrossChainBalanceEntry } from "../app/context";
 
@@ -26,15 +27,29 @@ function entry(chainName: string, total: number): CrossChainBalanceEntry {
 }
 
 describe("evmEarnWalletTotal", () => {
-  it("sums liquid and earn for EVM earn chains", () => {
+  it("sums cross-chain liquid and earn for EVM earn chains", () => {
     const result = resolveEvmEarnWalletDisplayTotal({
       chainName: "Base",
       crossChainBalances: [entry("Base", 0.05), entry("Polygon", 1)],
       earnDepositedUsd: 0.048,
     });
-    expect(result.liquidUsd).toBe(0.05);
-    expect(result.displayTotalUsd).toBeCloseTo(0.098, 6);
+    expect(result.liquidUsd).toBe(1.05);
+    expect(result.displayTotalUsd).toBeCloseTo(1.098, 6);
     expect(result.includesEarn).toBe(true);
+  });
+
+  it("includes all chains in total when selected chain is Base", () => {
+    const result = resolveEvmEarnWalletDisplayTotal({
+      chainName: "Base",
+      crossChainBalances: [
+        entry("Base", 298.77),
+        entry("Ethereum", 200.1),
+        entry("Lisk", 200),
+      ],
+      earnDepositedUsd: 0,
+    });
+    expect(result.liquidUsd).toBeCloseTo(698.87, 2);
+    expect(result.displayTotalUsd).toBeCloseTo(698.87, 2);
   });
 
   it("does not add earn on non-earn chains", () => {
@@ -51,6 +66,12 @@ describe("evmEarnWalletTotal", () => {
     expect(
       selectedChainLiquidUsd([entry("Base", 0.05), entry("Polygon", 1)], "Base"),
     ).toBe(0.05);
+  });
+
+  it("sumAllChainLiquidUsd sums every network entry", () => {
+    expect(
+      sumAllChainLiquidUsd([entry("Base", 0.05), entry("Polygon", 1)]),
+    ).toBe(1.05);
   });
 
   it("parseEarnDepositedUsd rejects invalid values", () => {

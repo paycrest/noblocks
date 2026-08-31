@@ -88,7 +88,7 @@ const nextConfig = {
   // "can't be external" version skew when https-proxy-agent was listed here).
   // dd-trace ships native addons and patches modules at require time, and pino
   // resolves transports through worker threads — bundling either breaks them.
-  serverExternalPackages: ["mixpanel", "twilio", "dd-trace", "pino", "@solana/web3.js"],
+  serverExternalPackages: ["mixpanel", "twilio", "dd-trace", "pino", "@solana/web3.js", "@hyperbridge/sdk"],
   webpack: (config, { isServer }) => {
     // Handle both client and server-side fallbacks
     config.resolve.fallback = {

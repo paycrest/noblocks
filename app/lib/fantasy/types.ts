@@ -105,9 +105,19 @@ export interface SquadSelection {
   viceId: number;
 }
 
+/**
+ * Final auto-sub outcome. "in" = promoted off the bench and scoring, "out" =
+ * picked to start but replaced. Null until the gameweek is final, or when no
+ * substitution affected the player.
+ */
+export type SubState = "in" | "out" | null;
+
 export interface PublicTeamPlayer {
   player_id: number;
+  /** Original saved slot. */
   slot: number;
+  /** Final rendered slot after auto-subs; equals `slot` before the GW is final. */
+  display_slot: number;
   is_captain: boolean;
   is_vice: boolean;
   name: string;
@@ -117,6 +127,10 @@ export interface PublicTeamPlayer {
   photo_url: string | null;
   points: number;
   minutes: number;
+  /**
+   * Auto-sub outcome for this round, populated only once the GW is final.
+   */
+  sub_state: SubState;
 }
 
 export interface PublicManagerTeam {
@@ -128,7 +142,10 @@ export interface PublicManagerTeam {
   badge: string;
   team: {
     matchday: { id: number; display_name: string; status: MatchdayStatus };
+    /** Round score as stored: the scoring XI minus `transfer_points_deduction`. */
     points: number;
+    /** Paid-transfer hit already subtracted from `points`. */
+    transfer_points_deduction: number;
     players: PublicTeamPlayer[];
   } | null;
 }

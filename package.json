@@ -38,6 +38,7 @@
     "@hotjar/browser": "^1.0.9",
     "@hpke/chacha20poly1305": "^1.6.2",
     "@hpke/core": "^1.9.0",
+    "@hyperbridge/sdk": "^2.8.4",
     "@portabletext/react": "^3.2.1",
     "@portabletext/types": "^2.0.13",
     "@privy-io/react-auth": "^3.22.0",

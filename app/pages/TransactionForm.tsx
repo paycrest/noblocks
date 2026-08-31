@@ -44,6 +44,9 @@ import {
   swapModeFromSideParam,
   RATE_DECIMALS,
   formatRateForDisplay,
+  getQuoteDecimals,
+  quoteTokenAmountForFiat,
+  ONRAMP_FIAT_DECIMALS,
 } from "../utils";
 import { ArrowUpDownIcon, NoteEditIcon, Wallet01Icon } from "hugeicons-react";
 import { useSwapButton } from "../hooks/useSwapButton";
@@ -55,6 +58,9 @@ import {
   isAmountFillable,
   liquidityMaxMessage,
   liquidityMinMessage,
+  MIN_SWAP_USD,
+  minOffRampTokenAmount,
+  minOnRampFiatAmount,
   nearestFillableAmount,
   nearestFillableMessage,
   noLiquidityMessage,
@@ -376,7 +382,8 @@ export const TransactionForm = ({
     const liquidityMin = liquidity?.viable ? liquidity.min : null;
     const liquidityMax = liquidity?.viable ? liquidity.max : null;
 
-    let min = 0.5;
+    let cngnMinUnavailable = false;
+    let min = MIN_SWAP_USD;
     let max = 10000;
 
     if (swapMode === "onramp") {
@@ -387,22 +394,45 @@ export const TransactionForm = ({
       max = getOnrampFiatMaxAmount(safeCurrency);
       // The fiat floor tracks the rate, and is only enforceable once a receive
       // token and a rate exist; 0 stands for "no floor yet".
-      min = token && rate && rate > 0 ? 0.5 * rate : 0;
-    } else if (tokensEqual(token, "cNGN") && cngnRate && cngnRate > 0) {
-      max = 50000000;
-      min = 0.5 * cngnRate;
+      min = token && rate && rate > 0 ? minOnRampFiatAmount(rate) : 0;
+    } else {
+      const offRampMin = minOffRampTokenAmount(token, cngnRate);
+      if (offRampMin.status === "cngn_rate_unavailable") {
+        cngnMinUnavailable = true;
+        min = 0;
+      } else {
+        min = offRampMin.min;
+      }
+      if (tokensEqual(token, "cNGN")) {
+        max = 50000000;
+      }
     }
 
     // Live capacity replaces the static ceiling and can only raise the floor.
     // An unknown or empty book leaves both untouched, so a markets outage
     // degrades to the previous behavior instead of blocking the form.
     if (liquidityMax !== null) max = liquidityMax;
-    if (liquidityMin !== null) min = Math.max(min, liquidityMin);
+    if (liquidityMin !== null && !cngnMinUnavailable) {
+      min = Math.max(min, liquidityMin);
+    }
 
-    return { min, max, liquidityMin, liquidityMax };
+    return { min, max, liquidityMin, liquidityMax, cngnMinUnavailable };
   }, [swapMode, currency, token, rate, cngnRate, liquidity]);
 
   const fetchedTokens: Token[] = allTokens[selectedNetwork.chain.name] || [];
+
+  // Precision the token leg is quoted and validated at. Derived from the
+  // selected token so the amount that goes on-chain is not rounded below what
+  // the recipient was quoted — see quoteTokenAmountForFiat.
+  const quoteDecimals = getQuoteDecimals(
+    fetchedTokens.find((t) => t.symbol.toUpperCase() === token?.toUpperCase())
+      ?.decimals,
+  );
+
+  // `amountSent` is the token leg on offramp but the fiat leg on onramp, where
+  // the token's precision means nothing. Only the token leg follows the token;
+  // onramp fiat keeps the four places it has always allowed.
+  const amountSentDecimals = isSwapped ? ONRAMP_FIAT_DECIMALS : quoteDecimals;
 
   const { handleFundWallet } = useFundWalletHandler("Transaction form");
 
@@ -721,8 +751,14 @@ export const TransactionForm = ({
           } else {
             // Not swapped: Receive = Currency, so calculate Send (Token)
             // Send = Receive / Rate (1400 NGN / 1400 = 1 USDC)
-            const calculatedAmount = Number(
-              (Number(amountReceived) / rate).toFixed(4),
+            //
+            // This amount is deposited on-chain verbatim and multiplied back by
+            // the rate to pay the recipient, so it rounds up at the token's own
+            // precision rather than to a fixed 4 places.
+            const calculatedAmount = quoteTokenAmountForFiat(
+              Number(amountReceived),
+              rate,
+              quoteDecimals,
             );
             setValue("amountSent", calculatedAmount, {
               shouldDirty: true,
@@ -748,7 +784,7 @@ export const TransactionForm = ({
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [amountSent, amountReceived, rate, isSwapped],
+    [amountSent, amountReceived, rate, isSwapped, quoteDecimals],
   );
 
   // Derive swap eligibility from tier + spend limits. Always set explicitly so we
@@ -813,6 +849,7 @@ export const TransactionForm = ({
           max: maxAmountSentValue,
           liquidityMin,
           liquidityMax,
+          cngnMinUnavailable,
         } = amountBounds;
 
         const maxMessage =
@@ -827,7 +864,7 @@ export const TransactionForm = ({
         formMethods.register("amountSent", {
           required: { value: true, message: "Amount is required" },
           disabled: isSwapped ? !currency : !token,
-          ...(!isSwapped
+          ...(!isSwapped && !cngnMinUnavailable
             ? {
                 min: {
                   value: minAmountSentValue,
@@ -840,12 +877,16 @@ export const TransactionForm = ({
             message: maxMessage,
           },
           validate: {
+            cngnRateReady: () => {
+              if (!cngnMinUnavailable) return true;
+              return cngnRateError || "No available quote";
+            },
             decimals: (value: number) => {
               const decimals = value.toString().split(".")[1];
               return (
                 !decimals ||
-                decimals.length <= 4 ||
-                "Maximum 4 decimal places allowed"
+                decimals.length <= amountSentDecimals ||
+                `Maximum ${amountSentDecimals} decimal places allowed`
               );
             },
             onrampFiatMin: (value: number) => {
@@ -853,7 +894,7 @@ export const TransactionForm = ({
               // Min fiat depends on rate; only enforce once receive token is chosen and rate exists.
               if (!token || !rate || rate <= 0) return true;
               const n = Number(value);
-              const rateFloor = 0.5 * rate;
+              const rateFloor = minOnRampFiatAmount(rate);
               const floor = minAmountSentValue;
               if (n >= floor) return true;
               return floor > rateFloor
@@ -999,6 +1040,7 @@ export const TransactionForm = ({
           ? undefined
           : liquidity.segments,
       noLiquidity: hasInsufficientBalance ? false : noLiquidity,
+      cngnMinUnavailable: amountBounds.cngnMinUnavailable,
     },
     hasInsufficientBalance,
   });
@@ -1334,7 +1376,7 @@ export const TransactionForm = ({
     // Only limit decimal places, allow any whole number
     if (cleanedValue.includes(".")) {
       const decimals: string | undefined = cleanedValue.split(".")[1];
-      if (decimals?.length > 4) return;
+      if (decimals?.length > amountSentDecimals) return;
     } // Update the form value
     setValue("amountSent", value, {
       shouldValidate: true,

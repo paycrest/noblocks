@@ -73,6 +73,103 @@ export async function identityScopeHasVerifiedPhone(
   return (data ?? []).length > 0;
 }
 
+/**
+ * The exact character set the SQL copies of this expression strip, spelled out
+ * rather than using `\s` or `String.trim()`.
+ *
+ * `\s` and `trim()` in JS also match NBSP, BOM and the Unicode space separators;
+ * Postgres `[[:space:]]` matches only these six. Using either JS shorthand would
+ * make a tab- or NBSP-padded value canonicalize one way in the app and another
+ * way in the generated column — one identity, two keys, which is the exact
+ * failure this canonicalization exists to prevent. (`btrim(x)` with no second
+ * argument is worse still: it strips spaces only.)
+ *
+ * Applied to the whole string, not just the ends, so internal spacing variants
+ * ("A 123 456" vs "A123456") also collapse together.
+ */
+const SQL_SPACE_CLASS = /[ \t\n\v\f\r]/g;
+
+function normalizeIdPart(value: string): string {
+  return value.toUpperCase().replace(SQL_SPACE_CLASS, "");
+}
+
+/** Edge-trim only, over the same character set — the phone counterpart. */
+function trimSqlSpace(value: string): string {
+  return value.replace(/^[ \t\n\v\f\r]+|[ \t\n\v\f\r]+$/g, "");
+}
+
+/**
+ * Canonical form of an ID document: uppercased with whitespace stripped.
+ * Returns null unless all three parts are present — a partial triple would
+ * collide across every holder of that document type in a country.
+ *
+ * The id_* columns store raw input (app/api/kyc/smile-id/route.ts falls back to
+ * the client-supplied number when the provider returns none), so the same
+ * document can arrive spelled several ways. Everything that has to recognise two
+ * profiles as one identity — sibling matching, advisory lock keys, the referral
+ * fingerprint indexes — keys on this instead of the raw values.
+ *
+ * Must stay in sync with two SQL copies of this expression:
+ *   * the `identity_id_key` generated column (20260817180400), which is what
+ *     sibling lookups match against
+ *   * the referral fingerprint backfill (20260817180100)
+ */
+export function buildIdentityIdKey(
+  country: string | null | undefined,
+  type: string | null | undefined,
+  number: string | null | undefined,
+): string | null {
+  if (!country || !type || !number) return null;
+  const c = normalizeIdPart(country);
+  const t = normalizeIdPart(type);
+  const n = normalizeIdPart(number);
+  // After stripping [[:space:]], empty parts must not form a key (e.g. "::").
+  if (!c || !t || !n) return null;
+  return `${c}:${t}:${n}`;
+}
+
+/**
+ * Fingerprints a single wallet's own verified phone/ID — no sibling lookup.
+ *
+ * Used to key identity-scoped uniqueness constraints (referral submission and
+ * referee-reward claims) on the same two dimensions `resolveIdentityScope`
+ * pools on, without paying for the sibling query when only the caller's own
+ * values are needed.
+ *
+ * `phone_number` is already E.164-canonical on write; the ID triple is
+ * canonicalized via `buildIdentityIdKey` because these values feed unique
+ * indexes, where two spellings of one document would slip past as two rows.
+ *
+ * Throws on any Supabase error — callers must fail closed, same contract as
+ * `resolveIdentityScope`.
+ */
+export async function resolveOwnIdentityFingerprint(
+  walletAddress: string,
+): Promise<{ phone: string | null; idKey: string | null }> {
+  const caller = walletAddress.trim().toLowerCase();
+
+  const { data: profile, error } = await supabaseAdmin
+    .from("user_kyc_profiles")
+    .select("phone_number, id_country, id_type, id_number")
+    .eq("wallet_address", caller)
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+
+  return {
+    phone: profile?.phone_number
+      ? trimSqlSpace(profile.phone_number) || null
+      : null,
+    idKey: buildIdentityIdKey(
+      profile?.id_country,
+      profile?.id_type,
+      profile?.id_number,
+    ),
+  };
+}
+
 export async function resolveIdentityScope(
   walletAddress: string,
 ): Promise<IdentityScope> {
@@ -91,9 +188,16 @@ export async function resolveIdentityScope(
   const ownTier = clampTier(profile?.tier);
 
   const phone = profile?.phone_number || null;
-  const hasId = !!(profile?.id_country && profile?.id_type && profile?.id_number);
+  // Canonical, not the raw triple: two spellings of one document must resolve to
+  // one identity, or siblings get separate allowances and serialize on separate
+  // advisory locks. See buildIdentityIdKey and 20260817180400.
+  const idKey = buildIdentityIdKey(
+    profile?.id_country,
+    profile?.id_type,
+    profile?.id_number,
+  );
 
-  if (!profile || (!phone && !hasId)) {
+  if (!profile || (!phone && !idKey)) {
     return {
       wallets: [caller],
       effectiveTier: ownTier,
@@ -120,17 +224,15 @@ export async function resolveIdentityScope(
     );
   }
 
-  if (hasId) {
-    identityKeys.push(
-      `id:${profile.id_country}:${profile.id_type}:${profile.id_number}`,
-    );
+  if (idKey) {
+    identityKeys.push(`id:${idKey}`);
+    // Matches the generated `identity_id_key` column rather than the raw triple,
+    // so a document spelled differently on two profiles still pools them.
     siblingQueries.push(
       supabaseAdmin
         .from("user_kyc_profiles")
         .select("wallet_address, tier")
-        .eq("id_country", profile.id_country)
-        .eq("id_type", profile.id_type)
-        .eq("id_number", profile.id_number)
+        .eq("identity_id_key", idKey)
         .gte("tier", 2),
     );
   }

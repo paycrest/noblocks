@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAddress } from "viem";
 import { getClients, parseChainId, parseRpcUrl } from "@/app/lib/bundler/chains";
 import { executeSponsored } from "@/app/lib/bundler/executeSponsored";
+import { isValidEmbedCode } from "@/app/lib/baseBuilderCode";
 
 /**
  * POST /api/bundler/execute-sponsored
@@ -17,12 +18,22 @@ export async function POST(request: NextRequest) {
     const rpcUrl = parseRpcUrl(chainId);
     const eip7702Authorization = body?.eip7702Authorization;
     const delegationContractAddress = body?.delegationContractAddress;
+    // Attribution code is appended to calldata the sponsor pays gas for, so only the
+    // exact derived shape is accepted; anything else is rejected rather than forwarded.
+    const rawEmbedCode = body?.embedCode;
+    const embedCode = isValidEmbedCode(rawEmbedCode) ? rawEmbedCode : undefined;
 
     if (!accountAddress || typeof accountAddress !== "string" || !/^0x[0-9a-fA-F]{40}$/.test(accountAddress)) {
       return NextResponse.json({ error: "accountAddress (0x + 40 hex) is required" }, { status: 400 });
     }
     if (!callData || typeof callData !== "string" || !callData.startsWith("0x")) {
       return NextResponse.json({ error: "callData (0x-prefixed hex string) is required" }, { status: 400 });
+    }
+    if (rawEmbedCode != null && embedCode === undefined) {
+      return NextResponse.json(
+        { error: "embedCode must be e_ followed by 8 lowercase hex characters" },
+        { status: 400 },
+      );
     }
 
     if (eip7702Authorization) {
@@ -69,6 +80,7 @@ export async function POST(request: NextRequest) {
       callData: callData as `0x${string}`,
       eip7702Authorization: eip7702Authorization ?? undefined,
       gasLimit,
+      embedCode,
     });
 
     return NextResponse.json({

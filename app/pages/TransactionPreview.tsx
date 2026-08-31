@@ -26,9 +26,9 @@ import {
 } from "../utils";
 import { isValidSolanaAddress } from "../lib/validation";
 import { tokensEqual, toAggregatorToken } from "../lib/token-symbol";
-import { useNetwork, useTokens, useStarknet, useSolana } from "../context";
+import { useNetwork, useTokens, useStarknet, useSolana, useEmbed } from "../context";
 import config, { getDelegationContractAddress } from "../lib/config";
-import { appendBaseBuilderCode } from "../lib/baseBuilderCode";
+import { appendAttributionSuffix } from "../lib/baseBuilderCode";
 import { mapReportAndAct } from "../lib/toastMappedError";
 import type {
   Token,
@@ -139,7 +139,7 @@ export const TransactionPreview = ({
   const shouldUseEOA = useShouldUseEOA();
   const { isLoading: isMigrationLoading } = useMigrationStatus();
   const { signDelegationAuthorization } = useDelegationContractAuth();
-
+  const { embedCode } = useEmbed();
 
   const { selectedNetwork } = useNetwork();
   const { allTokens } = useTokens();
@@ -219,9 +219,10 @@ export const TransactionPreview = ({
   }, [isInjectedWallet, injectedReady, getInjectedToken]);
 
   useEffect(() => {
-    if (!isOnramp) return;
-    // Reset on every currency change so a cached NGN account isn't submitted for KES/TZS/UGX orders.
     setRefundAccount(null);
+    setRefundAccountModalOpen(false);
+    if (!isOnramp || !currency?.trim()) return;
+    const orderCurrency = currency.trim().toUpperCase();
     let cancelled = false;
     void (async () => {
       try {
@@ -230,8 +231,13 @@ export const TransactionPreview = ({
           interactive: false,
         });
         if ((!accessToken && !injectedToken) || cancelled) return;
-        const saved = await fetchRefundAccount(accessToken, injectedToken);
-        if (!cancelled && saved) {
+        const saved = await fetchRefundAccount(
+          orderCurrency,
+          accessToken,
+          injectedToken,
+        );
+        if (cancelled) return;
+        if (saved) {
           setRefundAccount(saved);
         }
       } catch {
@@ -698,9 +704,10 @@ export const TransactionPreview = ({
               {
                 from: injectedAddress,
                 to: tokenAddress,
-                data: appendBaseBuilderCode(
+                data: appendAttributionSuffix(
                   selectedNetwork.chain.id,
                   approvalData,
+                  embedCode,
                 ),
               },
             ],
@@ -746,9 +753,10 @@ export const TransactionPreview = ({
             {
               from: injectedAddress,
               to: gatewayAddress,
-              data: appendBaseBuilderCode(
+              data: appendAttributionSuffix(
                 selectedNetwork.chain.id,
                 createOrderData,
+                embedCode,
               ),
             },
           ],
@@ -870,6 +878,7 @@ export const TransactionPreview = ({
           callData,
           delegationContractAddress,
           ...(authorization != null && { eip7702Authorization: authorization }),
+          ...(embedCode && { embedCode }),
         };
 
         await captureSubmissionBlock();
@@ -949,33 +958,49 @@ export const TransactionPreview = ({
               ? [
                   {
                     to: tokenAddress,
-                    data: encodeFunctionData({
-                      abi: erc20Abi,
-                      functionName: "approve",
-                      args: [
-                        gatewayAddress,
-                        gatewayApprovalAmount(requiredSpend),
-                      ],
-                    }),
+                    // Privy's dataSuffix plugin already appends BASE_BUILDER_CODE_SUFFIX,
+                    // but the aggregator parser reads the LAST suffix from calldata.
+                    // So we append the multi-code suffix here, which will be parsed
+                    // instead of the Privy plugin's single-code suffix.
+                    data: appendAttributionSuffix(
+                      selectedNetwork.chain.id,
+                      encodeFunctionData({
+                        abi: erc20Abi,
+                        functionName: "approve",
+                        args: [
+                          gatewayAddress,
+                          gatewayApprovalAmount(requiredSpend),
+                        ],
+                      }),
+                      embedCode,
+                    ),
                   },
                 ]
               : []),
             // Create order
             {
               to: gatewayAddress,
-              data: encodeFunctionData({
-                abi: gatewayAbi,
-                functionName: "createOrder",
-                args: [
-                  params.token,
-                  params.amount,
-                  params.rate,
-                  params.senderFeeRecipient,
-                  params.senderFee,
-                  params.refundAddress ?? "",
-                  params.messageHash,
-                ],
-              }),
+              // Privy's dataSuffix plugin already appends BASE_BUILDER_CODE_SUFFIX,
+              // but the aggregator parser reads the LAST suffix from calldata.
+              // So we append the multi-code suffix here, which will be parsed
+              // instead of the Privy plugin's single-code suffix.
+              data: appendAttributionSuffix(
+                selectedNetwork.chain.id,
+                encodeFunctionData({
+                  abi: gatewayAbi,
+                  functionName: "createOrder",
+                  args: [
+                    params.token,
+                    params.amount,
+                    params.rate,
+                    params.senderFeeRecipient,
+                    params.senderFee,
+                    params.refundAddress ?? "",
+                    params.messageHash,
+                  ],
+                }),
+                embedCode,
+              ),
             },
           ],
         });
@@ -1036,6 +1061,15 @@ export const TransactionPreview = ({
     if (isOnramp) {
       if (!refundAccount) {
         toast.error("Add a refund account to continue");
+        return;
+      }
+      const orderCurrency = currency?.trim().toUpperCase() ?? "";
+      if (
+        !orderCurrency ||
+        refundAccount.currency.trim().toUpperCase() !== orderCurrency
+      ) {
+        toast.error("Add a refund account for this currency to continue");
+        setRefundAccount(null);
         return;
       }
       if (!walletAddress) {

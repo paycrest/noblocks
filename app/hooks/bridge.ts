@@ -408,6 +408,12 @@ export function useBridgeExecute({
   const selectedNetworkRef = useRef(selectedNetwork);
   useEffect(() => { selectedNetworkRef.current = selectedNetwork; }, [selectedNetwork]);
 
+<<<<<<< HEAD
+=======
+  const textileIdempotencyRef = useRef<{ quoteKey: string; key: string } | null>(
+    null,
+  );
+>>>>>>> a14c1a1732ea49d9a9d37b4b1d1ca7ee93bbe169
   // Use a ref for embedCode to avoid stale closure issues
   const embedCodeRef = useRef(embedCode);
   useEffect(() => { embedCodeRef.current = embedCode; }, [embedCode]);

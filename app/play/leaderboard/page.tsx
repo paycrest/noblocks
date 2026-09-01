@@ -38,28 +38,32 @@ export default function LeaderboardPage() {
   const { authenticated } = usePrivy();
   const { joined } = useJoinStatus();
 
-  const { data, isPending, isFetching, isError, refetch } = useLeaderboard(
-    page,
-    findMe,
-  );
+  const { data, isPending, isFetching, isPlaceholderData, isError, refetch } =
+    useLeaderboard(page, findMe);
 
   useEffect(() => {
     trackEvent("leaderboard_viewed", { page });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // keepPreviousData hands back the outgoing page's rows the instant findMe
+  // flips the query key, so `data` is non-null before the find request has run.
+  // Acting on that placeholder would set the page back to where we already were
+  // and clear findMe, silently cancelling the jump — wait for the real result.
   useEffect(() => {
-    if (findMe && data) {
+    if (findMe && data && !isPlaceholderData) {
       setPage(data.page);
       setFindMe(false);
     }
-  }, [findMe, data]);
+  }, [findMe, data, isPlaceholderData]);
 
   // Landing on the right page is not enough — on a full page of 50 the "You"
   // row is usually below the fold. Once the rows holding it are committed,
   // bring it to the middle of the viewport and ring it.
   useEffect(() => {
-    if (!pendingSelfScroll || !data) return;
+    // Placeholder rows belong to the page we are leaving: scrolling to them, or
+    // concluding from them that there is no self row, both break the jump.
+    if (!pendingSelfScroll || !data || isPlaceholderData) return;
     const hasSelf = data.rows.some((row) => row.is_me);
     if (!hasSelf) {
       // Signed in but not ranked yet (no scores computed) — nothing to jump to.
@@ -73,7 +77,7 @@ export default function LeaderboardPage() {
     // preventScroll: scrollIntoView above already owns the movement, and
     // focus() would otherwise jump instantly and cancel the smooth scroll.
     row?.focus({ preventScroll: true });
-  }, [pendingSelfScroll, data, findMe]);
+  }, [pendingSelfScroll, data, findMe, isPlaceholderData]);
 
   useEffect(() => {
     if (!highlightSelf) return;

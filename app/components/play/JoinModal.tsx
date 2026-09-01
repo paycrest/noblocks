@@ -10,7 +10,7 @@
  * of dumping the user on /play/team with the code lost.
  */
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { usePrivy } from "@privy-io/react-auth";
@@ -46,6 +46,11 @@ export const JoinModal = ({
   const [username, setUsername] = useState("");
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [suggestions, setSuggestions] = useState<string[]>([]);
+  // The invite redemption is awaited *after* onClose, so this component stays
+  // mounted and reopenable while the request is in flight. The ref blocks a
+  // second redemption; the state keeps the submit button disabled meanwhile.
+  const [redeemingInvite, setRedeemingInvite] = useState(false);
+  const redeemingInviteRef = useRef(false);
 
   const { result, checking } = useUsernameAvailability(username);
   const join = useJoinLeague();
@@ -61,7 +66,11 @@ export const JoinModal = ({
     : (result?.suggestions ?? []);
 
   const canSubmit =
-    trimmed.length >= 3 && acceptTerms && available && !join.isPending;
+    trimmed.length >= 3 &&
+    acceptTerms &&
+    available &&
+    !join.isPending &&
+    !redeemingInvite;
 
   /**
    * Redeem the invite the user arrived with. A bad or already-used code must not
@@ -69,6 +78,9 @@ export const JoinModal = ({
    * the code pre-filled rather than surfacing a dead end.
    */
   const joinInvitedLeague = async (code: string) => {
+    if (redeemingInviteRef.current) return;
+    redeemingInviteRef.current = true;
+    setRedeemingInvite(true);
     try {
       const token = await getAccessToken();
       if (!token) throw new PlayApiError("Unauthorized", 401);
@@ -84,6 +96,9 @@ export const JoinModal = ({
           : "Couldn't join that league — try the code below.",
       );
       router.push(leagueJoinPath(code));
+    } finally {
+      redeemingInviteRef.current = false;
+      setRedeemingInvite(false);
     }
   };
 
@@ -158,7 +173,7 @@ export const JoinModal = ({
               maxLength={20}
               autoComplete="off"
               autoFocus
-              disabled={join.isPending}
+              disabled={join.isPending || redeemingInvite}
               className="w-full border-0 bg-transparent pt-1 text-base font-medium text-text-body placeholder:text-text-placeholder focus:outline-none focus:ring-0 dark:text-white dark:placeholder:text-white/30"
             />
             {trimmed.length >= 3 &&
@@ -227,7 +242,11 @@ export const JoinModal = ({
           disabled={!canSubmit}
           className={`w-full ${primaryButtonClasses}`}
         >
-          {join.isPending ? "Joining..." : "Join the league"}
+          {redeemingInvite
+            ? "Joining your league..."
+            : join.isPending
+              ? "Joining..."
+              : "Join the league"}
         </button>
       </motion.div>
     </AnimatedModal>

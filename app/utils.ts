@@ -166,7 +166,12 @@ export function formatKesMpesaAccountDisplay(
   return `${id} • M-PESA`;
 }
 
-/** Resolve institution display for preview/history, including KES channel rails. */
+/**
+ * Resolve institution display for preview/history, including KES channel rails.
+ * With `accountIdentifier` set, returns the full account line (`id • name`);
+ * otherwise just the institution label. Channel-less KES M-Pesa recipients get
+ * the generic `M-PESA` label — never a channel name, even against an expanded list.
+ */
 export function formatRecipientInstitutionDisplay(
   institutionCode: string,
   supportedInstitutions: InstitutionProps[],
@@ -180,8 +185,7 @@ export function formatRecipientInstitutionDisplay(
   const channel = options?.channel;
   const isKesMpesa =
     (options?.currency ?? "").toUpperCase() === "KES" &&
-    institutionCode === KES_MPESA_INSTITUTION_CODE &&
-    !!channel;
+    institutionCode === KES_MPESA_INSTITUTION_CODE;
 
   if (isKesMpesa && options?.accountIdentifier !== undefined) {
     return formatKesMpesaAccountDisplay(
@@ -195,10 +199,12 @@ export function formatRecipientInstitutionDisplay(
     return getKesMpesaInstitutionLabel(channel);
   }
 
-  return (
+  const institutionName =
     getInstitutionNameByCode(institutionCode, supportedInstitutions) ??
-    institutionCode
-  );
+    institutionCode;
+  return options?.accountIdentifier !== undefined
+    ? `${options.accountIdentifier} • ${institutionName}`
+    : institutionName;
 }
 
 /**

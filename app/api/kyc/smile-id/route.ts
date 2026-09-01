@@ -7,8 +7,28 @@ import {
   type SmileIDIdInfo,
 } from "@/app/lib/smileID";
 
+import idTypesData from "./id_types.json";
+
 import { rateLimit } from "@/app/lib/rate-limit";
 import { notifyKycResultEmail } from "@/app/lib/activepieces-kyc-result";
+
+/**
+ * Country|ID-type pairs the app actually offers. The KYC modal builds its
+ * dropdown from the same catalogue, so any other pair reaching this route is a
+ * stale or hand-crafted request for a product we have not enabled on Smile ID.
+ */
+const SUPPORTED_COUNTRY_ID_TYPES: ReadonlySet<string> = new Set(
+  idTypesData.continents.flatMap((continent) =>
+    continent.countries.flatMap((country) =>
+      country.id_types.map((idType) => `${country.code}|${idType.type}`),
+    ),
+  ),
+);
+
+function isSupportedCountryIdType(country: string, idType: string): boolean {
+  const key = `${country.trim().toUpperCase()}|${idType.trim().toUpperCase()}`;
+  return SUPPORTED_COUNTRY_ID_TYPES.has(key);
+}
 
 type SmileFailureCategory = "database" | "quality" | "liveness" | "mismatch" | "general";
 
@@ -72,6 +92,18 @@ export async function POST(request: NextRequest) {
         {
           status: "error",
           message: "Missing id_info: country and id_type are required",
+        },
+        { status: 400 },
+      );
+    }
+
+    // Reject unsupported pairs before the attempt counter is incremented, so a
+    // request Smile ID can never verify does not burn one of the user's tries.
+    if (!isSupportedCountryIdType(id_info.country, id_info.id_type)) {
+      return NextResponse.json(
+        {
+          status: "error",
+          message: "Unsupported ID type for the selected country.",
         },
         { status: 400 },
       );

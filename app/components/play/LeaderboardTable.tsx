@@ -9,6 +9,9 @@ import Link from "next/link";
 import { ArrowDown01Icon, ArrowUp01Icon } from "hugeicons-react";
 import type { LeaderboardRowData } from "./types";
 
+/** DOM id of the signed-in user's row — the Find me scroll target. */
+export const SELF_ROW_ID = "leaderboard-self-row";
+
 const managerHref = (username: string) =>
   `/play/manager/${encodeURIComponent(username)}`;
 
@@ -49,9 +52,12 @@ const Movement = ({ value }: { value: number }) => {
 export const LeaderboardTable = ({
   rows,
   compact = false,
+  highlightSelf = false,
 }: {
   rows: LeaderboardRowData[];
   compact?: boolean;
+  /** Flash the "You" row after a Find me jump so it is obvious where you landed. */
+  highlightSelf?: boolean;
 }) => {
   const router = useRouter();
 
@@ -70,17 +76,26 @@ export const LeaderboardTable = ({
           {rows.map((row) => (
             <tr
               key={`${row.rank}-${row.username ?? "anon"}`}
-              id={row.is_me ? "leaderboard-self-row" : undefined}
+              id={row.is_me ? SELF_ROW_ID : undefined}
+              tabIndex={row.is_me ? -1 : undefined}
+              aria-current={row.is_me ? "true" : undefined}
               onClick={
                 row.username
                   ? () => router.push(managerHref(row.username!))
                   : undefined
               }
-              className={`border-b border-border-light last:border-0 dark:border-white/5 ${
+              className={`border-b border-border-light last:border-0 transition-colors duration-500 dark:border-white/5 ${
                 row.username ? "cursor-pointer" : ""
               } ${
                 row.is_me
-                  ? "bg-lavender-50 dark:bg-lavender-500/10"
+                  ? // The Find me flash deepens the row's own wash rather than
+                    // ringing it: a ring is a square rectangle, and on the last
+                    // row the wrapper's rounded-2xl clips its bottom corners, so
+                    // the outline visibly breaks against the curve. Backgrounds
+                    // follow that clip cleanly.
+                    highlightSelf
+                    ? "bg-lavender-200 dark:bg-lavender-500/40"
+                    : "bg-lavender-50 dark:bg-lavender-500/10"
                   : compact
                     ? ""
                     : "hover:bg-background-neutral dark:hover:bg-white/[.03]"

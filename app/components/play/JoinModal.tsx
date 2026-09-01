@@ -4,11 +4,17 @@
  * Join-the-league modal: pick a permanent username (debounced availability
  * check + suggestions), accept the T&Cs, and POST /api/play/join. Handles the
  * 409 username race by surfacing the server's suggestions.
+ *
+ * With an `inviteCode` (arrived via a friend's mini-league link) the modal also
+ * joins that league straight after, so the invite finishes in one pass instead
+ * of dumping the user on /play/team with the code lost.
  */
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { usePrivy } from "@privy-io/react-auth";
+import { useQueryClient } from "@tanstack/react-query";
 import { DialogTitle } from "@headlessui/react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
@@ -19,21 +25,32 @@ import {
 } from "hugeicons-react";
 import { AnimatedModal } from "../AnimatedComponents";
 import { trackEvent } from "@/app/hooks/analytics/client";
-import { PlayApiError } from "./api";
-import { useJoinLeague, useUsernameAvailability } from "./hooks";
+import { PlayApiError, joinMiniLeague } from "./api";
+import { playKeys, useJoinLeague, useUsernameAvailability } from "./hooks";
+import { leagueJoinPath } from "./league-invite";
 import { primaryButtonClasses } from "./ui";
 
 export const JoinModal = ({
   isOpen,
   onClose,
+  inviteCode = null,
 }: {
   isOpen: boolean;
   onClose: () => void;
+  /** Mini-league code from a `?join=` invite link, joined right after signup. */
+  inviteCode?: string | null;
 }) => {
   const router = useRouter();
+  const { getAccessToken } = usePrivy();
+  const queryClient = useQueryClient();
   const [username, setUsername] = useState("");
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [suggestions, setSuggestions] = useState<string[]>([]);
+  // The invite redemption is awaited *after* onClose, so this component stays
+  // mounted and reopenable while the request is in flight. The ref blocks a
+  // second redemption; the state keeps the submit button disabled meanwhile.
+  const [redeemingInvite, setRedeemingInvite] = useState(false);
+  const redeemingInviteRef = useRef(false);
 
   const { result, checking } = useUsernameAvailability(username);
   const join = useJoinLeague();
@@ -49,7 +66,41 @@ export const JoinModal = ({
     : (result?.suggestions ?? []);
 
   const canSubmit =
-    trimmed.length >= 3 && acceptTerms && available && !join.isPending;
+    trimmed.length >= 3 &&
+    acceptTerms &&
+    available &&
+    !join.isPending &&
+    !redeemingInvite;
+
+  /**
+   * Redeem the invite the user arrived with. A bad or already-used code must not
+   * strand a brand-new manager, so any failure still hands off to Leagues with
+   * the code pre-filled rather than surfacing a dead end.
+   */
+  const joinInvitedLeague = async (code: string) => {
+    if (redeemingInviteRef.current) return;
+    redeemingInviteRef.current = true;
+    setRedeemingInvite(true);
+    try {
+      const token = await getAccessToken();
+      if (!token) throw new PlayApiError("Unauthorized", 401);
+      const { league } = await joinMiniLeague(code, token);
+      await queryClient.invalidateQueries({ queryKey: playKeys.rewards });
+      trackEvent("league_invite_redeemed", { league_id: league.id });
+      toast.success(`Joined "${league.name}"`);
+      router.push("/play/rewards");
+    } catch (error) {
+      toast.error(
+        error instanceof PlayApiError
+          ? error.message
+          : "Couldn't join that league — try the code below.",
+      );
+      router.push(leagueJoinPath(code));
+    } finally {
+      redeemingInviteRef.current = false;
+      setRedeemingInvite(false);
+    }
+  };
 
   const handleSubmit = async () => {
     if (!canSubmit) return;
@@ -71,6 +122,12 @@ export const JoinModal = ({
           : `Welcome to the league, ${data.username}!`,
       );
       onClose();
+
+      if (inviteCode) {
+        await joinInvitedLeague(inviteCode);
+        return;
+      }
+
       router.push("/play/team");
     } catch (error) {
       if (error instanceof PlayApiError) {
@@ -116,7 +173,7 @@ export const JoinModal = ({
               maxLength={20}
               autoComplete="off"
               autoFocus
-              disabled={join.isPending}
+              disabled={join.isPending || redeemingInvite}
               className="w-full border-0 bg-transparent pt-1 text-base font-medium text-text-body placeholder:text-text-placeholder focus:outline-none focus:ring-0 dark:text-white dark:placeholder:text-white/30"
             />
             {trimmed.length >= 3 &&
@@ -185,7 +242,11 @@ export const JoinModal = ({
           disabled={!canSubmit}
           className={`w-full ${primaryButtonClasses}`}
         >
-          {join.isPending ? "Joining..." : "Join the league"}
+          {redeemingInvite
+            ? "Joining your league..."
+            : join.isPending
+              ? "Joining..."
+              : "Join the league"}
         </button>
       </motion.div>
     </AnimatedModal>

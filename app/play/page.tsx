@@ -28,10 +28,19 @@ import {
 const ASSET = (name: string) => `/images/play-promo/${name}`;
 const HERO_PILL_BUTTON =
   "inline-flex min-h-0 items-center justify-center gap-1 whitespace-nowrap rounded-full bg-white px-4 py-2 text-sm font-semibold text-text-body transition-transform active:scale-[0.98] dark:bg-white dark:text-text-body";
+// The desktop banner is a fixed-aspect box whose headline, body and gaps are all
+// sized in cqw; these two buttons were its only fixed-px elements. At text-sm
+// with px-6 they needed ~308px side by side but the text column is only 35.34%
+// (~287px at the 812px design width), so the row wrapped to two lines and the
+// second button spilled through the banner's bottom edge — worse the narrower
+// the screen, since the box height shrank while the buttons did not. Sizing them
+// in cqw too keeps the pair on one line at every container width.
+const HERO_DESKTOP_BUTTON_SIZING =
+  "px-[2.1cqw] py-[1.15cqw] text-[1.6cqw]";
 const HERO_DESKTOP_PRIMARY_BUTTON =
-  "inline-flex min-h-0 items-center justify-center gap-1 whitespace-nowrap rounded-full bg-text-body px-6 py-2.5 text-sm font-semibold text-lavender-100 transition-transform hover:bg-text-body/90 active:scale-[0.98] dark:bg-black dark:text-lavender-100 dark:hover:bg-black/90";
+  `inline-flex min-h-0 items-center justify-center gap-1 whitespace-nowrap rounded-full bg-text-body ${HERO_DESKTOP_BUTTON_SIZING} font-semibold text-lavender-100 transition-transform hover:bg-text-body/90 active:scale-[0.98] dark:bg-black dark:text-lavender-100 dark:hover:bg-black/90`;
 const HERO_SECONDARY_BUTTON =
-  "inline-flex min-h-0 items-center justify-center whitespace-nowrap rounded-full bg-white/10 px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-white/20 dark:bg-white/10 dark:text-white dark:hover:bg-white/20";
+  `inline-flex min-h-0 items-center justify-center whitespace-nowrap rounded-full bg-white/10 ${HERO_DESKTOP_BUTTON_SIZING} font-semibold text-white transition-colors hover:bg-white/20 dark:bg-white/10 dark:text-white dark:hover:bg-white/20`;
 const BOTTOM_CTA_SECTION =
   "relative overflow-hidden rounded-3xl bg-text-body dark:bg-surface-overlay";
 const BOTTOM_CTA_SCRIM = "pointer-events-none absolute inset-0 z-0 bg-text-body/70 dark:bg-surface-overlay/70";
@@ -235,7 +244,11 @@ const JoinCTA = ({
     return (
       <Link
         href="/play/team"
-        className={`${buttonClassName} inline-flex items-center gap-2  px-8 py-3 ${className}`}
+        className={`${buttonClassName} inline-flex items-center gap-2 ${
+          // Callers passing their own look (the hero banners) size their own
+          // padding; only the default button needs this widening.
+          buttonClassName === primaryButtonClasses ? "px-8 py-3" : ""
+        } ${className}`}
       >
         My Team
         <ArrowRight01Icon className="size-4" />

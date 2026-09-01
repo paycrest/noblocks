@@ -5,7 +5,7 @@
  * points, with self-row highlight, "Find me" jump and pagination.
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import {
   ArrowLeft01Icon,
@@ -14,7 +14,10 @@ import {
   UserGroupIcon,
 } from "hugeicons-react";
 import { trackEvent } from "@/app/hooks/analytics/client";
-import { LeaderboardTable } from "@/app/components/play/LeaderboardTable";
+import {
+  LeaderboardTable,
+  SELF_ROW_ID,
+} from "@/app/components/play/LeaderboardTable";
 import { useJoinStatus, useLeaderboard } from "@/app/components/play/hooks";
 import {
   EmptyState,
@@ -23,13 +26,22 @@ import {
   secondaryButtonClasses,
 } from "@/app/components/play/ui";
 
+/** How long the "You" row keeps its ring after a Find me jump. */
+const SELF_HIGHLIGHT_MS = 2400;
+
 export default function LeaderboardPage() {
   const [page, setPage] = useState(1);
   const [findMe, setFindMe] = useState(false);
+  const [pendingSelfScroll, setPendingSelfScroll] = useState(false);
+  const [highlightSelf, setHighlightSelf] = useState(false);
+  const tableRef = useRef<HTMLDivElement>(null);
   const { authenticated } = usePrivy();
   const { joined } = useJoinStatus();
 
-  const { data, isPending, isError, refetch } = useLeaderboard(page, findMe);
+  const { data, isPending, isFetching, isError, refetch } = useLeaderboard(
+    page,
+    findMe,
+  );
 
   useEffect(() => {
     trackEvent("leaderboard_viewed", { page });
@@ -43,7 +55,44 @@ export default function LeaderboardPage() {
     }
   }, [findMe, data]);
 
+  // Landing on the right page is not enough — on a full page of 50 the "You"
+  // row is usually below the fold. Once the rows holding it are committed,
+  // bring it to the middle of the viewport and ring it.
+  useEffect(() => {
+    if (!pendingSelfScroll || !data) return;
+    const hasSelf = data.rows.some((row) => row.is_me);
+    if (!hasSelf) {
+      // Signed in but not ranked yet (no scores computed) — nothing to jump to.
+      if (!findMe) setPendingSelfScroll(false);
+      return;
+    }
+    setPendingSelfScroll(false);
+    setHighlightSelf(true);
+    const row = document.getElementById(SELF_ROW_ID);
+    row?.scrollIntoView({ behavior: "smooth", block: "center" });
+    // preventScroll: scrollIntoView above already owns the movement, and
+    // focus() would otherwise jump instantly and cancel the smooth scroll.
+    row?.focus({ preventScroll: true });
+  }, [pendingSelfScroll, data, findMe]);
+
+  useEffect(() => {
+    if (!highlightSelf) return;
+    const timer = window.setTimeout(
+      () => setHighlightSelf(false),
+      SELF_HIGHLIGHT_MS,
+    );
+    return () => window.clearTimeout(timer);
+  }, [highlightSelf]);
+
   const totalPages = data ? Math.max(1, Math.ceil(data.total / data.page_size)) : 1;
+
+  const goToPage = (next: number) => {
+    setPage(next);
+    setHighlightSelf(false);
+    // Keep the top of the list in view: without this the browser holds the old
+    // scroll offset and the new page appears to open halfway down.
+    tableRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
 
   return (
     <div className="space-y-4 max-lg:pb-10">
@@ -56,6 +105,7 @@ export default function LeaderboardPage() {
             type="button"
             onClick={() => {
               setFindMe(true);
+              setPendingSelfScroll(true);
             }}
             className={`${secondaryButtonClasses} inline-flex items-center gap-2`}
           >
@@ -84,11 +134,22 @@ export default function LeaderboardPage() {
         />
       ) : (
         <>
-          <LeaderboardTable rows={data.rows} />
+          {/* Rows from the previous page stay mounted while the next one loads
+              (see keepPreviousData in useLeaderboard) — dim them rather than
+              collapsing the table into skeletons on every Prev/Next. */}
+          <div
+            ref={tableRef}
+            aria-busy={isFetching}
+            className={`transition-opacity duration-200 ${
+              isFetching ? "opacity-60" : "opacity-100"
+            }`}
+          >
+            <LeaderboardTable rows={data.rows} highlightSelf={highlightSelf} />
+          </div>
           <div className="flex items-center justify-between">
             <button
               type="button"
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              onClick={() => goToPage(Math.max(1, page - 1))}
               disabled={page <= 1}
               className={`${secondaryButtonClasses} inline-flex items-center gap-1`}
             >
@@ -100,7 +161,7 @@ export default function LeaderboardPage() {
             </span>
             <button
               type="button"
-              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              onClick={() => goToPage(Math.min(totalPages, page + 1))}
               disabled={page >= totalPages}
               className={`${secondaryButtonClasses} inline-flex items-center gap-1`}
             >

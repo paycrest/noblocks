@@ -4,11 +4,17 @@
  * Join-the-league modal: pick a permanent username (debounced availability
  * check + suggestions), accept the T&Cs, and POST /api/play/join. Handles the
  * 409 username race by surfacing the server's suggestions.
+ *
+ * With an `inviteCode` (arrived via a friend's mini-league link) the modal also
+ * joins that league straight after, so the invite finishes in one pass instead
+ * of dumping the user on /play/team with the code lost.
  */
 
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { usePrivy } from "@privy-io/react-auth";
+import { useQueryClient } from "@tanstack/react-query";
 import { DialogTitle } from "@headlessui/react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
@@ -19,18 +25,24 @@ import {
 } from "hugeicons-react";
 import { AnimatedModal } from "../AnimatedComponents";
 import { trackEvent } from "@/app/hooks/analytics/client";
-import { PlayApiError } from "./api";
-import { useJoinLeague, useUsernameAvailability } from "./hooks";
+import { PlayApiError, joinMiniLeague } from "./api";
+import { playKeys, useJoinLeague, useUsernameAvailability } from "./hooks";
+import { leagueJoinPath } from "./league-invite";
 import { primaryButtonClasses } from "./ui";
 
 export const JoinModal = ({
   isOpen,
   onClose,
+  inviteCode = null,
 }: {
   isOpen: boolean;
   onClose: () => void;
+  /** Mini-league code from a `?join=` invite link, joined right after signup. */
+  inviteCode?: string | null;
 }) => {
   const router = useRouter();
+  const { getAccessToken } = usePrivy();
+  const queryClient = useQueryClient();
   const [username, setUsername] = useState("");
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [suggestions, setSuggestions] = useState<string[]>([]);
@@ -50,6 +62,30 @@ export const JoinModal = ({
 
   const canSubmit =
     trimmed.length >= 3 && acceptTerms && available && !join.isPending;
+
+  /**
+   * Redeem the invite the user arrived with. A bad or already-used code must not
+   * strand a brand-new manager, so any failure still hands off to Leagues with
+   * the code pre-filled rather than surfacing a dead end.
+   */
+  const joinInvitedLeague = async (code: string) => {
+    try {
+      const token = await getAccessToken();
+      if (!token) throw new PlayApiError("Unauthorized", 401);
+      const { league } = await joinMiniLeague(code, token);
+      await queryClient.invalidateQueries({ queryKey: playKeys.rewards });
+      trackEvent("league_invite_redeemed", { league_id: league.id });
+      toast.success(`Joined "${league.name}"`);
+      router.push("/play/rewards");
+    } catch (error) {
+      toast.error(
+        error instanceof PlayApiError
+          ? error.message
+          : "Couldn't join that league — try the code below.",
+      );
+      router.push(leagueJoinPath(code));
+    }
+  };
 
   const handleSubmit = async () => {
     if (!canSubmit) return;
@@ -71,6 +107,12 @@ export const JoinModal = ({
           : `Welcome to the league, ${data.username}!`,
       );
       onClose();
+
+      if (inviteCode) {
+        await joinInvitedLeague(inviteCode);
+        return;
+      }
+
       router.push("/play/team");
     } catch (error) {
       if (error instanceof PlayApiError) {

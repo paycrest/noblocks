@@ -6,7 +6,12 @@ import {
   trackApiResponse,
   trackApiError,
 } from "@/app/lib/server-analytics";
-import config from "@/app/lib/config";
+import {
+  aggregatorApiKeyLogPrefix,
+  aggregatorApiKeyNotFoundHint,
+  getAggregatorBaseUrlForV2,
+  getAggregatorSenderApiKeyId,
+} from "@/app/lib/aggregator-server-env";
 import { getKycFullName } from "@/app/lib/kyc-profile-server";
 import { isOnrampFiatCurrencyCode } from "@/app/utils";
 import {
@@ -27,7 +32,10 @@ export const POST = withRateLimit(async (request: NextRequest) => {
 
     trackApiRequest(request, "/api/v1/payment-orders", "POST", { wallet_address: walletAddress });
 
-    if (!config.aggregatorUrl) {
+    const aggregatorBaseUrl = getAggregatorBaseUrlForV2();
+    const senderApiKeyId = getAggregatorSenderApiKeyId();
+
+    if (!aggregatorBaseUrl) {
       trackApiError(request, "/api/v1/payment-orders", "POST", new Error("NEXT_PUBLIC_AGGREGATOR_URL is not configured"), 500);
       return NextResponse.json(
         { success: false, error: "NEXT_PUBLIC_AGGREGATOR_URL is not configured" },
@@ -35,7 +43,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
       );
     }
 
-    if (!config.aggregatorSenderApiKey?.trim()) {
+    if (!senderApiKeyId) {
       trackApiError(
         request,
         "/api/v1/payment-orders",
@@ -183,18 +191,21 @@ export const POST = withRateLimit(async (request: NextRequest) => {
       );
     }
 
-    const baseUrl = config.aggregatorUrl.replace(/\/+$/, "").replace(/\/v1$/i, "");
-    const url = `${baseUrl}/v2/sender/orders`;
+    const url = `${aggregatorBaseUrl}/v2/sender/orders`;
 
     if (process.env.NODE_ENV === "development") {
       console.log("[payment-orders] onramp→v2 url →", url);
+      console.log(
+        "[payment-orders] API-Key prefix →",
+        aggregatorApiKeyLogPrefix(senderApiKeyId),
+      );
       console.log("[payment-orders] POST payload →", JSON.stringify(body, null, 2));
     }
 
     const { data, status } = await axios.post(url, body, {
       headers: {
         "Content-Type": "application/json",
-        "API-Key": config.aggregatorSenderApiKey.trim(),
+        "API-Key": senderApiKeyId,
       },
       validateStatus: () => true,
     });
@@ -214,7 +225,9 @@ export const POST = withRateLimit(async (request: NextRequest) => {
         ? (data as { message: string }).message
         : "";
     if (status === 404 && /api key not found/i.test(msg)) {
-      return NextResponse.json(data, { status: 401 });
+      const hint = aggregatorApiKeyNotFoundHint(url);
+      console.warn("[payment-orders]", hint);
+      return NextResponse.json({ ...(data as object), hint }, { status: 401 });
     }
 
     return NextResponse.json(data, { status });

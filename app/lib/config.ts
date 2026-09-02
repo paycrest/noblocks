@@ -12,9 +12,18 @@ export const DELEGATION_CONTRACT_BY_CHAIN: Record<number, string> = {
   1: "0x25054a2b9D4544ed292DC1a74E8bF1f6F449d988",
 };
 
-/** Returns the delegation contract address for the given chainId. Uses NEXT_PUBLIC_DELEGATION_CONTRACT_ADDRESS if set, else DELEGATION_CONTRACT_BY_CHAIN, else "". */
-export function getDelegationContractAddress(chainId: number): string {
-  return DELEGATION_CONTRACT_BY_CHAIN[chainId] ?? "";
+/** Returns the delegation contract address for the given EVM chainId. Non-EVM chains return "". */
+export function getDelegationContractAddress(chainId: number | string): string {
+  const resolved =
+    typeof chainId === "number"
+      ? chainId
+      : typeof chainId === "string" && chainId.trim() !== ""
+        ? Number(chainId)
+        : NaN;
+  if (!Number.isFinite(resolved)) {
+    return "";
+  }
+  return DELEGATION_CONTRACT_BY_CHAIN[resolved] ?? "";
 }
 
 export const STARKNET_READY_ACCOUNT_CLASSHASH = "0x073414441639dcd11d1846f287650a00c60c416b9d3ba45d31c651672125b2c2";
@@ -71,6 +80,17 @@ const config: Config = {
   earnEnabled: process.env.NEXT_PUBLIC_EARN_ENABLED === "true",
   evmEarnEnabled: process.env.NEXT_PUBLIC_EVM_EARN_ENABLED === "true",
   tronEnabled: process.env.NEXT_PUBLIC_TRON_ENABLED === "true",
+  solanaEnabled: process.env.NEXT_PUBLIC_SOLANA_ENABLED === "true",
+  solanaRpc:
+    process.env.NEXT_PUBLIC_SOLANA_RPC ||
+    process.env.NEXT_PUBLIC_SOLANA_MAINNET_RPC ||
+    "https://api.mainnet-beta.solana.com",
+  solanaWss:
+    process.env.NEXT_PUBLIC_SOLANA_WSS ||
+    process.env.NEXT_PUBLIC_SOLANA_MAINNET_WSS ||
+    "wss://api.mainnet-beta.solana.com",
+  solanaGatewayProgramId:
+    process.env.NEXT_PUBLIC_SOLANA_GATEWAY_PROGRAM_ID || "",
   referralEnabled: (process.env.NEXT_PUBLIC_REFERRAL_ENABLED || "").trim().toLowerCase() !== "false",
   bridgeEnabled: process.env.NEXT_PUBLIC_BRIDGE_ENABLED === "true",
   hyperfxEnabled: process.env.NEXT_PUBLIC_HYPERFX_ENABLED === "true",

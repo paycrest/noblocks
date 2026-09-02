@@ -11,6 +11,7 @@ import idTypesData from "./id_types.json";
 
 import { rateLimit } from "@/app/lib/rate-limit";
 import { notifyKycResultEmail } from "@/app/lib/activepieces-kyc-result";
+import { createKycReporter, emitKycEvent } from "@/app/lib/kyc-telemetry";
 
 /**
  * Country|ID-type pairs the app actually offers. The KYC modal builds its
@@ -55,6 +56,13 @@ export async function POST(request: NextRequest) {
   // Rate limit check
   const rateLimitResult = await rateLimit(request);
   if (!rateLimitResult.success) {
+    emitKycEvent({
+      step: "id_verification",
+      outcome: "rejected",
+      targetTier: 2,
+      reason: "rate_limited",
+      statusCode: 429,
+    });
     return NextResponse.json(
       {
         status: "error",
@@ -68,11 +76,30 @@ export async function POST(request: NextRequest) {
   const walletAddress = request.headers.get("x-wallet-address");
 
   if (!walletAddress) {
+    // Not an unauthenticated user: middleware matches this route, turns those
+    // away with its own 401, and strips forged wallet headers. Reaching the
+    // handler without one means the matcher or header propagation broke.
+    emitKycEvent({
+      step: "id_verification",
+      outcome: "error",
+      targetTier: 2,
+      reason: "unauthorized",
+      statusCode: 401,
+    });
     return NextResponse.json(
       { status: "error", message: "Unauthorized" },
       { status: 401 },
     );
   }
+
+  // Every exit below reports through this, so no verification outcome — least
+  // of all a provider rejection — leaves the route without a Datadog line.
+  const report = createKycReporter({
+    step: "id_verification",
+    walletAddress,
+    targetTier: 2,
+    provider: "smile_id",
+  });
 
   try {
     const body = await request.json();
@@ -80,6 +107,11 @@ export async function POST(request: NextRequest) {
 
     // Validate required fields
     if (!images || !Array.isArray(images) || images.length === 0) {
+      report.rejected({
+        stage: "request_validation",
+        reason: "invalid_images",
+        statusCode: 400,
+      });
       return NextResponse.json(
         { status: "error", message: "Invalid images data" },
         { status: 400 },
@@ -88,6 +120,11 @@ export async function POST(request: NextRequest) {
 
     // Validate id_info for Job Type 1 (Biometric KYC)
     if (!id_info?.country || !id_info?.id_type) {
+      report.rejected({
+        stage: "request_validation",
+        reason: "missing_id_info",
+        statusCode: 400,
+      });
       return NextResponse.json(
         {
           status: "error",
@@ -97,9 +134,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Country|ID-type is known from here on: carried on every line so
+    // "which ID types fail most" is a group-by rather than an investigation.
+    const idContext = {
+      idCountry: id_info.country,
+      idType: id_info.id_type,
+    };
+
     // Reject unsupported pairs before the attempt counter is incremented, so a
     // request Smile ID can never verify does not burn one of the user's tries.
     if (!isSupportedCountryIdType(id_info.country, id_info.id_type)) {
+      report.rejected({
+        ...idContext,
+        stage: "request_validation",
+        reason: "unsupported_id_type",
+        statusCode: 400,
+      });
       return NextResponse.json(
         {
           status: "error",
@@ -118,6 +168,15 @@ export async function POST(request: NextRequest) {
         .maybeSingle();
 
     if (profileFetchError) {
+      report.failed({
+        ...idContext,
+        stage: "profile_fetch",
+        reason: "supabase_error",
+        provider: "supabase",
+        providerCode: profileFetchError.code,
+        detail: profileFetchError.message,
+        statusCode: 500,
+      });
       return NextResponse.json(
         {
           status: "error",
@@ -128,6 +187,12 @@ export async function POST(request: NextRequest) {
     }
 
     if (!existingProfile) {
+      report.rejected({
+        ...idContext,
+        stage: "profile_fetch",
+        reason: "no_kyc_profile",
+        statusCode: 404,
+      });
       return NextResponse.json(
         {
           status: "error",
@@ -139,6 +204,13 @@ export async function POST(request: NextRequest) {
     }
 
     if (existingProfile.tier < 1) {
+      report.rejected({
+        ...idContext,
+        stage: "profile_fetch",
+        reason: "phone_verification_required",
+        tierFrom: Number(existingProfile.tier) || 0,
+        statusCode: 403,
+      });
       return NextResponse.json(
         {
           status: "error",
@@ -149,18 +221,38 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const tierFrom = Number(existingProfile.tier) || 0;
+
     // Tier 2 allows up to 3 attempts
+    const MAX_ATTEMPTS = 3;
     const { data: newAttemptCount, error: rpcError } = await supabaseAdmin.rpc(
       "increment_kyc_attempts",
-      { p_wallet_address: walletAddress, p_max_attempts: 3 },
+      { p_wallet_address: walletAddress, p_max_attempts: MAX_ATTEMPTS },
     );
     if (rpcError) {
+      report.failed({
+        ...idContext,
+        stage: "attempt_counter",
+        reason: "supabase_error",
+        provider: "supabase",
+        providerCode: rpcError.code,
+        detail: rpcError.message,
+        tierFrom,
+        statusCode: 500,
+      });
       return NextResponse.json(
         { status: "error", message: "Failed to process verification attempt." },
         { status: 500 },
       );
     }
     if (newAttemptCount === -1) {
+      report.rejected({
+        ...idContext,
+        stage: "attempt_counter",
+        reason: "no_kyc_profile",
+        tierFrom,
+        statusCode: 404,
+      });
       return NextResponse.json(
         {
           status: "error",
@@ -170,6 +262,17 @@ export async function POST(request: NextRequest) {
       );
     }
     if (newAttemptCount === -2) {
+      // The user is now stuck until support intervenes — the one rejection
+      // that always needs a human, so it must be findable by wallet address.
+      report.rejected({
+        ...idContext,
+        stage: "attempt_counter",
+        reason: "attempts_exhausted",
+        tierFrom,
+        attempt: MAX_ATTEMPTS,
+        attemptsRemaining: 0,
+        statusCode: 429,
+      });
       return NextResponse.json(
         {
           status: "error",
@@ -178,6 +281,11 @@ export async function POST(request: NextRequest) {
         { status: 429 },
       );
     }
+
+    const attemptContext = {
+      attempt: Number(newAttemptCount) || null,
+      attemptsRemaining: Math.max(0, MAX_ATTEMPTS - (Number(newAttemptCount) || 0)),
+    };
 
     // Use server utility to submit SmileID job
     type SmileIdResultType = {
@@ -201,11 +309,33 @@ export async function POST(request: NextRequest) {
       user_id = result.user_id;
     } catch (err) {
       if (err instanceof SmileIdValidationError) {
+        report.rejected({
+          ...idContext,
+          ...attemptContext,
+          stage: "provider_submit",
+          reason: "id_info_validation_failed",
+          detail: err.message,
+          tierFrom,
+          statusCode: 400,
+        });
         return NextResponse.json(
           { status: "error", message: err.message },
           { status: 400 },
         );
       }
+      // Misconfiguration and Smile ID transport failures both land here, and
+      // both look identical to the user ("verification failed").
+      report.failed({
+        ...idContext,
+        ...attemptContext,
+        stage: "provider_submit",
+        reason: "provider_request_failed",
+        detail: err instanceof Error ? err.message : String(err),
+        error: err,
+        tierFrom,
+        jobType: getJobTypeForIdType(id_info.id_type),
+        statusCode: 500,
+      });
       return NextResponse.json(
         {
           status: "error",
@@ -237,23 +367,55 @@ export async function POST(request: NextRequest) {
         smileIdResult?.ResultText || "SmileID verification failed";
       const category = classifySmileIdFailure(errorMessage);
 
+      const isInfrastructureFailure = category === "database";
+
+      // The line support reads. `detail` is Smile ID's own ResultText — the
+      // actual reason the upgrade failed — and the category decides whether
+      // this is a user-facing rejection or an outage worth paging on.
+      const outcomeContext = {
+        ...idContext,
+        ...attemptContext,
+        // The refund below restores the try, so report what the user can
+        // actually retry with rather than the pre-refund count. If the refund
+        // itself fails it gets its own line.
+        attemptsRemaining: isInfrastructureFailure
+          ? Math.max(0, MAX_ATTEMPTS - Math.max(0, newAttemptCount - 1))
+          : attemptContext.attemptsRemaining,
+        stage: "provider_verify",
+        detail: errorMessage,
+        failureCategory: category,
+        providerCode: smileIdResult?.ResultCode,
+        jobId: job_id,
+        jobType: getJobTypeForIdType(id_info.id_type),
+        tierFrom,
+        statusCode: 400,
+      };
+      if (isInfrastructureFailure) {
+        report.failed({ ...outcomeContext, reason: "provider_unavailable" });
+      } else {
+        report.rejected({ ...outcomeContext, reason: "provider_rejected" });
+      }
+
       // Infrastructure outages should not count against the user's attempt quota
       // regardless of job type (Job Type 1, 5, or 6). Restore the counter that
       // was incremented above so they can retry freely.
-      if (category === "database") {
-        console.warn("[smile-id] infrastructure failure detected — restoring attempt counter", {
-          walletAddress,
-          jobType: getJobTypeForIdType(id_info.id_type),
-          resultText: errorMessage,
-        });
+      if (isInfrastructureFailure) {
         const { error: restoreError } = await supabaseAdmin
           .from("user_kyc_profiles")
           .update({ attempts: Math.max(0, newAttemptCount - 1) })
           .eq("wallet_address", walletAddress);
         if (restoreError) {
-          console.error("[smile-id] failed to restore attempt counter after infrastructure failure", {
-            walletAddress,
-            error: restoreError.message,
+          // The user keeps a try they should have been refunded — silent to
+          // them, and only visible here.
+          report.failed({
+            ...idContext,
+            ...attemptContext,
+            stage: "attempt_restore",
+            reason: "supabase_error",
+            provider: "supabase",
+            providerCode: restoreError.code,
+            detail: restoreError.message,
+            tierFrom,
           });
         }
       }
@@ -302,9 +464,7 @@ export async function POST(request: NextRequest) {
     ];
 
     // Tier 2 (ID) only after Tier 1 (phone): do not promote from tier 0 straight to 2
-    const currentTier = Number(existingProfile?.tier) || 0;
-    const newTier =
-      currentTier >= 1 ? Math.max(currentTier, 2) : currentTier;
+    const newTier = tierFrom >= 1 ? Math.max(tierFrom, 2) : tierFrom;
 
     const derivedFullName =
       smileIdInfo.full_name ||
@@ -338,12 +498,35 @@ export async function POST(request: NextRequest) {
         .maybeSingle();
 
       if (idOwnerError) {
+        report.failed({
+          ...idContext,
+          ...attemptContext,
+          stage: "duplicate_id_check",
+          reason: "supabase_error",
+          provider: "supabase",
+          providerCode: idOwnerError.code,
+          detail: idOwnerError.message,
+          tierFrom,
+          jobId: job_id,
+          statusCode: 500,
+        });
         return NextResponse.json(
           { status: "error", message: "Failed to save KYC data" },
           { status: 500 },
         );
       }
       if (idOwner) {
+        // Smile ID verified them; we refused. Support cannot resolve this
+        // without knowing it happened, and the user is told to contact them.
+        report.rejected({
+          ...idContext,
+          ...attemptContext,
+          stage: "duplicate_id_check",
+          reason: "duplicate_id_document",
+          tierFrom,
+          jobId: job_id,
+          statusCode: 409,
+        });
         return NextResponse.json(
           {
             status: "error",
@@ -379,6 +562,17 @@ export async function POST(request: NextRequest) {
       // 23505: partial unique index on verified ID documents (concurrent
       // verification of the same document on another non-injected wallet).
       if (supabaseError.code === "23505") {
+        report.rejected({
+          ...idContext,
+          ...attemptContext,
+          stage: "profile_update",
+          reason: "duplicate_id_document",
+          provider: "supabase",
+          providerCode: supabaseError.code,
+          tierFrom,
+          jobId: job_id,
+          statusCode: 409,
+        });
         return NextResponse.json(
           {
             status: "error",
@@ -388,6 +582,20 @@ export async function POST(request: NextRequest) {
           { status: 409 },
         );
       }
+      // Verification passed and the write failed: the worst case, because the
+      // user has spent an attempt on a document that did verify.
+      report.failed({
+        ...idContext,
+        ...attemptContext,
+        stage: "profile_update",
+        reason: "supabase_error",
+        provider: "supabase",
+        providerCode: supabaseError.code,
+        detail: supabaseError.message,
+        tierFrom,
+        jobId: job_id,
+        statusCode: 500,
+      });
       return NextResponse.json(
         {
           status: "error",
@@ -399,6 +607,16 @@ export async function POST(request: NextRequest) {
 
     // Verify that a row was actually updated
     if (!updatedProfile || updatedProfile.length === 0) {
+      report.failed({
+        ...idContext,
+        ...attemptContext,
+        stage: "profile_update",
+        reason: "no_rows_updated",
+        provider: "supabase",
+        tierFrom,
+        jobId: job_id,
+        statusCode: 404,
+      });
       return NextResponse.json(
         {
           status: "error",
@@ -419,13 +637,24 @@ export async function POST(request: NextRequest) {
     // skips when the profile is already verified, so this won't double-send).
     // Resolve the recipient from the authenticated wallet (never the client-supplied
     // `email`) and dispatch after the response so webhook latency can't block KYC.
-    if (newTier >= 2 && currentTier < 2) {
+    if (newTier >= 2 && tierFrom < 2) {
       notifyKycResultEmail(walletAddress, {
         event: "kyc_result",
         status: "success",
         tier: newTier,
       });
     }
+
+    report.success({
+      ...idContext,
+      ...attemptContext,
+      stage: "profile_update",
+      tierFrom,
+      tierTo: newTier,
+      jobId: job_id,
+      jobType: getJobTypeForIdType(id_info.id_type),
+      statusCode: 200,
+    });
 
     return NextResponse.json({
       status: "success",
@@ -436,6 +665,13 @@ export async function POST(request: NextRequest) {
       },
     });
   } catch (error) {
+    report.failed({
+      stage: "unhandled",
+      reason: "unexpected_error",
+      detail: error instanceof Error ? error.message : String(error),
+      error,
+      statusCode: 500,
+    });
     return NextResponse.json(
       {
         status: "error",

@@ -120,6 +120,82 @@ liability. The threshold monitors would likewise fire on staging noise.
 The first one is the one that matters. When the cron dies, nothing else
 anywhere reports it.
 
+## KYC telemetry
+
+The KYC flow reports through `app/lib/kyc-telemetry.ts`: one structured line per
+step outcome, message `kyc step`, flattened into `@kyc.*` attributes. Its
+purpose is answering "why did this user's upgrade fail?" from the Logs Explorer
+instead of asking the user what the screen said.
+
+Every exit path in the KYC routes emits exactly one line — the tier 1 OTP send
+and verify, the tier 2 ID submission and its async Smile ID callback, and the
+tier 3 address check. `/api/kyc/status` reports failures only; every KYC surface
+polls it, so its successes would bury everything else.
+
+| Attribute | Meaning |
+| --- | --- |
+| `@kyc.step` | `signup_email`, `phone_otp_send`, `phone_otp_verify`, `id_verification`, `id_callback`, `address_verification`, `status` |
+| `@kyc.outcome` | `success`, `rejected`, `error`, `noop` (see below) |
+| `@kyc.ok` | `true` only on `success` — the boolean twin of `outcome` |
+| `@kyc.detail` | **The provider's own words.** Smile ID `ResultText`, Dojah's message, the Postgres error |
+| `@kyc.reason` | Stable cause: `provider_rejected`, `attempts_exhausted`, `duplicate_id_document`, `invalid_otp`, `supabase_error`, … |
+| `@kyc.stage` | Where in the route: `provider_verify`, `profile_update`, `attempt_counter`, `otp_check`, … |
+| `@kyc.failure_category` | `classifySmileIdFailure` output: `quality`, `liveness`, `mismatch`, `database`, `general` |
+| `@kyc.wallet_address` | Lower-cased. The key support searches on |
+| `@kyc.tier_from` / `@kyc.tier_to` / `@kyc.promoted` | The tier change, and whether one happened |
+| `@kyc.attempt` / `@kyc.attempts_remaining` | How close the user is to being locked out |
+| `@kyc.provider` / `@kyc.provider_code` / `@kyc.job_id` | `smile_id`, `dojah`, `kudisms`, `twilio`, `supabase`, plus their codes |
+| `@kyc.duration_ms` / `@kyc.status_code` | Wall time and the HTTP status returned |
+
+`outcome` is the distinction that makes alerting possible. A `rejected` line is
+a legitimate refusal — a mistyped OTP, a blurry document, Smile ID saying no —
+and logs at `warn`. An `error` line is our fault, the database's, or a
+provider's, and logs at `error`. Without the split, an outage monitor would be
+drowned by users fat-fingering their OTP. `noop` (info) covers work that
+correctly did nothing, chiefly a Smile ID callback arriving after the
+synchronous path already promoted the profile.
+
+### Supporting a user
+
+```text
+service:noblocks env:production @feature:kyc @kyc.wallet_address:0x1234…
+```
+
+Lower-case the address — the facet is normalised, and a checksummed address
+pasted verbatim will not match. Read `@kyc.detail` for the underlying reason,
+`@kyc.attempts_remaining` for whether they can retry, and **View Trace** for the
+request itself.
+
+### Monitors worth having
+
+As with the worker monitors above, every query is scoped `env:production`.
+**Do not drop that scope** — staging shares this Datadog org.
+
+| Monitor | Query | Why |
+| --- | --- | --- |
+| **KYC infrastructure failure → page** | `service:noblocks env:production @feature:kyc @kyc.outcome:error` | Smile ID, Dojah, or Supabase is failing upgrades; users cannot verify at all |
+| Provider outage burning attempts → Slack | `@feature:kyc @kyc.failure_category:database` | Smile ID infrastructure failures, which refund the attempt — a spike means the provider, not our users |
+| Verified-and-lost → page | `@feature:kyc @kyc.stage:profile_update @kyc.outcome:error` | The provider approved them and the write failed: the user spent an attempt and stayed on the old tier |
+| Callback signature failures → Slack | `@feature:kyc @kyc.reason:invalid_signature` | A genuine Smile ID callback never fails this |
+| Rejection mix → dashboard | `@feature:kyc @kyc.outcome:rejected`, grouped by `@kyc.reason` and `@kyc.id_type` | Which ID types and reasons dominate; the input to fixing the flow rather than individual tickets |
+
+### Client-side
+
+`reportClientError` (`app/lib/sentry.client.ts`) forwards to
+`datadogRum.addError` alongside GlitchTip, so KYC failures that never reach the
+API — a dropped request, a refused camera, a wallet rejection — surface in RUM
+Error Tracking under their `feature` tag. RUM is consent-gated, so the server
+lines remain the complete record.
+
+### PII
+
+Wallet address is logged in the clear: it is the key support needs, and it is
+what these routes already logged. Phone numbers, emails, ID numbers, dates of
+birth, names and document images are never logged. Because Smile ID and Dojah
+quote the failing input back in their rejection messages, `sanitizeDetail`
+masks runs of six or more digits and anything email-shaped before a line ships —
+short numbers like result codes stay readable.
+
 ## Verifying
 
 Deploy, wait ~60s, then in the **EU** app:
@@ -130,6 +206,7 @@ Deploy, wait ~60s, then in the **EU** app:
 | Logs flowing | Logs Explorer → `service:noblocks env:production` |
 | Trace–log correlation | Open a log line → **View Trace** is present |
 | Worker ticks | Logs → `@feature:play @worker.ran_at:*` |
+| KYC steps | Logs → `@feature:kyc @kyc.step:*` |
 | RUM | RUM → Applications |
 | Service Catalog | Software → `noblocks` |
 

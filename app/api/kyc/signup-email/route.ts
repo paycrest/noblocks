@@ -7,6 +7,7 @@ import {
 } from "@/app/lib/server-analytics";
 import { getEmailForMonitoredAddress } from "@/app/utils";
 import config from "@/app/lib/config";
+import { createKycReporter } from "@/app/lib/kyc-telemetry";
 
 /**
  * Fires the Tier 1 "verify your phone to start swapping" email (Activepieces → Brevo)
@@ -16,12 +17,16 @@ import config from "@/app/lib/config";
  */
 export const POST = withRateLimit(async (request: NextRequest) => {
   const startTime = Date.now();
+  // The nudge that starts tier 1. When it silently fails the user is never
+  // told to verify their phone, and nothing else reports it.
+  const report = createKycReporter({ step: "signup_email", targetTier: 1 });
 
   try {
     trackApiRequest(request, "/api/kyc/signup-email", "POST");
 
     const walletAddress = request.headers.get("x-wallet-address");
     if (!walletAddress) {
+      report.rejected({ reason: "unauthorized", statusCode: 401 });
       trackApiError(
         request,
         "/api/kyc/signup-email",
@@ -37,9 +42,13 @@ export const POST = withRateLimit(async (request: NextRequest) => {
 
     const webhookUrl = config.activepiecesSignupVerifyWebhookUrl;
     if (!webhookUrl) {
-      console.error(
-        "[activepieces] ACTIVEPIECES_SIGNUP_VERIFY_WEBHOOK_URL not set — skipping signup email",
-      );
+      report.failed({
+        walletAddress,
+        stage: "signup_email_dispatch",
+        reason: "missing_webhook_config",
+        detail: "ACTIVEPIECES_SIGNUP_VERIFY_WEBHOOK_URL is not set",
+        statusCode: 200,
+      });
       return NextResponse.json({ success: true, skipped: true });
     }
 
@@ -47,6 +56,13 @@ export const POST = withRateLimit(async (request: NextRequest) => {
     // wallet/passkey signups without an email are silently skipped.
     const email = await getEmailForMonitoredAddress(walletAddress);
     if (!email) {
+      // Wallet and passkey signups have no email — expected, not a failure.
+      report.noop({
+        walletAddress,
+        stage: "signup_email_dispatch",
+        reason: "no_email_on_identity",
+        statusCode: 200,
+      });
       return NextResponse.json({ success: true, skipped: true });
     }
 
@@ -77,8 +93,21 @@ export const POST = withRateLimit(async (request: NextRequest) => {
 
     const responseTime = Date.now() - startTime;
     trackApiResponse("/api/kyc/signup-email", "POST", 200, responseTime);
+    report.success({
+      walletAddress,
+      stage: "signup_email_dispatch",
+      statusCode: 200,
+    });
     return NextResponse.json({ success: true });
   } catch (error) {
+    // Covers the webhook's own non-2xx, which is thrown above.
+    report.failed({
+      stage: "signup_email_dispatch",
+      reason: "webhook_failed",
+      detail: error instanceof Error ? error.message : String(error),
+      error,
+      statusCode: 500,
+    });
     trackApiError(
       request,
       "/api/kyc/signup-email",

@@ -85,12 +85,13 @@ function truncate(value: string, max: number): string {
   return value.length > max ? `${value.slice(0, max)}…` : value;
 }
 
+function maskSensitive(value: string): string {
+  return value.replace(EMAIL_LIKE, "[email]").replace(DIGIT_RUN, "[digits]");
+}
+
 /** Exported for the test suite — masking is the guard that keeps PII out. */
 export function sanitizeDetail(value: string): string {
-  return truncate(
-    value.replace(EMAIL_LIKE, "[email]").replace(DIGIT_RUN, "[digits]"),
-    MAX_DETAIL_LENGTH,
-  );
+  return truncate(maskSensitive(value), MAX_DETAIL_LENGTH);
 }
 
 /** Facets are only useful when absent means absent — drop empty keys. */
@@ -228,8 +229,10 @@ export function buildKycLog(event: KycEvent): KycLog {
         truncate(normalized.message, MAX_ERROR_MESSAGE_LENGTH),
       ),
       // Our own frames, and the main reason to ship an error line at all.
+      // Masked on its own budget: the first line of a stack repeats the
+      // message, so skipping it here would undo the masking above.
       stack: normalized.stack
-        ? truncate(normalized.stack, MAX_ERROR_STACK_LENGTH)
+        ? truncate(maskSensitive(normalized.stack), MAX_ERROR_STACK_LENGTH)
         : undefined,
     });
   }

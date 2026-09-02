@@ -122,6 +122,20 @@ describe("buildKycLog", () => {
     });
   });
 
+  it("masks the stack too — its first line repeats the message", () => {
+    const error = new Error("ID 12345678901 could not be verified");
+    const log = buildKycLog({
+      step: "id_verification",
+      outcome: "error",
+      error,
+    });
+
+    const shipped = log.attributes.error as { message: string; stack: string };
+    expect(shipped.message).toBe("ID [digits] could not be verified");
+    expect(shipped.stack).toContain("ID [digits] could not be verified");
+    expect(shipped.stack).not.toContain("12345678901");
+  });
+
   it("logs a no-op callback at info without claiming a promotion", () => {
     const log = buildKycLog({
       step: "id_callback",

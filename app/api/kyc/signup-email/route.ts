@@ -20,11 +20,13 @@ export const POST = withRateLimit(async (request: NextRequest) => {
   // The nudge that starts tier 1. When it silently fails the user is never
   // told to verify their phone, and nothing else reports it.
   const report = createKycReporter({ step: "signup_email", targetTier: 1 });
+  // Read outside the try so the catch below can still name the user. The
+  // header is set by the middleware and reading it cannot throw.
+  const walletAddress = request.headers.get("x-wallet-address");
 
   try {
     trackApiRequest(request, "/api/kyc/signup-email", "POST");
 
-    const walletAddress = request.headers.get("x-wallet-address");
     if (!walletAddress) {
       report.rejected({ reason: "unauthorized", statusCode: 401 });
       trackApiError(
@@ -102,6 +104,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
   } catch (error) {
     // Covers the webhook's own non-2xx, which is thrown above.
     report.failed({
+      walletAddress,
       stage: "signup_email_dispatch",
       reason: "webhook_failed",
       detail: error instanceof Error ? error.message : String(error),

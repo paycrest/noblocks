@@ -16,14 +16,15 @@ export async function GET(request: NextRequest) {
   // Failures only. Every KYC surface polls this endpoint, so logging its
   // successes would bury the upgrade steps that matter.
   const report = createKycReporter({ step: "status" });
+  // Get the wallet address from the header set by the middleware. Read outside
+  // the try so the catch below can still name the user.
+  const walletAddress = request.headers.get("x-wallet-address");
 
   try {
     trackApiRequest(request, "/api/kyc/status", "GET");
 
-    // Get the wallet address from the header set by the middleware
-    const walletAddress = request.headers.get("x-wallet-address");
-
     if (!walletAddress) {
+      report.rejected({ reason: "unauthorized", statusCode: 401 });
       trackApiError(
         request,
         "/api/kyc/status",
@@ -147,6 +148,7 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     report.failed({
+      walletAddress,
       stage: "unhandled",
       reason: "unexpected_error",
       detail: error instanceof Error ? error.message : String(error),

@@ -174,10 +174,10 @@ As with the worker monitors above, every query is scoped `env:production`.
 | Monitor | Query | Why |
 | --- | --- | --- |
 | **KYC infrastructure failure → page** | `service:noblocks env:production @feature:kyc @kyc.outcome:error` | Smile ID, Dojah, or Supabase is failing upgrades; users cannot verify at all |
-| Provider outage burning attempts → Slack | `@feature:kyc @kyc.failure_category:database` | Smile ID infrastructure failures, which refund the attempt — a spike means the provider, not our users |
-| Verified-and-lost → page | `@feature:kyc @kyc.stage:profile_update @kyc.outcome:error` | The provider approved them and the write failed: the user spent an attempt and stayed on the old tier |
-| Callback signature failures → Slack | `@feature:kyc @kyc.reason:invalid_signature` | A genuine Smile ID callback never fails this |
-| Rejection mix → dashboard | `@feature:kyc @kyc.outcome:rejected`, grouped by `@kyc.reason` and `@kyc.id_type` | Which ID types and reasons dominate; the input to fixing the flow rather than individual tickets |
+| Provider outage burning attempts → Slack | `service:noblocks env:production @feature:kyc @kyc.failure_category:database` | Smile ID infrastructure failures, which refund the attempt — a spike means the provider, not our users |
+| Verified-and-lost → page | `service:noblocks env:production @feature:kyc @kyc.stage:profile_update @kyc.outcome:error` | The provider approved them and the write failed: the user spent an attempt and stayed on the old tier |
+| Callback signature failures → Slack | `service:noblocks env:production @feature:kyc @kyc.reason:invalid_signature` | A genuine Smile ID callback never fails this |
+| Rejection mix → dashboard | `service:noblocks env:production @feature:kyc @kyc.outcome:rejected`, grouped by `@kyc.reason` and `@kyc.id_type` | Which ID types and reasons dominate; the input to fixing the flow rather than individual tickets |
 
 ### Client-side
 

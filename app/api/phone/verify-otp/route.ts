@@ -195,7 +195,10 @@ export async function POST(request: NextRequest) {
     const walletAddress = request.headers.get("x-wallet-address");
 
     if (!walletAddress) {
-      report.rejected({ reason: "unauthorized", statusCode: 401 });
+      // Not an unauthenticated user: middleware matches these routes, turns
+      // those away with its own 401, and strips forged wallet headers. Reaching
+      // the handler without one means the matcher or header propagation broke.
+      report.failed({ reason: "unauthorized", statusCode: 401 });
       trackApiError(
         request,
         "/api/phone/verify-otp",

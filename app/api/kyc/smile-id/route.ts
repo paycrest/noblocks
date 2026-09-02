@@ -76,9 +76,12 @@ export async function POST(request: NextRequest) {
   const walletAddress = request.headers.get("x-wallet-address");
 
   if (!walletAddress) {
+    // Not an unauthenticated user: middleware matches this route, turns those
+    // away with its own 401, and strips forged wallet headers. Reaching the
+    // handler without one means the matcher or header propagation broke.
     emitKycEvent({
       step: "id_verification",
-      outcome: "rejected",
+      outcome: "error",
       targetTier: 2,
       reason: "unauthorized",
       statusCode: 401,

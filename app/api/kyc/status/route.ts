@@ -24,7 +24,10 @@ export async function GET(request: NextRequest) {
     trackApiRequest(request, "/api/kyc/status", "GET");
 
     if (!walletAddress) {
-      report.rejected({ reason: "unauthorized", statusCode: 401 });
+      // Not an unauthenticated user: middleware matches these routes, turns
+      // those away with its own 401, and strips forged wallet headers. Reaching
+      // the handler without one means the matcher or header propagation broke.
+      report.failed({ reason: "unauthorized", statusCode: 401 });
       trackApiError(
         request,
         "/api/kyc/status",

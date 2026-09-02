@@ -155,6 +155,11 @@ drowned by users fat-fingering their OTP. `noop` (info) covers work that
 correctly did nothing, chiefly a Smile ID callback arriving after the
 synchronous path already promoted the profile.
 
+A missing `x-wallet-address` is an `error`, not a rejection: middleware matches
+every KYC route, answers unauthenticated callers with its own 401, and strips
+forged wallet headers, so a handler that finds none has a broken matcher or
+header chain rather than an unauthenticated user.
+
 ### Supporting a user
 
 ```text

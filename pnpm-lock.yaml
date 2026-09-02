@@ -79,8 +79,8 @@ importers:
         specifier: ^1.7.5
         version: 1.9.0
       '@hyperbridge/sdk':
-        specifier: ^2.8.4
-        version: 2.8.4(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(vite@7.3.2(@types/node@22.15.31)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.8.3))(zod@3.25.76)
+        specifier: ^2.8.8
+        version: 2.8.8(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(vite@7.3.2(@types/node@22.15.31)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.8.3))(zod@3.25.76)
       '@portabletext/react':
         specifier: ^3.2.1
         version: 3.2.1(react@19.2.1)
@@ -1929,8 +1929,8 @@ packages:
     resolution: {integrity: sha512-bV0Tgo9K4hfPCek+aMAn81RppFKv2ySDQeMoSZuvTASywNTnVJCArCZE2FWqpvIatKu7VMRLWlR1EazvVhDyhQ==}
     engines: {node: '>=18.18'}
 
-  '@hyperbridge/sdk@2.8.4':
-    resolution: {integrity: sha512-SN6Iz0X5r/3llIA74BOT83zEjWABztwrcMCUeJDozVGCWlLRu2RqEJjzjzFuv94/cg/ejwSVp4ipz4jann2VfA==}
+  '@hyperbridge/sdk@2.8.8':
+    resolution: {integrity: sha512-cGssN1c7JRRiSiRjSYzke/13I64ceFZG1jZXkShCrCwKYVkmoPB5e4XLO2BJ6S9UHRtjEBNYbz4j3xNczCSG2w==}
     engines: {node: '>=22.x.x'}
     peerDependencies:
       vite: ^5.0.0 || ^6.0.0
@@ -12951,7 +12951,7 @@ snapshots:
 
   '@humanwhocodes/retry@0.4.3': {}
 
-  '@hyperbridge/sdk@2.8.4(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(vite@7.3.2(@types/node@22.15.31)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.8.3))(zod@3.25.76)':
+  '@hyperbridge/sdk@2.8.8(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(vite@7.3.2(@types/node@22.15.31)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.8.3))(zod@3.25.76)':
     dependencies:
       '@async-generator/merge-race': 1.0.3
       '@polkadot/api': 16.5.6(bufferutil@4.0.9)(utf-8-validate@5.0.10)
@@ -16301,7 +16301,7 @@ snapshots:
       '@solana/functional': 5.5.1(typescript@5.8.3)
       '@solana/rpc-subscriptions-spec': 5.5.1(typescript@5.8.3)
       '@solana/subscribable': 5.5.1(typescript@5.8.3)
-      ws: 8.20.0(bufferutil@4.0.9)(utf-8-validate@5.0.10)
+      ws: 8.21.0(bufferutil@4.0.9)(utf-8-validate@5.0.10)
     optionalDependencies:
       typescript: 5.8.3
     transitivePeerDependencies:
@@ -18126,11 +18126,6 @@ snapshots:
       typescript: 5.8.3
       zod: 3.25.76
 
-  abitype@1.1.0(typescript@5.8.3)(zod@4.4.3):
-    optionalDependencies:
-      typescript: 5.8.3
-      zod: 4.4.3
-
   abitype@1.2.3(typescript@5.8.3)(zod@3.22.4):
     optionalDependencies:
       typescript: 5.8.3
@@ -18150,6 +18145,11 @@ snapshots:
     optionalDependencies:
       typescript: 5.8.3
       zod: 3.25.76
+
+  abitype@1.2.4(typescript@5.8.3)(zod@4.4.3):
+    optionalDependencies:
+      typescript: 5.8.3
+      zod: 4.4.3
 
   abort-controller@3.0.0:
     dependencies:
@@ -21555,7 +21555,7 @@ snapshots:
       whatwg-encoding: 3.1.1
       whatwg-mimetype: 4.0.0
       whatwg-url: 14.2.0
-      ws: 8.18.3(bufferutil@4.0.9)(utf-8-validate@5.0.10)
+      ws: 8.21.0(bufferutil@4.0.9)(utf-8-validate@5.0.10)
       xml-name-validator: 5.0.0
     transitivePeerDependencies:
       - bufferutil
@@ -22527,7 +22527,7 @@ snapshots:
       '@noble/hashes': 1.8.0
       '@scure/bip32': 1.7.0
       '@scure/bip39': 1.6.0
-      abitype: 1.1.0(typescript@5.8.3)(zod@3.25.76)
+      abitype: 1.2.4(typescript@5.8.3)(zod@3.25.76)
       eventemitter3: 5.0.1
     optionalDependencies:
       typescript: 5.8.3
@@ -22542,7 +22542,7 @@ snapshots:
       '@noble/hashes': 1.8.0
       '@scure/bip32': 1.7.0
       '@scure/bip39': 1.6.0
-      abitype: 1.1.0(typescript@5.8.3)(zod@4.4.3)
+      abitype: 1.2.4(typescript@5.8.3)(zod@4.4.3)
       eventemitter3: 5.0.1
     optionalDependencies:
       typescript: 5.8.3
@@ -22686,7 +22686,7 @@ snapshots:
 
   path-scurry@2.0.0:
     dependencies:
-      lru-cache: 11.1.0
+      lru-cache: 11.5.2
       minipass: 7.1.2
 
   path-sort@0.1.0: {}
@@ -23055,7 +23055,7 @@ snapshots:
 
   react-clientside-effect@1.2.8(react@19.2.1):
     dependencies:
-      '@babel/runtime': 7.28.3
+      '@babel/runtime': 7.29.7
       react: 19.2.1
 
   react-compiler-runtime@19.1.0-rc.2(react@19.2.1):
@@ -24670,7 +24670,7 @@ snapshots:
       h3: 1.15.11
       lru-cache: 10.4.3
       node-fetch-native: 1.6.7
-      ofetch: 1.4.1
+      ofetch: 1.5.1
       ufo: 1.6.4
     optionalDependencies:
       idb-keyval: 6.2.2

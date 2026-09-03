@@ -34,6 +34,7 @@ import {
   getKesMpesaInstitutionLabel,
   KES_MPESA_INSTITUTION_CODE,
   normalizeSavedRecipientChannel,
+  isSameSavedRecipient,
   getRpcUrl,
   isBlockFestActive,
 } from "../utils";
@@ -240,6 +241,8 @@ export function TransactionStatus({
   const recipientName = String(watch("recipientName")) || "";
   const accountIdentifier = watch("accountIdentifier") || "";
   const institution = watch("institution") || "";
+  const watchedKesChannel = watch("kesChannel") || "";
+  const watchedBusinessNumber = watch("businessNumber") || "";
   const recipientWalletAddress = String(watch("walletAddress") || "");
   const amountReceivedCrypto = Number(watch("amountReceived")) || 0;
 
@@ -620,8 +623,12 @@ export function TransactionStatus({
         const exists = savedRecipients.some(
           (r) =>
             r.type !== "wallet" &&
-            r.accountIdentifier === accountIdentifier &&
-            r.institutionCode === institution,
+            isSameSavedRecipient(r, {
+              accountIdentifier: String(accountIdentifier),
+              institutionCode: String(institution),
+              channel: String(watchedKesChannel) as KesMpesaChannel | "",
+              businessNumber: String(watchedBusinessNumber),
+            }),
         );
         setIsRecipientInBeneficiaries(exists);
       } catch (error) {
@@ -631,7 +638,13 @@ export function TransactionStatus({
     };
 
     checkRecipientExists();
-  }, [accountIdentifier, institution, getAccessToken]);
+  }, [
+    accountIdentifier,
+    institution,
+    watchedKesChannel,
+    watchedBusinessNumber,
+    getAccessToken,
+  ]);
 
   /**
    * Updates transaction status in the backend
@@ -1256,6 +1269,8 @@ export function TransactionStatus({
   const removeRecipient = async () => {
     const accountIdentifier = formMethods.watch("accountIdentifier");
     const institutionCode = formMethods.watch("institution");
+    const channel = formMethods.watch("kesChannel") || "";
+    const businessNumber = formMethods.watch("businessNumber") || "";
 
     if (!accountIdentifier || !institutionCode) {
       console.error("Missing account identifier or institution code");
@@ -1274,8 +1289,12 @@ export function TransactionStatus({
       const recipientToDelete = savedRecipients.find(
         (r) =>
           r.type !== "wallet" &&
-          r.accountIdentifier === accountIdentifier &&
-          r.institutionCode === institutionCode,
+          isSameSavedRecipient(r, {
+            accountIdentifier: String(accountIdentifier),
+            institutionCode: String(institutionCode),
+            channel: String(channel) as KesMpesaChannel | "",
+            businessNumber: String(businessNumber),
+          }),
       );
 
       if (!recipientToDelete) {

@@ -1,51 +1,73 @@
 import type {
+  FantasySettings,
+  MatchdayStatus,
   PlayerMatchStats,
   PointsBreakdownEntry,
   Position,
   ScoringMatrix,
+  SubState,
 } from "./types";
 
 /**
- * Pure fantasy points engine (TRD §6.9).
- *
- * Runs idempotently on every stats upsert: points are always recomputed from
- * the raw stats, never incremented, so provider stat corrections self-heal.
- * Captain doubling and vice fallback are aggregation concerns handled in
- * computeSquadPoints, not here.
+ * Pure FPL-aligned fantasy points. Idempotent: always recomputed from raw stats.
+ * Captain / auto-subs / Noblocks Match Bonus are separate aggregation stages.
  */
 export function computePoints(
   stats: PlayerMatchStats,
   position: Position,
   matrix: ScoringMatrix,
+  settings: Pick<FantasySettings, "defcon_def_threshold" | "defcon_mid_fwd_threshold">,
 ): { points: number; breakdown: PointsBreakdownEntry[] } {
   const breakdown: PointsBreakdownEntry[] = [];
   const add = (reason: string, points: number) => {
     if (points !== 0) breakdown.push({ reason, points });
   };
 
+  /** Cards and penalty misses — shared by the 0-minute and main paths. Own goals
+   *  are main-path-only: you cannot score an OG without playing. */
+  const addCardAndDisciplineDeductions = (includeOwnGoals: boolean) => {
+    if (stats.yellowCards > 0)
+      add(`Yellow cards (${stats.yellowCards})`, stats.yellowCards * matrix.yellow_card);
+    if (stats.redCards > 0) add("Red card", stats.redCards * matrix.red_card);
+    if (includeOwnGoals && stats.ownGoals > 0)
+      add(`Own goals (${stats.ownGoals})`, stats.ownGoals * matrix.own_goal);
+    if (stats.penaltiesMissed > 0)
+      add(
+        `Penalty miss (${stats.penaltiesMissed})`,
+        stats.penaltiesMissed * matrix.penalty_miss,
+      );
+  };
+
   if (stats.minutes <= 0) {
-    return { points: 0, breakdown };
+    // Carded with 0' still "played" for auto-subs; no appearance points here.
+    addCardAndDisciplineDeductions(false);
+    const points = breakdown.reduce((sum, e) => sum + e.points, 0);
+    return { points, breakdown };
   }
 
   add("Appearance", matrix.appearance);
   if (stats.minutes >= 60) add("60+ minutes", matrix.appearance_60);
 
-  if (stats.goals > 0) add(`Goals (${stats.goals})`, stats.goals * matrix.goal[position]);
-  if (stats.directFreeKickGoals > 0)
+  const openPlayGoals = Math.max(0, stats.goals - stats.penaltiesScored);
+  if (openPlayGoals > 0)
+    add(`Goals (${openPlayGoals})`, openPlayGoals * matrix.goal[position]);
+  // Penalty goals use the same per-position goal points in FPL.
+  if (stats.penaltiesScored > 0)
     add(
-      `Direct free-kick bonus (${stats.directFreeKickGoals})`,
-      stats.directFreeKickGoals * matrix.direct_free_kick_goal,
+      `Penalty goals (${stats.penaltiesScored})`,
+      stats.penaltiesScored * matrix.goal[position],
     );
+
   if (stats.assists > 0) add(`Assists (${stats.assists})`, stats.assists * matrix.assist);
 
   if (stats.cleanSheet && stats.minutes >= 60) {
     add("Clean sheet", matrix.clean_sheet[position]);
   }
 
-  // First goal conceded is free; each additional one costs (GK/DEF only).
-  const perExtra = matrix.goals_conceded_per_extra[position];
-  if (perExtra !== 0 && stats.goalsConceded > 1) {
-    add(`Goals conceded (${stats.goalsConceded})`, (stats.goalsConceded - 1) * perExtra);
+  const perTwo = matrix.goals_conceded_per_two[position];
+  if (perTwo !== 0 && stats.goalsConceded >= 2) {
+    const n = Math.floor(stats.goalsConceded / 2);
+    add(`Goals conceded (${stats.goalsConceded})`, n * perTwo);
   }
 
   if (position === "GK") {
@@ -55,88 +77,134 @@ export function computePoints(
     if (savePts > 0) add(`Saves (${stats.saves})`, savePts);
   }
 
-  if (position === "MID") {
-    const tacklePts = Math.floor(stats.tackles / matrix.tackles_per_point);
-    if (tacklePts > 0) add(`Tackles (${stats.tackles})`, tacklePts);
-    const kpPts = Math.floor(stats.keyPasses / matrix.key_passes_per_point);
-    if (kpPts > 0) add(`Key passes (${stats.keyPasses})`, kpPts);
+  // BIT defcon (published thresholds from provider spike).
+  if (position === "DEF") {
+    const bit = stats.blocks + stats.interceptions + stats.tackles;
+    if (bit >= settings.defcon_def_threshold) add("Defensive contribution", 2);
+  } else if (position === "MID" || position === "FWD") {
+    const bit = stats.blocks + stats.interceptions + stats.tackles;
+    if (bit >= settings.defcon_mid_fwd_threshold) add("Defensive contribution", 2);
   }
 
-  if (position === "FWD") {
-    const sotPts = Math.floor(stats.shotsOnTarget / matrix.shots_on_target_per_point);
-    if (sotPts > 0) add(`Shots on target (${stats.shotsOnTarget})`, sotPts);
-  }
-
-  if (stats.yellowCards > 0)
-    add(`Yellow cards (${stats.yellowCards})`, stats.yellowCards * matrix.yellow_card);
-  if (stats.redCards > 0) add("Red card", stats.redCards * matrix.red_card);
-  if (stats.ownGoals > 0) add(`Own goals (${stats.ownGoals})`, stats.ownGoals * matrix.own_goal);
-  if (stats.penaltiesWon > 0)
-    add(`Penalties won (${stats.penaltiesWon})`, stats.penaltiesWon * matrix.penalty_won);
-  if (stats.penaltiesCommitted > 0)
-    add(
-      `Penalties conceded (${stats.penaltiesCommitted})`,
-      stats.penaltiesCommitted * matrix.penalty_conceded,
-    );
+  addCardAndDisciplineDeductions(true);
 
   const points = breakdown.reduce((sum, e) => sum + e.points, 0);
   return { points, breakdown };
 }
 
 /**
- * Whether a squad row's points count toward the matchday score: the
- * kickoff-banked XI membership wins; the current slot only decides for
- * fixtures that haven't kicked off yet (stamp still NULL).
+ * Badge state for a picked slot, given whether the player ended up in the
+ * post-auto-sub XI. The original slot identifies which side of the final
+ * substitution the player came from, even when the UI renders a display swap.
  */
-export const countsForScoring = (p: {
+export function subStateFor(slot: number, inScoringXi: boolean): SubState {
+  if (inScoringXi) return slot > 11 ? "in" : null;
+  return slot <= 11 ? "out" : null;
+}
+
+/** Appearance or yellow/red ⇒ played (FPL auto-sub definition). */
+export function hasPlayed(stats: { minutes: number; yellowCards: number; redCards: number }): boolean {
+  return stats.minutes > 0 || stats.yellowCards > 0 || stats.redCards > 0;
+}
+
+export interface SquadPlayerRow {
+  playerId: number;
   slot: number;
-  xi_at_kickoff?: boolean | null;
-}): boolean => p.xi_at_kickoff ?? p.slot <= 11;
+  isCaptain: boolean;
+  isVice: boolean;
+  position: Position;
+}
 
 export interface SquadPointsInput {
-  /**
-   * Players whose points count: XI membership is banked at each fixture's
-   * kickoff (xi_at_kickoff stamp), with the current slot deciding only for
-   * fixtures that haven't kicked off. Bench never auto-counts (auto-subs
-   * dropped, TRD §6.3), but points earned while in the XI survive a later
-   * benching — so this list can exceed 11 entries.
-   */
-  startingXI: { playerId: number; isCaptain: boolean; isVice: boolean }[];
-  /** playerId → summed matchday stats-derived values. */
-  playerPoints: Map<number, { points: number; minutes: number }>;
+  /** Full 15 with slots. */
+  squad: SquadPlayerRow[];
+  playerPoints: Map<number, { points: number; minutes: number; yellowCards: number; redCards: number }>;
   transferPointsDeduction: number;
+  /**
+   * False while a gameweek is in progress: score the picked XI and do not
+   * transfer captaincy to the vice-captain. True/default once the gameweek is
+   * final, when FPL auto-subs and captain fallback settle.
+   */
+  settleLineup?: boolean;
 }
 
 /**
- * Matchday total for one squad. Captain scores double; if the captain played
- * zero minutes, the vice-captain scores double instead — unconditionally
- * (simplification per TRD §6.3, strictly more generous than the official rule).
+ * Matchday total. Before final, score the picked XI and do not transfer
+ * captaincy. Once final, apply auto-subs and captain → vice fallback.
  */
-export function computeSquadPoints(input: SquadPointsInput): number {
-  const { startingXI, playerPoints, transferPointsDeduction } = input;
+export function computeSquadPoints(
+  input: SquadPointsInput,
+  applyAutoSubs: (squad: SquadPlayerRow[], played: (id: number) => boolean) => SquadPlayerRow[],
+): { points: number; scoringXi: SquadPlayerRow[] } {
+  const { squad, playerPoints, transferPointsDeduction, settleLineup = true } = input;
+  const played = (id: number) => {
+    const p = playerPoints.get(id);
+    if (!p) return false;
+    return hasPlayed(p);
+  };
 
-  const get = (id: number) => playerPoints.get(id) ?? { points: 0, minutes: 0 };
+  const scoringXi = settleLineup
+    ? applyAutoSubs(squad, played)
+    : squad.filter((player) => player.slot <= 11);
+  const get = (id: number) => playerPoints.get(id) ?? { points: 0, minutes: 0, yellowCards: 0, redCards: 0 };
 
   let total = 0;
-  for (const entry of startingXI) total += get(entry.playerId).points;
+  for (const entry of scoringXi) total += get(entry.playerId).points;
 
-  const captain = startingXI.find((p) => p.isCaptain);
-  const vice = startingXI.find((p) => p.isVice);
+  // Armband lives on the ORIGINAL starting rows — a blanked captain may have
+  // been auto-subbed out of scoringXi, and the incoming sub never inherits it.
+  const startingXi = squad.filter((p) => p.slot <= 11);
+  const captain = startingXi.find((p) => p.isCaptain);
+  const vice = startingXi.find((p) => p.isVice);
 
-  if (captain && get(captain.playerId).minutes > 0) {
+  if (captain && played(captain.playerId)) {
     total += get(captain.playerId).points;
-  } else if (vice && get(vice.playerId).minutes > 0) {
+  } else if (settleLineup && vice && played(vice.playerId)) {
     total += get(vice.playerId).points;
   }
 
-  return total - transferPointsDeduction;
+  return { points: total - transferPointsDeduction, scoringXi };
 }
 
-/**
- * Transfer economics (TRD §6.4): the first `freeRemaining` transfers in a
- * batch are free, every further one deducts the penalty from the matchday
- * score. Irreversible once applied.
- */
+/** Round total for display — picked XI only until the gameweek is final. */
+export function computeDisplayedMatchdayPoints(
+  input: {
+    squadRows: SquadPlayerRow[];
+    playerPoints: Map<
+      number,
+      { points: number; minutes: number; yellowCards: number; redCards: number }
+    >;
+    transferPointsDeduction: number;
+    matchdayStatus: MatchdayStatus;
+  },
+  applyAutoSubsFn: (squad: SquadPlayerRow[], played: (id: number) => boolean) => SquadPlayerRow[],
+): number {
+  const settleLineup = input.matchdayStatus === "final";
+  return computeSquadPoints(
+    {
+      squad: input.squadRows,
+      playerPoints: input.playerPoints,
+      transferPointsDeduction: input.transferPointsDeduction,
+      settleLineup,
+    },
+    applyAutoSubsFn,
+  ).points;
+}
+
+/** DB season totals include the worker's live GW row — swap in the gated score mid-week. */
+export function adjustTotalPointsForLiveRound(
+  storedTotal: number,
+  matchdayScores: { matchday_id: number; points: number }[],
+  matchdayId: number,
+  matchdayStatus: MatchdayStatus,
+  computedRoundPoints: number,
+): number {
+  if (matchdayStatus === "final") return storedTotal;
+  const dbRound =
+    matchdayScores.find((score) => score.matchday_id === matchdayId)?.points ?? 0;
+  return storedTotal - dbRound + computedRoundPoints;
+}
+
 export function computeTransferCost(
   transferCount: number,
   freeRemaining: number,
@@ -147,7 +215,6 @@ export function computeTransferCost(
   return { freeUsed, paidCount, pointsCost: paidCount * penalty };
 }
 
-/** Empty stats record (safe default when the provider has no data yet). */
 export function emptyStats(): PlayerMatchStats {
   return {
     minutes: 0,
@@ -156,15 +223,24 @@ export function emptyStats(): PlayerMatchStats {
     yellowCards: 0,
     redCards: 0,
     ownGoals: 0,
-    penaltiesWon: 0,
+    penaltiesMissed: 0,
+    penaltiesScored: 0,
     penaltiesCommitted: 0,
     penaltiesSaved: 0,
     saves: 0,
     goalsConceded: 0,
     tackles: 0,
+    blocks: 0,
+    interceptions: 0,
     keyPasses: 0,
+    shotsTotal: 0,
     shotsOnTarget: 0,
+    passesTotal: 0,
+    passesAccuracy: 0,
+    dribblesSuccess: 0,
+    foulsDrawn: 0,
+    foulsCommitted: 0,
+    offsides: 0,
     cleanSheet: false,
-    directFreeKickGoals: 0,
   };
 }

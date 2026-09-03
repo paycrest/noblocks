@@ -23,9 +23,9 @@ import {
   shortenAddress,
 } from "../utils";
 import { tokensEqual, toAggregatorToken } from "../lib/token-symbol";
-import { useNetwork, useTokens, useStarknet } from "../context";
+import { useNetwork, useTokens, useStarknet, useEmbed } from "../context";
 import config, { getDelegationContractAddress } from "../lib/config";
-import { appendBaseBuilderCode } from "../lib/baseBuilderCode";
+import { appendAttributionSuffix } from "../lib/baseBuilderCode";
 import { mapReportAndAct } from "../lib/toastMappedError";
 import type {
   Token,
@@ -61,6 +61,11 @@ import {
   readBatchNonce,
   type BatchCall,
 } from "../lib/providerBatch";
+import {
+  gatewayApprovalAmount,
+  needsGatewayApproval,
+} from "../lib/erc20Allowance";
+import { useApiAuth } from "../hooks/useApiAuth";
 
 import {
   fetchAggregatorPublicKey,
@@ -98,13 +103,19 @@ export const TransactionPreview = ({
   const { user, getAccessToken } = usePrivy();
   const { wallets } = useWallets();
   const { client } = useSmartWallets();
-  const { isInjectedWallet, injectedAddress, injectedProvider, injectedReady } =
-    useInjectedWallet();
+  const {
+    isInjectedWallet,
+    injectedAddress,
+    injectedProvider,
+    injectedReady,
+    getInjectedToken,
+  } = useInjectedWallet();
+  const { resolveAuth } = useApiAuth();
   const { walletId: starknetWalletId, address: starknetWalletAddress, publicKey: starknetPublicKey } = useStarknet();
   const shouldUseEOA = useShouldUseEOA();
   const { isLoading: isMigrationLoading } = useMigrationStatus();
   const { signDelegationAuthorization } = useDelegationContractAuth();
-
+  const { embedCode } = useEmbed();
 
   const { selectedNetwork } = useNetwork();
   const { allTokens } = useTokens();
@@ -141,7 +152,11 @@ export const TransactionPreview = ({
     businessNumber,
   } = formValues;
 
-  const isOnramp = !!walletAddress;
+  // Derive the flow from the form's own mode, never from `!!walletAddress` — a Buy that somehow
+  // reaches the preview with an empty wallet address must still render (and order) as an onramp,
+  // not silently fall into the offramp layout with blank recipient fields.
+  const isOnramp =
+    formValues.swapMode === "onramp" || formValues.isSwapped === true;
   const currencySymbol = currency ? getCurrencySymbol(currency) : "";
 
   const [errorMessage, setErrorMessage] = useState<string>("");
@@ -151,6 +166,11 @@ export const TransactionPreview = ({
   const [isOrderCreatedLogsFetched, setIsOrderCreatedLogsFetched] =
     useState<boolean>(false);
   const [isGatewayApproved, setIsGatewayApproved] = useState<boolean>(false);
+  // Whether the injected flow will need a gateway approval prompt, read once on mount so the step
+  // copy below promises the number of wallet prompts the user will actually see. Confirm time
+  // re-reads authoritatively — this value never decides whether an approve is sent. Starts true so
+  // we over-promise rather than under-promise while the read is in flight.
+  const [willNeedApproval, setWillNeedApproval] = useState<boolean>(true);
   const [isOrderCreated, setIsOrderCreated] = useState<boolean>(false);
   const [isSavingTransaction, setIsSavingTransaction] = useState(false);
   const [refundAccountModalOpen, setRefundAccountModalOpen] = useState(false);
@@ -167,17 +187,35 @@ export const TransactionPreview = ({
 
   const searchParams = useSearchParams();
 
+  // Injected wallets authenticate API calls via a SIWE session (not Privy).
+  // Establish it when the preview mounts so confirm/precheck/save don't fail
+  // with "Please sign in" while the wallet pill already shows connected.
   useEffect(() => {
-    if (!isOnramp) return;
-    // Reset on every currency change so a cached NGN account isn't submitted for KES/TZS/UGX orders.
+    if (isInjectedWallet && injectedReady) {
+      void getInjectedToken({ interactive: true });
+    }
+  }, [isInjectedWallet, injectedReady, getInjectedToken]);
+
+  useEffect(() => {
     setRefundAccount(null);
+    setRefundAccountModalOpen(false);
+    if (!isOnramp || !currency?.trim()) return;
+    const orderCurrency = currency.trim().toUpperCase();
     let cancelled = false;
     void (async () => {
       try {
-        const token = await getAccessToken();
-        if (!token || cancelled) return;
-        const saved = await fetchRefundAccount(token);
-        if (!cancelled && saved) {
+        // Passive: SIWE is established by the mount effect; don't re-prompt here.
+        const { accessToken, injectedToken } = await resolveAuth({
+          interactive: false,
+        });
+        if ((!accessToken && !injectedToken) || cancelled) return;
+        const saved = await fetchRefundAccount(
+          orderCurrency,
+          accessToken,
+          injectedToken,
+        );
+        if (cancelled) return;
+        if (saved) {
           setRefundAccount(saved);
         }
       } catch {
@@ -187,7 +225,7 @@ export const TransactionPreview = ({
     return () => {
       cancelled = true;
     };
-  }, [isOnramp, currency, getAccessToken]);
+  }, [isOnramp, currency, resolveAuth]);
 
   const fetchedTokens: Token[] = allTokens[selectedNetwork.chain.name] || [];
 
@@ -198,6 +236,18 @@ export const TransactionPreview = ({
   const tokenDecimals = fetchedTokens.find(
     (t) => t.symbol.toUpperCase() === token.toUpperCase(),
   )?.decimals;
+
+  // What the gateway will actually pull (senderFee is 0 today, see prepareCreateOrderParams).
+  // Lifted out of prepareCreateOrderParams so the allowance read can reuse it without that
+  // function's network round-trip for the aggregator public key.
+  const requiredSpendWei = parseUnits(
+    (amountSent ?? 0).toString(),
+    tokenDecimals ?? 18,
+  );
+
+  const gatewayAddress = getGatewayContractAddress(
+    selectedNetwork.chain.name,
+  ) as `0x${string}`;
 
   const injectedWallet = isInjectedWallet
     ? { address: injectedAddress, type: "injected_wallet" }
@@ -215,6 +265,47 @@ export const TransactionPreview = ({
 
   const isStarknetSelected = selectedNetwork.chain.name === "Starknet";
   const isTronSelected = selectedNetwork.chain.name === "Tron";
+
+  // Drives the approval-step copy for injected off-ramp only — that's the one flow that tells the
+  // user up front how many wallet prompts to expect. Skipped for Starknet/Tron, whose chain objects
+  // are not viem chains (see app/mocks.ts).
+  useEffect(() => {
+    if (
+      !isInjectedWallet ||
+      isOnramp ||
+      isStarknetSelected ||
+      isTronSelected ||
+      !injectedReady
+    ) {
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      const mustApprove = await needsGatewayApproval({
+        chain: selectedNetwork.chain,
+        rpcUrl: getRpcUrl(selectedNetwork.chain.name),
+        token: tokenAddress,
+        owner: injectedAddress ?? undefined,
+        spender: gatewayAddress,
+        required: requiredSpendWei,
+      });
+      if (!cancelled) setWillNeedApproval(mustApprove);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    isInjectedWallet,
+    isOnramp,
+    isStarknetSelected,
+    isTronSelected,
+    injectedReady,
+    injectedAddress,
+    selectedNetwork.chain,
+    tokenAddress,
+    gatewayAddress,
+    requiredSpendWei,
+  ]);
 
   const activeWallet = injectedWallet ||
     (isStarknetSelected
@@ -438,51 +529,59 @@ export const TransactionPreview = ({
         const params = await prepareCreateOrderParams();
         setCreatedAt(new Date().toISOString());
 
-        // Calculate total amount to approve (amount + senderFee)
-        // The contract transfers amount + senderFee from the user
-        const totalAmountToApprove = params.amount + params.senderFee;
+        const requiredSpend = params.amount + params.senderFee;
 
-        const approvalData = encodeFunctionData({
-          abi: erc20Abi,
-          functionName: "approve",
-          args: [
-            getGatewayContractAddress(
-              selectedNetwork.chain.name,
-            ) as `0x${string}`,
-            totalAmountToApprove,
-          ],
+        // Authoritative read at confirm time — the mount-time value only drives the step copy.
+        // A standing allowance from an earlier swap saves the user a whole wallet prompt here.
+        const mustApprove = await needsGatewayApproval({
+          chain: selectedNetwork.chain,
+          rpcUrl: getRpcUrl(selectedNetwork.chain.name),
+          token: tokenAddress,
+          owner: injectedAddress ?? undefined,
+          spender: gatewayAddress,
+          required: requiredSpend,
         });
 
-        // Send approval transaction
-        const approvalTx = await injectedProvider.request({
-          method: "eth_sendTransaction",
-          params: [
-            {
-              from: injectedAddress,
-              to: tokenAddress,
-              data: appendBaseBuilderCode(
-                selectedNetwork.chain.id,
-                approvalData,
-              ),
-            },
-          ],
-        });
-
-        try {
-          const publicClient = createPublicClient({
-            chain: selectedNetwork.chain,
-            transport: http(getRpcUrl(selectedNetwork.chain.name)),
+        if (mustApprove) {
+          const approvalData = encodeFunctionData({
+            abi: erc20Abi,
+            functionName: "approve",
+            args: [gatewayAddress, gatewayApprovalAmount(requiredSpend)],
           });
 
-          await publicClient.waitForTransactionReceipt({
-            hash: approvalTx as `0x${string}`,
+          // Send approval transaction
+          const approvalTx = await injectedProvider.request({
+            method: "eth_sendTransaction",
+            params: [
+              {
+                from: injectedAddress,
+                to: tokenAddress,
+                data: appendAttributionSuffix(
+                  selectedNetwork.chain.id,
+                  approvalData,
+                  embedCode,
+                ),
+              },
+            ],
           });
-          toast.success("Token spending approved");
-          setIsGatewayApproved(true);
-        } catch (error) {
-          toast.error("Approval failed");
-          throw new Error("Approval transaction failed");
+
+          try {
+            const publicClient = createPublicClient({
+              chain: selectedNetwork.chain,
+              transport: http(getRpcUrl(selectedNetwork.chain.name)),
+            });
+
+            await publicClient.waitForTransactionReceipt({
+              hash: approvalTx as `0x${string}`,
+            });
+            toast.success("Token spending approved");
+          } catch (error) {
+            toast.error("Approval failed");
+            throw new Error("Approval transaction failed");
+          }
         }
+
+        setIsGatewayApproved(true);
 
         const createOrderData = encodeFunctionData({
           abi: gatewayAbi,
@@ -505,12 +604,11 @@ export const TransactionPreview = ({
           params: [
             {
               from: injectedAddress,
-              to: getGatewayContractAddress(
-                selectedNetwork.chain.name,
-              ) as `0x${string}`,
-              data: appendBaseBuilderCode(
+              to: gatewayAddress,
+              data: appendAttributionSuffix(
                 selectedNetwork.chain.id,
                 createOrderData,
+                embedCode,
               ),
             },
           ],
@@ -527,9 +625,6 @@ export const TransactionPreview = ({
         const chain = selectedNetwork?.chain;
         if (!chain) throw new Error("Network not ready");
         const chainId = chain.id;
-        const gatewayAddress = getGatewayContractAddress(
-          selectedNetwork.chain.name,
-        ) as `0x${string}`;
 
         const delegationContractAddress = getDelegationContractAddress(chainId);
         if (!delegationContractAddress || delegationContractAddress === "") {
@@ -572,7 +667,16 @@ export const TransactionPreview = ({
 
         const params = await prepareCreateOrderParams();
         setCreatedAt(new Date().toISOString());
-        const totalAmountToApprove = params.amount + params.senderFee;
+        const requiredSpend = params.amount + params.senderFee;
+
+        const mustApprove = await needsGatewayApproval({
+          chain,
+          rpcUrl,
+          token: tokenAddress,
+          owner: accountAddress,
+          spender: gatewayAddress,
+          required: requiredSpend,
+        });
 
         const approveCall: BatchCall = {
           to: tokenAddress as `0x${string}`,
@@ -580,7 +684,7 @@ export const TransactionPreview = ({
           data: encodeFunctionData({
             abi: erc20Abi,
             functionName: "approve",
-            args: [gatewayAddress, totalAmountToApprove],
+            args: [gatewayAddress, gatewayApprovalAmount(requiredSpend)],
           }),
         };
         const createOrderCall: BatchCall = {
@@ -601,15 +705,21 @@ export const TransactionPreview = ({
           }),
         };
 
+        // One array for both the digest and the encoded batch — the signature covers these exact
+        // calls, so dropping the approve from one and not the other would fail at the bundler.
+        const batchCalls: BatchCall[] = mustApprove
+          ? [approveCall, createOrderCall]
+          : [createOrderCall];
+
         const nonce = await readBatchNonce(publicClient, accountAddress).catch(() => BigInt(0));
-        const digest = buildBatchDigest(nonce, [approveCall, createOrderCall]);
+        const digest = buildBatchDigest(nonce, batchCalls);
         const rawSignature = (await provider.request({
           method: "personal_sign",
           params: [digest, accountAddress],
         })) as string;
         const signature = (rawSignature.startsWith("0x") ? rawSignature : `0x${rawSignature}`) as `0x${string}`;
 
-        const callData = encodeExecuteBatch([approveCall, createOrderCall], signature);
+        const callData = encodeExecuteBatch(batchCalls, signature);
         const payload = {
           chainId,
           rpcUrl,
@@ -617,6 +727,7 @@ export const TransactionPreview = ({
           callData,
           delegationContractAddress,
           ...(authorization != null && { eip7702Authorization: authorization }),
+          ...(embedCode && { embedCode }),
         };
 
         await captureSubmissionBlock();
@@ -677,44 +788,68 @@ export const TransactionPreview = ({
         const params = await prepareCreateOrderParams();
         setCreatedAt(new Date().toISOString());
 
-        // Calculate total amount to approve (amount + senderFee)
-        const totalAmountToApprove = params.amount + params.senderFee;
+        const requiredSpend = params.amount + params.senderFee;
+
+        const mustApprove = await needsGatewayApproval({
+          chain: selectedNetwork.chain,
+          rpcUrl: getRpcUrl(selectedNetwork.chain.name),
+          token: tokenAddress,
+          owner: client.account?.address ?? activeWallet?.address,
+          spender: gatewayAddress,
+          required: requiredSpend,
+        });
 
         await captureSubmissionBlock();
         await client.sendTransaction({
           calls: [
-            // Approve gateway contract to spend token
-            {
-              to: tokenAddress,
-              data: encodeFunctionData({
-                abi: erc20Abi,
-                functionName: "approve",
-                args: [
-                  getGatewayContractAddress(
-                    selectedNetwork.chain.name,
-                  ) as `0x${string}`,
-                  totalAmountToApprove,
-                ],
-              }),
-            },
+            // Approve gateway contract to spend token, unless allowance already covers it
+            ...(mustApprove
+              ? [
+                  {
+                    to: tokenAddress,
+                    // Privy's dataSuffix plugin already appends BASE_BUILDER_CODE_SUFFIX,
+                    // but the aggregator parser reads the LAST suffix from calldata.
+                    // So we append the multi-code suffix here, which will be parsed
+                    // instead of the Privy plugin's single-code suffix.
+                    data: appendAttributionSuffix(
+                      selectedNetwork.chain.id,
+                      encodeFunctionData({
+                        abi: erc20Abi,
+                        functionName: "approve",
+                        args: [
+                          gatewayAddress,
+                          gatewayApprovalAmount(requiredSpend),
+                        ],
+                      }),
+                      embedCode,
+                    ),
+                  },
+                ]
+              : []),
             // Create order
             {
-              to: getGatewayContractAddress(
-                selectedNetwork.chain.name,
-              ) as `0x${string}`,
-              data: encodeFunctionData({
-                abi: gatewayAbi,
-                functionName: "createOrder",
-                args: [
-                  params.token,
-                  params.amount,
-                  params.rate,
-                  params.senderFeeRecipient,
-                  params.senderFee,
-                  params.refundAddress ?? "",
-                  params.messageHash,
-                ],
-              }),
+              to: gatewayAddress,
+              // Privy's dataSuffix plugin already appends BASE_BUILDER_CODE_SUFFIX,
+              // but the aggregator parser reads the LAST suffix from calldata.
+              // So we append the multi-code suffix here, which will be parsed
+              // instead of the Privy plugin's single-code suffix.
+              data: appendAttributionSuffix(
+                selectedNetwork.chain.id,
+                encodeFunctionData({
+                  abi: gatewayAbi,
+                  functionName: "createOrder",
+                  args: [
+                    params.token,
+                    params.amount,
+                    params.rate,
+                    params.senderFeeRecipient,
+                    params.senderFee,
+                    params.refundAddress ?? "",
+                    params.messageHash,
+                  ],
+                }),
+                embedCode,
+              ),
             },
           ],
         });
@@ -773,14 +908,25 @@ export const TransactionPreview = ({
         toast.error("Add a refund account to continue");
         return;
       }
+      const orderCurrency = currency?.trim().toUpperCase() ?? "";
+      if (
+        !orderCurrency ||
+        refundAccount.currency.trim().toUpperCase() !== orderCurrency
+      ) {
+        toast.error("Add a refund account for this currency to continue");
+        setRefundAccount(null);
+        return;
+      }
       if (!walletAddress) {
         toast.error("Recipient wallet is required");
         return;
       }
       try {
         setIsConfirming(true);
-        const accessToken = await getAccessToken();
-        if (!accessToken) {
+        const { accessToken, injectedToken } = await resolveAuth({
+          interactive: true,
+        });
+        if (!accessToken && !injectedToken) {
           toast.error("Please sign in to continue");
           return;
         }
@@ -817,6 +963,7 @@ export const TransactionPreview = ({
             },
           },
           accessToken,
+          injectedToken,
         );
 
         const payload = {
@@ -849,7 +996,11 @@ export const TransactionPreview = ({
         };
 
 
-        const res = await createV2SenderPaymentOrder(payload, accessToken);
+        const res = await createV2SenderPaymentOrder(
+          payload,
+          accessToken,
+          injectedToken,
+        );
         if (res.status !== "success" || !res.data) {
           const msg =
             typeof res.message === "string"
@@ -873,14 +1024,14 @@ export const TransactionPreview = ({
           providerAccount: created.providerAccount,
         });
 
-        const refreshTok = await getAccessToken();
-        if (refreshTok && apiWalletAddress) {
+        if ((accessToken || injectedToken) && apiWalletAddress) {
           void fetchTransactions(
             apiWalletAddress,
-            refreshTok,
+            accessToken,
             1,
             30,
             true,
+            injectedToken,
           );
         }
 
@@ -913,8 +1064,10 @@ export const TransactionPreview = ({
 
     try {
       setIsConfirming(true);
-      const accessToken = await getAccessToken();
-      if (!accessToken) {
+      const { accessToken, injectedToken } = await resolveAuth({
+        interactive: true,
+      });
+      if (!accessToken && !injectedToken) {
         toast.error("Please sign in to continue");
         return;
       }
@@ -945,6 +1098,7 @@ export const TransactionPreview = ({
           },
         },
         accessToken,
+        injectedToken,
       );
 
       await createOrder();
@@ -974,8 +1128,10 @@ export const TransactionPreview = ({
     setIsSavingTransaction(true);
 
     try {
-      const accessToken = await getAccessToken();
-      if (!accessToken) {
+      const { accessToken, injectedToken } = await resolveAuth({
+        interactive: true,
+      });
+      if (!accessToken && !injectedToken) {
         throw new Error("No access token available");
       }
 
@@ -1019,7 +1175,11 @@ export const TransactionPreview = ({
         email: user?.email?.address ?? undefined,
       };
 
-      const response = await saveTransaction(transaction, accessToken);
+      const response = await saveTransaction(
+        transaction,
+        accessToken,
+        injectedToken,
+      );
       if (!response.success) {
         throw new Error("Failed to save transaction");
       }
@@ -1253,12 +1413,18 @@ export const TransactionPreview = ({
             currency={currency}
             initial={refundAccount}
             onSave={async (data: RefundAccountDetails) => {
-              const token = await getAccessToken();
-              if (!token) {
+              const { accessToken, injectedToken } = await resolveAuth({
+                interactive: true,
+              });
+              if (!accessToken && !injectedToken) {
                 throw new Error("Please sign in to save your refund account.");
               }
               const isEdit = refundAccount !== null;
-              const saved = await saveRefundAccount(data, token);
+              const saved = await saveRefundAccount(
+                data,
+                accessToken,
+                injectedToken,
+              );
               setRefundAccount(saved);
               setRefundAccountWasEdited(isEdit);
             }}
@@ -1278,28 +1444,34 @@ export const TransactionPreview = ({
           <hr className="w-full border-dashed border-gray-200 dark:border-white/10" />
 
           <p className="text-gray-500 dark:text-white/50">
-            To confirm order, you&apos;ll be required to approve these two
-            permissions from your wallet
+            {willNeedApproval
+              ? "To confirm order, you'll be required to approve these two permissions from your wallet"
+              : "To confirm order, you'll be required to approve this permission from your wallet"}
           </p>
 
           <div className="flex items-center justify-between pb-2 text-gray-500 dark:text-white/50">
             <p>
-              <span>{isGatewayApproved ? 2 : 1}</span> of 2
+              <span>
+                {willNeedApproval ? (isGatewayApproved ? 2 : 1) : 1}
+              </span>{" "}
+              of {willNeedApproval ? 2 : 1}
             </p>
             <div className="flex gap-4">
-              <div className="flex items-center gap-2 rounded-full bg-gray-50 px-2 py-1 dark:bg-white/5">
-                {isGatewayApproved ? (
-                  <PiCheckCircleFill className="text-lg text-green-700 dark:text-green-500" />
-                ) : (
-                  <TbCircleDashed
-                    className={classNames(
-                      isConfirming || isPollingOrderId ? "animate-spin" : "",
-                      "text-lg",
-                    )}
-                  />
-                )}
-                <p className="pr-1">Approve Gateway</p>
-              </div>
+              {willNeedApproval && (
+                <div className="flex items-center gap-2 rounded-full bg-gray-50 px-2 py-1 dark:bg-white/5">
+                  {isGatewayApproved ? (
+                    <PiCheckCircleFill className="text-lg text-green-700 dark:text-green-500" />
+                  ) : (
+                    <TbCircleDashed
+                      className={classNames(
+                        isConfirming || isPollingOrderId ? "animate-spin" : "",
+                        "text-lg",
+                      )}
+                    />
+                  )}
+                  <p className="pr-1">Approve Gateway</p>
+                </div>
+              )}
 
               <div className="flex items-center gap-2 rounded-full bg-gray-50 px-2 py-1 dark:bg-white/5">
                 {isOrderCreated ? (

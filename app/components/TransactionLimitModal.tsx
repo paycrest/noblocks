@@ -21,6 +21,7 @@ import {
   getKycUpgradeStep,
   hasAssignedKycTier,
 } from "@/app/lib/kyc-upgrade-path";
+import { isPooledAllowance } from "@/app/lib/kyc-limit-copy";
 
 interface TransactionLimitModalProps {
   isOpen: boolean;
@@ -35,6 +36,7 @@ export default function TransactionLimitModal({
 }: TransactionLimitModalProps) {
   const {
     tier,
+    pooledWalletCount,
     getCurrentLimits,
     refreshStatus,
     transactionSummary,
@@ -104,6 +106,9 @@ export default function TransactionLimitModal({
             <span className="font-medium text-black dark:text-white">
               ${formatUsdAmount(currentLimits.monthly)}
             </span>
+            {isPooledAllowance(pooledWalletCount) && (
+              <>, shared across your {pooledWalletCount} wallets</>
+            )}
             {transactionAmount > 0 ? (
               <>
                 . This transaction (${formatNumberWithCommas(transactionAmount)}
@@ -141,6 +146,13 @@ export default function TransactionLimitModal({
               </span>
               <InformationCircleIcon className="h-4 w-4 text-gray-400 dark:text-white/40" />
             </div>
+
+            {/* The spend below can exceed what this wallet alone has sent. */}
+            {isPooledAllowance(pooledWalletCount) && (
+              <p className="text-xs font-light text-text-secondary dark:text-white/50">
+                Shared across your {pooledWalletCount} wallets
+              </p>
+            )}
 
             <div className="w-full text-start">
               <div className="mb-2 text-2xl font-light text-text-body dark:text-white">

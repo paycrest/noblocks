@@ -77,6 +77,51 @@ NEXT_PUBLIC_HOTJAR_SITE_ID=
 NEXT_PUBLIC_ENABLE_EMAIL_IN_ANALYTICS=false
 ```
 
+### Datadog RUM (Real User Monitoring)
+
+Browser-only session monitoring on the EU site (`datadoghq.eu`). Initialized only after the user accepts analytics cookies (same gate as Mixpanel/Hotjar). Disabled on `/widget` embeds.
+
+Create a RUM application in [Datadog EU](https://app.datadoghq.eu/rum/list) and copy the application ID and client token.
+
+```bash
+NEXT_PUBLIC_DD_APPLICATION_ID=
+NEXT_PUBLIC_DD_CLIENT_TOKEN=
+NEXT_PUBLIC_DD_SITE=datadoghq.eu
+NEXT_PUBLIC_DD_SERVICE=noblocks
+NEXT_PUBLIC_DD_ENV=production
+NEXT_PUBLIC_DD_VERSION=                     # Optional (e.g. git SHA from CI)
+NEXT_PUBLIC_DD_RUM_SAMPLE_RATE=100          # 0–100
+NEXT_PUBLIC_DD_SESSION_REPLAY_SAMPLE_RATE=100 # 0–100; % of RUM sessions that record Session Replay
+NEXT_PUBLIC_DD_ENABLE_IN_DEV=false          # Send RUM from local dev when true
+```
+
+### Datadog Server-Side APM and Logs
+
+Server-side tracing (`instrumentation.ts`) and structured JSON logging (`app/lib/logger.ts`). Neither talks to Datadog directly — see [OBSERVABILITY.md](../OBSERVABILITY.md) for the deployment.
+
+The two take different routes, which matters when debugging one of them:
+
+| Signal | How it leaves the app | Behaviour with no agent running |
+| --- | --- | --- |
+| Traces | Sent to the agent over `DD_AGENT_HOST:8126` | Dropped |
+| Logs | Written as JSON to **stdout**; the agent collects the container's output | Still printed — visible in `docker logs` |
+
+**The app does not need `DD_API_KEY`.** Only the agent holds the key, in `.env.datadog` (template: `.env.datadog.example`). Adding an API key to the app's environment is unnecessary and widens its blast radius.
+
+```bash
+DD_SERVICE=noblocks
+DD_ENV=production
+DD_VERSION=                                 # Set from the git SHA in CI
+DD_AGENT_HOST=datadog-agent                 # Agent container name on the Docker network
+DD_TRACE_AGENT_PORT=8126
+DD_TRACE_ENABLED=true                       # "false" disables APM; read once at startup, so it needs a restart
+LOG_LEVEL=info                              # pino level: trace|debug|info|warn|error|fatal
+```
+
+Locally the tracer defaults to `localhost:8126` and is harmless with no agent running — traces are dropped, and logs still print as JSON.
+
+> **Note on `console`:** `next.config.mjs` strips `console.log` from production builds (`warn`/`error`/`info` are preserved). Anything that must be queryable in Datadog should go through `app/lib/logger.ts`, which emits JSON with `dd.trace_id` for trace correlation.
+
 ### Server-Side Analytics
 
 ```bash
@@ -172,6 +217,9 @@ NEXT_PUBLIC_BRIDGE_DEFAULT_SLIPPAGE_BPS=50
 
 # Onramp chained forwarding: crypto settles to user wallet then auto-forward to destination
 NEXT_PUBLIC_ONRAMP_CHAINED_FORWARDING_ENABLED=false
+
+# KES fiat→crypto on-ramp (NGN on-ramp always on). Omit or any value except "false" = enabled.
+NEXT_PUBLIC_KES_ONRAMP_ENABLED=false
 
 # Embeddable widget (/widget, iframed by whitelisted partners) — see docs/embed-widget.md
 NEXT_PUBLIC_EMBED_ENABLED=false

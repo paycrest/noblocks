@@ -1,13 +1,11 @@
 "use client";
 
 /**
- * Round-progress strip, matching the official game's design: one band with
- * every round as an equal column — completed rounds get a "Done" pill, the
- * current round is highlighted with an underline and its state (Transfers
- * open / Live / Finalizing), upcoming rounds show their date — plus a
- * transfers-deadline strip underneath while the window is open.
+ * Horizontally scrolling gameweek strip, windowed around the current GW
+ * (~current−2 … current+3 visible first; rest reachable by scroll).
  */
 
+import { useEffect, useRef } from "react";
 import { Tick02Icon } from "hugeicons-react";
 import { useMatchdays } from "./hooks";
 import { Skeleton } from "./ui";
@@ -36,31 +34,43 @@ const deadlineLabel = (iso: string) => {
 export const RoundStrip = ({
   scores,
 }: {
-  /** Own points per matchday id (from the squad response). */
   scores?: Record<number, number>;
 }) => {
   const { data, isPending } = useMatchdays();
-  // Reserve the band's height while loading so the page doesn't jump.
-  if (isPending) return <Skeleton className="h-16 w-full rounded-2xl" />;
-  const matchdays = data?.matchdays ?? [];
-  if (matchdays.length < 2) return null;
+  const scrollerRef = useRef<HTMLDivElement>(null);
+  const currentRef = useRef<HTMLDivElement>(null);
 
+  const matchdays = data?.matchdays ?? [];
   const currentId = matchdays.find((md) => md.status !== "final")?.id;
   const current = matchdays.find((md) => md.id === currentId);
-  const transfersOpen =
-    current != null && stateOf(current, true) === "open";
+  const transfersOpen = current != null && stateOf(current, true) === "open";
+
+  useEffect(() => {
+    currentRef.current?.scrollIntoView({
+      inline: "center",
+      block: "nearest",
+      behavior: "smooth",
+    });
+  }, [currentId]);
+
+  if (isPending) return <Skeleton className="h-16 w-full rounded-2xl" />;
+  if (matchdays.length < 2) return null;
 
   return (
     <div className="overflow-hidden rounded-2xl bg-background-neutral dark:bg-white/5">
-      <div className="flex">
+      <div
+        ref={scrollerRef}
+        className="flex gap-1 overflow-x-auto px-2 py-1 scrollbar-thin"
+      >
         {matchdays.map((md) => {
           const isCurrent = md.id === currentId;
           const state = stateOf(md, isCurrent);
           return (
             <div
               key={md.id}
+              ref={isCurrent ? currentRef : undefined}
               aria-current={isCurrent ? "step" : undefined}
-              className="relative min-w-0 flex-1 px-1 py-2.5 text-center"
+              className="relative w-[4.5rem] shrink-0 px-1 py-2.5 text-center"
             >
               <span
                 className={`block truncate text-xs font-semibold ${
@@ -69,7 +79,7 @@ export const RoundStrip = ({
                     : "text-text-secondary dark:text-white/50"
                 }`}
               >
-                {md.display_name}
+                {md.label || md.display_name}
               </span>
               <span className="mt-1 block text-[10px]">
                 {state === "complete" && (
@@ -78,44 +88,39 @@ export const RoundStrip = ({
                       `${scores[md.id] ?? 0} pts`
                     ) : (
                       <>
-                        <Tick02Icon className="size-2.5" />
+                        <Tick02Icon className="size-3" />
                         Done
                       </>
                     )}
                   </span>
                 )}
                 {state === "open" && (
-                  <span className="font-medium text-text-body dark:text-white">
-                    Transfers open
+                  <span className="font-medium text-lavender-500 dark:text-lavender-400">
+                    Open
                   </span>
                 )}
                 {state === "live" && (
-                  <span className="font-semibold text-accent-red">Live</span>
+                  <span className="font-semibold text-red-500">Live</span>
                 )}
                 {state === "finalizing" && (
-                  <span className="font-semibold text-amber-600 dark:text-amber-400">
-                    Finalizing
-                  </span>
+                  <span className="font-medium text-amber-600">Finalizing</span>
                 )}
                 {state === "upcoming" && (
-                  <span className="text-text-secondary dark:text-white/40">
+                  <span className="text-text-disabled dark:text-white/40">
                     {shortDate(md.lock_at)}
                   </span>
                 )}
               </span>
               {isCurrent && (
-                <span className="absolute inset-x-3 bottom-0 h-0.5 rounded-full bg-lavender-500" />
+                <span className="absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-lavender-500" />
               )}
             </div>
           );
         })}
       </div>
       {transfersOpen && current && (
-        <div className="border-t border-border-light px-3 py-2 text-center text-[11px] text-text-secondary dark:border-white/10 dark:text-white/50">
-          Transfers deadline:{" "}
-          <span className="font-semibold text-text-body dark:text-white">
-            {deadlineLabel(current.lock_at)}
-          </span>
+        <div className="border-t border-border-light px-3 py-2 text-center text-xs text-text-secondary dark:border-white/10 dark:text-white/60">
+          Deadline: {deadlineLabel(current.lock_at)}
         </div>
       )}
     </div>

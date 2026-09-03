@@ -107,9 +107,16 @@ export const SettingsDropdown = () => {
     onSuccess: ({ user }) => {
       toast.success(`${user.email} linked successfully`);
     },
-    onError: () => {
+    onError: (error) => {
+      // Privy reports why linking failed — surface the real reason instead of
+      // blanket-claiming the email is already linked.
+      const code = String(error);
+      if (code === "exited_link_flow") return; // user closed the modal — not an error
       toast.error("Error linking account", {
-        description: "You might have this email linked already",
+        description:
+          code === "linked_to_another_user"
+            ? "This email is already linked to another account"
+            : "Couldn't link your email. Please try again.",
       });
     },
   });

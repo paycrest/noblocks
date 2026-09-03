@@ -68,6 +68,13 @@ export interface EarnActivityEntry {
   amountBaseUnits: string;
   /** When the user kicked it off — milliseconds since epoch. */
   timestamp: number;
+  /** EVM source chain for bridged earn txs; omitted for native Starknet earn. */
+  sourceChain?: string;
+}
+
+export interface EarnTxContext {
+  /** EVM network display name (e.g. "Base") when the tx was initiated. */
+  sourceChain?: string;
 }
 
 const ACTIVITY_PREFIX = "earn_activity_";
@@ -114,6 +121,9 @@ function normalizeActivity(raw: any): EarnActivityEntry | null {
     token,
     amountBaseUnits: String(raw.amountBaseUnits ?? "0"),
     timestamp: Number(raw.timestamp) || Date.now(),
+    ...(typeof raw.sourceChain === "string" && raw.sourceChain
+      ? { sourceChain: raw.sourceChain }
+      : {}),
   };
 }
 
@@ -248,6 +258,7 @@ export function useEarnHandler() {
     async (
       token: EarnToken,
       amountBaseUnits: bigint,
+      context?: EarnTxContext,
     ): Promise<{ txHash: string }> => {
       if (!walletId || !publicKey || !address) {
         throw new Error("Starknet wallet not ready");
@@ -280,6 +291,7 @@ export function useEarnHandler() {
         token,
         amountBaseUnits: amountBaseUnits.toString(),
         timestamp: Date.now(),
+        ...(context?.sourceChain ? { sourceChain: context.sourceChain } : {}),
       });
       return { txHash };
     },
@@ -290,6 +302,7 @@ export function useEarnHandler() {
     async (
       token: EarnToken,
       amountBaseUnits: bigint | "max",
+      context?: EarnTxContext,
     ): Promise<{ txHash: string }> => {
       if (!walletId || !publicKey || !address) {
         throw new Error("Starknet wallet not ready");
@@ -327,6 +340,7 @@ export function useEarnHandler() {
           ? (positions[token]?.suppliedBaseUnits ?? "0")
           : (amountBaseUnits as bigint).toString(),
         timestamp: Date.now(),
+        ...(context?.sourceChain ? { sourceChain: context.sourceChain } : {}),
       });
       return { txHash };
     },

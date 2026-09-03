@@ -2,6 +2,7 @@ import {
   expandKesMpesaInstitutions,
   getOfframpAccountIdentifierPlaceholder,
   formatKesMpesaAccountDisplay,
+  formatRecipientInstitutionDisplay,
   getKesMpesaInstitutionLabel,
   KES_MPESA_INSTITUTION_CODE,
 } from "../app/utils";
@@ -57,5 +58,35 @@ describe("KES M-Pesa virtual institution split", () => {
       "Paybill • 400200 / INV-001 • M-PESA",
     );
     expect(getKesMpesaInstitutionLabel("Till")).toBe("M-PESA (Till)");
+  });
+
+  it("labels legacy channel-less KES M-Pesa recipients as generic M-PESA", () => {
+    const expanded = expandKesMpesaInstitutions(baseInstitutions, "KES");
+    // Without a channel, never pick a channel-specific name off the expanded list.
+    expect(
+      formatRecipientInstitutionDisplay(KES_MPESA_INSTITUTION_CODE, expanded, {
+        currency: "KES",
+      }),
+    ).toBe("M-PESA");
+    expect(
+      formatRecipientInstitutionDisplay(KES_MPESA_INSTITUTION_CODE, expanded, {
+        currency: "KES",
+        accountIdentifier: "0712345678",
+      }),
+    ).toBe("0712345678 • M-PESA");
+  });
+
+  it("keeps the account identifier in non-M-Pesa account lines", () => {
+    expect(
+      formatRecipientInstitutionDisplay("EQTYKEPC", baseInstitutions, {
+        currency: "KES",
+        accountIdentifier: "1234567890",
+      }),
+    ).toBe("1234567890 • Equity Bank");
+    expect(
+      formatRecipientInstitutionDisplay("EQTYKEPC", baseInstitutions, {
+        currency: "KES",
+      }),
+    ).toBe("Equity Bank");
   });
 });

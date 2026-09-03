@@ -10,6 +10,7 @@ import { validatePhoneNumber } from "@/app/lib/phone-validation";
 import { checkTwilioVerifyCode } from "@/app/lib/phone-verification";
 import { rateLimit } from "@/app/lib/rate-limit";
 import { notifyKycResultEmail } from "@/app/lib/activepieces-kyc-result";
+import { createKycReporter, type KycReporter } from "@/app/lib/kyc-telemetry";
 
 const MAX_ATTEMPTS = 3;
 
@@ -38,30 +39,57 @@ function notifyPhoneVerified(walletAddress: string, currentTier: number): void {
  * Promotes the pending number to the verified phone_number. Enforces one
  * verified identity per phone (friendly pre-check + 23505 from the partial
  * unique index for the concurrent case).
+ *
+ * Injected-wallet profiles are exempt in both directions: they are neither checked
+ * nor counted as owners. Their spend is pooled per identity instead
+ * (`app/lib/kyc-identity.ts`), so several wallets on one number share one allowance.
  */
 async function promoteVerifiedPhone(
   walletAddress: string,
   e164: string,
   currentTier: number,
+  isInjected: boolean,
+  report: KycReporter,
 ): Promise<{ ok: true } | { ok: false; status: number; error: string }> {
-  const { data: phoneOwner, error: ownerError } = await supabaseAdmin
-    .from("user_kyc_profiles")
-    .select("wallet_address")
-    .eq("phone_number", e164)
-    .gte("tier", 1)
-    .neq("wallet_address", walletAddress)
-    .limit(1)
-    .maybeSingle();
+  if (!isInjected) {
+    const { data: phoneOwner, error: ownerError } = await supabaseAdmin
+      .from("user_kyc_profiles")
+      .select("wallet_address")
+      .eq("phone_number", e164)
+      .gte("tier", 1)
+      .eq("is_injected_wallet", false)
+      .neq("wallet_address", walletAddress)
+      .limit(1)
+      .maybeSingle();
 
-  if (ownerError) {
-    return {
-      ok: false,
-      status: 500,
-      error: "Failed to update verification status",
-    };
-  }
-  if (phoneOwner) {
-    return { ok: false, status: 409, error: PHONE_IN_USE_ERROR };
+    if (ownerError) {
+      report.failed({
+        walletAddress,
+        stage: "phone_uniqueness_check",
+        reason: "supabase_error",
+        provider: "supabase",
+        providerCode: ownerError.code,
+        detail: ownerError.message,
+        tierFrom: currentTier,
+        statusCode: 500,
+      });
+      return {
+        ok: false,
+        status: 500,
+        error: "Failed to update verification status",
+      };
+    }
+    if (phoneOwner) {
+      // They entered the right code and still cannot proceed.
+      report.rejected({
+        walletAddress,
+        stage: "phone_uniqueness_check",
+        reason: "duplicate_phone_number",
+        tierFrom: currentTier,
+        statusCode: 409,
+      });
+      return { ok: false, status: 409, error: PHONE_IN_USE_ERROR };
+    }
   }
 
   const updateData: Record<string, unknown> = {
@@ -87,9 +115,29 @@ async function promoteVerifiedPhone(
     .maybeSingle();
 
   if (updateError) {
+    // Still reachable: two non-injected wallets racing to verify the same number.
     if (updateError.code === "23505") {
+      report.rejected({
+        walletAddress,
+        stage: "promotion",
+        reason: "duplicate_phone_number",
+        provider: "supabase",
+        providerCode: updateError.code,
+        tierFrom: currentTier,
+        statusCode: 409,
+      });
       return { ok: false, status: 409, error: PHONE_IN_USE_ERROR };
     }
+    report.failed({
+      walletAddress,
+      stage: "promotion",
+      reason: "supabase_error",
+      provider: "supabase",
+      providerCode: updateError.code,
+      detail: updateError.message,
+      tierFrom: currentTier,
+      statusCode: 500,
+    });
     return {
       ok: false,
       status: 500,
@@ -98,6 +146,13 @@ async function promoteVerifiedPhone(
   }
 
   if (!updatedRow) {
+    report.rejected({
+      walletAddress,
+      stage: "promotion",
+      reason: "superseded_by_newer_otp",
+      tierFrom: currentTier,
+      statusCode: 409,
+    });
     return {
       ok: false,
       status: 409,
@@ -106,15 +161,25 @@ async function promoteVerifiedPhone(
     };
   }
 
+  report.success({
+    walletAddress,
+    stage: "promotion",
+    tierFrom: currentTier,
+    tierTo: currentTier === 0 ? 1 : currentTier,
+    statusCode: 200,
+  });
+
   return { ok: true };
 }
 
 export async function POST(request: NextRequest) {
   const startTime = Date.now();
+  const report = createKycReporter({ step: "phone_otp_verify", targetTier: 1 });
 
   try {
     const rateLimitResult = await rateLimit(request);
     if (!rateLimitResult.success) {
+      report.rejected({ reason: "rate_limited", statusCode: 429 });
       return NextResponse.json(
         { success: false, error: "Too many requests. Please try again later." },
         { status: 429 },
@@ -130,6 +195,10 @@ export async function POST(request: NextRequest) {
     const walletAddress = request.headers.get("x-wallet-address");
 
     if (!walletAddress) {
+      // Not an unauthenticated user: middleware matches these routes, turns
+      // those away with its own 401, and strips forged wallet headers. Reaching
+      // the handler without one means the matcher or header propagation broke.
+      report.failed({ reason: "unauthorized", statusCode: 401 });
       trackApiError(
         request,
         "/api/phone/verify-otp",
@@ -144,6 +213,12 @@ export async function POST(request: NextRequest) {
     }
 
     if (!phoneNumber || !otpCode) {
+      report.rejected({
+        walletAddress,
+        stage: "request_validation",
+        reason: "missing_fields",
+        statusCode: 400,
+      });
       trackApiError(
         request,
         "/api/phone/verify-otp",
@@ -160,6 +235,13 @@ export async function POST(request: NextRequest) {
     // Normalize phone number to E.164 format for consistent querying
     const validation = validatePhoneNumber(phoneNumber);
     if (!validation.isValid || !validation.e164Format) {
+      report.rejected({
+        walletAddress,
+        stage: "request_validation",
+        reason: "invalid_phone_format",
+        idCountry: validation.country,
+        statusCode: 400,
+      });
       trackApiError(
         request,
         "/api/phone/verify-otp",
@@ -178,12 +260,21 @@ export async function POST(request: NextRequest) {
     const { data: verification, error: fetchError } = await supabaseAdmin
       .from("user_kyc_profiles")
       .select(
-        "verified, provider, tier, expires_at, otp_attempts, otp_code, phone_number, pending_phone_number",
+        "verified, provider, tier, expires_at, otp_attempts, otp_code, phone_number, pending_phone_number, is_injected_wallet",
       )
       .eq("wallet_address", walletAddress)
       .maybeSingle();
 
     if (fetchError) {
+      report.failed({
+        walletAddress,
+        stage: "profile_fetch",
+        reason: "supabase_error",
+        provider: "supabase",
+        providerCode: fetchError.code,
+        detail: fetchError.message,
+        statusCode: 500,
+      });
       trackApiError(request, "/api/phone/verify-otp", "POST", fetchError, 500);
       return NextResponse.json(
         { success: false, error: "Failed to fetch verification record" },
@@ -199,6 +290,13 @@ export async function POST(request: NextRequest) {
     ) {
       const responseTime = Date.now() - startTime;
       trackApiResponse("/api/phone/verify-otp", "POST", 200, responseTime);
+      report.noop({
+        walletAddress,
+        stage: "profile_fetch",
+        reason: "already_verified",
+        tierFrom: Number(verification.tier) || 0,
+        statusCode: 200,
+      });
       return NextResponse.json({
         success: true,
         message: "Phone number already verified",
@@ -210,6 +308,12 @@ export async function POST(request: NextRequest) {
       !verification ||
       verification.pending_phone_number !== validation.e164Format
     ) {
+      report.rejected({
+        walletAddress,
+        stage: "profile_fetch",
+        reason: "no_pending_verification",
+        statusCode: 404,
+      });
       trackApiError(
         request,
         "/api/phone/verify-otp",
@@ -230,6 +334,15 @@ export async function POST(request: NextRequest) {
         otpCode,
       );
       if (!checkResult.success) {
+        report.rejected({
+          walletAddress,
+          stage: "otp_check",
+          reason: "invalid_otp",
+          provider: "twilio",
+          detail: checkResult.error,
+          tierFrom: Number(verification.tier) || 0,
+          statusCode: 400,
+        });
         trackApiError(
           request,
           "/api/phone/verify-otp",
@@ -252,6 +365,8 @@ export async function POST(request: NextRequest) {
         walletAddress,
         validation.e164Format,
         Number(verification.tier) || 0,
+        verification.is_injected_wallet === true,
+        report,
       );
       if (!promotion.ok) {
         trackApiError(
@@ -280,7 +395,18 @@ export async function POST(request: NextRequest) {
 
     // KudiSMS path: expiry, attempts, and DB OTP comparison
     const expiresRaw = verification.expires_at;
+    const rejectExpired = (reason: string) => {
+      report.rejected({
+        walletAddress,
+        stage: "otp_check",
+        reason,
+        provider: "kudisms",
+        tierFrom: Number(verification.tier) || 0,
+        statusCode: 400,
+      });
+    };
     if (expiresRaw == null || expiresRaw === "") {
+      rejectExpired("otp_expiry_missing");
       return NextResponse.json(
         { success: false, error: "OTP has expired. Please request a new one." },
         { status: 400 },
@@ -288,12 +414,14 @@ export async function POST(request: NextRequest) {
     }
     const expiresDate = new Date(expiresRaw as string);
     if (Number.isNaN(expiresDate.getTime())) {
+      rejectExpired("otp_expiry_unparseable");
       return NextResponse.json(
         { success: false, error: "OTP has expired. Please request a new one." },
         { status: 400 },
       );
     }
     if (new Date() > expiresDate) {
+      rejectExpired("otp_expired");
       return NextResponse.json(
         { success: false, error: "OTP has expired. Please request a new one." },
         { status: 400 },
@@ -301,6 +429,16 @@ export async function POST(request: NextRequest) {
     }
 
     if (verification.otp_attempts >= MAX_ATTEMPTS) {
+      report.rejected({
+        walletAddress,
+        stage: "otp_check",
+        reason: "attempts_exhausted",
+        provider: "kudisms",
+        attempt: Number(verification.otp_attempts) || MAX_ATTEMPTS,
+        attemptsRemaining: 0,
+        tierFrom: Number(verification.tier) || 0,
+        statusCode: 429,
+      });
       return NextResponse.json(
         {
           success: false,
@@ -319,6 +457,15 @@ export async function POST(request: NextRequest) {
         });
 
       if (attemptsError) {
+        report.failed({
+          walletAddress,
+          stage: "otp_check",
+          reason: "supabase_error",
+          provider: "supabase",
+          providerCode: attemptsError.code,
+          detail: attemptsError.message,
+          statusCode: 500,
+        });
         trackApiError(
           request,
           "/api/phone/verify-otp",
@@ -334,6 +481,15 @@ export async function POST(request: NextRequest) {
 
       // Null means attempts limit was already reached mid-flight
       if (updatedAttempts === null || updatedAttempts === undefined) {
+        report.rejected({
+          walletAddress,
+          stage: "otp_check",
+          reason: "attempts_exhausted",
+          provider: "kudisms",
+          attemptsRemaining: 0,
+          tierFrom: Number(verification.tier) || 0,
+          statusCode: 429,
+        });
         return NextResponse.json(
           {
             success: false,
@@ -344,6 +500,16 @@ export async function POST(request: NextRequest) {
         );
       }
 
+      report.rejected({
+        walletAddress,
+        stage: "otp_check",
+        reason: "invalid_otp",
+        provider: "kudisms",
+        attempt: Number(updatedAttempts) || null,
+        attemptsRemaining: Math.max(0, MAX_ATTEMPTS - Number(updatedAttempts)),
+        tierFrom: Number(verification.tier) || 0,
+        statusCode: 400,
+      });
       return NextResponse.json(
         {
           success: false,
@@ -360,6 +526,8 @@ export async function POST(request: NextRequest) {
       walletAddress,
       validation.e164Format,
       Number(verification.tier) || 0,
+      verification.is_injected_wallet === true,
+      report,
     );
     if (!promotion.ok) {
       trackApiError(
@@ -387,6 +555,13 @@ export async function POST(request: NextRequest) {
       phoneNumber: phoneNumber,
     });
   } catch (error) {
+    report.failed({
+      stage: "unhandled",
+      reason: "unexpected_error",
+      detail: error instanceof Error ? error.message : String(error),
+      error,
+      statusCode: 500,
+    });
     trackApiError(
       request,
       "/api/phone/verify-otp",

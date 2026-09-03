@@ -74,7 +74,7 @@ const wrap = (title: string, body: string) => `
     <h2 style="color:#8B85F4;margin:0 0 16px;">${title}</h2>
     ${body}
     <p style="margin-top:24px;font-size:13px;color:#6B6B7B;">
-      Noblocks Play — World Cup 2026 Fantasy League ·
+      Noblocks Play — Premier League Fantasy ·
       <a href="https://noblocks.xyz/play" style="color:#8B85F4;">noblocks.xyz/play</a>
     </p>
   </div>`;
@@ -89,23 +89,13 @@ export const matchdayReminderEmail = (displayName: string, lockAt: string) => ({
   ),
 });
 
-export const oneAwayEmail = (activated: number, required: number) => ({
-  subject: `🔥 You're one referral away from qualifying`,
-  html: wrap(
-    "One more to go",
-    `<p>You have <strong>${activated} of ${required}</strong> activated referrals.
-     One more friend who transacts $5+ on Noblocks and you're in the prize draw.</p>
-     <p><a href="https://noblocks.xyz/play/rewards" style="color:#8B85F4;font-weight:600;">Share my link →</a></p>`,
-  ),
-});
-
 export const recapEmail = (displayName: string, points: number, rank: number | null) => ({
   subject: `📊 Your ${displayName} recap — ${points} points`,
   html: wrap(
     `${displayName} is done`,
     `<p>You scored <strong>${points} points</strong>${
       rank ? ` and now sit at <strong>rank #${rank}</strong>` : ""
-    }. Transfers are open again — strengthen your squad for the next round.</p>
+    }. Transfers are open again — strengthen your squad for the next gameweek.</p>
      <p><a href="https://noblocks.xyz/play/leaderboard" style="color:#8B85F4;font-weight:600;">View leaderboard →</a></p>`,
   ),
 });

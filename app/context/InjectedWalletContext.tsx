@@ -6,6 +6,7 @@ import {
   useContext,
   useState,
   useEffect,
+  useLayoutEffect,
   useRef,
   Suspense,
 } from "react";
@@ -43,6 +44,60 @@ export interface InjectedTokenOptions {
    * skip silently, so popups only ever fire from explicit user actions.
    */
   interactive?: boolean;
+}
+
+/** A session is treated as expired this early so a token can't lapse mid-request. */
+export const INJECTED_SESSION_EXPIRY_GRACE_MS = 60_000;
+
+/**
+ * What a `getInjectedToken` call should do, given the current session state.
+ *
+ * Extracted as a pure function because the ordering here is subtle: joining an in-flight sign-in
+ * must be considered *before* the non-interactive bail-out, or a passive caller racing an
+ * interactive one (both fired from the same mount) reports "no session" and, if its effect never
+ * re-runs, never recovers.
+ */
+export function resolveInjectedTokenAction(params: {
+  session: { token: string; expiresAt: number } | null;
+  hasSignInFlight: boolean;
+  interactive: boolean;
+  now: number;
+}): "use-session" | "join-flight" | "start-sign-in" | "no-session" {
+  const { session, hasSignInFlight, interactive, now } = params;
+  if (session && now < session.expiresAt - INJECTED_SESSION_EXPIRY_GRACE_MS) {
+    return "use-session";
+  }
+  if (hasSignInFlight) return "join-flight";
+  return interactive ? "start-sign-in" : "no-session";
+}
+
+/**
+ * How to react to an `accountsChanged` event, given the address we already hold.
+ *
+ * Hosts re-emit `accountsChanged` for reasons that are not account switches — reconnects, tab
+ * refocus, a wagmi/AppKit host re-binding — and may report the same account with different
+ * casing. Treating those as switches used to drop the SIWE session (forcing a needless re-sign)
+ * and change the address string, which resets every wallet-keyed cache including KYC status.
+ * The session only ever asserts the lowercased address, so same-address re-emits can keep it.
+ */
+export function resolveAccountsChangedAction(
+  previousAddress: string | null,
+  nextAddress: string | null | undefined,
+): {
+  kind: "unchanged" | "switched" | "disconnected";
+  clearSession: boolean;
+  setAddress: boolean;
+} {
+  const next = nextAddress?.trim();
+  if (!next) {
+    return { kind: "disconnected", clearSession: true, setAddress: true };
+  }
+  const isSameAccount =
+    !!previousAddress &&
+    previousAddress.trim().toLowerCase() === next.toLowerCase();
+  return isSameAccount
+    ? { kind: "unchanged", clearSession: false, setAddress: false }
+    : { kind: "switched", clearSession: true, setAddress: true };
 }
 
 interface InjectedWalletContextType {
@@ -89,6 +144,18 @@ function InjectedWalletProviderContent({ children }: { children: ReactNode }) {
   const { parentOrigin, parentOriginResolved } = useEmbed();
   const [isInjectedWallet, setIsInjectedWallet] = useState(false);
   const [injectedAddress, setInjectedAddress] = useState<string | null>(null);
+  // Mirrors injectedAddress for the accountsChanged listener, which must compare against the
+  // current address without taking it as an effect dependency (that would resubscribe the
+  // provider listener on every account change).
+  const injectedAddressRef = useRef<string | null>(null);
+  // Synced in a layout effect, not during render: a render can be discarded or replayed, and
+  // mutating a ref directly in the render body would leak that discarded value into the
+  // listener. Layout effects for this commit all run before the accountsChanged subscription
+  // effect below (layout effects run before passive effects, regardless of declaration order),
+  // so the ref is always current by the time the listener could possibly fire.
+  useLayoutEffect(() => {
+    injectedAddressRef.current = injectedAddress;
+  }, [injectedAddress]);
   const [injectedProvider, setInjectedProvider] = useState<any | null>(null);
   const [injectedReady, setInjectedReady] = useState(false);
   const [injectedStatus, setInjectedStatus] =
@@ -187,18 +254,23 @@ function InjectedWalletProviderContent({ children }: { children: ReactNode }) {
       ) {
         return null;
       }
-      // Treat as expired 60s early so a token can't lapse mid-request.
       const session = sessionRef.current;
-      if (session && Date.now() < session.expiresAt - 60_000) {
-        return session.token;
-      }
-      if (!opts?.interactive) return null;
+      const action = resolveInjectedTokenAction({
+        session,
+        hasSignInFlight: signInFlightRef.current !== null,
+        interactive: opts?.interactive === true,
+        now: Date.now(),
+      });
+
+      if (action === "use-session") return session!.token;
+      // Awaiting a popup someone else already opened pops none of our own.
+      if (action === "join-flight") return signInFlightRef.current;
+      if (action === "no-session") return null;
+
       // Single-flight: concurrent interactive callers share one wallet popup.
-      if (!signInFlightRef.current) {
-        signInFlightRef.current = performSiweSignIn().finally(() => {
-          signInFlightRef.current = null;
-        });
-      }
+      signInFlightRef.current = performSiweSignIn().finally(() => {
+        signInFlightRef.current = null;
+      });
       return signInFlightRef.current;
     },
     [
@@ -333,12 +405,26 @@ function InjectedWalletProviderContent({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!injectedProvider?.on) return;
     const handleAccountsChanged = (accounts: unknown) => {
-      const [address] = (accounts as string[]) ?? [];
-      // Any account change invalidates the SIWE session — the token asserts
-      // the OLD address's identity. The next authed action re-prompts.
-      sessionRef.current = null;
+      const [rawAddress] = (accounts as string[]) ?? [];
+      // Normalize once: resolveAccountsChangedAction treats whitespace-only as a disconnect, so
+      // every branch below must key off the same normalized value or a "disconnected"
+      // classification could still be treated as a truthy (connected) address.
+      const address = rawAddress?.trim() || null;
+      // A real account switch invalidates the SIWE session — the token asserts the OLD
+      // address's identity, so the next authed action re-prompts. A re-emit of the account we
+      // already hold (reconnect, tab refocus, different casing) is not a switch: dropping the
+      // session there costs the user a signature and resets every wallet-keyed cache.
+      const action = resolveAccountsChangedAction(
+        injectedAddressRef.current,
+        address,
+      );
+      if (action.clearSession) {
+        sessionRef.current = null;
+      }
       if (address) {
-        setInjectedAddress(address);
+        if (action.setAddress) {
+          setInjectedAddress(address);
+        }
         setInjectedReady(true);
         setInjectedStatus("connected");
       } else {

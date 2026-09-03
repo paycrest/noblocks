@@ -7,10 +7,21 @@ jest.mock('@sentry/react', () => ({
   ErrorBoundary: ({ children }) => children,
 }))
 
+jest.mock('@datadog/browser-rum', () => ({
+  datadogRum: {
+    init: jest.fn(),
+    startView: jest.fn(),
+    addAction: jest.fn(),
+    setUser: jest.fn(),
+    setTrackingConsent: jest.fn(),
+  },
+}))
+
 // Mock environment variables for tests
 process.env.SUPABASE_URL = 'https://test.supabase.co'
 process.env.SUPABASE_SECRET_KEY = 'sb_secret_test_placeholder'
 process.env.NEXT_PUBLIC_PRIVY_APP_ID = 'test-privy-app-id'
+process.env.NEXT_PUBLIC_AGGREGATOR_URL = 'https://aggregator.test/v1'
 process.env.INTERNAL_API_KEY = 'test-internal-api-key'
 
 // Polyfill TextEncoder/TextDecoder for Node.js environment

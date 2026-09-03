@@ -1,9 +1,8 @@
 "use client";
 
 /**
- * "How to score" panel (mirrors the official game's right-hand card).
- * Values come straight from the settings' scoring matrix, so a rules tweak
- * in fantasy_settings.config shows up here without a deploy.
+ * "How to score" panel — FPL matrix from fantasy_settings.config, plus
+ * defensive contribution / NMB notes that aren't in the matrix JSON.
  */
 
 import { useState } from "react";
@@ -73,10 +72,13 @@ export const HowToScore = ({ scoring }: { scoring: ScoringMatrix }) => {
       {tab === "All players" && (
         <div>
           <Row label="Appearance" sub="Any minutes played" points={scoring.appearance} />
-          <Row label="Played 60+ minutes" sub="On top of the appearance point" points={scoring.appearance_60} />
+          <Row
+            label="Played 60+ minutes"
+            sub="On top of the appearance point"
+            points={scoring.appearance_60}
+          />
           <Row label="Assist" points={scoring.assist} />
-          <Row label="Winning a penalty" points={scoring.penalty_won} />
-          <Row label="Conceding a penalty" points={scoring.penalty_conceded} />
+          <Row label="Penalty miss" points={scoring.penalty_miss} />
           <Row label="Yellow card" points={scoring.yellow_card} />
           <Row label="Red card" points={scoring.red_card} />
           <Row label="Own goal" points={scoring.own_goal} />
@@ -87,14 +89,23 @@ export const HowToScore = ({ scoring }: { scoring: ScoringMatrix }) => {
         <div>
           <Row label="Goal scored (GK)" points={scoring.goal.GK} />
           <Row label="Goal scored (DEF)" points={scoring.goal.DEF} />
-          <Row label="Clean sheet" sub="60+ minutes played" points={scoring.clean_sheet.GK} />
+          <Row
+            label="Clean sheet"
+            sub="60+ minutes played"
+            points={scoring.clean_sheet.GK}
+          />
           <Row
             label="Goals conceded"
-            sub="First conceded is free, then per goal while on the pitch"
-            points={scoring.goals_conceded_per_extra.GK}
+            sub="−1 per 2 goals conceded while on the pitch"
+            points={scoring.goals_conceded_per_two.GK}
           />
           <Row label="Penalty save (GK)" points={scoring.penalty_save} />
           <Row label={`Every ${scoring.saves_per_point} saves (GK)`} points={1} />
+          <Row
+            label="Defensive contribution (DEF)"
+            sub="Blocks + interceptions + tackles ≥ threshold"
+            points={2}
+          />
         </div>
       )}
 
@@ -102,29 +113,31 @@ export const HowToScore = ({ scoring }: { scoring: ScoringMatrix }) => {
         <div>
           <Row label="Goal scored (MID)" points={scoring.goal.MID} />
           <Row label="Goal scored (FWD)" points={scoring.goal.FWD} />
-          <Row label="Clean sheet (MID)" sub="60+ minutes played" points={scoring.clean_sheet.MID} />
-          <Row label={`Every ${scoring.tackles_per_point} tackles (MID)`} points={1} />
           <Row
-            label={`Every ${scoring.key_passes_per_point} key passes (MID)`}
-            sub="Key passes stand in for big chances created"
-            points={1}
+            label="Clean sheet (MID)"
+            sub="60+ minutes played"
+            points={scoring.clean_sheet.MID}
           />
-          <Row label={`Every ${scoring.shots_on_target_per_point} shots on target (FWD)`} points={1} />
+          <Row
+            label="Defensive contribution"
+            sub="Blocks + interceptions + tackles ≥ threshold"
+            points={2}
+          />
         </div>
       )}
 
       <p className="mt-3 border-t border-border-light pt-2 text-xs font-semibold uppercase tracking-wide text-text-secondary dark:border-white/5 dark:text-white/40">
-        Bonus points
+        Bonus
       </p>
       <Row
-        label="Goal from a direct free-kick"
-        sub="On top of the goal points, where our data feed identifies the goal type"
-        points={scoring.direct_free_kick_goal}
+        label="Noblocks Match Bonus"
+        sub="Top 3 in our NMB ranking get +3 / +2 / +1 (FPL-style ties)"
+        points={3}
       />
 
       <p className="mt-3 text-[11px] leading-relaxed text-text-secondary dark:text-white/40">
-        Captain scores double; if they don&apos;t play, your vice-captain
-        scores double instead. Bench players never score.{" "}
+        Captain scores double if they play; otherwise your vice-captain may.
+        Auto-subs fill blanks from the bench.{" "}
         <Link
           href="/play/terms"
           className="font-medium text-lavender-500 hover:underline dark:text-lavender-400"

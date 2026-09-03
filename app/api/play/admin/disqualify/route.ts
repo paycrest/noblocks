@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { supabaseAdmin } from "@/app/lib/supabase";
-import { withRateLimit } from "@/app/lib/rate-limit";
+import { withRateLimitAndAnalytics } from "@/app/lib/analytics-middleware";
 import { requireAdmin } from "@/app/lib/fantasy/admin";
 import { jsonError, jsonOk } from "@/app/lib/fantasy/server";
 
@@ -11,7 +11,7 @@ import { jsonError, jsonOk } from "@/app/lib/fantasy/server";
  * reinstates) and, when a reason is given, appends an audit entry to the
  * participant's `flags` jsonb array.
  */
-export const POST = withRateLimit(async (request: NextRequest) => {
+export const POST = withRateLimitAndAnalytics(async (request: NextRequest) => {
   const unauthorized = requireAdmin(request);
   if (unauthorized) return unauthorized;
 

@@ -7,6 +7,7 @@ import {
 } from "@/app/lib/dojah";
 import { rateLimit } from "@/app/lib/rate-limit";
 import { notifyKycResultEmail } from "@/app/lib/activepieces-kyc-result";
+import { createKycReporter, emitKycEvent } from "@/app/lib/kyc-telemetry";
 const KYC_BUCKET = process.env.KYC_DOCUMENTS_BUCKET || "kyc-documents";
 // Countries where a street address cannot be meaningfully validated (PO Box culture,
 // no formal street addressing, etc.). Expand as needed.
@@ -30,6 +31,13 @@ const MIME_TO_EXT: Record<string, string> = {
 export async function POST(request: NextRequest) {
   const rateLimitResult = await rateLimit(request);
   if (!rateLimitResult.success) {
+    emitKycEvent({
+      step: "address_verification",
+      outcome: "rejected",
+      targetTier: 3,
+      reason: "rate_limited",
+      statusCode: 429,
+    });
     return NextResponse.json(
       { success: false, error: "Too many requests. Please try again later." },
       { status: 429 },
@@ -38,11 +46,28 @@ export async function POST(request: NextRequest) {
 
   const walletAddress = request.headers.get("x-wallet-address");
   if (!walletAddress) {
+    // Not an unauthenticated user: middleware matches this route, turns those
+    // away with its own 401, and strips forged wallet headers. Reaching the
+    // handler without one means the matcher or header propagation broke.
+    emitKycEvent({
+      step: "address_verification",
+      outcome: "error",
+      targetTier: 3,
+      reason: "unauthorized",
+      statusCode: 401,
+    });
     return NextResponse.json(
       { success: false, error: "Unauthorized" },
       { status: 401 },
     );
   }
+
+  const report = createKycReporter({
+    step: "address_verification",
+    walletAddress,
+    targetTier: 3,
+    provider: "dojah",
+  });
 
   try {
     const formData = await request.formData();
@@ -62,6 +87,12 @@ export async function POST(request: NextRequest) {
 
     const validatedDocumentType = documentType.trim();
     if (validatedDocumentType !== ALLOWED_DOCUMENT_TYPE) {
+      report.rejected({
+        stage: "request_validation",
+        reason: "unsupported_document_type",
+        detail: validatedDocumentType || "(empty)",
+        statusCode: 400,
+      });
       return NextResponse.json(
         {
           success: false,
@@ -73,12 +104,22 @@ export async function POST(request: NextRequest) {
     }
 
     if (!file || file.size === 0) {
+      report.rejected({
+        stage: "request_validation",
+        reason: "missing_document",
+        statusCode: 400,
+      });
       return NextResponse.json(
         { success: false, error: "Document file is required" },
         { status: 400 },
       );
     }
     if (!countryCode?.trim()) {
+      report.rejected({
+        stage: "request_validation",
+        reason: "missing_country",
+        statusCode: 400,
+      });
       return NextResponse.json(
         { success: false, error: "Country is required" },
         { status: 400 },
@@ -93,6 +134,15 @@ export async function POST(request: NextRequest) {
       .maybeSingle();
 
     if (fetchError) {
+      report.failed({
+        stage: "profile_fetch",
+        reason: "supabase_error",
+        provider: "supabase",
+        providerCode: fetchError.code,
+        detail: fetchError.message,
+        idCountry: trimmedCountry,
+        statusCode: 500,
+      });
       return NextResponse.json(
         {
           success: false,
@@ -103,6 +153,12 @@ export async function POST(request: NextRequest) {
     }
 
     if (!currentProfile) {
+      report.rejected({
+        stage: "profile_fetch",
+        reason: "no_kyc_profile",
+        idCountry: trimmedCountry,
+        statusCode: 404,
+      });
       return NextResponse.json(
         {
           success: false,
@@ -115,6 +171,13 @@ export async function POST(request: NextRequest) {
 
     const currentTier = Number(currentProfile.tier) ?? 0;
     if (currentTier !== 2) {
+      report.rejected({
+        stage: "profile_fetch",
+        reason: "tier_prerequisite_missing",
+        tierFrom: currentTier,
+        idCountry: trimmedCountry,
+        statusCode: 403,
+      });
       return NextResponse.json(
         {
           success: false,
@@ -125,8 +188,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Country and starting tier are known from here on — carried on every line
+    // so tier 3 failures can be grouped by corridor.
+    const addressContext = {
+      idCountry: trimmedCountry,
+      tierFrom: currentTier,
+    };
+
     // Validate file and address fields before consuming an attempt — cheap checks first
     if (file.size > MAX_FILE_BYTES) {
+      report.rejected({
+        ...addressContext,
+        stage: "request_validation",
+        reason: "file_too_large",
+        detail: `${file.size} bytes`,
+        statusCode: 413,
+      });
       return NextResponse.json(
         { success: false, error: "File too large; maximum 5 MB" },
         { status: 413 },
@@ -136,6 +213,13 @@ export async function POST(request: NextRequest) {
     if (
       !ALLOWED_MIME_TYPES.includes(mime as (typeof ALLOWED_MIME_TYPES)[number])
     ) {
+      report.rejected({
+        ...addressContext,
+        stage: "request_validation",
+        reason: "unsupported_file_type",
+        detail: mime || "(none)",
+        statusCode: 400,
+      });
       return NextResponse.json(
         {
           success: false,
@@ -150,6 +234,12 @@ export async function POST(request: NextRequest) {
       !STREET_ADDRESS_OPTIONAL_COUNTRIES.has(trimmedCountry.toUpperCase()) &&
       !streetAddress?.trim()
     ) {
+      report.rejected({
+        ...addressContext,
+        stage: "request_validation",
+        reason: "missing_street_address",
+        statusCode: 400,
+      });
       return NextResponse.json(
         { success: false, error: "Street address is required" },
         { status: 400 },
@@ -157,17 +247,33 @@ export async function POST(request: NextRequest) {
     }
 
     // Tier 3 allows up to 5 attempts (document issues are more common than ID issues)
+    const MAX_ATTEMPTS = 5;
     const { data: newAttemptCount, error: rpcError } = await supabaseAdmin.rpc(
       "increment_kyc_attempts",
-      { p_wallet_address: walletAddress, p_max_attempts: 5 },
+      { p_wallet_address: walletAddress, p_max_attempts: MAX_ATTEMPTS },
     );
     if (rpcError) {
+      report.failed({
+        ...addressContext,
+        stage: "attempt_counter",
+        reason: "supabase_error",
+        provider: "supabase",
+        providerCode: rpcError.code,
+        detail: rpcError.message,
+        statusCode: 500,
+      });
       return NextResponse.json(
         { success: false, error: "Failed to process verification attempt." },
         { status: 500 },
       );
     }
     if (newAttemptCount === -1) {
+      report.rejected({
+        ...addressContext,
+        stage: "attempt_counter",
+        reason: "no_kyc_profile",
+        statusCode: 404,
+      });
       return NextResponse.json(
         {
           success: false,
@@ -178,6 +284,14 @@ export async function POST(request: NextRequest) {
       );
     }
     if (newAttemptCount === -2) {
+      report.rejected({
+        ...addressContext,
+        stage: "attempt_counter",
+        reason: "attempts_exhausted",
+        attempt: MAX_ATTEMPTS,
+        attemptsRemaining: 0,
+        statusCode: 429,
+      });
       return NextResponse.json(
         {
           success: false,
@@ -187,6 +301,14 @@ export async function POST(request: NextRequest) {
         { status: 429 },
       );
     }
+
+    const attemptContext = {
+      attempt: Number(newAttemptCount) || null,
+      attemptsRemaining: Math.max(
+        0,
+        MAX_ATTEMPTS - (Number(newAttemptCount) || 0),
+      ),
+    };
 
     const nameExt = file.name?.split(".").pop();
     const ext =
@@ -215,6 +337,17 @@ export async function POST(request: NextRequest) {
         ? `${msg} Create the "${KYC_BUCKET}" bucket in Supabase (Dashboard → Storage, or migration), or set KYC_DOCUMENTS_BUCKET to an existing private bucket.`
         : msg ||
           "Failed to upload document. Ensure the KYC storage bucket exists.";
+      report.failed({
+        ...addressContext,
+        ...attemptContext,
+        stage: "document_upload",
+        // A missing bucket is a deployment fault, not a transient one — worth
+        // telling apart at a glance in the Logs Explorer.
+        reason: bucketMissing ? "storage_bucket_missing" : "storage_error",
+        provider: "supabase",
+        detail: msg,
+        statusCode: 500,
+      });
       return NextResponse.json(
         { success: false, error: errorText },
         { status: 500 },
@@ -229,6 +362,15 @@ export async function POST(request: NextRequest) {
     const signedUrl = signedUrlData?.signedUrl;
     if (signError || !signedUrl) {
       await supabaseAdmin.storage.from(KYC_BUCKET).remove([path]);
+      report.failed({
+        ...addressContext,
+        ...attemptContext,
+        stage: "signed_url",
+        reason: "storage_error",
+        provider: "supabase",
+        detail: signError?.message ?? "no signed URL returned",
+        statusCode: 500,
+      });
       return NextResponse.json(
         {
           success: false,
@@ -250,19 +392,31 @@ export async function POST(request: NextRequest) {
       const msg =
         dojahResult?.entity?.result?.message ||
         "Document could not be verified as a valid proof of address.";
-      console.error("[tier3-verify] Dojah verification failed", {
-        resultStatus: dojahResult?.entity?.result?.status,
-        resultMessage: dojahResult?.entity?.result?.message,
-        providerName: dojahResult?.entity?.provider_name,
+      // Dojah's own words for why the utility bill was refused — the tier 3
+      // equivalent of Smile ID's ResultText.
+      report.rejected({
+        ...addressContext,
+        ...attemptContext,
+        stage: "provider_verify",
+        reason: "provider_rejected",
+        detail: msg,
+        providerCode: dojahResult?.entity?.result?.status,
+        statusCode: 400,
       });
       const { error: removeError } = await supabaseAdmin.storage
         .from(KYC_BUCKET)
         .remove([path]);
       if (removeError) {
-        console.warn(
-          "[tier3-verify] failed to remove uploaded doc after Dojah failure",
-          removeError.message,
-        );
+        // The rejected document stays in the bucket — a retention problem
+        // rather than a user-facing one.
+        report.failed({
+          ...addressContext,
+          ...attemptContext,
+          stage: "document_cleanup",
+          reason: "storage_error",
+          provider: "supabase",
+          detail: removeError.message,
+        });
       }
       notifyKycResultEmail(walletAddress, {
         event: "kyc_result",
@@ -316,6 +470,18 @@ export async function POST(request: NextRequest) {
 
     if (supabaseError) {
       await supabaseAdmin.storage.from(KYC_BUCKET).remove([path]);
+      // Dojah approved the document and we failed to record it: the user has
+      // spent an attempt and is still on tier 2.
+      report.failed({
+        ...addressContext,
+        ...attemptContext,
+        stage: "profile_update",
+        reason: "supabase_error",
+        provider: "supabase",
+        providerCode: supabaseError.code,
+        detail: supabaseError.message,
+        statusCode: 500,
+      });
       return NextResponse.json(
         {
           success: false,
@@ -327,6 +493,14 @@ export async function POST(request: NextRequest) {
 
     if (!updatedProfile || updatedProfile.length === 0) {
       await supabaseAdmin.storage.from(KYC_BUCKET).remove([path]);
+      report.failed({
+        ...addressContext,
+        ...attemptContext,
+        stage: "profile_update",
+        reason: "no_rows_updated",
+        provider: "supabase",
+        statusCode: 404,
+      });
       return NextResponse.json(
         {
           success: false,
@@ -343,6 +517,14 @@ export async function POST(request: NextRequest) {
       tier: 3,
     });
 
+    report.success({
+      ...addressContext,
+      ...attemptContext,
+      stage: "profile_update",
+      tierTo: Math.max(currentTier, 3),
+      statusCode: 200,
+    });
+
     return NextResponse.json({
       success: true,
       message: "Tier 3 address verification completed",
@@ -350,7 +532,15 @@ export async function POST(request: NextRequest) {
     });
   } catch (err) {
     const raw = err instanceof Error ? err.message : String(err);
-    console.error("[tier3-verify] unexpected error", err);
+    // Dojah transport failures throw rather than returning a result, so this
+    // catch is a real verification outcome, not just a safety net.
+    report.failed({
+      stage: "unhandled",
+      reason: "unexpected_error",
+      detail: raw,
+      error: err,
+      statusCode: 500,
+    });
     // Dojah often returns JSON in the thrown message; avoid double-encoding for clients.
     let message = raw;
     if (raw.trim().startsWith("{")) {

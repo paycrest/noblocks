@@ -4,7 +4,7 @@ import Link from "next/link";
 export const metadata: Metadata = {
   title: "Terms & Conditions — Noblocks Play",
   description:
-    "Terms and conditions for the Noblocks Play World Cup 2026 fantasy league and 600 USDC giveaway.",
+    "Terms and conditions for Noblocks Play Premier League fantasy.",
 };
 
 const Section = ({
@@ -32,182 +32,120 @@ export default function PlayTermsPage() {
           Noblocks Play — Terms &amp; Conditions
         </h1>
         <p className="text-sm text-text-secondary dark:text-white/50">
-          World Cup 2026 Fantasy League &amp; 600 USDC giveaway. By joining
-          the league you accept these terms.
+          Premier League 2026/27 fantasy season. By joining you accept these
+          terms. You must be at least 18 years old.
         </p>
       </header>
 
       <Section title="1. The game">
         <p>
           Noblocks Play is a free-to-play fantasy football game covering the
-          business end of the 2026 FIFA World Cup: the quarter-finals,
-          semi-finals, and the Final round (including the third-place match).
-          You build a 15-player squad (2 goalkeepers, 5 defenders, 5
-          midfielders, 3 forwards) within the game budget, pick a starting XI,
-          captain and vice-captain before each matchday locks, and score
-          points based on real match performances. There is one global
-          league; your username and rank are public on the leaderboard.
+          English Premier League 2026/27 season (Gameweeks 1–38). You build a
+          15-player squad (2 goalkeepers, 5 defenders, 5 midfielders, 3
+          forwards) within a £100m budget, with at most 3 players from any one
+          club. You pick a starting XI, captain and vice-captain before each
+          gameweek deadline (first kickoff minus 90 minutes). Points are based
+          on real match performances. There is one global leaderboard; you may
+          also create or join private mini-leagues with friends.
         </p>
       </Section>
 
-      <Section title="2. Eligibility and geographic compliance">
+      <Section title="2. Eligibility">
         <p>
-          You must have a Noblocks account in good standing to participate.
-          The game and the giveaway are void where prohibited by law. It is
-          your responsibility to ensure that participating in a promotional
-          giveaway and receiving a prize is lawful in your jurisdiction;
-          residents of jurisdictions where such promotions are restricted may
-          play for bragging rights but are not eligible for prizes. Noblocks
-          employees and contractors directly involved in operating the
-          campaign are not eligible for prizes.
+          You must be at least <strong>18 years old</strong> and have a Noblocks
+          account in good standing. The game is void where prohibited by law. It
+          is your responsibility to ensure that participating is lawful in your
+          jurisdiction. Noblocks employees and contractors directly involved in
+          operating the game may be excluded from separate marketing promotions
+          at Noblocks&apos; discretion.
         </p>
       </Section>
 
-      <Section title="3. Prizes">
+      <Section title="3. Promotions">
         <p>
-          The prize pool is <strong>600 USDC, paid on the Base network</strong>{" "}
-          to the wallet associated with your Noblocks account:
+          Noblocks Play itself has <strong>no built-in prize pool or guaranteed
+          rewards</strong>. From time to time, Noblocks may run separate
+          marketing promotions, giveaways or campaigns — on social media, email,
+          or elsewhere — with their own rules, eligibility, amounts and payout
+          methods. Those promotions are independent of the scoring engine and
+          leaderboard; they are not part of these game terms unless we publish
+          separate promotion-specific terms that say otherwise.
+        </p>
+      </Section>
+
+      <Section title="4. Game rules">
+        <p>
+          Scoring follows Fantasy Premier League–style conventions as configured
+          in the product (appearance, goals, assists, clean sheets, goals
+          conceded per two, saves, cards, own goals, penalty miss/save,
+          defensive contribution thresholds, auto-subs, and captain/vice
+          doubling). Deliberate differences and product rules include:
         </p>
         <ul className="list-disc space-y-1 pl-5">
           <li>
-            Final leaderboard ranks 1–5 among qualified participants:{" "}
-            <strong>50 USDC each</strong>.
+            <strong>No chips</strong> (no wildcard, free hit, bench boost, or
+            triple captain).
           </li>
           <li>
-            Final leaderboard ranks 6–10 among qualified participants:{" "}
-            <strong>40 USDC each</strong>.
+            Free transfers bank up to <strong>5</strong>; each transfer beyond
+            your remaining free transfers costs <strong>4 points</strong>.
           </li>
           <li>
-            Final leaderboard ranks 11–20 among qualified participants:{" "}
-            <strong>15 USDC each</strong>.
+            Deadlines are first kickoff of the gameweek minus 90 minutes, with a
+            freeze window as operated by the scoring worker.
+          </li>
+          <li>
+            <strong>Noblocks Match Bonus</strong> awards +3/+2/+1 to the top
+            performers in our proprietary ranking for a fixture — not identical
+            to official FPL bonus points.
+          </li>
+          <li>
+            Player photos and club crests, when shown, are for identification
+            only and do not imply endorsement.
           </li>
         </ul>
         <p>
-          Prize ranking counts <strong>qualified</strong> participants only:
-          players who are not qualified (see §4) or who opted out of the
-          giveaway are skipped when prizes are assigned. Ties are broken by
-          total points, then by earlier join time, then by more activated
-          referrals.
+          Deadlines use server time. Statistics come from a third-party data
+          provider; scores may be adjusted during reconciliation and are final
+          once a gameweek is marked final.
         </p>
       </Section>
 
-      <Section title="4. Qualification (referral requirement)">
+      <Section title="5. Fair play, anti-fraud and disqualification">
         <p>
-          To be eligible for a prize you must, in addition to your leaderboard
-          rank, refer <strong>5 friends who each activate</strong> before the
-          qualification deadline of{" "}
-          <strong>22 July 2026, 23:59:59 UTC (2026-07-22T23:59:59Z)</strong>.
-        </p>
-        <p>
-          <strong>
-            A referred friend activates when their cumulative total completed
-            on-ramp and off-ramp transaction volume on Noblocks reaches $5
-            (USD equivalent) within the campaign window.
-          </strong>{" "}
-          This is a cumulative threshold across all of their completed
-          transactions — it does not need to be a single $5 transaction.
-          Referral attribution uses the existing Noblocks referral system
-          (your NB referral code / share link).
-        </p>
-        <p>
-          Your fantasy points decide your rank; referrals decide whether you
-          are prize-eligible. You can toggle giveaway participation on the
-          Rewards page until the qualification deadline.
+          Multiple accounts per person, identity farming, fabricated mini-leagues,
+          wash activity, offensive usernames, and any other manipulation are
+          prohibited. Noblocks may disqualify, remove from leaderboards, or rename
+          any participant it reasonably believes has violated these terms.
+          Scoring and eligibility decisions for the game are final.
         </p>
       </Section>
 
-      <Section title="5. Adapted game rules">
+      <Section title="6. Non-affiliation">
         <p>
-          The scoring system is adapted from familiar fantasy football
-          conventions with the following deliberate differences:
-        </p>
-        <ul className="list-disc space-y-1 pl-5">
-          <li>
-            <strong>No boosters or chips</strong> (no wildcard, bench boost,
-            triple captain, or similar) are available.
-          </li>
-          <li>
-            The <strong>bench is displayed but NEVER auto-substitutes</strong>.
-            Bench players score no points unless you manually move them into
-            your XI before their match kicks off.
-          </li>
-          <li>
-            The <strong>vice-captain fallback is unconditional</strong>: it
-            applies whenever the captain plays 0 minutes, regardless of the
-            reason.
-          </li>
-          <li>
-            <strong>Key passes substitute big-chances-created at the same
-            2-for-1 rate</strong> (2 key passes = 1 point for midfielders).
-          </li>
-          <li>
-            The <strong>direct free-kick goal bonus is best-effort</strong>:
-            it may be awarded where our data feed identifies the goal type.
-          </li>
-          <li>
-            <strong>Transfers are closed during a live round and reopen
-            minutes after the round&apos;s last final whistle.</strong> Each
-            round grants a number of free transfers; each transfer beyond
-            them costs 3 points. Confirmed transfers are irreversible.
-          </li>
-          <li>
-            During a live round, lineup and captaincy changes follow a
-            rolling lockout: a player whose match is in progress or finished
-            cannot be brought into the XI, and a player cannot be moved while
-            their match is in progress. Points a player earns while in your
-            XI are banked for the round — benching them afterwards does not
-            remove those points.
-          </li>
-        </ul>
-        <p>
-          Deadlines are enforced with server time. Player statistics come
-          from our third-party data provider; scores may be adjusted during a
-          reconciliation window after each match and are final once the
-          matchday is marked final.
+          Noblocks Play is an independent promotional fantasy game. It is{" "}
+          <strong>not affiliated with, endorsed by, or connected to</strong> the
+          Premier League, the Football Association, Fantasy Premier League, FIFA,
+          any Premier League club, or any player. All club names, crests and
+          player likenesses remain the property of their respective owners and
+          are used only to identify real-world footballers for gameplay.
         </p>
       </Section>
 
-      <Section title="6. Fair play, anti-fraud and disqualification">
+      <Section title="7. General">
         <p>
-          Self-referrals, referral farming with fabricated or bot accounts,
-          wash transactions made to trigger activation thresholds, multiple
-          accounts per person, and any other manipulation of the game or the
-          referral system are prohibited. Noblocks reserves the right, at its
-          sole discretion, to withhold prizes from, disqualify, or rename any
-          participant it reasonably believes has violated these terms, abused
-          the system, or chosen an offensive username. Decisions on scoring,
-          qualification and prizes are final.
-        </p>
-      </Section>
-
-      <Section title="7. Taxes">
-        <p>
-          Prizes may be taxable in your jurisdiction. You are solely
-          responsible for reporting and paying any taxes, duties or levies
-          that apply to a prize you receive.
-        </p>
-      </Section>
-
-      <Section title="8. General">
-        <p>
-          Noblocks may amend these terms, adjust scoring rules, or suspend or
-          end the campaign where required for legal, technical or fairness
-          reasons; material changes will be reflected on this page. The
-          campaign is not affiliated with, endorsed by, or connected to FIFA.
-          Personal data is handled per the{" "}
+          Noblocks may amend these terms, adjust scoring rules, or suspend or end
+          the game for legal, technical or fairness reasons; material changes
+          will be reflected on this page. Personal data is handled per the{" "}
           <Link
             href="/privacy-policy"
             className="text-lavender-500 underline hover:text-lavender-600"
           >
-            Noblocks Privacy Policy
+            Privacy Policy
           </Link>
-          ; your chosen username and rank are displayed publicly.
+          . For questions contact support through the Noblocks app.
         </p>
       </Section>
-
-      <p className="text-xs text-text-secondary dark:text-white/40">
-        Last updated: 4 July 2026.
-      </p>
     </article>
   );
 }

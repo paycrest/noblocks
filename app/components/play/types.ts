@@ -12,6 +12,7 @@ import type {
   PublicManagerTeam,
   PublicTeamPlayer,
   ScoringMatrix,
+  SubState,
 } from "@/app/lib/fantasy/types";
 
 export type {
@@ -22,6 +23,7 @@ export type {
   PublicManagerTeam,
   PublicTeamPlayer,
   ScoringMatrix,
+  SubState,
 };
 
 export interface PlayMatchday {
@@ -39,8 +41,12 @@ export interface BuilderSettings {
   squad_size: number;
   positions: Record<Position, number>;
   formations: string[];
-  nation_cap: number | null;
+  club_cap: number;
   transfer_penalty: number;
+  free_transfers_max?: number;
+  photos_enabled?: boolean;
+  defcon_def_threshold?: number;
+  defcon_mid_fwd_threshold?: number;
   /** Full scoring matrix — drives the "How to score" panel. */
   scoring: ScoringMatrix;
 }
@@ -55,12 +61,22 @@ export type LockState = "unlocked" | "locked" | "played";
 
 export interface SquadPlayerEntry {
   player_id: number;
+  /** Original saved slot. */
   slot: number;
+  /** Rendered slot after final auto-subs; equals `slot` before final. */
+  display_slot: number;
   is_captain: boolean;
   is_vice: boolean;
   player?: FantasyPlayer;
   lock_state: LockState;
-  live: { points: number; minutes: number };
+  live: {
+    points: number;
+    minutes: number;
+    yellowCards: number;
+    redCards: number;
+  };
+  /** Auto-sub outcome for the round — see PublicTeamPlayer.sub_state. */
+  sub_state: SubState;
 }
 
 export interface SquadData {
@@ -77,6 +93,8 @@ export interface SquadData {
 export interface SquadResponse {
   matchday: PlayMatchday;
   locked: boolean;
+  /** True while at least one fixture is on the pitch (drives live polling). */
+  game_active: boolean;
   squad: SquadData | null;
   /** Free transfers granted for the current matchday (settings value). */
   free_transfers: number;
@@ -120,23 +138,31 @@ export interface LeaderboardResponse {
   total: number;
 }
 
-export interface RewardsReferral {
-  wallet_short: string;
-  signed_up_at: string;
-  total_tx_usd: number;
-  activated: boolean;
+export interface LeagueStandingRow {
+  wallet_address: string;
+  username: string | null;
+  points: number;
+  transfers: number;
+  rank: number;
+  joined_gameweek: number;
+  is_me: boolean;
+}
+
+export interface LeagueSummary {
+  id: string;
+  name: string;
+  invite_code: string;
+  created_by: string;
+  member_count: number;
+  standings: LeagueStandingRow[];
 }
 
 export interface RewardsResponse {
-  required: number;
-  min_total_usd: number;
-  activated: number;
-  referrals: RewardsReferral[];
-  qualified: boolean;
-  giveaway_opt_in: boolean;
-  deadline: string;
+  stub: boolean;
+  message: string;
   rank: number | null;
   total_points: number;
+  leagues: LeagueSummary[];
 }
 
 export interface FixtureData {
@@ -171,23 +197,7 @@ export interface UsernameCheckResponse {
   suggestions?: string[];
 }
 
-/** Provider fixture short-status codes, mirrored client-side for display. */
-export const FIXTURE_LIVE_STATUSES = new Set([
-  "1H",
-  "HT",
-  "2H",
-  "ET",
-  "BT",
-  "P",
-  "LIVE",
-  "INT",
-  "SUSP",
-]);
-
-export const FIXTURE_FINISHED_STATUSES = new Set([
-  "FT",
-  "AET",
-  "PEN",
-  "AWD",
-  "WO",
-]);
+export {
+  FIXTURE_FINISHED_STATUSES,
+  FIXTURE_LIVE_STATUSES,
+} from "@/app/lib/fantasy/fixture-activity";

@@ -1,0 +1,30 @@
+# Datadog Service Catalog entry.
+#
+# Datadog discovers the service from APM traces on its own; this file adds the
+# ownership and links that discovery cannot infer.
+#
+# TODO before merge — these are placeholders, not verified values:
+#   * `team` must match a real Datadog team handle.
+#   * `contact` should be the owning team's alias, not an individual.
+#   * the dashboard link needs the ID Datadog assigns after the dashboard in
+#     docs/datadog/ is imported.
+schema-version: v2.2
+dd-service: noblocks
+team: TODO-datadog-team-handle
+contacts:
+  - type: email
+    contact: TODO-team-alias@paycrest.io
+integrations:
+  github:
+    url: https://github.com/paycrest/noblocks
+links:
+  - name: Runbook
+    type: doc
+    url: https://github.com/paycrest/noblocks/blob/main/OBSERVABILITY.md
+  - name: Noblocks Play dashboard
+    type: dashboard
+    url: TODO-dashboard-url
+tags:
+  - app:noblocks
+  - lang:typescript
+  - framework:nextjs

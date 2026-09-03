@@ -41,6 +41,11 @@ import {
   getOnrampFiatMaxAmount,
   isOnrampFiatCurrencyCode,
   swapModeFromSideParam,
+  RATE_DECIMALS,
+  formatRateForDisplay,
+  getQuoteDecimals,
+  quoteTokenAmountForFiat,
+  ONRAMP_FIAT_DECIMALS,
 } from "../utils";
 import { ArrowUpDownIcon, NoteEditIcon, Wallet01Icon } from "hugeicons-react";
 import { useSwapButton } from "../hooks/useSwapButton";
@@ -48,6 +53,17 @@ import { useWalletAddress } from "../hooks/useWalletAddress";
 import { useLoginWithScrollPin } from "../hooks/useLoginWithScrollPin";
 import { fetchSupportedCurrencyCodes } from "../api/aggregator";
 import { useCNGNRate } from "../hooks/useCNGNRate";
+import {
+  isAmountFillable,
+  liquidityMaxMessage,
+  liquidityMinMessage,
+  MIN_SWAP_USD,
+  minOffRampTokenAmount,
+  minOnRampFiatAmount,
+  nearestFillableAmount,
+  nearestFillableMessage,
+  noLiquidityMessage,
+} from "../lib/marketLiquidity";
 import { useFundWalletHandler } from "../hooks/useFundWalletHandler";
 import { useShouldUseEOA } from "../hooks/useEIP7702Account";
 import {
@@ -129,6 +145,7 @@ export const TransactionForm = ({
     injectedAddress,
     injectedReady,
     connectInjectedWallet,
+    getInjectedToken,
   } = useInjectedWallet();
   // Privy `authenticated` is false in injected mode (extension or embed
   // bridge) — balance display and over-balance validation must treat a ready
@@ -153,6 +170,7 @@ export const TransactionForm = ({
     getKycStatusSnapshot,
     isPhoneVerified,
     tier,
+    hasLoadedStatus,
     phoneNumber,
     transactionSummary,
   } = useKYC();
@@ -333,9 +351,84 @@ export const TransactionForm = ({
       0)
     : (activeBalance?.balances[token] ?? 0);
 
+  const totalRequired = Number(amountSent) || 0;
+
+  // Off-ramp: amount already over wallet balance → ignore market limits so
+  // "Insufficient balance" wins (markets also pause in MainPageContent).
+  const hasInsufficientBalance =
+    isWalletConnected &&
+    !isSwapped &&
+    !isLoading &&
+    totalRequired > 0 &&
+    totalRequired > balance;
+  const liquidity = hasInsufficientBalance ? null : stateProps.liquidity;
+  const noLiquidity = Boolean(liquidity && !liquidity.viable);
+
+  /**
+   * The effective Send-amount bounds: static product limits, the rate-derived
+   * floors, and the live provider band merged into one pair of numbers.
+   *
+   * Computed here rather than inside the registration effect because the CTA
+   * needs the same values. `useSwapButton` enables itself on the amount alone
+   * for an unverified user — form-wide validity is deliberately bypassed so
+   * verification stays reachable — so a floor derived independently there
+   * would let the button accept an amount the field rejects.
+   */
+  const amountBounds = useMemo(() => {
+    const liquidityMin = liquidity?.viable ? liquidity.min : null;
+    const liquidityMax = liquidity?.viable ? liquidity.max : null;
+
+    let cngnMinUnavailable = false;
+    let min = MIN_SWAP_USD;
+    let max = 10000;
+
+    if (swapMode === "onramp") {
+      const safeCurrency =
+        currency?.trim() && isOnrampFiatCurrencyCode(currency.trim())
+          ? currency.trim()
+          : "NGN";
+      max = getOnrampFiatMaxAmount(safeCurrency);
+      // The fiat floor tracks the rate, and is only enforceable once a receive
+      // token and a rate exist; 0 stands for "no floor yet".
+      min = token && rate && rate > 0 ? minOnRampFiatAmount(rate) : 0;
+    } else {
+      const offRampMin = minOffRampTokenAmount(token, cngnRate);
+      if (offRampMin.status === "cngn_rate_unavailable") {
+        cngnMinUnavailable = true;
+        min = 0;
+      } else {
+        min = offRampMin.min;
+      }
+      if (tokensEqual(token, "cNGN")) {
+        max = 50000000;
+      }
+    }
+
+    // Live capacity replaces the static ceiling and can only raise the floor.
+    // An unknown or empty book leaves both untouched, so a markets outage
+    // degrades to the previous behavior instead of blocking the form.
+    if (liquidityMax !== null) max = liquidityMax;
+    if (liquidityMin !== null && !cngnMinUnavailable) {
+      min = Math.max(min, liquidityMin);
+    }
+
+    return { min, max, liquidityMin, liquidityMax, cngnMinUnavailable };
+  }, [swapMode, currency, token, rate, cngnRate, liquidity]);
+
   const fetchedTokens: Token[] = allTokens[selectedNetwork.chain.name] || [];
 
-  const totalRequired = Number(amountSent) || 0;
+  // Precision the token leg is quoted and validated at. Derived from the
+  // selected token so the amount that goes on-chain is not rounded below what
+  // the recipient was quoted — see quoteTokenAmountForFiat.
+  const quoteDecimals = getQuoteDecimals(
+    fetchedTokens.find((t) => t.symbol.toUpperCase() === token?.toUpperCase())
+      ?.decimals,
+  );
+
+  // `amountSent` is the token leg on offramp but the fiat leg on onramp, where
+  // the token's precision means nothing. Only the token leg follows the token;
+  // onramp fiat keeps the four places it has always allowed.
+  const amountSentDecimals = isSwapped ? ONRAMP_FIAT_DECIMALS : quoteDecimals;
 
   const { handleFundWallet } = useFundWalletHandler("Transaction form");
 
@@ -385,7 +478,7 @@ export const TransactionForm = ({
     }
   };
 
-  // Improved function to format number with commas while preserving decimal places
+  // Format with commas; keep up to RATE_DECIMALS fractional digits, drop trailing zeros.
   const formatNumberWithCommasForDisplay = (value: number | string): string => {
     if (value === undefined || value === null || value === "") return "";
 
@@ -399,10 +492,15 @@ export const TransactionForm = ({
     // Add commas to the integer part
     const integerPart = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 
-    // Preserve the decimal part if it exists, ensuring max 4 decimal places
     if (parts.length > 1) {
-      const decimalPart = parts[1].slice(0, 4); // Limit to 4 decimal places
-      return `${integerPart}.${decimalPart}`;
+      // Preserve trailing "." while the user is typing a decimal
+      if (parts[1] === "" && valueStr.endsWith(".")) {
+        return `${integerPart}.`;
+      }
+      const decimalPart = parts[1]
+        .slice(0, RATE_DECIMALS)
+        .replace(/0+$/, "");
+      return decimalPart ? `${integerPart}.${decimalPart}` : integerPart;
     }
 
     return integerPart;
@@ -596,7 +694,15 @@ export const TransactionForm = ({
   useEffect(
     function updateFormattedAmounts() {
       if (amountSent !== undefined) {
-        setFormattedSentAmount(formatNumberWithCommasForDisplay(amountSent));
+        const cleanedSent = removeCommas(formattedSentAmount);
+        // Keep "123." while editing; form number is already 123 and must not
+        // reformat back to "123" via updateFormattedAmounts.
+        const preserveTrailingDot =
+          cleanedSent.endsWith(".") &&
+          (parseFloat(cleanedSent) || 0) === Number(amountSent);
+        if (!preserveTrailingDot) {
+          setFormattedSentAmount(formatNumberWithCommasForDisplay(amountSent));
+        }
       }
 
       if (amountReceived !== undefined) {
@@ -605,6 +711,8 @@ export const TransactionForm = ({
         );
       }
     },
+    // formattedSentAmount is read only to detect an in-progress trailing "."
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [amountSent, amountReceived],
   );
 
@@ -619,21 +727,39 @@ export const TransactionForm = ({
         //   Formula: Receive = Send / Rate (463,284 NGN / 1400 = 330.917 USDC)
 
         if (isReceiveInputActive) {
-          // User is typing in Receive field
+          // User is typing in Receive field.
+          //
+          // `amountSent` carries the limit rules, so writing it here has to
+          // validate: without it the field keeps whatever verdict the last
+          // Send keystroke left behind — a rejected amount corrected from the
+          // Receive side keeps its error, and an amount typed only from the
+          // Receive side is never checked at all.
           if (isSwapped) {
             // Swapped: Receive = Token, so calculate Send (Currency)
             // Send = Receive * Rate (20.4 USDC * 1400 = 28,560 NGN)
             const calculatedAmount = Number(
               (Number(amountReceived) * rate).toFixed(4),
             );
-            setValue("amountSent", calculatedAmount, { shouldDirty: true });
+            setValue("amountSent", calculatedAmount, {
+              shouldDirty: true,
+              shouldValidate: true,
+            });
           } else {
             // Not swapped: Receive = Currency, so calculate Send (Token)
             // Send = Receive / Rate (1400 NGN / 1400 = 1 USDC)
-            const calculatedAmount = Number(
-              (Number(amountReceived) / rate).toFixed(4),
+            //
+            // This amount is deposited on-chain verbatim and multiplied back by
+            // the rate to pay the recipient, so it rounds up at the token's own
+            // precision rather than to a fixed 4 places.
+            const calculatedAmount = quoteTokenAmountForFiat(
+              Number(amountReceived),
+              rate,
+              quoteDecimals,
             );
-            setValue("amountSent", calculatedAmount, { shouldDirty: true });
+            setValue("amountSent", calculatedAmount, {
+              shouldDirty: true,
+              shouldValidate: true,
+            });
           }
         } else {
           // User is typing in Send field
@@ -654,7 +780,7 @@ export const TransactionForm = ({
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [amountSent, amountReceived, rate, isSwapped],
+    [amountSent, amountReceived, rate, isSwapped, quoteDecimals],
   );
 
   // Derive swap eligibility from tier + spend limits. Always set explicitly so we
@@ -698,48 +824,65 @@ export const TransactionForm = ({
   useEffect(
     function registerFieldsWithValidation() {
       async function registerFormFields() {
-        let maxAmountSentValue = 10000;
-        let minAmountSentValue = 0.5;
-
         if (swapMode === "onramp") {
-          maxAmountSentValue = getOnrampFiatMaxAmount(currency || "NGN");
           setRateError(null);
         } else if (tokensEqual(token, "cNGN")) {
-          if (cngnRate && cngnRate > 0) {
-            // Valid rate available - calculate limits and clear errors
-            maxAmountSentValue = 50000000;
-            minAmountSentValue = 0.5 * cngnRate;
-            setRateError(null);
-          } else {
-            const errorMessage = cngnRateError || "No available quote";
-            setRateError(errorMessage);
-          }
+          setRateError(
+            cngnRate && cngnRate > 0
+              ? null
+              : cngnRateError || "No available quote",
+          );
         } else {
           setRateError(null);
         }
 
+        // Bounds come from amountBounds so the CTA enforces the same numbers;
+        // this effect owns only the rate-error side effects and the messages.
+        const side = swapMode === "onramp" ? "buy" : "sell";
+        const fiat = (currency || "NGN").toUpperCase();
+        const {
+          min: minAmountSentValue,
+          max: maxAmountSentValue,
+          liquidityMin,
+          liquidityMax,
+          cngnMinUnavailable,
+        } = amountBounds;
+
+        const maxMessage =
+          liquidityMax !== null
+            ? liquidityMaxMessage(maxAmountSentValue, side, fiat, token)
+            : `Maximum amount is ${formatNumberWithCommas(maxAmountSentValue)}`;
+        const minMessage =
+          liquidityMin !== null && minAmountSentValue === liquidityMin
+            ? liquidityMinMessage(minAmountSentValue, side, fiat, token)
+            : `Minimum amount is ${formatNumberWithCommas(minAmountSentValue)}`;
+
         formMethods.register("amountSent", {
           required: { value: true, message: "Amount is required" },
           disabled: isSwapped ? !currency : !token,
-          ...(!isSwapped
+          ...(!isSwapped && !cngnMinUnavailable
             ? {
                 min: {
                   value: minAmountSentValue,
-                  message: `Minimum amount is ${formatNumberWithCommas(minAmountSentValue)}`,
+                  message: minMessage,
                 },
               }
             : {}),
           max: {
             value: maxAmountSentValue,
-            message: `Maximum amount is ${formatNumberWithCommas(maxAmountSentValue)}`,
+            message: maxMessage,
           },
           validate: {
+            cngnRateReady: () => {
+              if (!cngnMinUnavailable) return true;
+              return cngnRateError || "No available quote";
+            },
             decimals: (value: number) => {
               const decimals = value.toString().split(".")[1];
               return (
                 !decimals ||
-                decimals.length <= 4 ||
-                "Maximum 4 decimal places allowed"
+                decimals.length <= amountSentDecimals ||
+                `Maximum ${amountSentDecimals} decimal places allowed`
               );
             },
             onrampFiatMin: (value: number) => {
@@ -747,10 +890,27 @@ export const TransactionForm = ({
               // Min fiat depends on rate; only enforce once receive token is chosen and rate exists.
               if (!token || !rate || rate <= 0) return true;
               const n = Number(value);
-              const floor = 0.5 * rate;
+              const rateFloor = minOnRampFiatAmount(rate);
+              const floor = minAmountSentValue;
               if (n >= floor) return true;
-              const fiat = (currency || "NGN").toUpperCase();
-              return `Minimum amount is ${getCurrencySymbol(fiat)}${formatNumberWithCommas(floor)}`;
+              return floor > rateFloor
+                ? liquidityMinMessage(floor, "buy", fiat, token)
+                : `Minimum amount is ${getCurrencySymbol(fiat)}${formatNumberWithCommas(floor)}`;
+            },
+            liquidityGap: (value: number) => {
+              // An amount can clear both bounds and still fall between two
+              // providers' bands, which no single provider can fill.
+              const n = Number(value);
+              if (!Number.isFinite(n) || n <= 0) return true;
+              if (isAmountFillable(liquidity, n)) return true;
+              // Outside the overall band already reads as a min/max error.
+              if (liquidityMin !== null && n < liquidityMin) return true;
+              if (liquidityMax !== null && n > liquidityMax) return true;
+
+              const nearest = nearestFillableAmount(liquidity, n);
+              return nearest === null
+                ? true
+                : nearestFillableMessage(nearest, side, fiat, token);
             },
           },
         });
@@ -809,6 +969,12 @@ export const TransactionForm = ({
             shouldDirty: true,
           });
         }
+
+        // Re-registering only changes the rules; an amount typed before the
+        // limits moved keeps its stale verdict until the next keystroke.
+        if (Number(formMethods.getValues("amountSent")) > 0) {
+          formMethods.trigger("amountSent");
+        }
       }
 
       registerFormFields();
@@ -821,6 +987,8 @@ export const TransactionForm = ({
       selectedNetwork,
       cngnRate,
       cngnRateError,
+      amountBounds,
+      liquidity,
       isSwapped,
       swapMode,
       rate,
@@ -856,9 +1024,21 @@ export const TransactionForm = ({
     isPhoneVerified,
     hasPriorTransactionActivity,
     kycTier: tier,
+    hasLoadedStatus,
     rate,
     isSwapped,
     networkName: selectedNetwork.chain.name,
+    amountBounds: {
+      min: amountBounds.min,
+      max: amountBounds.max,
+      segments:
+        hasInsufficientBalance || !liquidity?.viable
+          ? undefined
+          : liquidity.segments,
+      noLiquidity: hasInsufficientBalance ? false : noLiquidity,
+      cngnMinUnavailable: amountBounds.cngnMinUnavailable,
+    },
+    hasInsufficientBalance,
   });
 
   const [isPhoneVerificationOpen, setIsPhoneVerificationOpen] = useState(false);
@@ -866,17 +1046,32 @@ export const TransactionForm = ({
   /** After phone OTP, KYC context may not have updated before the next handleSwap; allow one continuation. */
   const pendingContinueSwapAfterPhoneRef = useRef(false);
 
-  const handleSwap = () => {
-    const kyc = getKycStatusSnapshot();
+  const handleSwap = async () => {
+    let kyc = getKycStatusSnapshot();
+
+    // Consume the post-OTP continuation flag exactly once per call. Clearing it only inside
+    // the tier-2 branch would leave it set whenever the phone was verified below tier 2, and
+    // that stale `true` would later wave a genuinely ungated wallet past the tier-2 gate.
+    const resumingAfterPhoneVerification =
+      pendingContinueSwapAfterPhoneRef.current;
+    pendingContinueSwapAfterPhoneRef.current = false;
 
     // Tier 2+ (e.g. migrated ID KYC) still requires a stored phone — prompt before swap.
-    if (kyc.tier >= 2) {
-      const hasPhone = Boolean(kyc.phoneNumber?.trim());
-      if (!hasPhone && !pendingContinueSwapAfterPhoneRef.current) {
-        setIsTier2PhoneGateOpen(true);
-        return;
-      }
-      pendingContinueSwapAfterPhoneRef.current = false;
+    // The identity, not the wallet, satisfies this: a wallet that inherited its tier through
+    // the ID triple may hold no phone itself while a sibling wallet verified one, and
+    // re-verifying that number would be rejected as already in use — an unsatisfiable loop.
+    // Defined as a closure over `kyc` (declared with `let`) and re-checked further down after
+    // the status refresh below: an unloaded snapshot reads as tier 0 and would otherwise let
+    // this gate be skipped here, then silently satisfied once the refresh reveals a real
+    // tier-2-no-phone identity.
+    const blockedByTier2PhoneGate = () =>
+      kyc.tier >= 2 &&
+      !(Boolean(kyc.phoneNumber?.trim()) || kyc.identityHasVerifiedPhone) &&
+      !resumingAfterPhoneVerification;
+
+    if (blockedByTier2PhoneGate()) {
+      setIsTier2PhoneGateOpen(true);
+      return;
     }
 
     setOrderId("");
@@ -901,7 +1096,44 @@ export const TransactionForm = ({
     });
 
     // Check transaction limits based on KYC tier
-    const limitCheck = canTransact(usdAmount);
+    let limitCheck = canTransact(usdAmount);
+
+    if (!limitCheck.allowed && !kyc.hasLoadedStatus) {
+      // The snapshot is still the reset default — "status unknown", not "unverified". Deciding
+      // on it would send an already-verified user back to phone verification whenever the
+      // status fetch failed or hasn't landed yet. Load the real status once, then re-decide.
+      await refreshStatus(true);
+      kyc = getKycStatusSnapshot();
+
+      if (!kyc.hasLoadedStatus && isInjectedWallet && injectedReady) {
+        // Background KYC fetches are non-interactive, so they cannot recover a lapsed injected
+        // session on their own — the status would stay unknown forever and every swap would ask
+        // for phone verification again. This tap is a user gesture, so prompt for the SIWE
+        // signature once, then retry. Declining just falls through to the check below.
+        const token = await getInjectedToken({ interactive: true });
+        if (token) {
+          await refreshStatus(true);
+          kyc = getKycStatusSnapshot();
+        }
+      }
+
+      if (!kyc.hasLoadedStatus) {
+        // Status genuinely could not be loaded (signature declined, or the fetch kept
+        // failing). Treating the reset defaults as "unverified" here is exactly the loop this
+        // recovery path exists to close — surface a retryable error instead of guessing.
+        toast.error("Couldn't verify your account status. Please try again.");
+        return;
+      }
+
+      limitCheck = canTransact(usdAmount);
+    }
+
+    // Re-check with whatever `kyc` now is (refreshed above, or unchanged if the limit already
+    // allowed the amount at the first read) — see the comment on blockedByTier2PhoneGate.
+    if (blockedByTier2PhoneGate()) {
+      setIsTier2PhoneGateOpen(true);
+      return;
+    }
 
     if (!limitCheck.allowed) {
       if (kyc.tier < 1 || !kyc.isPhoneVerified) {
@@ -910,6 +1142,31 @@ export const TransactionForm = ({
       }
       setBlockedTransactionAmount(usdAmount);
       setIsLimitModalOpen(true);
+      return;
+    }
+
+    // A recipient must exist before anything can submit. The recipient section only mounts once
+    // the user is verified, so every unverified entry point (notably the post-OTP continuation in
+    // handlePhoneVerified) reaches here with empty recipient fields — and an empty on-ramp wallet
+    // address would otherwise pass validateWalletAddress (empty is "valid" there; the `required`
+    // rule lives on a field that was never registered). Without this guard the preview renders a
+    // blank recipient ("Account: undefined") and the order params would be built empty.
+    // Note: the recipient section additionally requires the receive destination to be explicitly
+    // selected, so the user may still need that tap before the fields appear.
+    const onrampWalletAddress = String(formData.walletAddress ?? "").trim();
+    const hasRecipient = formData.isSwapped
+      ? onrampWalletAddress.length > 0
+      : Boolean(
+          formData.recipientName &&
+            formData.accountIdentifier &&
+            formData.institution,
+        );
+    if (!hasRecipient) {
+      if (resumingAfterPhoneVerification) {
+        toast.info("Phone number verified — add the recipient details to continue.");
+      } else {
+        toast.error("Add recipient details to continue.");
+      }
       return;
     }
 
@@ -936,7 +1193,7 @@ export const TransactionForm = ({
     setIsTier2PhoneGateOpen(false);
     pendingContinueSwapAfterPhoneRef.current = true;
     await refreshStatus(true);
-    handleSwap();
+    await handleSwap();
   };
 
   // Clear recipient when it is invalid for the selected network (EVM ↔ Starknet switches)
@@ -1115,7 +1372,7 @@ export const TransactionForm = ({
     // Only limit decimal places, allow any whole number
     if (cleanedValue.includes(".")) {
       const decimals: string | undefined = cleanedValue.split(".")[1];
-      if (decimals?.length > 4) return;
+      if (decimals?.length > amountSentDecimals) return;
     } // Update the form value
     setValue("amountSent", value, {
       shouldValidate: true,
@@ -1337,7 +1594,7 @@ export const TransactionForm = ({
                 className={`w-full min-w-0 rounded-xl border-b border-transparent bg-transparent py-2 text-2xl outline-none transition-all placeholder:text-gray-400 focus:outline-none disabled:cursor-not-allowed dark:placeholder:text-white/30 ${
                   isWalletConnected &&
                   !isSwapped &&
-                  (amountSent > balance || errors.amountSent)
+                  (hasInsufficientBalance || errors.amountSent)
                     ? "text-red-500 dark:text-red-500"
                     : "text-neutral-900 dark:text-white/80"
                 }`}
@@ -1377,16 +1634,23 @@ export const TransactionForm = ({
                 )}
               </div>
             </div>
-            {(errors.amountSent ||
-              (isWalletConnected && !isSwapped && totalRequired > balance)) && (
+            {(hasInsufficientBalance || errors.amountSent) && (
               <AnimatedComponent
                 variant={slideInOut}
                 className="!mt-0 text-xs text-red-500"
               >
-                {errors.amountSent?.message ||
-                  (isWalletConnected && !isSwapped && totalRequired > balance
-                    ? "Insufficient balance"
-                    : null)}
+                {hasInsufficientBalance
+                  ? "Insufficient balance"
+                  : (errors.amountSent?.message ?? null)}
+              </AnimatedComponent>
+            )}
+
+            {!hasInsufficientBalance && noLiquidity && (
+              <AnimatedComponent
+                variant={slideInOut}
+                className="!mt-0 text-xs text-orange-500 dark:text-orange-400"
+              >
+                {noLiquidityMessage(token, selectedNetwork.chain.name)}
               </AnimatedComponent>
             )}
 
@@ -1643,7 +1907,7 @@ export const TransactionForm = ({
                       <>
                         {isFetchingRate
                           ? "..."
-                          : formatNumberWithCommasForDisplay(rate)}{" "}
+                          : formatRateForDisplay(rate)}{" "}
                         {currency} ~ 1 {token}
                       </>
                     ) : (
@@ -1651,7 +1915,7 @@ export const TransactionForm = ({
                         1 {token} ~{" "}
                         {isFetchingRate
                           ? "..."
-                          : formatNumberWithCommasForDisplay(rate)}{" "}
+                          : formatRateForDisplay(rate)}{" "}
                         {currency}
                       </>
                     )}

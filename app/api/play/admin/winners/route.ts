@@ -1,20 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/app/lib/supabase";
-import { withRateLimit } from "@/app/lib/rate-limit";
-import { requireAdmin } from "@/app/lib/fantasy/admin";
+import { withRateLimitAndAnalytics } from "@/app/lib/analytics-middleware";
+import { csvEscape, requireAdmin } from "@/app/lib/fantasy/admin";
 import { jsonError, jsonOk } from "@/app/lib/fantasy/server";
 
 /**
- * Prize table (PRD): 600 USDC total, paid on Base — positions 1–5 get 50 USDC
- * each, positions 6–10 get 40 USDC each, positions 11–20 get 15 USDC each,
- * assigned over the QUALIFIED-only ordering (non-qualified/opted-out/
- * disqualified rows are skipped entirely, per §6 "prize ranking skips
- * non-qualified").
+ * Ops helper ranks giveaway-opted-in managers. EPL prize engine is monthly
+ * (100 USDC: GW challenges / MotM / bounty) — use Challenges CSV for GW pots.
+ * MotM = 25 USDC to the top opted-in manager; remaining rows are unpriced here.
+ * Ranking skips opted-out / disqualified rows (badge !== 'active').
  */
-const PRIZES_USDC = [
-  50, 50, 50, 50, 50, 40, 40, 40, 40, 40, 15, 15, 15, 15, 15, 15, 15, 15, 15,
-  15,
-];
+const PRIZES_USDC = [25];
 
 const CSV_COLUMNS = [
   "position",
@@ -22,22 +18,14 @@ const CSV_COLUMNS = [
   "username",
   "total_points",
   "rank",
-  "activated_referrals",
   "prize_usdc",
 ] as const;
 
-const csvEscape = (value: unknown): string => {
-  const s = value == null ? "" : String(value);
-  return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-};
-
 /**
- * GET /api/play/admin/winners?format=json|csv — winners export for payout
- * (F-15). Reads fantasy_leaderboard ordered by global rank, keeps only
- * badge === 'qualified' rows (the view's rank column stays the GLOBAL rank;
- * `position` is the prize position over the qualified-only ordering).
+ * GET /api/play/admin/winners?format=json|csv — winners export for payout.
+ * Active giveaway participants only; `position` is prize order among them.
  */
-export const GET = withRateLimit(async (request: NextRequest) => {
+export const GET = withRateLimitAndAnalytics(async (request: NextRequest) => {
   const unauthorized = requireAdmin(request);
   if (unauthorized) return unauthorized;
 
@@ -47,10 +35,8 @@ export const GET = withRateLimit(async (request: NextRequest) => {
 
     const { data, error } = await supabaseAdmin
       .from("fantasy_leaderboard")
-      .select(
-        "wallet_address, username, total_points, rank, activated_referrals, badge",
-      )
-      .eq("badge", "qualified")
+      .select("wallet_address, username, total_points, rank, badge")
+      .eq("badge", "active")
       .order("rank", { ascending: true })
       .order("joined_at", { ascending: true })
       .limit(PRIZES_USDC.length);
@@ -62,7 +48,6 @@ export const GET = withRateLimit(async (request: NextRequest) => {
       username: (row.username as string | null) ?? null,
       total_points: Number(row.total_points),
       rank: Number(row.rank),
-      activated_referrals: Number(row.activated_referrals ?? 0),
       prize_usdc: PRIZES_USDC[index],
     }));
 

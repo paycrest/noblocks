@@ -3,10 +3,20 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "../supabase";
 import config from "../config";
 import { getPrivyUserIdFromRequest, getWalletAddressFromPrivyUserId } from "../privy";
+import { getFantasySettings } from "./settings";
+import { getPlayersMap } from "./players";
+import { fetchAll } from "./pagination";
 import { LIVE_STATUSES, FINISHED_STATUSES } from "./provider";
-import { countsForScoring } from "./scoring";
+import { applyAutoSubs, autoSubDisplaySlots } from "./autosubs";
+import {
+  computeDisplayedMatchdayPoints,
+  adjustTotalPointsForLiveRound,
+  hasPlayed,
+  subStateFor,
+  type SquadPlayerRow,
+} from "./scoring";
 import type {
-  FantasyPlayer,
+  FantasySettings,
   MatchdayStatus,
   Position,
   PublicManagerTeam,
@@ -51,15 +61,37 @@ export interface MatchdayRow {
   status: MatchdayStatus;
 }
 
-/**
- * The matchday all squad interactions target: the lowest non-final matchday.
- * Before lock_at it's "open" (squad building / transfers); after lock it's the
- * live round (rolling-lockout lineup/captain changes only).
- */
-export async function getCurrentMatchday(): Promise<MatchdayRow | null> {
+async function seasonBounds(
+  settings?: FantasySettings,
+): Promise<{ min: number; max: number }> {
+  const s = settings ?? (await getFantasySettings());
+  return { min: s.season_matchday_min, max: s.season_matchday_max };
+}
+
+/** Season-scoped matchdays only (EPL 101–138). Never returns WC rows. */
+export async function getMatchdays(): Promise<MatchdayRow[]> {
+  const { min, max } = await seasonBounds();
   const { data, error } = await supabaseAdmin
     .from("fantasy_matchdays")
     .select("id, label, round, display_name, lock_at, status")
+    .gte("id", min)
+    .lte("id", max)
+    .order("id", { ascending: true });
+  if (error) throw error;
+  return (data ?? []) as MatchdayRow[];
+}
+
+/**
+ * Lowest non-final matchday in the current season.
+ * Before lock_at: open for squad/transfers; after: locked (no mid-GW edits).
+ */
+export async function getCurrentMatchday(): Promise<MatchdayRow | null> {
+  const { min, max } = await seasonBounds();
+  const { data, error } = await supabaseAdmin
+    .from("fantasy_matchdays")
+    .select("id, label, round, display_name, lock_at, status")
+    .gte("id", min)
+    .lte("id", max)
     .neq("status", "final")
     .order("id", { ascending: true })
     .limit(1);
@@ -67,13 +99,23 @@ export async function getCurrentMatchday(): Promise<MatchdayRow | null> {
   return (data?.[0] as MatchdayRow) ?? null;
 }
 
-export async function getMatchdays(): Promise<MatchdayRow[]> {
-  const { data, error } = await supabaseAdmin
-    .from("fantasy_matchdays")
-    .select("id, label, round, display_name, lock_at, status")
-    .order("id", { ascending: true });
-  if (error) throw error;
-  return (data ?? []) as MatchdayRow[];
+/** Previous / next row in a season-ordered list — never id±1 arithmetic. */
+export function previousMatchday(
+  matchdays: MatchdayRow[],
+  currentId: number,
+): MatchdayRow | null {
+  const idx = matchdays.findIndex((m) => m.id === currentId);
+  if (idx <= 0) return null;
+  return matchdays[idx - 1] ?? null;
+}
+
+export function nextMatchday(
+  matchdays: MatchdayRow[],
+  currentId: number,
+): MatchdayRow | null {
+  const idx = matchdays.findIndex((m) => m.id === currentId);
+  if (idx < 0 || idx >= matchdays.length - 1) return null;
+  return matchdays[idx + 1] ?? null;
 }
 
 export const isMatchdayLocked = (matchday: MatchdayRow) =>
@@ -89,16 +131,6 @@ export async function getParticipant(walletAddress: string) {
     .maybeSingle();
   if (error) throw error;
   return data;
-}
-
-export async function getPlayersMap(): Promise<Map<number, FantasyPlayer>> {
-  const { data, error } = await supabaseAdmin
-    .from("fantasy_players")
-    .select("provider_player_id, team_id, name, nation, position, price, photo_url, is_active");
-  if (error) throw error;
-  return new Map(
-    ((data ?? []) as FantasyPlayer[]).map((p) => [Number(p.provider_player_id), p]),
-  );
 }
 
 export interface SquadRow {
@@ -193,29 +225,37 @@ export async function getPublicManagerTeam(
   if (error) throw error;
   if (!row?.username) return null;
 
-  // Same "current round" the rest of the app uses (lowest non-final). Its
-  // squad goes public once it locks; while it's still open, fall back to the
-  // last played round. Never "any locked matchday": rollover clones squads
-  // into the NEXT round ahead of time, and picking those up would show a
-  // not-yet-played 0-pt squad instead of the round that's actually on.
-  const matchdays = await getMatchdays();
+  const { count: activatedReferrals, error: refCountError } = await supabaseAdmin
+    .from("referrals")
+    .select("*", { count: "exact", head: true })
+    .eq("referrer_wallet_address", row.wallet_address);
+  if (refCountError) throw refCountError;
+
+  const [matchdays, settings, bounds] = await Promise.all([
+    getMatchdays(),
+    getFantasySettings(),
+    seasonBounds(),
+  ]);
+  const { min: seasonMin } = bounds;
   const current =
     matchdays.find((md) => md.status !== "final") ??
     matchdays[matchdays.length - 1];
+  const prev = current ? previousMatchday(matchdays, current.id) : null;
   const ceilingId = current
     ? isMatchdayLocked(current)
       ? current.id
-      : current.id - 1
+      : prev?.id ?? null
     : null;
 
   let team: PublicManagerTeam["team"] = null;
-  if (ceilingId != null && matchdays.some((md) => md.id <= ceilingId)) {
+  if (ceilingId != null) {
     const { data: squadRow, error: squadError } = await supabaseAdmin
       .from("fantasy_squads")
       .select(
-        "matchday_id, players:fantasy_squad_players(player_id, slot, is_captain, is_vice, xi_at_kickoff)",
+        "matchday_id, transfer_points_deduction, players:fantasy_squad_players(player_id, slot, is_captain, is_vice)",
       )
       .eq("wallet_address", row.wallet_address)
+      .gte("matchday_id", seasonMin)
       .lte("matchday_id", ceilingId)
       .order("matchday_id", { ascending: false })
       .limit(1)
@@ -225,40 +265,53 @@ export async function getPublicManagerTeam(
     if (squadRow) {
       const matchdayId = Number(squadRow.matchday_id);
       const matchday = matchdays.find((md) => md.id === matchdayId)!;
-      const [players, playerPoints, scoreResult] = await Promise.all([
+      const [players, playerPoints] = await Promise.all([
         getPlayersMap(),
         getMatchdayPlayerPoints(matchdayId),
-        supabaseAdmin
-          .from("fantasy_matchday_scores")
-          .select("points")
-          .eq("wallet_address", row.wallet_address)
-          .eq("matchday_id", matchdayId)
-          .maybeSingle(),
       ]);
-      if (scoreResult.error) throw scoreResult.error;
-      const score = scoreResult.data;
 
       const entries = (squadRow.players ?? []).map((p) => ({
         player_id: Number(p.player_id),
         slot: Number(p.slot),
         is_captain: Boolean(p.is_captain),
         is_vice: Boolean(p.is_vice),
-        xi_at_kickoff: (p.xi_at_kickoff ?? null) as boolean | null,
       }));
       const live = (id: number) =>
-        playerPoints.get(id) ?? { points: 0, minutes: 0 };
-      // Same rules as recomputeScores/computeSquadPoints: a player's points
-      // count only per the kickoff-banked stamp (current slot decides for
-      // fixtures not kicked off yet), and the captain doubles once they've
-      // played, otherwise the vice — both only while they count for scoring.
-      const captain = entries.find((p) => p.is_captain && countsForScoring(p));
-      const vice = entries.find((p) => p.is_vice && countsForScoring(p));
+        playerPoints.get(id) ?? { points: 0, minutes: 0, yellowCards: 0, redCards: 0 };
+      const squadRows: SquadPlayerRow[] = entries.map((entry) => ({
+        playerId: entry.player_id,
+        slot: entry.slot,
+        isCaptain: entry.is_captain,
+        isVice: entry.is_vice,
+        position: players.get(entry.player_id)?.position ?? ("MID" as Position),
+      }));
+      const played = (id: number) => hasPlayed(live(id));
+      const settleLineup = matchday.status === "final";
+      const scoringXi = settleLineup
+        ? applyAutoSubs(squadRows, played)
+        : squadRows.filter((player) => player.slot <= 11);
+      const scoringIds = new Set(scoringXi.map((p) => p.playerId));
+      const displaySlots = settleLineup
+        ? autoSubDisplaySlots(squadRows, scoringXi)
+        : new Map(squadRows.map((player) => [player.playerId, player.slot]));
+      const startingXi = squadRows.filter((p) => p.slot <= 11);
+      const captain = startingXi.find((p) => p.isCaptain);
+      const vice = startingXi.find((p) => p.isVice);
       const doubledId =
-        captain && live(captain.player_id).minutes > 0
-          ? captain.player_id
-          : vice && live(vice.player_id).minutes > 0
-            ? vice.player_id
+        captain && played(captain.playerId)
+          ? captain.playerId
+          : settleLineup && vice && played(vice.playerId)
+            ? vice.playerId
             : null;
+      const roundPoints = computeDisplayedMatchdayPoints(
+        {
+          squadRows,
+          playerPoints,
+          transferPointsDeduction: Number(squadRow.transfer_points_deduction ?? 0),
+          matchdayStatus: matchday.status,
+        },
+        applyAutoSubs,
+      );
 
       team = {
         matchday: {
@@ -266,68 +319,144 @@ export async function getPublicManagerTeam(
           display_name: matchday.display_name,
           status: matchday.status,
         },
-        points: Number(score?.points ?? 0),
+        points: roundPoints,
+        transfer_points_deduction: Number(squadRow.transfer_points_deduction ?? 0),
         players: entries
           .sort((a, b) => a.slot - b.slot)
-          .map(({ xi_at_kickoff: _stamp, ...entry }) => {
+          .map((entry) => {
             const player = players.get(entry.player_id);
             const stats = live(entry.player_id);
-            // Effective points: zero for a player whose points are excluded
-            // from team.points (e.g. moved into the XI after kickoff), so
-            // the public card always sums to the banked score.
-            const counts = countsForScoring({
-              slot: entry.slot,
-              xi_at_kickoff: _stamp,
-            });
+            const earnsPoints = scoringIds.has(entry.player_id);
+            const subState = settleLineup
+              ? subStateFor(entry.slot, earnsPoints)
+              : null;
             return {
               ...entry,
+              display_slot: displaySlots.get(entry.player_id) ?? entry.slot,
               name: player?.name ?? "Unknown",
               position: player?.position ?? ("MID" as Position),
               nation: player?.nation ?? "",
-              photo_url: player?.photo_url ?? null,
-              points: counts
+              team_id: Number(player?.team_id ?? 0),
+              // Headshots only when photos_enabled; the UI falls back to the
+              // stylized club kit when this is null.
+              photo_url: settings.photos_enabled
+                ? (player?.photo_url ?? null)
+                : null,
+              points: earnsPoints
                 ? stats.points * (entry.player_id === doubledId ? 2 : 1)
                 : 0,
               minutes: stats.minutes,
+              sub_state: subState,
             };
           }),
       };
     }
   }
 
+  const storedTotal = Number(row.total_points);
+  let totalPoints = storedTotal;
+  if (team && team.matchday.status !== "final") {
+    const { data: scoreRows, error: scoresError } = await supabaseAdmin
+      .from("fantasy_matchday_scores")
+      .select("matchday_id, points")
+      .eq("wallet_address", row.wallet_address)
+      .gte("matchday_id", seasonMin)
+      .lte("matchday_id", settings.season_matchday_max);
+    if (scoresError) throw scoresError;
+    const matchdayScores = (scoreRows ?? []).map((score) => ({
+      matchday_id: Number(score.matchday_id),
+      points: Number(score.points),
+    }));
+    totalPoints = adjustTotalPointsForLiveRound(
+      storedTotal,
+      matchdayScores,
+      team.matchday.id,
+      team.matchday.status,
+      team.points,
+    );
+  }
+
   return {
     username: row.username as string,
     rank: row.rank != null ? Number(row.rank) : null,
-    total_points: Number(row.total_points),
+    total_points: totalPoints,
+    activated_referrals: activatedReferrals ?? 0,
     badge: String(row.badge),
     team,
   };
 }
 
 /** Sum of live/final points per player for a matchday (from stats upserts). */
+export type MatchdayPlayerPoints = Map<
+  number,
+  { points: number; minutes: number; yellowCards: number; redCards: number }
+>;
+
+/**
+ * Short TTL, not staleness tolerance: the worker only re-pulls a fixture's
+ * stats every STATS_MIN_INTERVAL_MS (90s), while clients poll /api/play/squad
+ * every 15s during a live round. Without this, every concurrent viewer issues
+ * an identical scan of the gameweek's stats rows. Cached map is read-only.
+ */
+const MATCHDAY_POINTS_TTL_MS = 10_000;
+
+const matchdayPointsCache = new Map<
+  number,
+  { points: MatchdayPlayerPoints; expiresAt: number }
+>();
+
 export async function getMatchdayPlayerPoints(
   matchdayId: number,
-): Promise<Map<number, { points: number; minutes: number }>> {
+): Promise<MatchdayPlayerPoints> {
+  const hit = matchdayPointsCache.get(matchdayId);
+  if (hit) {
+    if (hit.expiresAt > Date.now()) return hit.points;
+    matchdayPointsCache.delete(matchdayId);
+  }
+
+  // Stamped after the queries below, not before: measuring the TTL from here
+  // would spend part of the window on the round trip that filled it.
+  const remember = (points: MatchdayPlayerPoints) => {
+    matchdayPointsCache.set(matchdayId, {
+      points,
+      expiresAt: Date.now() + MATCHDAY_POINTS_TTL_MS,
+    });
+    return points;
+  };
+
   const { data: fixtures, error: fixturesError } = await supabaseAdmin
     .from("fantasy_fixtures")
     .select("provider_fixture_id")
     .eq("matchday_id", matchdayId);
   if (fixturesError) throw fixturesError;
   const fixtureIds = (fixtures ?? []).map((f) => Number(f.provider_fixture_id));
-  if (fixtureIds.length === 0) return new Map();
+  // Cached too — an unseeded matchday is polled just as hard as a live one.
+  if (fixtureIds.length === 0) return remember(new Map());
 
-  const { data, error } = await supabaseAdmin
-    .from("fantasy_player_match_stats")
-    .select("player_id, points, stats")
-    .in("provider_fixture_id", fixtureIds);
-  if (error) throw error;
+  const data = await fetchAll<{
+    player_id: number;
+    points: number;
+    stats: { minutes?: number; yellowCards?: number; redCards?: number } | null;
+  }>((from, to) =>
+    supabaseAdmin
+      .from("fantasy_player_match_stats")
+      .select("player_id, points, stats")
+      .in("provider_fixture_id", fixtureIds)
+      .range(from, to),
+  );
 
-  const totals = new Map<number, { points: number; minutes: number }>();
-  for (const row of data ?? []) {
+  const totals: MatchdayPlayerPoints = new Map();
+  for (const row of data) {
     const id = Number(row.player_id);
-    const prev = totals.get(id) ?? { points: 0, minutes: 0 };
-    const minutes = Number((row.stats as { minutes?: number })?.minutes ?? 0);
-    totals.set(id, { points: prev.points + Number(row.points), minutes: prev.minutes + minutes });
+    const prev = totals.get(id) ?? { points: 0, minutes: 0, yellowCards: 0, redCards: 0 };
+    const st = row.stats;
+    totals.set(id, {
+      points: prev.points + Number(row.points),
+      minutes: prev.minutes + Number(st?.minutes ?? 0),
+      yellowCards: prev.yellowCards + Number(st?.yellowCards ?? 0),
+      redCards: prev.redCards + Number(st?.redCards ?? 0),
+    });
   }
-  return totals;
+
+  return remember(totals);
 }

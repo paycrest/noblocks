@@ -35,8 +35,18 @@ import {
   initialSwapModeForHomeForm,
   swapModeFromSideParam,
   networkSupportsOnramp,
+  isOnrampFiatCurrencyCode,
+  isReferralEnabled,
+  isStarknetChain,
+  isTronChain,
 } from "../utils";
-import { toAggregatorToken } from "../lib/token-symbol";
+import { useMarketLiquidity } from "../hooks/useMarketLiquidity";
+import {
+  fillableQuoteAmount,
+  isSendAmountOutsideLiquidityBand,
+  shouldSuppressNoProviderForLiquidity,
+} from "../lib/marketLiquidity";
+import { toAggregatorToken, tokensEqual } from "../lib/token-symbol";
 import { mapReportAndAct } from "../lib/toastMappedError";
 import { reportClientError } from "../lib/sentry.client";
 import { isNoProviderError } from "../lib/errorMessages";
@@ -67,13 +77,13 @@ import {
   useKYC,
   useEmbed,
 } from "../context";
+import { useShouldUseEOA } from "../hooks/useEIP7702Account";
 import { getPreferredNetworkForBalances } from "../lib/getPreferredNetworkForBalances";
 import { hasSeenNetworkModalFlag } from "../lib/networkModalStore";
 import {
   storePendingReferralCode,
   readPendingReferralCode,
 } from "../lib/pendingReferralCode";
-import { isReferralEnabled } from "../utils";
 import { useWalletAddress } from "../hooks/useWalletAddress";
 
 /**
@@ -241,7 +251,16 @@ export function MainPageContent() {
     setIsOnrampProviderDetailsOpen,
   } = useStep();
   const { isInjectedWallet, injectedAddress, injectedReady } = useInjectedWallet();
-  const { crossChainBalances, isLoading: isBalanceLoading } = useBalance();
+  const {
+    crossChainBalances,
+    smartWalletBalance,
+    externalWalletBalance,
+    injectedWalletBalance,
+    starknetWalletBalance,
+    tronWalletBalance,
+    isLoading: isBalanceLoading,
+  } = useBalance();
+  const shouldUseEOA = useShouldUseEOA();
   const { selectedNetwork, setDisplayedNetwork, setSelectedNetwork } =
     useNetwork();
   const { isBlockFestReferral } = useBlockFestReferral();
@@ -325,6 +344,70 @@ export function MainPageContent() {
   /** On-ramp (fiat→crypto): rates API `buy` side */
   const isOnrampRate = swapMode === "onramp";
 
+  // Off-ramp: when send already exceeds the connected wallet balance, skip the
+  // market book — max-liquidity limits are not actionable until the amount is fundable.
+  const isWalletConnected =
+    authenticated || (isInjectedWallet && injectedReady);
+  const spendableTokenBalance = useMemo(() => {
+    const activeBalance = isInjectedWallet
+      ? injectedWalletBalance
+      : isStarknetChain(selectedNetwork.chain)
+        ? starknetWalletBalance
+        : isTronChain(selectedNetwork.chain)
+          ? tronWalletBalance
+          : shouldUseEOA
+            ? externalWalletBalance
+            : smartWalletBalance;
+    if (!activeBalance || !token) return 0;
+    if (tokensEqual(token, "cNGN")) {
+      return (
+        activeBalance.rawBalances?.[token] ??
+        activeBalance.rawBalances?.cNGN ??
+        activeBalance.rawBalances?.CNGN ??
+        activeBalance.balances[token] ??
+        0
+      );
+    }
+    return activeBalance.balances[token] ?? 0;
+  }, [
+    isInjectedWallet,
+    injectedWalletBalance,
+    selectedNetwork.chain,
+    starknetWalletBalance,
+    tronWalletBalance,
+    shouldUseEOA,
+    externalWalletBalance,
+    smartWalletBalance,
+    token,
+  ]);
+  const amountSentN = Number(amountSent) || 0;
+  const skipMarketForInsufficientBalance =
+    !isOnrampRate &&
+    isWalletConnected &&
+    !isBalanceLoading &&
+    amountSentN > 0 &&
+    amountSentN > spendableTokenBalance;
+
+  // Live provider capacity for the current corridor. Owned here rather than in
+  // the form because the rate request below also has to know it: quoting an
+  // amount no provider can fill only earns a "no provider" error that the form
+  // already states more usefully. Passed down through `stateProps` so both
+  // read one poll. Paused while off-ramp send exceeds balance.
+  const { envelope: liquidity, isLoading: isLoadingLiquidity } =
+    useMarketLiquidity({
+      enabled:
+        Boolean(token) &&
+        Boolean(currency) &&
+        !skipMarketForInsufficientBalance &&
+        (!isOnrampRate ||
+          (isOnrampFiatCurrencyCode(currency) &&
+            networkSupportsOnramp(selectedNetwork.chain))),
+      side: isOnrampRate ? "buy" : "sell",
+      token,
+      currency,
+      networkName: selectedNetwork.chain.name,
+    });
+
   const { setTransactionFormSwapMode } = useHomeTransactionFormMode();
   const { refreshStatus } = useKYC();
   const prevStepForKycRefreshRef = useRef<string | null>(null);
@@ -404,6 +487,8 @@ export function MainPageContent() {
     setIsFetchingRate,
     rateError,
     setRateError,
+
+    liquidity,
 
     institutions,
     setInstitutions,
@@ -647,15 +732,59 @@ export function MainPageContent() {
     function handleRateFetch() {
       // Debounce rate fetching
       let timeoutId: NodeJS.Timeout;
+      let active = true;
 
-      if (!currency) return;
+      const invalidate = () => {
+        active = false;
+        clearTimeout(timeoutId);
+      };
 
-      if (isOnrampRate && !token) return;
+      if (!currency) return invalidate;
+
+      if (isOnrampRate && !token) return invalidate;
 
       // Only fetch rate if at least one amount is greater than 0
-      if (!amountSent && !amountReceived) return;
+      if (!amountSent && !amountReceived) return invalidate;
+
+      // Off-ramp amount exceeds spendable balance: form shows insufficient funds
+      // and markets are paused — skip quoting so we don't surface liquidity /
+      // no-provider noise for an amount the user cannot fund.
+      if (skipMarketForInsufficientBalance) {
+        setRateError(null);
+        setIsFetchingRate(false);
+        return invalidate;
+      }
+
+      // Nothing in this corridor is quotable. The form already says so
+      // ("No liquidity available for X on Y right now"), and a request would
+      // only add the aggregator's own no-provider error on top. An unknown
+      // book leaves this false, so an outage still quotes as before.
+      if (liquidity && !liquidity.viable) {
+        setRateError(null);
+        setIsFetchingRate(false);
+        return invalidate;
+      }
+
+      // The corridor's first book is still in flight — true only until it
+      // lands or fails, never on later polls. Quoting now would skip the
+      // clamp below and ask for whatever amount carried over from the
+      // previous corridor, which is how a tab switch used to produce a
+      // no-provider toast.
+      if (isLoadingLiquidity) return invalidate;
+
+      const sentForLiquidity = Number(amountSent) || 0;
+
+      // Above max or below min: the field already states the limit; a rate
+      // request (especially on-ramp with a token probe) often returns the
+      // aggregator's legacy no-provider string on top of that.
+      if (isSendAmountOutsideLiquidityBand(liquidity, sentForLiquidity)) {
+        setRateError(null);
+        setIsFetchingRate(false);
+        return invalidate;
+      }
 
       const getRate = async (shouldUseProvider = true) => {
+        if (!active) return;
         setIsFetchingRate(true);
 
         const lpParam =
@@ -670,11 +799,21 @@ export function MainPageContent() {
         // Send = fiat → use computed token (amountReceived), else peg-aware probe, else 1.
         const sentN = Number(amountSent) || 0;
         const recvN = Number(amountReceived) || 0;
-        const rateQueryAmount = isOnrampRate
+        const baseQueryAmount = isOnrampRate
           ? onrampRateQueryTokenAmount(token, currency, sentN, recvN)
           : sentN > 0
             ? sentN
             : 100;
+
+        // Ask about an amount a provider will actually take: quoting one the
+        // book has already ruled out returns the aggregator's no-provider
+        // error, which toasts the same fact the field states better ("Up to X
+        // available right now"). The form still rejects what was typed.
+        const rateQueryAmount = fillableQuoteAmount(
+          liquidity,
+          sentN,
+          baseQueryAmount,
+        );
 
         const providerId =
           shouldUseProvider && lpParam && !shouldSkipProvider
@@ -691,9 +830,16 @@ export function MainPageContent() {
             network: normalizeNetworkForRateFetch(selectedNetwork.chain.name),
             side: isOnrampRate ? "buy" : "sell",
           });
+          if (!active) return;
           setRate(rate.data);
           setRateError(null); // Clear error on success
         } catch (error) {
+          if (!active) return;
+
+          const suppressLiquidityNoProvider =
+            isNoProviderError(error) &&
+            shouldSuppressNoProviderForLiquidity(liquidity, sentN);
+
           if (error instanceof Error) {
             if (
               shouldUseProvider &&
@@ -705,7 +851,9 @@ export function MainPageContent() {
                 phase: "provider-fallback",
                 provider: lpParam,
               });
-              toast.error(`${error.message} - defaulting to public rate`);
+              if (!suppressLiquidityNoProvider) {
+                toast.error(`${error.message} - defaulting to public rate`);
+              }
               // Track failed provider
               if (lpParam) {
                 failedProviders.current.add(lpParam);
@@ -754,6 +902,12 @@ export function MainPageContent() {
               }
             }
           }
+
+          if (suppressLiquidityNoProvider) {
+            setRateError(null);
+            return;
+          }
+
           mapReportAndAct(error, {
             feature: "cngn-rate",
             onUserMessage: (userMsg) => {
@@ -762,7 +916,7 @@ export function MainPageContent() {
             },
           });
         } finally {
-          setIsFetchingRate(false);
+          if (active) setIsFetchingRate(false);
         }
       };
 
@@ -773,9 +927,7 @@ export function MainPageContent() {
 
       debounceFetchRate();
 
-      return () => {
-        clearTimeout(timeoutId);
-      };
+      return invalidate;
     },
     [
       amountSent,
@@ -785,6 +937,11 @@ export function MainPageContent() {
       isOnrampRate,
       searchParams,
       selectedNetwork,
+      // Envelope identity is stable while the numbers hold (envelopesEqual),
+      // so this re-runs when capacity actually moves, not on every poll.
+      liquidity,
+      isLoadingLiquidity,
+      skipMarketForInsufficientBalance,
     ],
   );
 
@@ -945,6 +1102,9 @@ export function MainPageContent() {
               clearFormState(formMethods);
               setSelectedRecipient(null);
               setActiveOrderIsOnramp(false);
+              // Starting a new payment must not inherit the finished order's virtual
+              // account, which would otherwise resurface the "Make payment" step.
+              setOnrampPaymentAccount(null);
             }}
             clearTransactionStatus={() => {
               setTransactionStatus("idle");
@@ -974,6 +1134,7 @@ export function MainPageContent() {
     setTransactionStatus,
     setCurrentStep,
     setOrderId,
+    setOnrampPaymentAccount,
     activeOrderIsOnramp,
   ]);
 

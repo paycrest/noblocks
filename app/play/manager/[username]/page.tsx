@@ -28,8 +28,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
   const title = `${manager.username}'s squad — Noblocks Play`;
   const description = manager.team
-    ? `${manager.team.matchday.display_name}: ${manager.team.points} pts · ranked #${manager.rank ?? "—"} in the World Cup fantasy league. #NoblocksPlay`
-    : `Ranked #${manager.rank ?? "—"} in the Noblocks Play World Cup fantasy league. #NoblocksPlay`;
+    ? `${manager.team.matchday.display_name}: ${manager.team.points} pts · ranked #${manager.rank ?? "—"} in Noblocks Play. #NoblocksPlay`
+    : `Ranked #${manager.rank ?? "—"} in Noblocks Play Premier League fantasy. #NoblocksPlay`;
   const image = `/api/play/og?layout=squad&username=${encodeURIComponent(manager.username)}`;
 
   return {

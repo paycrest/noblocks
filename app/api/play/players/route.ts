@@ -1,6 +1,6 @@
-import { NextRequest } from "next/server";
-import { supabaseAdmin } from "@/app/lib/supabase";
-import { withRateLimit } from "@/app/lib/rate-limit";
+import { NextRequest, NextResponse } from "next/server";
+import { withRateLimitAndAnalytics } from "@/app/lib/analytics-middleware";
+import { getPlayersMap } from "@/app/lib/fantasy/players";
 import { getFantasySettings } from "@/app/lib/fantasy/settings";
 import {
   fantasyDisabledResponse,
@@ -8,40 +8,45 @@ import {
   isFantasyEnabled,
   jsonError,
 } from "@/app/lib/fantasy/server";
-import { NextResponse } from "next/server";
 
 /**
- * GET /api/play/players — public player pool with prices, plus the game
- * settings the squad builder needs. Served from our DB only (user traffic
- * never reaches the data provider) and edge-cached for 5 minutes.
+ * GET /api/play/players — public player pool + builder settings.
+ * Uses the shared players cache (same source as squad/transfers validation).
  */
-export const GET = withRateLimit(async (_request: NextRequest) => {
+export const GET = withRateLimitAndAnalytics(async (_request: NextRequest) => {
   if (!isFantasyEnabled()) return fantasyDisabledResponse();
 
   try {
-    const [{ data, error }, settings, matchday] = await Promise.all([
-      supabaseAdmin
-        .from("fantasy_players")
-        .select("provider_player_id, team_id, name, nation, position, price, photo_url, is_active")
-        .order("price", { ascending: false }),
+    const [settings, matchday, playersMap] = await Promise.all([
       getFantasySettings(),
       getCurrentMatchday(),
+      getPlayersMap(),
     ]);
-    if (error) throw error;
+
+    const players = [...playersMap.values()]
+      .sort((a, b) => Number(b.price) - Number(a.price))
+      .map((p) => ({
+        ...p,
+        photo_url: settings.photos_enabled ? p.photo_url : null,
+      }));
 
     return NextResponse.json(
       {
         success: true,
         data: {
-          players: data ?? [],
+          players,
           settings: {
             budget: settings.budget,
             squad_size: settings.squad_size,
             positions: settings.positions,
             formations: settings.formations,
-            nation_cap: matchday ? settings.nation_caps[`MD${matchday.id}`] ?? null : null,
+            club_cap: settings.club_cap,
             transfer_penalty: settings.transfer_penalty,
+            free_transfers_max: settings.free_transfers_max,
+            photos_enabled: settings.photos_enabled,
             scoring: settings.scoring,
+            defcon_def_threshold: settings.defcon_def_threshold,
+            defcon_mid_fwd_threshold: settings.defcon_mid_fwd_threshold,
           },
           matchday,
         },

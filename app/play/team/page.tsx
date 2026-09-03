@@ -52,7 +52,7 @@ export default function TeamPage() {
       <EmptyState
         icon={<FootballIcon className="size-8 text-lavender-500" />}
         title="Sign in to manage your team"
-        description="Log in with your Noblocks account to build your World Cup fantasy squad."
+        description="Log in with your Noblocks account to build your Premier League fantasy squad."
         action={
           <button
             type="button"

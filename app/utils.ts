@@ -178,6 +178,27 @@ type SavedRecipientIdentity = {
 };
 
 /**
+ * Channel value to persist on a *saved recipient*, whose unique key includes it.
+ *
+ * Send Money collapses to `""` so it matches recipients saved before channels
+ * existed — otherwise the same phone number would be stored twice, once as `""`
+ * and once as `"Mobile"`. Only Till and Paybill, which are genuinely different
+ * payout targets, get a distinguishing value.
+ *
+ * Transaction history is not identity and keeps the literal channel, so past
+ * orders still show the rail the user actually picked.
+ *
+ * Unrecognized values also collapse to `""`, so an unexpected channel can never
+ * open a new slot in the recipient unique key.
+ */
+export function normalizeSavedRecipientChannel(
+  channel?: string | null,
+): "" | "Till" | "Paybill" {
+  const value = (channel ?? "").trim();
+  return value === "Till" || value === "Paybill" ? value : "";
+}
+
+/**
  * True when two saved recipients are the same payout target.
  *
  * Channel is part of the identity: Send Money / Till / Paybill share the
@@ -192,7 +213,8 @@ export function isSameSavedRecipient(
   return (
     a.accountIdentifier === b.accountIdentifier &&
     a.institutionCode === b.institutionCode &&
-    (a.channel ?? "") === (b.channel ?? "")
+    normalizeSavedRecipientChannel(a.channel) ===
+      normalizeSavedRecipientChannel(b.channel)
   );
 }
 

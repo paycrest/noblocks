@@ -4,6 +4,7 @@ import {
   formatKesMpesaAccountDisplay,
   formatRecipientInstitutionDisplay,
   isSameSavedRecipient,
+  normalizeSavedRecipientChannel,
   getKesMpesaInstitutionLabel,
   KES_MPESA_INSTITUTION_CODE,
 } from "../app/utils";
@@ -113,5 +114,28 @@ describe("KES M-Pesa virtual institution split", () => {
     };
     const empty = { ...legacy, channel: "" as const };
     expect(isSameSavedRecipient(legacy, empty)).toBe(true);
+  });
+  it("collapses Send Money to an empty stored channel, keeps Till/Paybill", () => {
+    // Send Money must match recipients saved before channels existed,
+    // or the same phone number is stored twice ("" and "Mobile").
+    expect(normalizeSavedRecipientChannel("Mobile")).toBe("");
+    expect(normalizeSavedRecipientChannel("")).toBe("");
+    expect(normalizeSavedRecipientChannel(undefined)).toBe("");
+    expect(normalizeSavedRecipientChannel(null)).toBe("");
+    expect(normalizeSavedRecipientChannel("Till")).toBe("Till");
+    expect(normalizeSavedRecipientChannel("Paybill")).toBe("Paybill");
+  });
+
+  it("matches a legacy M-Pesa recipient against a Send Money selection", () => {
+    const legacy = {
+      accountIdentifier: "0712345678",
+      institutionCode: KES_MPESA_INSTITUTION_CODE,
+    };
+    const sendMoney = { ...legacy, channel: "Mobile" as const };
+    expect(isSameSavedRecipient(legacy, sendMoney)).toBe(true);
+    // Still distinct from the business rails.
+    expect(
+      isSameSavedRecipient(sendMoney, { ...legacy, channel: "Till" as const }),
+    ).toBe(false);
   });
 });

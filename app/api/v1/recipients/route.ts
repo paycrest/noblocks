@@ -8,6 +8,7 @@ import {
   trackBusinessEvent,
 } from "@/app/lib/server-analytics";
 import { isValidEvmAddressCaseInsensitive } from "@/app/lib/validation";
+import { normalizeSavedRecipientChannel } from "@/app/utils";
 import type {
   RecipientDetailsWithId,
   SavedRecipientsResponse,
@@ -426,7 +427,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
 
     // Insert recipient (upsert on unique constraint) - store sanitized digits so DB has consistent format
     const channelValue =
-      typeof channel === "string" && channel.trim() ? channel.trim() : "";
+      typeof channel === "string" ? normalizeSavedRecipientChannel(channel) : "";
     const businessNumberValue =
       typeof businessNumber === "string" && businessNumber.trim()
         ? businessNumber.trim()

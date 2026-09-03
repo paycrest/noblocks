@@ -33,6 +33,7 @@ import {
   getInstitutionNameByCode,
   getKesMpesaInstitutionLabel,
   KES_MPESA_INSTITUTION_CODE,
+  normalizeSavedRecipientChannel,
   getRpcUrl,
   isBlockFestActive,
 } from "../utils";
@@ -1194,6 +1195,7 @@ export function TransactionStatus({
     const businessNumber = String(
       formMethods.watch("businessNumber") || "",
     ).trim();
+    const savedChannel = normalizeSavedRecipientChannel(kesChannel);
 
     const institutionName =
       String(institutionCode) === KES_MPESA_INSTITUTION_CODE && kesChannel
@@ -1217,7 +1219,8 @@ export function TransactionStatus({
       type:
         (formMethods.watch("accountType") as "bank" | "mobile_money") || "bank",
       currency: String(formMethods.watch("currency") || ""),
-      ...(kesChannel ? { channel: kesChannel } : {}),
+      // Send Money normalizes away so it matches pre-channel saved recipients.
+      ...(savedChannel ? { channel: savedChannel } : {}),
       ...(businessNumber ? { businessNumber } : {}),
     };
 

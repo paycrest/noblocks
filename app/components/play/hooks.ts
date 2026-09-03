@@ -9,6 +9,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import {
+  keepPreviousData,
   useMutation,
   useQuery,
   useQueryClient,
@@ -27,8 +28,8 @@ import {
   joinLeague,
   makeTransfers,
   saveSquad,
-  setGiveawayOptIn,
 } from "./api";
+import { playPollIntervalMs } from "@/app/lib/fantasy/fixture-activity";
 import type {
   SaveSquadBody,
   SquadResponse,
@@ -53,7 +54,8 @@ export function useManagerTeam(username: string | null | undefined) {
     queryKey: playKeys.manager(username ?? ""),
     queryFn: () => fetchManager(username!),
     enabled: Boolean(username),
-    staleTime: 30_000,
+    staleTime: 60_000,
+    refetchInterval: false,
   });
 }
 
@@ -70,7 +72,12 @@ export function useMatchday(id: number | string) {
   return useQuery({
     queryKey: playKeys.matchday(id),
     queryFn: () => fetchMatchday(id),
-    refetchInterval: 60_000, // live scores tick over without a manual refresh
+    staleTime: 10_000,
+    refetchInterval: (q) => {
+      const data = q.state.data;
+      if (!data) return false;
+      return playPollIntervalMs(data.matchday.status, data.fixtures);
+    },
   });
 }
 
@@ -79,6 +86,7 @@ export function useMatchdays() {
     queryKey: [...playKeys.matchday("all")],
     queryFn: fetchMatchdays,
     staleTime: 60_000,
+    refetchInterval: false,
   });
 }
 
@@ -95,7 +103,12 @@ export function useLeaderboard(page: number, findMe = false) {
     // findMe only makes sense once signed in — skip the request entirely
     // for anonymous visits instead of issuing a tokenless findMe lookup.
     enabled: ready && (!findMe || authenticated),
-    staleTime: 30_000,
+    // Page changes are their own query key, so without this the table would
+    // unmount into skeletons on every Prev/Next. Hold the previous page's rows
+    // until the new ones arrive; callers dim the table via isFetching instead.
+    placeholderData: keepPreviousData,
+    staleTime: 60_000,
+    refetchInterval: false,
   });
 }
 
@@ -116,7 +129,13 @@ export function useSquad() {
     retry: (failureCount, error) =>
       !(error instanceof PlayApiError && error.status < 500) &&
       failureCount < 2,
-    staleTime: 15_000,
+    staleTime: 10_000,
+    refetchInterval: (q) => {
+      const data = q.state.data;
+      if (!data) return false;
+      if (data.game_active) return 15_000;
+      return playPollIntervalMs(data.matchday?.status, undefined);
+    },
   });
 }
 
@@ -189,11 +208,7 @@ export function useJoinLeague() {
   const { getAccessToken } = usePrivy();
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (body: {
-      username: string;
-      acceptTerms: true;
-      giveawayOptIn: boolean;
-    }) => {
+    mutationFn: async (body: { username: string; acceptTerms: true }) => {
       const token = await getAccessToken();
       if (!token) throw new PlayApiError("Unauthorized", 401);
       return joinLeague(body, token);
@@ -230,20 +245,6 @@ export function useMakeTransfers() {
     },
     onSuccess: () =>
       queryClient.invalidateQueries({ queryKey: playKeys.squad }),
-  });
-}
-
-export function useGiveawayOptIn() {
-  const { getAccessToken } = usePrivy();
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (optIn: boolean) => {
-      const token = await getAccessToken();
-      if (!token) throw new PlayApiError("Unauthorized", 401);
-      return setGiveawayOptIn(optIn, token);
-    },
-    onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: playKeys.rewards }),
   });
 }
 

@@ -1,4 +1,7 @@
 import type { ReactNode } from "react";
+// Type-only: erased at build, so this does not create a runtime cycle with
+// marketLiquidity.ts, which imports its wire types from here.
+import type { LiquidityEnvelope } from "./lib/marketLiquidity";
 
 export type MobileSheetView =
   | "wallet"
@@ -37,8 +40,9 @@ export type InstitutionProps = {
   channel?: KesMpesaChannel;
 };
 
-/** Onramp refund bank account (persisted per wallet; v2 order source.refundAccount). */
+/** Onramp refund bank account (persisted per wallet + fiat currency; v2 order source.refundAccount). */
 export type RefundAccountDetails = {
+  currency: string;
   institutionCode: string;
   institutionName: string;
   accountName: string;
@@ -221,6 +225,38 @@ export type V2RateQuoteResponse = {
   sell?: V2RateQuoteSide;
 };
 
+/**
+ * One provider offer row from GET /v2/markets.
+ * `min`/`max` are the order band in token units (same units as the /v2/rates
+ * path amount); `balance` is the provider's float; `rate` is fiat per token.
+ * Numerics may arrive as strings, so parse defensively.
+ */
+export type V2MarketOffer = {
+  min?: number | string;
+  max?: number | string;
+  balance?: number | string;
+  /** Denomination of `balance`: the token on buy rows, the fiat on sell rows. */
+  balanceCurrency?: string;
+  rate?: number | string;
+  rateType?: string;
+  providerId?: string;
+  side?: string;
+  token?: string;
+  fiat?: string;
+  network?: string;
+  [key: string]: unknown;
+};
+
+export type MarketsPayload = {
+  side: RateSide;
+  /** Aggregator wire symbol, e.g. CNGN (see toAggregatorToken). */
+  token: string;
+  currency: string;
+  /** Normalized slug (see normalizeNetworkForRateFetch). Omit to query all networks. */
+  network?: string;
+  signal?: AbortSignal;
+};
+
 export type PubkeyResponse = {
   status: string;
   data: string;
@@ -353,6 +389,12 @@ export type StateProps = {
   setTransactionStatus: (status: TransactionStatusType) => void;
   rateError: string | null;
   setRateError: (error: string | null) => void;
+  /**
+   * Live provider capacity for the current corridor, or `null` when unknown.
+   * Held at the page level so the form's limits and the rate request agree on
+   * one poll's worth of truth.
+   */
+  liquidity: LiquidityEnvelope | null;
   onrampPaymentAccount: V2FiatProviderAccountDTO | null;
   setOnrampPaymentAccount: (account: V2FiatProviderAccountDTO | null) => void;
   /** Locked when the current order is created; not tied to live swapMode. */
@@ -466,13 +508,24 @@ export type Config = {
   moralisBaseUrl: string;
   /** Starknet Earn (Vesu via Starkzap). Requires Starknet wallet + API routes. */
   earnEnabled: boolean;
+  /** EVM → Starknet Earn via LayerSwap (Phase 2). Requires LAYERSWAP_API_KEY server-side. */
+  evmEarnEnabled: boolean;
   /** Tron network + Privy Tron wallet. Opt-in via NEXT_PUBLIC_TRON_ENABLED. */
   tronEnabled: boolean;
   /** Referral program feature flag. When false, all referral UI and API routes are disabled. */
   referralEnabled: boolean;
   /** Bridge/Swap feature flag. Controls Convert button visibility + proxy routes. */
   bridgeEnabled: boolean;
+  /** Textile FX for same-chain USDT↔cNGN on BSC and Celo. Requires TEXTILE_API_KEY server-side. */
+  textileEnabled: boolean;
+  /** HyperFX (Hyperbridge IntentGateway) USDC↔cNGN same-chain swaps in Convert. */
+  hyperfxEnabled: boolean;
   onrampChainedForwardingEnabled: boolean;
+  /**
+   * KES fiat→crypto onramp. Default on (unset env); set
+   * NEXT_PUBLIC_KES_ONRAMP_ENABLED=false to hide KES in on-ramp mode.
+   */
+  kesOnrampEnabled: boolean;
   /** Noblocks Play (World Cup fantasy league) feature flag. Gates /play UI + API. */
   fantasyEnabled: boolean;
   /**
@@ -482,6 +535,9 @@ export type Config = {
   fantasyCampaignEnded: boolean;
   /** Embeddable widget feature flag. Gates the /widget route (iframe embed for whitelisted partners). */
   embedEnabled: boolean;
+  /** LayerSwap API key (server-side only; used by /api/earn/layerswap/*). */
+  layerswapApiKey: string;
+  layerswapApiBaseUrl: string;
 };
 
 export type Network = {
@@ -526,6 +582,14 @@ export type TransactionHistoryType =
   | "transfer"
   | "swap"
   | "credit" | "bridge";
+
+/** Order-backed history rows that can enter `refunding` / `refunded`. */
+export const SWAP_ORDER_TRANSACTION_TYPES = [
+  "onramp",
+  "offramp",
+  "bridge",
+  "swap",
+] as const satisfies readonly TransactionHistoryType[];
 
 export interface Recipient {
   account_name: string;
@@ -611,8 +675,10 @@ export interface VerifyJWTResult {
 export interface UpdateTransactionStatusPayload {
   transactionId: string;
   status: string;
-  accessToken: string;
+  accessToken: string | null;
   walletAddress: string;
+  /** Injected wallet SIWE session token; takes precedence over the Privy Bearer token. */
+  injectedToken?: string | null;
 }
 
 export interface UpdateTransactionDetailsPayload

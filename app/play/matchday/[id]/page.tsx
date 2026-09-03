@@ -10,7 +10,7 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { FootballIcon, SquareLock02Icon } from "hugeicons-react";
 import { useMatchday, useSquad } from "@/app/components/play/hooks";
-import { TeamFlag } from "@/app/components/play/FixturesCard";
+import { ClubBadge } from "@/app/components/play/ClubJersey";
 import {
   Chip,
   EmptyState,
@@ -42,6 +42,27 @@ const kickoffFormat = new Intl.DateTimeFormat(undefined, {
   minute: "2-digit",
 });
 
+const TeamSide = ({
+  name,
+  teamId,
+  align,
+}: {
+  name: string;
+  teamId: number;
+  align: "left" | "right";
+}) => (
+  <div
+    className={`flex min-w-0 flex-1 items-center gap-3 ${
+      align === "right" ? "flex-row-reverse text-right" : "text-left"
+    }`}
+  >
+    <ClubBadge teamId={teamId} title={name} className="size-10 text-[11px]" />
+    <span className="min-w-0 truncate text-sm font-semibold leading-snug text-text-body dark:text-white sm:text-base">
+      {name}
+    </span>
+  </div>
+);
+
 const FixtureCard = ({ fixture }: { fixture: FixtureData }) => {
   const status = fixtureStatus(fixture);
   const started =
@@ -49,24 +70,33 @@ const FixtureCard = ({ fixture }: { fixture: FixtureData }) => {
     fixture.home_score != null ||
     fixture.away_score != null;
   return (
-    <PlayCard className="flex items-center gap-3">
-      <div className="flex min-w-0 flex-1 items-center justify-end gap-2 text-sm font-medium text-text-body dark:text-white">
-        <span className="min-w-0 truncate">{fixture.home_team}</span>
-        <TeamFlag teamId={fixture.home_team_id} />
-      </div>
-      <div className="flex shrink-0 flex-col items-center gap-1">
-        <span className="text-base font-bold tabular-nums text-text-body dark:text-white">
-          {started
-            ? `${fixture.home_score ?? 0} – ${fixture.away_score ?? 0}`
-            : "vs"}
-        </span>
+    <div className="space-y-4 rounded-2xl border border-border-light bg-white px-5 py-5 dark:border-white/10 dark:bg-surface-canvas sm:px-6 sm:py-6">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-xs font-medium text-text-secondary dark:text-white/45">
+          {kickoffFormat.format(new Date(fixture.kickoff))}
+        </p>
         <Chip tone={status.tone}>{status.label}</Chip>
       </div>
-      <div className="flex min-w-0 flex-1 items-center gap-2 text-sm font-medium text-text-body dark:text-white">
-        <TeamFlag teamId={fixture.away_team_id} />
-        <span className="min-w-0 truncate">{fixture.away_team}</span>
+      <div className="flex items-center gap-3 sm:gap-5">
+        <TeamSide
+          name={fixture.home_team}
+          teamId={fixture.home_team_id}
+          align="right"
+        />
+        <div className="flex w-16 shrink-0 flex-col items-center justify-center sm:w-20">
+          <span className="text-xl font-bold tabular-nums tracking-tight text-text-body dark:text-white sm:text-2xl">
+            {started
+              ? `${fixture.home_score ?? 0}–${fixture.away_score ?? 0}`
+              : "vs"}
+          </span>
+        </div>
+        <TeamSide
+          name={fixture.away_team}
+          teamId={fixture.away_team_id}
+          align="left"
+        />
       </div>
-    </PlayCard>
+    </div>
   );
 };
 
@@ -191,14 +221,12 @@ export default function MatchdayPage() {
           description="Check back once the bracket for this round is set."
         />
       ) : (
-        <section className="space-y-3">
+        <section className="space-y-4">
           {fixtures.map((fixture) => (
-            <div key={fixture.provider_fixture_id} className="space-y-1">
-              <FixtureCard fixture={fixture} />
-              <p className="px-1 text-right text-[11px] text-text-secondary dark:text-white/40">
-                {kickoffFormat.format(new Date(fixture.kickoff))}
-              </p>
-            </div>
+            <FixtureCard
+              key={fixture.provider_fixture_id}
+              fixture={fixture}
+            />
           ))}
         </section>
       )}

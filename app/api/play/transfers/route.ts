@@ -1,15 +1,15 @@
 import { NextRequest } from "next/server";
 import { supabaseAdmin } from "@/app/lib/supabase";
-import { withRateLimit } from "@/app/lib/rate-limit";
+import { withRateLimitAndAnalytics } from "@/app/lib/analytics-middleware";
 import { trackBusinessEvent } from "@/app/lib/server-analytics";
-import { getFantasySettings, matchdayLabel } from "@/app/lib/fantasy/settings";
+import { getFantasySettings } from "@/app/lib/fantasy/settings";
+import { getPlayersMap } from "@/app/lib/fantasy/players";
 import { validateSquad } from "@/app/lib/fantasy/validation";
 import {
   fantasyDisabledResponse,
   getAuthedWallet,
   getCurrentMatchday,
   getParticipant,
-  getPlayersMap,
   getSquad,
   isFantasyEnabled,
   isMatchdayLocked,
@@ -27,7 +27,7 @@ interface TransferRequest {
  * as a deduction when the round is scored (TRD §6.4). No carry-over.
  * Confirmed transfers are irreversible.
  */
-export const POST = withRateLimit(async (request: NextRequest) => {
+export const POST = withRateLimitAndAnalytics(async (request: NextRequest) => {
   if (!isFantasyEnabled()) return fantasyDisabledResponse();
 
   try {
@@ -54,6 +54,11 @@ export const POST = withRateLimit(async (request: NextRequest) => {
       .map((t) => ({ out: Number(t.out), in: Number(t.in) }))
       .filter((t) => Number.isFinite(t.out) && Number.isFinite(t.in) && t.out !== t.in);
     if (transfers.length === 0) return jsonError("No transfers submitted", 400);
+    if (transfers.length > 20) {
+      return jsonError("Maximum 20 transfers in a single gameweek", 400, {
+        code: "TRANSFER_CAP",
+      });
+    }
 
     const squad = await getSquad(auth.walletAddress, matchday.id);
     if (!squad) return jsonError("Create your squad first", 400, { code: "NO_SQUAD" });
@@ -73,7 +78,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
       if (!outgoing) return jsonError("Transfer-out player is not in your squad", 400);
       if (bySlot.has(incoming)) return jsonError("Transfer-in player is already in your squad", 400);
       if (!players.get(incoming)?.is_active) {
-        return jsonError("Transfer-in player is from an eliminated team", 400);
+        return jsonError("That player is not available to buy", 400);
       }
       bySlot.delete(out);
       bySlot.set(incoming, { ...outgoing, player_id: incoming });
@@ -90,7 +95,6 @@ export const POST = withRateLimit(async (request: NextRequest) => {
       selection,
       players,
       settings,
-      matchdayLabel: matchdayLabel(matchday.id),
     });
     if (!validation.ok) {
       return jsonError("Transfers would make your squad invalid", 400, {

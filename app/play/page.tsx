@@ -1,9 +1,8 @@
 "use client";
 
 /**
- * /play campaign landing: hero, how it works, prize breakdown, top-5
- * leaderboard preview and the join flow (Privy login, then the username
- * modal).
+ * /play campaign landing: hero, how it works, top-5 leaderboard preview
+ * and the join flow (Privy login, then the username modal).
  */
 
 import { useEffect, useRef, useState, type CSSProperties } from "react";
@@ -12,12 +11,10 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useLogin, usePrivy } from "@privy-io/react-auth";
 import {
   ArrowRight01Icon,
-  ChampionIcon,
   FootballIcon,
   UserGroupIcon,
 } from "hugeicons-react";
 import { trackEvent } from "@/app/hooks/analytics/client";
-import { CampaignEnded } from "@/app/components/play/CampaignEnded";
 import { JoinModal } from "@/app/components/play/JoinModal";
 import { LeaderboardTable } from "@/app/components/play/LeaderboardTable";
 import { useJoinStatus, useLeaderboard } from "@/app/components/play/hooks";
@@ -27,16 +24,44 @@ import {
   Skeleton,
   primaryButtonClasses,
 } from "@/app/components/play/ui";
-import config from "@/app/lib/config";
 
 const ASSET = (name: string) => `/images/play-promo/${name}`;
 const HERO_PILL_BUTTON =
-  "inline-flex min-h-0 items-center justify-center gap-1 whitespace-nowrap rounded-full bg-white px-4 py-2 text-sm font-semibold text-black transition-transform active:scale-[0.98]";
+  "inline-flex min-h-0 items-center justify-center gap-1 whitespace-nowrap rounded-full bg-white px-4 py-2 text-sm font-semibold text-text-body transition-transform active:scale-[0.98] dark:bg-white dark:text-text-body";
+// The desktop banner is a fixed-aspect box whose headline, body and gaps are all
+// sized in cqw; these two buttons were its only fixed-px elements. At text-sm
+// with px-6 they needed ~308px side by side but the text column is only 35.34%
+// (~287px at the 812px design width), so the row wrapped to two lines and the
+// second button spilled through the banner's bottom edge — worse the narrower
+// the screen, since the box height shrank while the buttons did not. Sizing them
+// in cqw too keeps the pair on one line at every container width.
+const HERO_DESKTOP_BUTTON_SIZING =
+  "px-[2.1cqw] py-[1.15cqw] text-[1.6cqw]";
+const HERO_DESKTOP_PRIMARY_BUTTON =
+  `inline-flex min-h-0 items-center justify-center gap-1 whitespace-nowrap rounded-full bg-text-body ${HERO_DESKTOP_BUTTON_SIZING} font-semibold text-lavender-100 transition-transform hover:bg-text-body/90 active:scale-[0.98] dark:bg-black dark:text-lavender-100 dark:hover:bg-black/90`;
+const HERO_SECONDARY_BUTTON =
+  `inline-flex min-h-0 items-center justify-center whitespace-nowrap rounded-full bg-white/10 ${HERO_DESKTOP_BUTTON_SIZING} font-semibold text-white transition-colors hover:bg-white/20 dark:bg-white/10 dark:text-white dark:hover:bg-white/20`;
+const BOTTOM_CTA_SECTION =
+  "relative overflow-hidden rounded-3xl bg-text-body dark:bg-surface-overlay";
+const BOTTOM_CTA_SCRIM = "pointer-events-none absolute inset-0 z-0 bg-text-body/70 dark:bg-surface-overlay/70";
+const BOTTOM_CTA_HEADING = "text-white dark:text-white";
+const BOTTOM_CTA_BODY = "text-white/90 dark:text-white/80";
+const BOTTOM_CTA_BUTTON =
+  "flex items-center justify-center gap-1 rounded-full bg-white font-semibold text-text-body transition-transform active:scale-[0.98] dark:bg-white dark:text-text-body";
+const BOTTOM_CTA_WATERMARK =
+  "pointer-events-none absolute z-0 object-contain opacity-40 dark:opacity-25";
 
-const PRIZE_TIERS = [
-  { ranks: "Ranks 1–5", amount: "50 USDC each" },
-  { ranks: "Ranks 6–10", amount: "40 USDC each" },
-  { ranks: "Ranks 11–20", amount: "15 USDC each" },
+// Seven PL player photos side by side. Each photo frames its subject
+// differently, so `height` zooms and `top`/`faceX` shift it until every face
+// sits at the same height across the row.
+const HERO_PLAYERS = [
+  { src: ASSET("hero-player-1.png"), height: "105%", top: "-3%", faceX: "-67%" },
+  { src: ASSET("hero-player-2.png"), height: "126%", top: "-4%", faceX: "-48%" },
+  { src: ASSET("hero-player-3.png"), height: "107%", top: "-5%", faceX: "-49%" },
+  { src: ASSET("hero-player-4.png"), height: "133%", top: "-9%", faceX: "-49%" },
+  { src: ASSET("hero-player-5.png"), height: "147%", top: "-1%", faceX: "-53%" },
+  { src: ASSET("hero-player-6.png"), height: "153%", top: "-21%", faceX: "-41%" },
+  { src: ASSET("hero-player-7.png"), height: "104%", top: "-1%", faceX: "-61%" },
 ];
 
 // Every star photo used across the campaign (hero collage + this section) —
@@ -219,7 +244,11 @@ const JoinCTA = ({
     return (
       <Link
         href="/play/team"
-        className={`${buttonClassName} inline-flex items-center gap-2  px-8 py-3 ${className}`}
+        className={`${buttonClassName} inline-flex items-center gap-2 ${
+          // Callers passing their own look (the hero banners) size their own
+          // padding; only the default button needs this widening.
+          buttonClassName === primaryButtonClasses ? "px-8 py-3" : ""
+        } ${className}`}
       >
         My Team
         <ArrowRight01Icon className="size-4" />
@@ -281,25 +310,17 @@ const LeaderboardPreview = () => {
 
 export default function PlayLandingPage() {
   useEffect(() => {
-    if (!config.fantasyCampaignEnded) {
-      trackEvent("play_landing_view");
-    }
+    trackEvent("play_landing_view");
   }, []);
-
-  if (config.fantasyCampaignEnded) {
-    return <CampaignEnded />;
-  }
 
   return (
     <div className="space-y-10 md:space-y-20 md:mt-20">
-      {/* Hero — mobile keeps the previous plain gradient design (no Figma
-          mobile frame exists for this hero); md+ gets the new Figma design
-          (node 2136-91897) below. */}
+      {/* Hero — mobile unchanged; md+ uses Figma node 2573-110647 below. */}
       <motion.section
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
-        className="relative overflow-hidden rounded-3xl bg-[#8E85FF] px-6 py-10 text-white sm:px-10 sm:py-14 md:hidden"
+        className="relative overflow-hidden rounded-3xl bg-lavender-500 px-6 py-10 text-white sm:px-10 sm:py-14 md:hidden dark:bg-lavender-600"
       >
          <img
             src={ASSET("vector7984.svg")}
@@ -318,32 +339,28 @@ export default function PlayLandingPage() {
         />
         <div className="relative max-w-2xl space-y-4">
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-white/70">
-            World Cup 2026 · Quarter-finals to the Final
+            Premier League 2026/27 · Gameweeks 1–38
           </p>
-          <h1 className="text-3xl font-bold leading-tight sm:text-4xl">
-            Build Your World Cup Quarter-finals to finals XI.
+          <h1 className="text-3xl font-bold leading-tight text-white sm:text-4xl dark:text-white">
+            Build your Premier League fantasy XI.
           </h1>
-          <p className="max-w-xl text-sm text-white/80 sm:text-base">
-            Build your dream XI for the knockout rounds, score points every
-            matchday, and invite friends to qualify for a share of{" "}
-            <span className="font-semibold text-white">600 USDC on Base</span>.
-            Free to play.
+          <p className="max-w-xl text-sm text-white/80 sm:text-base dark:text-white/70">
+            Pick a 15-man squad within £100m, score points every gameweek, and
+            climb the global leaderboard. Free to play — create mini-leagues
+            with friends.
           </p>
           <div className="flex flex-wrap items-center gap-3 pt-1">
             <JoinCTA buttonClassName={HERO_PILL_BUTTON} />
-            <Link
-              href="/play/terms"
-              className="min-h-11 rounded-full bg-lavender-400/20 px-8 py-2.5 text-sm font-medium text-white transition-colors hover:bg-white/20"
-            >
+            <Link href="/play/terms" className={`min-h-11 px-8 py-2.5 text-sm font-medium ${HERO_SECONDARY_BUTTON}`}>
               Read the rules
             </Link>
           </div>
         </div>
       </motion.section>
 
-      {/* Hero (Figma node 2136-91897). Self-contained here — doesn't import
+      {/* Hero (Figma node 2573-110647). Self-contained here — doesn't import
           from PlayPromo.tsx, so it can't affect the certified homepage
-          modal/banner. */}
+          modal/banner. Mobile hero above is unchanged. */}
       <motion.section
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -351,101 +368,94 @@ export default function PlayLandingPage() {
         className="relative hidden md:block"
         style={{ containerType: "inline-size" }}
       >
-        {/* Clipped layer: bg color + swoosh/texture + copy + buttons. */}
         <div
-          className="relative w-full overflow-hidden rounded-3xl bg-[#8E85FF]"
+          className="relative w-full overflow-hidden rounded-3xl bg-lavender-500 dark:bg-lavender-600"
           style={{ aspectRatio: "812 / 393" }}
         >
-          <img
-            src={ASSET("vector7984.svg")}
-            alt=""
-            className="pointer-events-none absolute scale-125"
-            style={{ left: "-1.18%", top: "7.62%", width: "128.28%", height: "68.17%" }}
-          />
-
-          <h1
-            className="absolute font-bold text-[#F5F5F5]"
-            style={{
-              left: "9.24%",
-              top: "27.40%",
-              width: "37.32%",
-              height: "27.48%",
-              fontSize: "5.116cqw",
-              lineHeight: 0.861,
-              letterSpacing: "-0.358cqw",
-            }}
-          >
-            Build Your World Cup Quarter-finals to finals XI.
-          </h1>
-
-          <p
-            className="absolute text-[#F5F5F5]"
-            style={{
-              left: "9.24%",
-              top: "59.54%",
-              width: "34.85%",
-              height: "12.21%",
-              fontSize: "1.499cqw",
-              lineHeight: 1.351,
-              letterSpacing: "-0.03cqw",
-            }}
-          >
-            Build your dream XI for the knockout rounds, score points every
-            matchday, and invite friends to qualify for a share of{" "}
-            <span className="font-semibold text-white">600 USDC on Base</span>.
-            Free to play.
-          </p>
-
-          {/* Content-sized (no fixed width): the buttons keep a fixed font
-              size, so a %-width box compresses them when the sidebar
-              expansion narrows the hero. */}
           <div
-            className="absolute flex items-center gap-3"
-            style={{ left: "8.50%", top: "77.86%", height: "8.91%" }}
+            aria-hidden
+            className="pointer-events-none absolute z-0 opacity-100 dark:opacity-80"
+            style={{
+              left: "39.49%",
+              right: "22.17%",
+              top: "-27.52%",
+              bottom: "26.68%",
+            }}
           >
-            <JoinCTA buttonClassName={HERO_PILL_BUTTON} />
-            <Link
-              href="/play/terms"
-              className="inline-flex min-h-0 items-center justify-center whitespace-nowrap rounded-full bg-white/10 px-8 py-3 text-sm font-semibold text-white transition-colors hover:bg-white/20"
-            >
-              Read the rules
-            </Link>
+            <img
+              src={ASSET("pl-lion-watermark.svg")}
+              alt=""
+              className="absolute inset-0 size-full max-w-none"
+            />
           </div>
-        </div>
 
-        {/* Player collage — sibling of the clipped card so it can bleed
-            above/below the card edges (Ronaldo's boots extend past the
-            bottom in the design) instead of being cropped by overflow-hidden. */}
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-0 w-full"
-          style={{ aspectRatio: "812 / 393" }}
-        >
-          <img
-            src={ASSET("trophy.svg")}
-            alt=""
-            className="absolute object-auto"
-            style={{ left: "56.90%", top: "-2.04%", width: "23.40%", height: "99.75%" }}
-          />
-          <img
-            src={ASSET("olise-2.png")}
-            alt=""
-            className="absolute object-cover"
-            style={{ left: "63.28%", top: "-20.30%", width: "29.78%", height: "120.75%" }}
-          />
-          <img
-            src={ASSET("ronaldo-2.png")}
-            alt=""
-            className="absolute object-cover"
-            style={{ left: "73.89%", top: "-0.76%", width: "25.15%", height: "137.50%" }}
-          />
-          <img
-            src={ASSET("messi.png")}
-            alt=""
-            className="absolute object-cover"
-            style={{ left: "41.80%", top: "7.33%", width: "58.10%", height: "92.88%" }}
-          />
-          
+          {/* Player collage — seven photos side by side. */}
+          <div
+            aria-hidden
+            className="pointer-events-none absolute z-[1] flex h-[74.55%] w-[53.20%] items-center"
+            style={{
+              left: "47.17%",
+              top: "calc(50% + 1.02%)",
+              transform: "translateY(-50%)",
+            }}
+          >
+            {HERO_PLAYERS.map(({ src, height, top, faceX }) => (
+              <div
+                key={src}
+                className="relative h-full min-w-0 flex-1 overflow-hidden bg-white dark:bg-white"
+              >
+                <img
+                  src={src}
+                  alt=""
+                  className="pointer-events-none absolute left-1/2 max-w-none"
+                  style={{ height, top, transform: `translateX(${faceX})` }}
+                />
+              </div>
+            ))}
+          </div>
+
+          <div
+            className="absolute z-[2] flex flex-col gap-[4.22cqw]"
+            style={{
+              left: "6.53%",
+              top: "21.37%",
+              width: "35.34%",
+            }}
+          >
+            <div className="flex flex-col gap-[2.71cqw]">
+              <h1
+                className="font-bold text-white dark:text-white"
+                style={{
+                  fontSize: "4.75cqw",
+                  lineHeight: 0.861,
+                  letterSpacing: "-0.332cqw",
+                }}
+              >
+                <span>Build your Premier League </span>
+                <span className="font-light italic">fantasy XI.</span>
+              </h1>
+              <p
+                className="text-white/90 dark:text-white/80"
+                style={{
+                  maxWidth: "91.6%",
+                  fontSize: "1.392cqw",
+                  lineHeight: 1.351,
+                  letterSpacing: "-0.028cqw",
+                }}
+              >
+                Pick a 15-man squad within £100m, score points every gameweek,
+                and climb the global leaderboard. Free to play — create
+                mini-leagues with friends.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-[1.14cqw]">
+              <JoinCTA buttonClassName={HERO_DESKTOP_PRIMARY_BUTTON} />
+              <Link href="/play/terms" className={HERO_SECONDARY_BUTTON}>
+                Read the rules
+              </Link>
+            </div>
+          </div>
         </div>
       </motion.section>
 
@@ -463,12 +473,10 @@ export default function PlayLandingPage() {
               Build your squad and score points
             </h3>
             <p className="text-sm text-text-secondary dark:text-white/50">
-              Pick 15 players within your budget: 2 goalkeepers, 5 defenders,
-              5 midfielders and 3 forwards. Set your starting XI and captain
-              before each round locks. Goals, assists, clean sheets and more
-              earn points through the quarter-finals, semi-finals and the
-              Final, and your rank on the global leaderboard decides your
-              prize.
+              Pick 15 players within £100m: 2 goalkeepers, 5 defenders,
+              5 midfielders and 3 forwards (max 3 per club). Set your starting
+              XI and captain before each gameweek deadline. Official FPL-style
+              scoring across all 38 gameweeks.
             </p>
           </PlayCard>
           <PlayCard className="space-y-3">
@@ -476,55 +484,14 @@ export default function PlayLandingPage() {
               <UserGroupIcon className="size-5 text-lavender-600 dark:text-lavender-300" />
             </div>
             <h3 className="text-sm font-semibold text-text-body dark:text-white">
-              Invite friends to unlock the prize
+              Play with friends in mini-leagues
             </h3>
             <p className="text-sm text-text-secondary dark:text-white/50">
-              Points decide where you rank, but only qualified managers can
-              win. To qualify, invite 5 friends who each complete $5 or more
-              in total on and off-ramp volume on Noblocks before the
-              deadline. The $5 adds up across all of their transactions, so
-              no single large payment is needed.
+              Create or join a private mini-league and compete week to week with
+              friends. Free transfers bank up to 5; extras cost 4 points each.
             </p>
           </PlayCard>
         </div>
-      </section>
-
-      {/* Prize breakdown */}
-      <section className="space-y-4">
-        <h2 className="text-lg font-semibold text-text-body dark:text-white">
-          Prize pool: 600 USDC on Base
-        </h2>
-        <div className="grid gap-4 sm:grid-cols-3">
-          {PRIZE_TIERS.map(({ ranks, amount }, index) => (
-            <PlayCard key={ranks} className="flex items-center gap-4">
-              <div className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-yellow-secondary dark:bg-yellow-primary/10">
-                <ChampionIcon
-                  className={`size-6 ${index === 0 ? "text-yellow-primary" : "text-text-secondary dark:text-white/40"}`}
-                />
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-text-body dark:text-white">
-                  {ranks}
-                </p>
-                <p className="text-sm text-text-secondary dark:text-white/50">
-                  {amount}
-                </p>
-              </div>
-            </PlayCard>
-          ))}
-        </div>
-        <p className="text-xs text-text-secondary dark:text-white/50">
-          Prizes go to the top 20 qualified managers by final rank. Anyone
-          who has not qualified or has opted out is skipped when prizes are
-          assigned. Full details in the{" "}
-          <Link
-            href="/play/terms"
-            className="text-lavender-500 underline hover:text-lavender-600"
-          >
-            terms
-          </Link>
-          .
-        </p>
       </section>
 
       {/* Leaderboard preview */}
@@ -546,17 +513,17 @@ export default function PlayLandingPage() {
 
       {/* Bottom CTA — mobile: one rotating photo + stacked text, normal
           flow (no Figma mobile frame exists for this section either). */}
-      <section className="relative flex flex-col items-center justify-center gap-4 overflow-hidden rounded-3xl bg-surface-overlay px-6 py-8 text-center md:hidden h-[323px]">
+      <section className={`${BOTTOM_CTA_SECTION} relative flex h-[323px] flex-col items-center justify-center gap-4 px-6 py-8 text-center md:hidden`}>
         <img
-          src={ASSET("trophy.svg")}
+          src={ASSET("pl-lion-watermark.svg")}
           alt=""
           aria-hidden
-          className="pointer-events-none absolute left-1/2 top-1/2 z-0 h-50 w-[20%] -translate-x-1/2 -translate-y-1/2 object-contain opacity-40"
+          className={`${BOTTOM_CTA_WATERMARK} left-1/2 top-1/2 h-[12.5rem] w-[28%] -translate-x-1/2 -translate-y-1/2`}
         />
-        <div aria-hidden className="pointer-events-none absolute inset-0 z-0 bg-surface-overlay/70" />
+        <div aria-hidden className={BOTTOM_CTA_SCRIM} />
 
         <h2
-          className="absolute z-10 flex items-center justify-center text-center font-bold text-[#F5F5F5] mb-4"
+          className={`absolute z-10 mb-4 flex items-center justify-center text-center font-bold ${BOTTOM_CTA_HEADING}`}
           style={{
             left: "19.13%",
             top: "14.46%",
@@ -571,7 +538,7 @@ export default function PlayLandingPage() {
         </h2>
 
         <p
-          className="absolute z-10 flex items-center justify-center text-center text-[#F5F5F5] mb-4"
+          className={`absolute z-10 mb-4 flex items-center justify-center text-center ${BOTTOM_CTA_BODY}`}
           style={{
             left: "6.64%",
             top: "47.84%",
@@ -592,7 +559,7 @@ export default function PlayLandingPage() {
         >
           <JoinCTA
             className="size-full"
-            buttonClassName="flex size-full items-center justify-center gap-1 rounded-full bg-white text-[3.304cqw] font-semibold text-black transition-transform active:scale-[0.98]"
+            buttonClassName={`${BOTTOM_CTA_BUTTON} size-full text-[3.304cqw]`}
           />
         </div>
       </section>
@@ -600,20 +567,20 @@ export default function PlayLandingPage() {
       {/* Bottom CTA (Figma node 2136-101604), md+. Self-contained — doesn't
           import from PlayPromo.tsx. */}
       <section
-        className="relative hidden w-full h-[328px] overflow-hidden rounded-3xl bg-surface-overlay md:block"
+        className={`${BOTTOM_CTA_SECTION} relative hidden h-[328px] w-full md:block`}
         style={{ aspectRatio: "812 / 278", containerType: "inline-size" }}
       >
         <img
-          src={ASSET("trophy.svg")}
+          src={ASSET("pl-lion-watermark.svg")}
           alt=""
           aria-hidden
-          className="pointer-events-none absolute z-0 object-contain"
-          style={{ left: "45%", top: "10%", width: "12.40%", height: "75.75%" }}
+          className={BOTTOM_CTA_WATERMARK}
+          style={{ left: "42%", top: "8%", width: "18%", height: "84%" }}
         />
-        <div aria-hidden className="pointer-events-none absolute inset-0 z-0 bg-surface-overlay/70" />
+        <div aria-hidden className={BOTTOM_CTA_SCRIM} />
 
         <h2
-          className="absolute z-10 flex items-center justify-center text-center font-bold text-[#F5F5F5]"
+          className={`absolute z-10 flex items-center justify-center text-center font-bold ${BOTTOM_CTA_HEADING}`}
           style={{
             left: "33.13%",
             top: "24.46%",
@@ -628,7 +595,7 @@ export default function PlayLandingPage() {
         </h2>
 
         <p
-          className="absolute z-10 flex items-center justify-center text-center text-[#F5F5F5]"
+          className={`absolute z-10 flex items-center justify-center text-center ${BOTTOM_CTA_BODY}`}
           style={{
             left: "32.64%",
             top: "47.84%",
@@ -649,7 +616,7 @@ export default function PlayLandingPage() {
         >
           <JoinCTA
             className="size-full"
-            buttonClassName="flex size-full items-center justify-center gap-1 rounded-full bg-white text-[1.304cqw] font-semibold text-black transition-transform active:scale-[0.98]"
+            buttonClassName={`${BOTTOM_CTA_BUTTON} size-full text-[1.304cqw]`}
           />
         </div>
 

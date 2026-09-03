@@ -7,6 +7,8 @@ import {
   selectEngine,
   NearIntentsClient,
   LifiClient,
+  TextileClient,
+  HyperfxClient,
   toLifiChainId,
   resolveNearAssetId,
   toRawAmount,
@@ -15,19 +17,111 @@ import {
   authHeaders,
 } from "@/app/lib/bridge";
 import type { BridgeLeg, BridgeQuote, BridgeStatusResult, BridgeEngine, NearIntentsToken, BridgeAuth } from "@/app/lib/bridge";
+import { textileChainId } from "@/app/lib/textileNetworks";
 import { getRpcUrl } from "@/app/utils";
-import { appendBaseBuilderCode } from "@/app/lib/baseBuilderCode";
+import { appendAttributionSuffix } from "@/app/lib/baseBuilderCode";
 import type { BatchCall } from "@/app/lib/providerBatch";
 import { STARKNET_READY_ACCOUNT_CLASSHASH } from "@/app/lib/config";
+import { useEmbed } from "@/app/context/EmbedContext";
 
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 
 const nearClient = new NearIntentsClient();
 const lifiClient = new LifiClient();
+const textileClient = new TextileClient();
+const hyperfxClient = new HyperfxClient();
 
 // ============================================================================
 // useBridgeQuote
 // ============================================================================
+
+/**
+ * LI.FI quote for a leg pair. Serves both the routes LI.FI owns outright (cNGN) and the
+ * NEAR fallback below, so the slippage rule and native-token handling live in one place.
+ * Returns null when either chain is outside LI.FI's coverage (Starknet has no chain id here).
+ */
+async function fetchLifiQuote(
+  from: BridgeLeg,
+  to: BridgeLeg,
+  rawAmount: string,
+  evmAddress: string,
+  slippageBps: number,
+  auth: BridgeAuth,
+): Promise<BridgeQuote | null> {
+  const fromChain = toLifiChainId(from.network);
+  const toChain = toLifiChainId(to.network);
+  if (!fromChain || !toChain) return null;
+
+  // Honor the configured slippage for liquid pairs; only illiquid cNGN routes need the
+  // 2% floor. Forcing 2% on every route silently widens slippage and risks value loss.
+  const isCngn =
+    from.token.toLowerCase() === "cngn" || to.token.toLowerCase() === "cngn";
+  const lifiSlippage = isCngn
+    ? Math.max(slippageBps / 10000, 0.02)
+    : slippageBps / 10000;
+
+  // Our token data uses an empty address for native tokens; LI.FI expects the zero address.
+  const lifiToken = (address: string) => address || ZERO_ADDRESS;
+
+  return lifiClient.getQuote({
+    fromChain,
+    toChain,
+    fromToken: lifiToken(from.tokenAddress),
+    toToken: lifiToken(to.tokenAddress),
+    fromAmount: rawAmount,
+    fromAddress: evmAddress,
+    toAddress: evmAddress,
+    slippage: lifiSlippage,
+  }, auth);
+}
+
+async function fetchTextileQuote(
+  from: BridgeLeg,
+  to: BridgeLeg,
+  rawAmount: string,
+  _evmAddress: string,
+  _slippageBps: number,
+  auth: BridgeAuth,
+): Promise<BridgeQuote | null> {
+  const chainId = textileChainId(from.network);
+  if (!chainId) return null;
+
+  const sellToken = from.tokenAddress;
+  const buyToken = to.tokenAddress;
+  if (!sellToken || !buyToken) return null;
+
+  return textileClient.getQuote(
+    {
+      chainId,
+      sellToken,
+      buyToken,
+      sellAmount: rawAmount,
+      toDecimals: to.decimals,
+    },
+    auth,
+  );
+}
+
+async function fetchHyperfxQuote(
+  from: BridgeLeg,
+  to: BridgeLeg,
+  amount: string,
+  evmAddress: string,
+  auth: BridgeAuth,
+): Promise<BridgeQuote | null> {
+  return hyperfxClient.getQuote(
+    {
+      network: from.network,
+      chainId: Number(from.chainId),
+      fromToken: from.token,
+      toToken: to.token,
+      fromAmount: amount,
+      fromDecimals: from.decimals,
+      fromAddress: evmAddress,
+    },
+    auth,
+  );
+}
 
 interface UseBridgeQuoteParams {
   from: BridgeLeg | null;
@@ -70,6 +164,22 @@ export function useBridgeQuote({
     const engine = selectEngine(from, to);
     const rawAmount = toRawAmount(amount, from.decimals);
 
+    if (engine === "hyperfx") {
+      try {
+        const hyperfxQuote = await fetchHyperfxQuote(
+          from,
+          to,
+          amount,
+          evmAddress,
+          auth,
+        );
+        if (hyperfxQuote) return hyperfxQuote;
+      } catch {
+        // Fall through to LI.FI when HyperFX is unavailable.
+      }
+      return fetchLifiQuote(from, to, rawAmount, evmAddress, slippageBps, auth);
+    }
+
     if (engine === "near") {
       const tokensRes = await fetch("/api/bridge/near-intents/tokens", {
         headers: authHeaders(auth),
@@ -79,7 +189,12 @@ export function useBridgeQuote({
       const originAsset = resolveNearAssetId(from.token, from.network, tokenList);
       const destinationAsset = resolveNearAssetId(to.token, to.network, tokenList);
 
-      if (!originAsset || !destinationAsset) return null;
+      // NEAR Intents solvers only quote assets they hold inventory in, which leaves real
+      // gaps: no USDT on Base, and no Lisk/Celo/Tron at all. Those pairs are still routable
+      // through LI.FI's DEX aggregators, so fall back instead of reporting "no rail".
+      if (!originAsset || !destinationAsset) {
+        return fetchLifiQuote(from, to, rawAmount, evmAddress, slippageBps, auth);
+      }
 
       const addrFor = (network: string) =>
         network === "Starknet" ? starknetAddress : evmAddress;
@@ -100,28 +215,20 @@ export function useBridgeQuote({
       }, auth, { origin: from.decimals, destination: to.decimals });
     }
 
-    const fromChain = toLifiChainId(from.network);
-    const toChain = toLifiChainId(to.network);
-    if (!fromChain || !toChain) return null;
+    if (engine === "textile") {
+      const textileQuote = await fetchTextileQuote(
+        from,
+        to,
+        rawAmount,
+        evmAddress,
+        slippageBps,
+        auth,
+      );
+      if (textileQuote) return textileQuote;
+      return fetchLifiQuote(from, to, rawAmount, evmAddress, slippageBps, auth);
+    }
 
-    // Honor the configured slippage for liquid pairs; only illiquid cNGN routes need the
-    // 2% floor. Forcing 2% on every route silently widens slippage and risks value loss.
-    const isCngn =
-      from.token.toLowerCase() === "cngn" || to.token.toLowerCase() === "cngn";
-    const lifiSlippage = isCngn
-      ? Math.max(slippageBps / 10000, 0.02)
-      : slippageBps / 10000;
-
-    return lifiClient.getQuote({
-      fromChain,
-      toChain,
-      fromToken: from.tokenAddress,
-      toToken: to.tokenAddress,
-      fromAmount: rawAmount,
-      fromAddress: evmAddress,
-      toAddress: evmAddress,
-      slippage: lifiSlippage,
-    }, auth);
+    return fetchLifiQuote(from, to, rawAmount, evmAddress, slippageBps, auth);
   }, [from, to, amount, evmAddress, starknetAddress, slippageBps, getAccessToken, getInjectedToken]);
 
   const queryKey = useMemo(
@@ -135,7 +242,7 @@ export function useBridgeQuote({
     ? !!starknetAddress
     : !!evmAddress;
 
-  const { data: quote, isLoading, error, refetch } = useQuery({
+  const { data: quote, isLoading, isFetched, error, refetch } = useQuery({
     queryKey,
     queryFn: fetchQuote,
     enabled: enabled && !!from && !!to && parseFloat(amount || "0") > 0 && addressReady,
@@ -144,15 +251,21 @@ export function useBridgeQuote({
     refetchInterval: (q) => {
       const data = q?.state?.data as BridgeQuote | undefined;
       if (!data) return false;
-      // LI.FI quotes embed a slippage/validity window but no explicit deadline — refresh on a
-      // fixed interval so a stale transactionRequest is never executed (it would revert on-chain).
-      if (data.kind === "lifi-tx") return 30_000;
+      // LI.FI / Textile quotes embed a slippage/validity window — refresh on a fixed
+      // interval so stale transaction data is never executed.
+      if (data.kind === "lifi-tx" || data.kind === "textile-swap") return 30_000;
+      if (data.kind === "hyperfx-intent") {
+        const msLeft = data.expiresAt - Date.now();
+        return msLeft > 30_000 ? 30_000 : msLeft > 0 ? msLeft : false;
+      }
       // NEAR deposit quotes: stop refetching once the deposit deadline has nearly passed.
       return data.deadline - Date.now() > 30_000 ? 30_000 : false;
     },
   });
 
-  return { quote: quote ?? null, isLoading, error, refetch };
+  // `isFetched` distinguishes "both engines resolved to no route" from "the query never ran"
+  // (disabled: unauthenticated, or wallet address not ready). Only the former is a dead route.
+  return { quote: quote ?? null, isLoading, isFetched, error, refetch };
 }
 
 // ============================================================================
@@ -201,7 +314,11 @@ export function useBridgeStatus({ engine, refId, enabled, getAccessToken, getInj
         const status =
           engine === "near"
             ? await nearClient.getStatus(refId, auth)
-            : await lifiClient.getStatus(refId, auth);
+            : engine === "textile"
+              ? await textileClient.getStatus(refId, auth)
+              : engine === "hyperfx"
+                ? await hyperfxClient.getStatus(refId, auth)
+              : await lifiClient.getStatus(refId, auth);
 
         setResult(status);
         if (status.status === "SUCCESS" || status.status === "REFUNDED" || status.status === "FAILED") {
@@ -284,11 +401,17 @@ export function useBridgeExecute({
   const [error, setError] = useState<string | null>(null);
   const [txHash, setTxHash] = useState<string | null>(null);
   const [isSuccess, setIsSuccess] = useState(false);
+  const { embedCode } = useEmbed();
 
   // Use a ref so the execute callback always reads the latest selectedNetwork
   // without needing it as a useCallback dependency (avoids stale closure).
   const selectedNetworkRef = useRef(selectedNetwork);
   useEffect(() => { selectedNetworkRef.current = selectedNetwork; }, [selectedNetwork]);
+
+
+  // Use a ref for embedCode to avoid stale closure issues
+  const embedCodeRef = useRef(embedCode);
+  useEffect(() => { embedCodeRef.current = embedCode; }, [embedCode]);
 
   // Injected wallets sign and pay for their own transactions directly through
   // their provider — no sponsored bundler, no EIP-7702 delegation. Calls are sent
@@ -322,12 +445,12 @@ export function useBridgeExecute({
 
       let lastHash = "";
       for (const call of calls) {
-        // Only append the Base builder-code suffix to real contract-call data.
+        // Only append attribution suffixes to real contract-call data.
         // A bare native transfer (data "0x") stays bare — appending calldata could
         // revert a transfer to a contract deposit address without a matching fallback.
         const hasCallData = !!call.data && call.data !== "0x";
         const data = hasCallData
-          ? appendBaseBuilderCode(chainId, call.data as `0x${string}`)
+          ? appendAttributionSuffix(chainId, call.data as `0x${string}`, embedCodeRef.current)
           : "0x";
         const hash = (await injectedProvider.request({
           method: "eth_sendTransaction",
@@ -460,6 +583,7 @@ export function useBridgeExecute({
               getAccessToken,
               embeddedWallet,
               signDelegationAuthorization,
+              embedCode: embedCodeRef.current,
             });
 
             setTxHash(evmHash);
@@ -532,6 +656,7 @@ export function useBridgeExecute({
             embeddedWallet,
             signDelegationAuthorization,
             gasLimit,
+            embedCode: embedCodeRef.current,
           });
 
           setTxHash(evmHash);
@@ -539,6 +664,230 @@ export function useBridgeExecute({
           onSuccess?.(evmHash);
           // LI.FI: poll status by txHash, not a separate deposit address
           return { txHash: evmHash, depositRefId: evmHash };
+        } else if (quote.kind === "textile-swap") {
+          const textileQuote = quote;
+          const chain = selectedNetworkRef.current?.chain;
+          if (!chain) {
+            throw new Error("Selected network not found");
+          }
+
+          const injectedToken = isInjectedWallet
+            ? ((await getInjectedToken?.()) ?? null)
+            : null;
+          const proxyAuth: BridgeAuth = injectedToken
+            ? { injectedToken }
+            : { token: (await getAccessToken?.()) ?? null };
+
+          const taker = (isInjectedWallet ? injectedAddress : embeddedWallet?.address) as
+            | string
+            | undefined;
+          if (!taker) throw new Error("Wallet not connected");
+
+          const built = await textileClient.requestQuote(
+            {
+              chainId: textileQuote.chainId,
+              sellToken: textileQuote.sellToken,
+              buyToken: textileQuote.buyToken,
+              sellAmount: textileQuote.sellAmount,
+              taker,
+            },
+            proxyAuth,
+          );
+          if (!built) {
+            throw new Error("Textile swap unavailable. Please try again.");
+          }
+
+          if (built.expiresAt) {
+            const expiresMs = Date.parse(built.expiresAt);
+            if (!Number.isNaN(expiresMs) && Date.now() >= expiresMs) {
+              throw new Error("Textile quote expired. Please refresh and try again.");
+            }
+          }
+
+          const calls: BatchCall[] = [];
+          const allowance = BigInt(built.takerPays || "0");
+          if (allowance > BigInt(0)) {
+            if (built.approval?.data && built.approval.data !== "0x") {
+              calls.push({
+                to: built.approval.to as `0x${string}`,
+                value: BigInt(built.approval.value || "0"),
+                data: built.approval.data as `0x${string}`,
+              });
+            } else if (built.reactor && built.reactor !== ZERO_ADDRESS) {
+              calls.push({
+                to: from.tokenAddress as `0x${string}`,
+                value: BigInt(0),
+                data: encodeFunctionData({
+                  abi: erc20Abi,
+                  functionName: "approve",
+                  args: [built.reactor, allowance],
+                }),
+              });
+            } else {
+              throw new Error("Textile approval details unavailable. Please try again.");
+            }
+          }
+          calls.push({
+            to: built.swap.to as `0x${string}`,
+            value: BigInt(built.swap.value || "0"),
+            data: built.swap.data as `0x${string}`,
+          });
+
+          if (built.expiresAt) {
+            const expiresMs = Date.parse(built.expiresAt);
+            if (!Number.isNaN(expiresMs) && Date.now() >= expiresMs) {
+              throw new Error("Textile quote expired before broadcast. Please refresh and try again.");
+            }
+          }
+
+          let evmHash: string;
+          if (isInjectedWallet) {
+            evmHash = await executeInjectedCalls(
+              Number(from.chainId),
+              calls.map((c) => ({ to: c.to, value: c.value, data: c.data })),
+            );
+          } else {
+            if (!embeddedWallet || !signDelegationAuthorization || !getAccessToken) {
+              throw new Error("EVM wallet not configured for Textile execution");
+            }
+            evmHash = await executeBatchCalls({
+              chain: chain as any,
+              calls,
+              getAccessToken,
+              embeddedWallet,
+              signDelegationAuthorization,
+              gasLimit: 600_000,
+              embedCode: embedCodeRef.current,
+            });
+          }
+
+          try {
+            await textileClient.submitSwap(
+              built.rfqId,
+              evmHash,
+              proxyAuth,
+              built.claimToken,
+            );
+          } catch (submitErr) {
+            const detail =
+              submitErr instanceof Error
+                ? submitErr.message
+                : "Textile submit failed";
+            throw new Error(
+              `On-chain swap sent (${evmHash}) but Textile registration failed: ${detail}`,
+            );
+          }
+
+          setTxHash(evmHash);
+          setIsSuccess(true);
+          onSuccess?.(evmHash);
+          return { txHash: evmHash, depositRefId: built.rfqId };
+        } else if (quote.kind === "hyperfx-intent") {
+          const walletAddr = (isInjectedWallet ? injectedAddress : embeddedWallet?.address) as
+            | `0x${string}`
+            | undefined;
+          if (!walletAddr) {
+            throw new Error("EVM wallet not connected");
+          }
+
+          const { runHyperfxSwap } = await import("@/app/lib/hyperfx");
+          type Hex = `0x${string}`;
+
+          const signTransaction = async (tx: {
+            to: Hex;
+            data: Hex;
+            value: bigint;
+          }): Promise<Hex> => {
+            const valueHex =
+              tx.value > BigInt(0) ? (`0x${tx.value.toString(16)}` as Hex) : ("0x0" as Hex);
+
+            if (isInjectedWallet && injectedProvider && injectedAddress) {
+              await injectedProvider.request({
+                method: "wallet_switchEthereumChain",
+                params: [{ chainId: `0x${quote.chainId.toString(16)}` }],
+              });
+              return (await injectedProvider.request({
+                method: "eth_sendTransaction",
+                params: [
+                  {
+                    from: injectedAddress,
+                    to: tx.to,
+                    data: tx.data,
+                    value: valueHex,
+                  },
+                ],
+              })) as Hex;
+            }
+
+            if (!embeddedWallet) {
+              throw new Error("EVM wallet not configured for HyperFX");
+            }
+            await embeddedWallet.switchChain(quote.chainId);
+            const provider = await embeddedWallet.getEthereumProvider();
+            return (await provider.request({
+              method: "eth_sendTransaction",
+              params: [
+                {
+                  from: embeddedWallet.address,
+                  to: tx.to,
+                  data: tx.data,
+                  value: valueHex,
+                },
+              ],
+            })) as Hex;
+          };
+
+          const executeSponsoredBatch =
+            !isInjectedWallet && embeddedWallet && signDelegationAuthorization && getAccessToken
+              ? async (calls: BatchCall[], gasLimit?: number): Promise<Hex> => {
+                  const chain = selectedNetworkRef.current?.chain;
+                  if (!chain) {
+                    throw new Error("Selected network not found");
+                  }
+                  await embeddedWallet!.switchChain(quote.chainId);
+                  const hash = await executeBatchCalls({
+                    chain: chain as any,
+                    calls,
+                    getAccessToken: getAccessToken!,
+                    embeddedWallet: embeddedWallet!,
+                    signDelegationAuthorization: signDelegationAuthorization!,
+                    gasLimit: gasLimit ?? 1_500_000,
+                  });
+                  return hash as Hex;
+                }
+              : undefined;
+
+          const executeSponsoredCall = executeSponsoredBatch
+            ? async (call: BatchCall, gasLimit?: number): Promise<Hex> =>
+                executeSponsoredBatch([call], gasLimit)
+            : undefined;
+
+          const switchChain = async (chainId: number) => {
+            if (isInjectedWallet && injectedProvider) {
+              await injectedProvider.request({
+                method: "wallet_switchEthereumChain",
+                params: [{ chainId: `0x${chainId.toString(16)}` }],
+              });
+              return;
+            }
+            if (embeddedWallet) {
+              await embeddedWallet.switchChain(chainId);
+            }
+          };
+
+          const { placementTxHash } = await runHyperfxSwap(quote, {
+            address: walletAddr,
+            chainId: quote.chainId,
+            signTransaction,
+            executeSponsoredCall,
+            executeSponsoredBatch,
+            switchChain,
+          });
+
+          setTxHash(placementTxHash);
+          setIsSuccess(true);
+          onSuccess?.(placementTxHash);
+          return { txHash: placementTxHash, depositRefId: placementTxHash };
         }
         throw new Error("Unsupported quote type");
       } catch (err) {

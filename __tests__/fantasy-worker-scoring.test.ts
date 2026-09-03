@@ -3,29 +3,34 @@
  * getNormalizedFixtureStats → computePoints → computeSquadPoints — the exact
  * pipeline app/lib/fantasy/worker.ts runs on every stats sync.
  */
+import { readFileSync } from "fs";
+import path from "path";
+
+import { applyAutoSubs } from "@/app/lib/fantasy/autosubs";
 import { getNormalizedFixtureStats } from "@/app/lib/fantasy/provider";
-import { computePoints, computeSquadPoints, countsForScoring } from "@/app/lib/fantasy/scoring";
-import type { ScoringMatrix } from "@/app/lib/fantasy/types";
+import { computePoints, computeSquadPoints } from "@/app/lib/fantasy/scoring";
+import type { FantasySettings, ScoringMatrix } from "@/app/lib/fantasy/types";
 
 const matrix: ScoringMatrix = {
   appearance: 1,
   appearance_60: 1,
   assist: 3,
   yellow_card: -1,
-  red_card: -2,
+  red_card: -3,
   own_goal: -2,
-  penalty_won: 2,
-  penalty_conceded: -1,
-  goal: { GK: 9, DEF: 7, MID: 6, FWD: 5 },
-  clean_sheet: { GK: 5, DEF: 5, MID: 1, FWD: 0 },
-  goals_conceded_per_extra: { GK: -1, DEF: -1, MID: 0, FWD: 0 },
-  penalty_save: 3,
+  penalty_miss: -2,
+  penalty_conceded: 0,
+  goal: { GK: 10, DEF: 6, MID: 5, FWD: 4 },
+  clean_sheet: { GK: 4, DEF: 4, MID: 1, FWD: 0 },
+  goals_conceded_per_two: { GK: -1, DEF: -1, MID: 0, FWD: 0 },
+  penalty_save: 5,
   saves_per_point: 3,
-  tackles_per_point: 3,
-  key_passes_per_point: 2,
-  shots_on_target_per_point: 2,
-  direct_free_kick_goal: 1,
 };
+
+const defcon = {
+  defcon_def_threshold: 5,
+  defcon_mid_fwd_threshold: 6,
+} as Pick<FantasySettings, "defcon_def_threshold" | "defcon_mid_fwd_threshold">;
 
 const TEAM_A = 100;
 const TEAM_B = 200;
@@ -34,10 +39,12 @@ const playerStats = (over: Record<string, unknown> = {}) => ({
   games: { minutes: 90, position: "M", substitute: false, ...(over.games as object) },
   shots: { total: null, on: null },
   goals: { total: null, conceded: null, assists: null, saves: null },
-  passes: { key: null },
-  tackles: { total: null },
+  passes: { key: null, total: null, accuracy: null },
+  tackles: { total: null, blocks: null, interceptions: null },
+  dribbles: { success: null },
+  fouls: { drawn: null, committed: null },
   cards: { yellow: null, red: null },
-  penalty: { won: null, commited: null, saved: null },
+  penalty: { won: null, commited: null, saved: null, missed: null, scored: null },
   ...over,
 });
 
@@ -49,7 +56,10 @@ const playersPayload = [
       {
         player: { id: 10, name: "GK A" },
         statistics: [
-          playerStats({ games: { minutes: 90, position: "G", substitute: false }, goals: { total: null, conceded: 0, assists: null, saves: 4 } }),
+          playerStats({
+            games: { minutes: 90, position: "G", substitute: false },
+            goals: { total: null, conceded: 0, assists: null, saves: 4 },
+          }),
         ],
       },
       {
@@ -58,8 +68,8 @@ const playersPayload = [
           playerStats({
             games: { minutes: 90, position: "M", substitute: false },
             goals: { total: 1, conceded: null, assists: null, saves: null },
-            passes: { key: 4 },
-            tackles: { total: 3 },
+            passes: { key: 4, total: 40, accuracy: "85" },
+            tackles: { total: 3, blocks: 0, interceptions: 0 },
           }),
         ],
       },
@@ -79,7 +89,10 @@ const playersPayload = [
       {
         player: { id: 20, name: "GK B" },
         statistics: [
-          playerStats({ games: { minutes: 90, position: "G", substitute: false }, goals: { total: null, conceded: 2, assists: null, saves: 6 } }),
+          playerStats({
+            games: { minutes: 90, position: "G", substitute: false },
+            goals: { total: null, conceded: 2, assists: null, saves: 6 },
+          }),
         ],
       },
       {
@@ -90,7 +103,6 @@ const playersPayload = [
   },
 ];
 
-/** /fixtures/events payload: FK goal 30', OG 50', sub 60', shootout noise. */
 const eventsPayload = [
   {
     time: { elapsed: 30, extra: null },
@@ -99,11 +111,13 @@ const eventsPayload = [
     assist: { id: null },
     type: "Goal",
     detail: "Normal Goal",
-    comments: "Direct free-kick",
+    comments: null,
   },
   {
+    // OG events carry the BENEFITING team (A), with the scorer (B's defender)
+    // as the player — verified against live API-Football EPL payloads.
     time: { elapsed: 50, extra: null },
-    team: { id: TEAM_B },
+    team: { id: TEAM_A },
     player: { id: 5 },
     assist: { id: null },
     type: "Goal",
@@ -119,7 +133,6 @@ const eventsPayload = [
     detail: "Substitution 1",
     comments: null,
   },
-  // Shootout events must be excluded from all scoring-relevant derivations.
   {
     time: { elapsed: 120, extra: null },
     team: { id: TEAM_B },
@@ -153,30 +166,24 @@ afterAll(() => {
 });
 
 describe("stats normalization from stubbed provider", () => {
-  it("derives clean sheets, conceded windows, OG and FK bonus; excludes shootout", async () => {
+  it("derives clean sheets, conceded windows, OG; excludes shootout", async () => {
     const { byPlayer } = await getNormalizedFixtureStats(9001);
 
-    // Team A conceded nothing (the OG counts against Team B).
     const gkA = byPlayer.get(10)!;
     expect(gkA.position).toBe("GK");
     expect(gkA.stats.cleanSheet).toBe(true);
     expect(gkA.stats.goalsConceded).toBe(0);
     expect(gkA.stats.saves).toBe(4);
 
-    // Scorer: goal from player stats, FK bonus detected from event comments.
     const midA = byPlayer.get(1)!;
     expect(midA.stats.goals).toBe(1);
-    expect(midA.stats.directFreeKickGoals).toBe(1);
     expect(midA.stats.keyPasses).toBe(4);
     expect(midA.stats.cleanSheet).toBe(true);
 
-    // Sub window: out at 60' with exactly 60 min still earns the clean sheet;
-    // the 30-min replacement does not (< 60 min).
     expect(byPlayer.get(3)!.stats.cleanSheet).toBe(true);
     expect(byPlayer.get(4)!.stats.cleanSheet).toBe(false);
     expect(byPlayer.get(4)!.stats.goalsConceded).toBe(0);
 
-    // Team B conceded twice (regulation goal + own goal), shootout excluded.
     const gkB = byPlayer.get(20)!;
     expect(gkB.stats.goalsConceded).toBe(2);
     expect(gkB.stats.cleanSheet).toBe(false);
@@ -185,24 +192,24 @@ describe("stats normalization from stubbed provider", () => {
     expect(defB.stats.goalsConceded).toBe(2);
   });
 
-  it("scores the normalized stats exactly as the worker would", async () => {
+  it("scores the normalized stats with the FPL matrix", async () => {
     const { byPlayer } = await getNormalizedFixtureStats(9001);
 
-    // MID scorer: 2 appearance + 6 goal + 1 FK + 1 CS + 1 (3 tackles) + 2 (4 key passes) = 13
-    const midA = computePoints(byPlayer.get(1)!.stats, "MID", matrix);
-    expect(midA.points).toBe(13);
+    // MID: 1+1 appearance + 5 goal + 1 CS = 8 (BIT 3 < 6, no defcon)
+    const midA = computePoints(byPlayer.get(1)!.stats, "MID", matrix, defcon);
+    expect(midA.points).toBe(8);
 
-    // GK A: 2 appearance + 5 CS + 1 (4 saves → floor 4/3) = 8
-    expect(computePoints(byPlayer.get(10)!.stats, "GK", matrix).points).toBe(8);
+    // GK A: 1+1 + 4 CS + floor(4/3)=1 save = 7
+    expect(computePoints(byPlayer.get(10)!.stats, "GK", matrix, defcon).points).toBe(7);
 
-    // GK B: 2 appearance + 2 (6 saves) − 1 (second goal conceded) = 3
-    expect(computePoints(byPlayer.get(20)!.stats, "GK", matrix).points).toBe(3);
+    // GK B: 1+1 + floor(6/3)=2 saves −1 (2 GC / 2) = 3
+    expect(computePoints(byPlayer.get(20)!.stats, "GK", matrix, defcon).points).toBe(3);
 
-    // DEF B: 2 appearance − 2 OG − 1 extra conceded = −1
-    expect(computePoints(byPlayer.get(5)!.stats, "DEF", matrix).points).toBe(-1);
+    // DEF B: 1+1 −2 OG −1 (2 GC) = −1
+    expect(computePoints(byPlayer.get(5)!.stats, "DEF", matrix, defcon).points).toBe(-1);
   });
 
-  it("aggregates a squad with captain doubling and transfer deduction", async () => {
+  it("aggregates a squad with captain doubling, auto-subs, and transfer deduction", async () => {
     const { byPlayer } = await getNormalizedFixtureStats(9001);
     const playerPoints = new Map(
       [...byPlayer.entries()].map(([id, entry]) => {
@@ -210,42 +217,76 @@ describe("stats normalization from stubbed provider", () => {
         return [
           id,
           {
-            points: computePoints(entry.stats, position, matrix).points,
+            points: computePoints(entry.stats, position, matrix, defcon).points,
             minutes: entry.stats.minutes,
+            yellowCards: entry.stats.yellowCards,
+            redCards: entry.stats.redCards,
           },
         ] as const;
       }),
     );
 
-    const total = computeSquadPoints({
-      startingXI: [
-        { playerId: 1, isCaptain: true, isVice: false }, // 13, doubled
-        { playerId: 10, isCaptain: false, isVice: true }, // 8
-        { playerId: 20, isCaptain: false, isVice: false }, // 3
-        { playerId: 5, isCaptain: false, isVice: false }, // −1
-      ],
-      playerPoints,
-      transferPointsDeduction: 3,
-    });
-    // 13 + 8 + 3 − 1 = 23, +13 captain double, −3 transfers = 33
-    expect(total).toBe(33);
+    const { points } = computeSquadPoints(
+      {
+        squad: [
+          { playerId: 1, slot: 1, isCaptain: true, isVice: false, position: "MID" },
+          { playerId: 10, slot: 2, isCaptain: false, isVice: true, position: "GK" },
+          { playerId: 20, slot: 3, isCaptain: false, isVice: false, position: "GK" },
+          { playerId: 5, slot: 4, isCaptain: false, isVice: false, position: "DEF" },
+          { playerId: 3, slot: 5, isCaptain: false, isVice: false, position: "DEF" },
+          { playerId: 4, slot: 6, isCaptain: false, isVice: false, position: "DEF" },
+          // pad to XI with zero-minute placeholders not in byPlayer
+          { playerId: 101, slot: 7, isCaptain: false, isVice: false, position: "MID" },
+          { playerId: 102, slot: 8, isCaptain: false, isVice: false, position: "MID" },
+          { playerId: 103, slot: 9, isCaptain: false, isVice: false, position: "MID" },
+          { playerId: 104, slot: 10, isCaptain: false, isVice: false, position: "FWD" },
+          { playerId: 105, slot: 11, isCaptain: false, isVice: false, position: "FWD" },
+        ],
+        playerPoints,
+        transferPointsDeduction: 4,
+      },
+      applyAutoSubs,
+    );
+
+    // Live scorers: 8+7+3+(-1)+ (def3 CS: 1+1+4=6) + (def4: 1 app only =1) = 24
+    // +8 captain double −4 transfers = 28
+    expect(points).toBe(28);
   });
 });
 
-describe("countsForScoring (XI membership banked at kickoff)", () => {
-  it("uses the current slot while the fixture hasn't kicked off", () => {
-    expect(countsForScoring({ slot: 5, xi_at_kickoff: null })).toBe(true);
-    expect(countsForScoring({ slot: 12, xi_at_kickoff: null })).toBe(false);
-    expect(countsForScoring({ slot: 11 })).toBe(true);
+describe("worker safety controls", () => {
+  // Source-level guards: these protect invariants that no unit test can reach
+  // because they live in env wiring and SQL. Deleting either is silent at
+  // runtime, so pin the source.
+  const read = (rel: string) => readFileSync(path.join(process.cwd(), rel), "utf8");
+
+  it("timelapse stat fabrication is hard-gated on NODE_ENV", () => {
+    // Timelapse writes deterministic fake stats. Those feed real scores and a
+    // prize-bearing leaderboard, so the env var alone must never enable it.
+    const worker = read("app/lib/fantasy/worker.ts");
+    const decl = worker.slice(worker.indexOf("const LOCAL_TIMELAPSE"));
+    expect(decl).toMatch(/NODE_ENV\s*!==\s*"production"/);
   });
 
-  it("keeps points for an XI-at-kickoff player benched after playing", () => {
-    expect(countsForScoring({ slot: 14, xi_at_kickoff: true })).toBe(true);
-  });
+  it("the worker run lock releases only on a matching token", () => {
+    // A slow tick whose claim was already reclaimed as stale must not clear
+    // its successor's — that fails open in exactly the case the lock is for.
+    const migration = read(
+      "supabase/migrations/20260811120000_epl_fantasy_season.sql",
+    );
+    const acquire = migration.slice(
+      migration.indexOf("FUNCTION public.fantasy_worker_try_acquire"),
+    );
+    const release = migration.slice(
+      migration.indexOf("FUNCTION public.fantasy_worker_release"),
+    );
 
-  it("never counts a player who was on the bench at kickoff", () => {
-    expect(countsForScoring({ slot: 13, xi_at_kickoff: false })).toBe(false);
-    // Can't happen under the rolling lockout, but the stamp must still win.
-    expect(countsForScoring({ slot: 3, xi_at_kickoff: false })).toBe(false);
+    expect(acquire).toContain("gen_random_uuid()");
+    expect(acquire).toMatch(/RETURNING\s+token\s+INTO/);
+    // uuid, not the started_at timestamp: timestamp equality would ride on
+    // microsecond precision surviving the JSON round trip, and a truncating
+    // serializer would turn release into a silent permanent no-op.
+    expect(release).toContain("p_token UUID");
+    expect(release).toMatch(/started_at\s*=\s*NULL[\s\S]{0,200}token\s*=\s*p_token/);
   });
 });

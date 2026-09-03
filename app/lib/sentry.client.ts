@@ -2,6 +2,8 @@
 
 import * as Sentry from "@sentry/react";
 
+import { datadogRum, isDatadogRumInitialized } from "./datadog.client";
+
 const INIT_KEY = "__noblocks_sentry_init__" as const;
 
 function scrubEvent(event: Sentry.ErrorEvent): Sentry.ErrorEvent | null {
@@ -104,9 +106,16 @@ export function ensureSentryClientInitialized(): void {
 }
 
 /**
- * Report a handled error to GlitchTip. The **primary event** is `error` itself
- * (original message, stack, etc.); `context` / `extra` is only supplemental
- * (e.g. `userFacingMessage` for the copy shown in the UI).
+ * Report a handled error to GlitchTip **and** Datadog RUM. The **primary
+ * event** is `error` itself (original message, stack, etc.); `context` /
+ * `extra` is only supplemental (e.g. `userFacingMessage` for the copy shown in
+ * the UI).
+ *
+ * RUM matters for the failures that never reach our API — a dropped network
+ * request, a camera permission refusal, a wallet rejection — which no
+ * server-side log can see. It is consent-gated and initialised separately, so
+ * this is strictly additive: server logs remain the complete record, and a
+ * user who declined analytics cookies still reports to GlitchTip.
  */
 export function reportClientError(
   error: unknown,
@@ -117,6 +126,15 @@ export function reportClientError(
   Sentry.captureException(error, {
     extra: context,
   });
+
+  // Calling addError before init is a no-op that logs a warning, so guard it.
+  if (!isDatadogRumInitialized()) return;
+  try {
+    // RUM's own beforeSend scrubs this context (see datadog.client.ts).
+    datadogRum.addError(error, context);
+  } catch {
+    // Reporting must never be the reason a handler throws.
+  }
 }
 
 export { Sentry };

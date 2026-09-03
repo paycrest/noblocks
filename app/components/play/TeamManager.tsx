@@ -134,23 +134,54 @@ export const TeamManager = ({
       squad?.players.find((p) => p.player_id === id)?.lock_state ?? "unlocked",
     [squad],
   );
-  // The armband holder whose points currently count double: the captain once
-  // they've played, otherwise the vice (mirrors computeSquadPoints server-side).
+  // Captain fallback to the vice settles only after the gameweek is final.
   const doubledId = useMemo(() => {
     const captain = squad?.players.find((p) => p.is_captain);
     const vice = squad?.players.find((p) => p.is_vice);
-    if (captain && captain.live.minutes > 0) return captain.player_id;
-    if (vice && vice.live.minutes > 0) return vice.player_id;
+    const played = (entry: NonNullable<typeof captain>) =>
+      entry.live.minutes > 0 ||
+      entry.live.yellowCards > 0 ||
+      entry.live.redCards > 0;
+    if (captain && played(captain)) return captain.player_id;
+    if (
+      matchday.status === "final" &&
+      vice &&
+      played(vice)
+    )
+      return vice.player_id;
     return null;
-  }, [squad]);
+  }, [squad, matchday.status]);
   const livePointsOf = useCallback(
     (id: number) => {
-      const points =
-        squad?.players.find((p) => p.player_id === id)?.live.points ?? 0;
+      const entry = squad?.players.find((p) => p.player_id === id);
+      if (!entry) return 0;
+      if (matchday.status === "final" && entry.sub_state === "out") return 0;
+      // Bench points never count until auto-subs settle at gameweek end.
+      if (locked && matchday.status !== "final" && entry.slot > 11) return 0;
+      const points = entry.live.points ?? 0;
       return id === doubledId ? points * 2 : points;
     },
-    [squad, doubledId],
+    [squad, doubledId, matchday.status, locked],
   );
+  // The server leaves this null until the round is final.
+  const subStateOf = useCallback(
+    (id: number) =>
+      locked
+        ? (squad?.players.find((p) => p.player_id === id)?.sub_state ?? null)
+        : null,
+    [squad, locked],
+  );
+  const subsOn = useMemo(
+    () => (squad?.players ?? []).filter((p) => p.sub_state === "in").length,
+    [squad],
+  );
+  const benchNote = !locked
+    ? undefined
+    : subsOn > 0
+      ? `${subsOn} auto-sub${subsOn === 1 ? "" : "s"} applied`
+      : matchday.status === "final"
+        ? "no auto-subs this round"
+        : undefined;
 
   /* --------------------------- editor state --------------------------- */
 
@@ -249,23 +280,20 @@ export const TeamManager = ({
 
   /* ------------------------------ actions ------------------------------ */
 
-  const nationCount = (state: EditorState, nation: string) =>
-    allIds(state).filter((id) => playersById.get(id)?.nation === nation).length;
+  const clubCount = (state: EditorState, teamId: number) =>
+    allIds(state).filter((id) => playersById.get(id)?.team_id === teamId).length;
 
   const addDisabledReason = (player: FantasyPlayer): string | null => {
     if (!picker) return null;
     const base = picker.mode === "transferIn" ? draft : editor;
     const exclude = picker.mode === "transferIn" ? picker.out : null;
     if (player.position !== picker.position) return "Wrong position";
-    const cap = settings.nation_cap;
+    const cap = settings.club_cap;
     if (cap != null) {
-      let count = nationCount(base, player.nation);
-      if (
-        exclude != null &&
-        playersById.get(exclude)?.nation === player.nation
-      )
+      let count = clubCount(base, player.team_id);
+      if (exclude != null && playersById.get(exclude)?.team_id === player.team_id)
         count -= 1;
-      if (count >= cap) return `Nation cap reached (${cap})`;
+      if (count >= cap) return `Club cap reached (${cap})`;
     }
     let budgetUsed = allIds(base).reduce(
       (sum, id) => sum + Number(playersById.get(id)?.price ?? 0),
@@ -459,7 +487,7 @@ export const TeamManager = ({
 
   const autofill = () => {
     const pool = poolData.players.filter((p) => p.is_active);
-    const cap = settings.nation_cap ?? Infinity;
+    const cap = settings.club_cap ?? Infinity;
 
     const attempt = (randomized: boolean): EditorState | null => {
       const state: EditorState = {
@@ -474,13 +502,13 @@ export const TeamManager = ({
         viceId: editor.viceId,
       };
       const chosen = new Set(allIds(state));
-      const nations = new Map<string, number>();
+      const clubs = new Map<number, number>();
       let cost = 0;
       for (const id of chosen) {
         const p = playersById.get(id);
         if (!p) continue;
         cost += Number(p.price);
-        nations.set(p.nation, (nations.get(p.nation) ?? 0) + 1);
+        clubs.set(p.team_id, (clubs.get(p.team_id) ?? 0) + 1);
       }
       for (const pos of POS_ORDER) {
         const need = settings.positions[pos] - state.byPos[pos].length;
@@ -494,11 +522,11 @@ export const TeamManager = ({
         let added = 0;
         for (const candidate of candidates) {
           if (added >= need) break;
-          if ((nations.get(candidate.nation) ?? 0) >= cap) continue;
+          if ((clubs.get(candidate.team_id) ?? 0) >= cap) continue;
           const id = Number(candidate.provider_player_id);
           chosen.add(id);
           state.byPos[pos].push(id);
-          nations.set(candidate.nation, (nations.get(candidate.nation) ?? 0) + 1);
+          clubs.set(candidate.team_id, (clubs.get(candidate.team_id) ?? 0) + 1);
           cost += Number(candidate.price);
           added++;
         }
@@ -634,6 +662,7 @@ export const TeamManager = ({
       isVice: view.viceId === id,
       lockState: locked ? lockStateOf(id) : undefined,
       livePoints: livePointsOf(id),
+      subState: subStateOf(id),
       markedIn: pendingIn.has(id),
       eliminated: player ? !player.is_active : false,
       highlighted: swapTargets?.has(id) ?? false,
@@ -641,7 +670,20 @@ export const TeamManager = ({
     };
   };
 
-  const benchedSet = new Set(view.benched);
+  const settledDisplay = locked && matchday.status === "final";
+  const displaySlotOf = (id: number) => {
+    const entry = squad?.players.find((player) => player.player_id === id);
+    return settledDisplay
+      ? (entry?.display_slot ?? entry?.slot ?? Number.MAX_SAFE_INTEGER)
+      : (entry?.slot ?? Number.MAX_SAFE_INTEGER);
+  };
+  const benchedSet = settledDisplay
+    ? new Set(
+        (squad?.players ?? [])
+          .filter((player) => player.display_slot > 11)
+          .map((player) => player.player_id),
+      )
+    : new Set(view.benched);
   const rows: Record<Position, SlotView[]> = {
     GK: [],
     DEF: [],
@@ -651,10 +693,13 @@ export const TeamManager = ({
   const benchSlots: SlotView[] = [];
   for (const pos of POS_ORDER) {
     const idsForPos = view.byPos[pos];
-    rows[pos] = idsForPos.filter((id) => !benchedSet.has(id)).map(slotViewFor);
-    const benchIds = idsForPos.filter(
-      (id) => benchedSet.has(id) && viewIds.has(id),
-    );
+    rows[pos] = idsForPos
+      .filter((id) => !benchedSet.has(id))
+      .sort((a, b) => displaySlotOf(a) - displaySlotOf(b))
+      .map(slotViewFor);
+    const benchIds = idsForPos
+      .filter((id) => benchedSet.has(id) && viewIds.has(id))
+      .sort((a, b) => displaySlotOf(a) - displaySlotOf(b));
     benchSlots.push(...benchIds.map(slotViewFor));
 
     // While building, remaining capacity shows as add buttons — the pitch is
@@ -687,6 +732,11 @@ export const TeamManager = ({
         });
       }
     }
+  }
+  if (settledDisplay) {
+    benchSlots.sort(
+      (a, b) => displaySlotOf(Number(a.key)) - displaySlotOf(Number(b.key)),
+    );
   }
 
   const handleSlotClick = (slot: SlotView) => {
@@ -866,6 +916,7 @@ export const TeamManager = ({
           slots={benchSlots}
           showPrice={showPrice}
           onSlotClick={handleSlotClick}
+          note={benchNote}
         />
       )}
 
@@ -937,10 +988,10 @@ export const TeamManager = ({
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="flex min-w-0 items-center gap-3">
-                  <span className="flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-full bg-accent-gray text-xs font-bold text-text-secondary dark:bg-white/10 dark:text-white/60">
+                  <span className="flex size-12 shrink-0 items-center justify-center">
                     <PlayerPhoto
                       player={sheetPlayer}
-                      className="size-full object-cover object-top"
+                      className="size-12"
                       fallback={sheetPlayer.position}
                     />
                   </span>
@@ -977,8 +1028,8 @@ export const TeamManager = ({
                       <p className="flex items-start gap-2 rounded-xl bg-background-neutral px-4 py-3 text-xs text-text-secondary dark:bg-white/5 dark:text-white/60">
                         <AirplaneTakeOff01Icon className="mt-0.5 size-4 shrink-0 text-accent-red" />
                         <span>
-                          {sheetPlayer.nation} are out of the tournament. This
-                          player can&apos;t be subbed or made captain —{" "}
+                          {sheetPlayer.nation} is unavailable. This player
+                          can&apos;t be subbed or made captain —{" "}
                           {buildMode
                             ? "remove them from your squad."
                             : "transfer them out when the window opens."}
@@ -1018,10 +1069,10 @@ export const TeamManager = ({
                               onClick={() => handleSwap(id, otherId)}
                               className="flex w-full items-center gap-3 rounded-xl bg-background-neutral px-3 py-2 text-sm text-text-body transition-colors hover:bg-accent-gray dark:bg-white/5 dark:text-white dark:hover:bg-white/10"
                             >
-                              <span className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-accent-gray text-[10px] font-bold text-text-secondary dark:bg-white/10 dark:text-white/60">
+                              <span className="flex size-8 shrink-0 items-center justify-center">
                                 <PlayerPhoto
                                   player={other}
-                                  className="size-full object-cover object-top"
+                                  className="size-8"
                                   fallback={other.position}
                                 />
                               </span>

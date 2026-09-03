@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/app/lib/supabase";
-import { withRateLimit } from "@/app/lib/rate-limit";
+import { withRateLimitAndAnalytics } from "@/app/lib/analytics-middleware";
 import {
   fantasyDisabledResponse,
   getAuthedWallet,
@@ -16,7 +16,7 @@ const PAGE_SIZE = 50;
  * Exposes badge state only — other users' referral counts stay private
  * (PRD §7.3).
  */
-export const GET = withRateLimit(async (request: NextRequest) => {
+export const GET = withRateLimitAndAnalytics(async (request: NextRequest) => {
   if (!isFantasyEnabled()) return fantasyDisabledResponse();
 
   try {

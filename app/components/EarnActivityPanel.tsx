@@ -10,6 +10,7 @@ import {
   type EarnToken,
 } from "../hooks/useEarnHandler";
 import { classNames, getRelativeDate } from "../utils";
+import { filterEarnActivityForChain } from "../lib/earnFeature";
 import { EarnDisclosureBanner } from "./EarnDisclosureBanner";
 
 const TOKEN_DECIMALS = 6;
@@ -68,13 +69,29 @@ const Divider = () => (
 interface Props {
   onSelectActivity?: (entry: EarnActivityEntry) => void;
   showDisclosureBanner?: boolean;
+  /** When set, activity is scoped to this wallet view (EVM source chain or Starknet). */
+  chainName?: string;
+  /** Include untagged legacy deposits when this chain has an EVM source position. */
+  includeLegacyUntaggedDeposits?: boolean;
 }
 
 export const EarnActivityPanel: React.FC<Props> = ({
   onSelectActivity,
   showDisclosureBanner = true,
+  chainName,
+  includeLegacyUntaggedDeposits = false,
 }) => {
   const { positions, activity, refreshAllPositions } = useEarnHandler();
+
+  const scopedActivity = useMemo(
+    () =>
+      chainName
+        ? filterEarnActivityForChain(activity, chainName, {
+            includeLegacyUntaggedDeposits,
+          })
+        : activity,
+    [activity, chainName, includeLegacyUntaggedDeposits],
+  );
 
   useEffect(() => {
     void refreshAllPositions();
@@ -84,20 +101,19 @@ export const EarnActivityPanel: React.FC<Props> = ({
     return () => clearInterval(id);
   }, [refreshAllPositions]);
 
-  // Show a "Currently supplied" card per token where supplied > 0 (option b).
-  const suppliedTokens = useMemo<EarnToken[]>(
-    () =>
-      EARN_TOKENS.filter(
-        (t) => safeBigInt(positions[t]?.suppliedBaseUnits) > BigInt("0"),
-      ),
-    [positions],
-  );
+  // Show a "Currently supplied" card per token where supplied > 0 (Starknet earn only).
+  const suppliedTokens = useMemo<EarnToken[]>(() => {
+    if (chainName && chainName !== "Starknet") return [];
+    return EARN_TOKENS.filter(
+      (t) => safeBigInt(positions[t]?.suppliedBaseUnits) > BigInt("0"),
+    );
+  }, [positions, chainName]);
 
   // Group activity by relative date label (Today / Yesterday / N days ago …),
   // newest group first. Mirrors the Transactions tab grouping.
   const groupedActivity = useMemo(() => {
     const groups = new Map<string, EarnActivityEntry[]>();
-    for (const entry of activity) {
+    for (const entry of scopedActivity) {
       const label = getRelativeDate(new Date(entry.timestamp));
       const bucket = groups.get(label);
       if (bucket) bucket.push(entry);
@@ -106,7 +122,7 @@ export const EarnActivityPanel: React.FC<Props> = ({
     return Array.from(groups, ([label, entries]) => ({ label, entries })).sort(
       (a, b) => b.entries[0].timestamp - a.entries[0].timestamp,
     );
-  }, [activity]);
+  }, [scopedActivity]);
 
   return (
     <div className="space-y-6">

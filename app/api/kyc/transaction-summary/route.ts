@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/app/lib/supabase";
+import { resolveIdentityScope } from "@/app/lib/kyc-identity";
 import {
   trackApiRequest,
   trackApiResponse,
@@ -26,6 +27,26 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(
         { success: false, error: "Unauthorized" },
         { status: 401 },
+      );
+    }
+
+    // Spend is pooled per verified identity, so the summary must count every wallet
+    // sharing it — mirroring insert_swap_transaction_if_within_limit. Counting only
+    // this wallet would show headroom that enforcement does not actually grant.
+    let scopeWallets: string[];
+    try {
+      scopeWallets = (await resolveIdentityScope(walletAddress)).wallets;
+    } catch (scopeError) {
+      trackApiError(
+        request,
+        "/api/kyc/transaction-summary",
+        "GET",
+        scopeError as Error,
+        500,
+      );
+      return NextResponse.json(
+        { success: false, error: "Failed to fetch transaction summary" },
+        { status: 500 },
       );
     }
 
@@ -73,7 +94,7 @@ export async function GET(request: NextRequest) {
     const { data: swapTransactions, error: swapError } = await supabaseAdmin
       .from("transactions")
       .select("amount_sent, from_currency, created_at")
-      .eq("wallet_address", walletAddress)
+      .in("wallet_address", scopeWallets)
       .eq("transaction_type", "offramp")
       .in("status", SPEND_STATUSES)
       .gte("created_at", monthStart.toISOString());
@@ -83,7 +104,7 @@ export async function GET(request: NextRequest) {
       .select(
         "amount_sent, amount_received, from_currency, to_currency, created_at",
       )
-      .eq("wallet_address", walletAddress)
+      .in("wallet_address", scopeWallets)
       .eq("transaction_type", "onramp")
       .in("status", SPEND_STATUSES)
       .gte("created_at", monthStart.toISOString());

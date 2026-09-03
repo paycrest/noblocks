@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { supabaseAdmin } from "@/app/lib/supabase";
-import { withRateLimit } from "@/app/lib/rate-limit";
+import { withRateLimitAndAnalytics } from "@/app/lib/analytics-middleware";
 import { requireAdmin } from "@/app/lib/fantasy/admin";
 import { jsonError, jsonOk } from "@/app/lib/fantasy/server";
 
@@ -8,11 +8,9 @@ const PAGE_SIZE = 50;
 
 /**
  * GET /api/play/admin/participants?search=&page= — full participant list for
- * the admin console (F-15). Reads the fantasy_leaderboard view (username,
- * points, rank, badge, referral qualification already joined) and merges the
- * moderation `flags` array from fantasy_participants.
+ * the admin console. Reads fantasy_leaderboard and merges moderation flags.
  */
-export const GET = withRateLimit(async (request: NextRequest) => {
+export const GET = withRateLimitAndAnalytics(async (request: NextRequest) => {
   const unauthorized = requireAdmin(request);
   if (unauthorized) return unauthorized;
 
@@ -24,16 +22,13 @@ export const GET = withRateLimit(async (request: NextRequest) => {
     let query = supabaseAdmin
       .from("fantasy_leaderboard")
       .select(
-        "wallet_address, username, total_points, rank, previous_rank, badge, activated_referrals, qualified, disqualified, giveaway_opt_in, joined_at",
+        "wallet_address, username, total_points, rank, previous_rank, badge, disqualified, giveaway_opt_in, joined_at",
         { count: "exact" },
       )
       .order("rank", { ascending: true })
       .order("joined_at", { ascending: true });
 
     if (rawSearch) {
-      // Usernames are alnum+underscore and wallets are hex, so strip anything
-      // else, then escape "_" (a LIKE wildcard). This also keeps the .or()
-      // filter string free of commas/parens that would break its syntax.
       const term = rawSearch.replace(/[^A-Za-z0-9_]/g, "").replace(/_/g, "\\_");
       if (term) {
         query = query.or(
@@ -72,8 +67,6 @@ export const GET = withRateLimit(async (request: NextRequest) => {
       rank: Number(row.rank),
       previous_rank: row.previous_rank != null ? Number(row.previous_rank) : null,
       badge: row.badge as string,
-      activated_referrals: Number(row.activated_referrals ?? 0),
-      qualified: Boolean(row.qualified),
       disqualified: Boolean(row.disqualified),
       giveaway_opt_in: Boolean(row.giveaway_opt_in),
       joined_at: row.joined_at as string,

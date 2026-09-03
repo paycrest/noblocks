@@ -21,7 +21,9 @@ export const ShareSquadCard = ({ username }: { username: string }) => {
   const [imageLoaded, setImageLoaded] = useState(false);
 
   const ogUrl = manager
-    ? `/api/play/og?layout=squad&username=${encodeURIComponent(manager.username)}`
+    // Bump `v` whenever the card art changes — share images are cached by CDNs
+    // and by the social networks that scraped them.
+    ? `/api/play/og?layout=squad&username=${encodeURIComponent(manager.username)}&v=faces`
     : null;
   useEffect(() => {
     setImageLoaded(false);

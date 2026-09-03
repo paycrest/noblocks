@@ -4,6 +4,8 @@ import type {
   RateResponse,
   RateSide,
   V2RateQuoteResponse,
+  V2MarketOffer,
+  MarketsPayload,
   InstitutionProps,
   PubkeyResponse,
   VerifyAccountPayload,
@@ -452,6 +454,153 @@ export const fetchRate = async ({
   }
 };
 
+// The order book is refreshed by a polling hook and can be read by more than
+// one consumer per tick; share one request and result so the poll interval
+// (not the consumer count) sets the request rate. The aggregator caches the
+// full book ~10s upstream, so a matching TTL here costs no freshness.
+const MARKETS_TTL_MS = 10 * 1000;
+/**
+ * The rate quote waits on the first book for a corridor, so this request has
+ * to fail rather than hang: a stalled connection would otherwise hold back the
+ * quote indefinitely. Failing lands on the unknown-book path, which quotes
+ * against the static limits exactly as before this feature existed.
+ */
+const MARKETS_TIMEOUT_MS = 8 * 1000;
+const marketsInFlight = new Map<string, Promise<V2MarketOffer[]>>();
+const marketsResult = new Map<string, { at: number; data: V2MarketOffer[] }>();
+
+function marketsCacheKey({ side, token, currency, network }: MarketsPayload) {
+  return `${side}:${token}:${currency}:${network || "*"}`;
+}
+
+/**
+ * Pulls the offer rows out of an aggregator response without assuming the
+ * exact envelope shape. The documented form is `data.book`, but a bare array
+ * or `data` as an array also resolve. An unrecognized shape yields `[]`,
+ * which callers treat as "unknown" and fall back to their static limits
+ * rather than blocking the user.
+ */
+function extractMarketOffers(raw: unknown): V2MarketOffer[] {
+  if (Array.isArray(raw)) return raw as V2MarketOffer[];
+  if (!raw || typeof raw !== "object") return [];
+
+  const container = raw as Record<string, unknown>;
+  if (Array.isArray(container.data)) return container.data as V2MarketOffer[];
+
+  const nested =
+    container.data && typeof container.data === "object"
+      ? (container.data as Record<string, unknown>)
+      : container;
+
+  for (const key of ["book", "offers", "markets"]) {
+    if (Array.isArray(nested[key])) return nested[key] as V2MarketOffer[];
+  }
+
+  const arrayValue = Object.values(nested).find((value) =>
+    Array.isArray(value),
+  );
+  return Array.isArray(arrayValue) ? (arrayValue as V2MarketOffer[]) : [];
+}
+
+/**
+ * Fetches the live provider order book for one corridor via aggregator **v2**.
+ * Used to derive the fillable amount range shown in the swap form; an empty
+ * result means "unknown", not "no liquidity".
+ */
+export const fetchMarkets = async (
+  payload: MarketsPayload,
+): Promise<V2MarketOffer[]> => {
+  const { side, token, currency, network, signal } = payload;
+  const key = marketsCacheKey(payload);
+
+  const cached = marketsResult.get(key);
+  if (cached && Date.now() - cached.at < MARKETS_TTL_MS) {
+    return cached.data;
+  }
+  const inFlight = marketsInFlight.get(key);
+  if (inFlight) return inFlight;
+
+  const startTime = Date.now();
+  const analyticsEndpoint = "/v2/markets";
+  const endpoint = `${aggregatorOriginForV2()}/v2/markets`;
+  const params: Record<string, string> = { side, fiat: currency, token };
+  if (network) params.network = network;
+
+  const request = (async () => {
+    try {
+      trackServerEvent("External API Request", {
+        service: "aggregator",
+        endpoint: analyticsEndpoint,
+        method: "GET",
+        token,
+        currency,
+        network: network ?? null,
+        side,
+      });
+
+      const response = await axios.get(endpoint, {
+        params,
+        signal,
+        timeout: MARKETS_TIMEOUT_MS,
+      });
+      const body = response.data as {
+        status?: string;
+        message?: string;
+        data?: unknown;
+      };
+
+      if (body?.status === "error") {
+        throw new Error(body.message || "Markets request failed");
+      }
+
+      const offers = extractMarketOffers(response.data);
+      marketsResult.set(key, { at: Date.now(), data: offers });
+
+      trackApiResponse(analyticsEndpoint, "GET", 200, Date.now() - startTime, {
+        service: "aggregator",
+        token,
+        currency,
+        network: network ?? null,
+        side,
+        offer_count: offers.length,
+      });
+
+      return offers;
+    } catch (error) {
+      const axiosPayloadMessage =
+        axios.isAxiosError(error) &&
+        error.response?.data &&
+        typeof (error.response.data as { message?: unknown }).message ===
+          "string"
+          ? (error.response.data as { message: string }).message
+          : null;
+
+      const errorMessage =
+        axiosPayloadMessage ??
+        (error instanceof Error ? error.message : "Unknown error");
+
+      trackServerEvent("External API Error", {
+        service: "aggregator",
+        endpoint: analyticsEndpoint,
+        method: "GET",
+        token,
+        currency,
+        network: network ?? null,
+        side,
+        error_message: errorMessage,
+        response_time_ms: Date.now() - startTime,
+      });
+
+      throw new Error(errorMessage);
+    } finally {
+      marketsInFlight.delete(key);
+    }
+  })();
+
+  marketsInFlight.set(key, request);
+  return request;
+};
+
 /**
  * Fetches the list of supported institutions for a given currency
  * @param {string} currency - The currency code to get institutions for
@@ -556,8 +705,8 @@ export const fetchAccountName = async (
  */
 export const fetchOrderDetails = async (
   orderId: string,
-  accessToken?: string,
-  options?: { network?: string },
+  accessToken?: string | null,
+  options?: { network?: string; injectedToken?: string | null },
 ): Promise<OrderDetailsResponse> => {
   const id = orderId.trim();
   if (!id) {
@@ -580,13 +729,19 @@ export const fetchOrderDetails = async (
     data?: unknown;
   };
 
-  if (typeof window !== "undefined" && accessToken?.trim()) {
+  const injectedToken = options?.injectedToken?.trim();
+
+  if (typeof window !== "undefined" && (accessToken?.trim() || injectedToken)) {
+    const headers: Record<string, string> = {};
+    if (injectedToken) {
+      headers["x-injected-token"] = injectedToken;
+    } else {
+      headers.Authorization = `Bearer ${accessToken!.trim()}`;
+    }
     const response = await axios.get(
       `/api/v1/payment-orders/${encodeURIComponent(id)}`,
       {
-        headers: {
-          Authorization: `Bearer ${accessToken.trim()}`,
-        },
+        headers,
         params:
           gatewayLookup && network
             ? { network }
@@ -780,23 +935,28 @@ export const detectUserLocation = async (): Promise<string> => {
  * @param {string} accessToken - The access token for authentication
  * @param {number} [page=1] - The page number
  * @param {number} [limit=20] - The number of items per page
+ * @param {string | null} [injectedToken] - Injected wallet SIWE session token
  * @returns {Promise<TransactionResponse>} The transactions response
  * @throws {Error} If the API request fails
  */
 export async function fetchTransactions(
   address: string,
-  accessToken: string,
+  accessToken: string | null,
   page: number = 1,
   limit: number = 20,
+  injectedToken: string | null = null,
 ): Promise<TransactionResponse> {
+  const headers: Record<string, string> = {
+    "x-wallet-address": address.toLowerCase(),
+  };
+  if (injectedToken) {
+    headers["x-injected-token"] = injectedToken;
+  } else if (accessToken) {
+    headers.Authorization = `Bearer ${accessToken}`;
+  }
   const response = await axios.get<TransactionResponse>(
     `/api/v1/transactions?page=${page}&limit=${limit}`,
-    {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "x-wallet-address": address.toLowerCase(),
-      },
-    },
+    { headers },
   );
   return response.data;
 }
@@ -846,19 +1006,26 @@ export type SwapPrecheckPayload = Pick<
 /**
  * Server-side monthly KYC limit check (RPC dry run) before on-chain swap steps.
  * Throws Error with the API message when the swap would be rejected at save time.
+ * Injected wallets authenticate via `x-injected-token`; Privy via Bearer.
  */
 export async function precheckSwapTransaction(
   payload: SwapPrecheckPayload,
-  accessToken: string,
+  accessToken: string | null,
+  injectedToken: string | null = null,
 ): Promise<void> {
+  const headers: Record<string, string> = {
+    "x-wallet-address": String(payload.walletAddress).toLowerCase(),
+  };
+  if (injectedToken) {
+    headers["x-injected-token"] = injectedToken;
+  } else if (accessToken) {
+    headers.Authorization = `Bearer ${accessToken}`;
+  }
   const res = await axios.post<{ success?: boolean; error?: string }>(
     "/api/v1/transactions/swap-precheck",
     payload,
     {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "x-wallet-address": String(payload.walletAddress).toLowerCase(),
-      },
+      headers,
       validateStatus: () => true,
     },
   );
@@ -912,18 +1079,23 @@ export async function updateTransactionStatus({
   status,
   accessToken,
   walletAddress,
+  injectedToken = null,
 }: UpdateTransactionStatusPayload): Promise<SaveTransactionResponse> {
   const finalStatus = mapAggregatorStatusToDbStatus(status, { onramp: false });
+
+  const headers: Record<string, string> = {
+    "x-wallet-address": walletAddress.toLowerCase(),
+  };
+  if (injectedToken) {
+    headers["x-injected-token"] = injectedToken;
+  } else if (accessToken) {
+    headers.Authorization = `Bearer ${accessToken}`;
+  }
 
   const response = await axios.put(
     `/api/v1/transactions/status/${transactionId}`,
     { status: finalStatus },
-    {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "x-wallet-address": walletAddress.toLowerCase(),
-      },
-    },
+    { headers },
   );
   return response.data;
 }
@@ -937,6 +1109,7 @@ export async function updateTransactionStatus({
  * @param {string} [params.timeSpent] - The time spent on the transaction (optional)
  * @param {string} params.accessToken - The access token for authentication
  * @param {string} params.walletAddress - The wallet address for authorization
+ * @param {string} [params.injectedToken] - Injected wallet SIWE session token
  * @returns {Promise<SaveTransactionResponse>} The update response
  * @throws {Error} If the API request fails
  */
@@ -947,6 +1120,7 @@ export async function updateTransactionDetails({
   timeSpent,
   accessToken,
   walletAddress,
+  injectedToken = null,
   isOnramp,
 }: UpdateTransactionDetailsPayload): Promise<SaveTransactionResponse> {
   const finalStatus = mapAggregatorStatusToDbStatus(status, {
@@ -962,15 +1136,19 @@ export async function updateTransactionDetails({
     data.timeSpent = timeSpent;
   }
 
+  const headers: Record<string, string> = {
+    "x-wallet-address": walletAddress.toLowerCase(),
+  };
+  if (injectedToken) {
+    headers["x-injected-token"] = injectedToken;
+  } else if (accessToken) {
+    headers.Authorization = `Bearer ${accessToken}`;
+  }
+
   const response = await axios.put(
     `/api/v1/transactions/${transactionId}`,
     data,
-    {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "x-wallet-address": walletAddress.toLowerCase(),
-      },
-    },
+    { headers },
   );
   return response.data;
 }
@@ -1155,17 +1333,25 @@ type RefundAccountSaveEnvelope = {
 };
 
 /**
- * Loads the saved refund account for the authenticated wallet, if any.
+ * Loads the saved refund account for the authenticated wallet and fiat currency, if any.
+ * Injected wallets authenticate via `x-injected-token`; Privy via Bearer.
  */
 export async function fetchRefundAccount(
-  accessToken: string,
+  currency: string,
+  accessToken: string | null,
+  injectedToken: string | null = null,
 ): Promise<RefundAccountDetails | null> {
+  const headers: Record<string, string> = {};
+  if (injectedToken) {
+    headers["x-injected-token"] = injectedToken;
+  } else if (accessToken) {
+    headers.Authorization = `Bearer ${accessToken}`;
+  }
   const response = await axios.get<RefundAccountApiEnvelope>(
     "/api/v1/refund-account",
     {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-      },
+      headers,
+      params: { currency: currency.trim().toUpperCase() },
     },
   );
 
@@ -1177,27 +1363,32 @@ export async function fetchRefundAccount(
 }
 
 /**
- * Upserts refund account details for the authenticated wallet.
+ * Upserts refund account details for the authenticated wallet and fiat currency.
+ * Injected wallets authenticate via `x-injected-token`; Privy via Bearer.
  */
 export async function saveRefundAccount(
   detail: RefundAccountDetails,
-  accessToken: string,
+  accessToken: string | null,
+  injectedToken: string | null = null,
 ): Promise<RefundAccountDetails> {
+  const headers: Record<string, string> = {};
+  if (injectedToken) {
+    headers["x-injected-token"] = injectedToken;
+  } else if (accessToken) {
+    headers.Authorization = `Bearer ${accessToken}`;
+  }
   let response: { data: RefundAccountSaveEnvelope };
   try {
     response = await axios.put<RefundAccountSaveEnvelope>(
       "/api/v1/refund-account",
       {
+        currency: detail.currency.trim().toUpperCase(),
         institution: detail.institutionName,
         institutionCode: detail.institutionCode,
         accountIdentifier: detail.accountNumber,
         accountName: detail.accountName,
       },
-      {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
-      },
+      { headers },
     );
   } catch (err) {
     // Surface the server's error message (e.g. the refund-account name policy rejection) instead of
@@ -1463,20 +1654,25 @@ export const submitSmileIDData = async (
  * Creates a v2 on-ramp payment order (fiat source) via the server proxy to aggregator.
  * POST /api/v1/payment-orders (on-ramp only) → aggregator POST /v2/sender/orders.
  * Off-ramp orders are created on-chain (gateway.createOrder), not through this proxy.
+ * Injected wallets authenticate via `x-injected-token`; Privy via Bearer.
  */
 export async function createV2SenderPaymentOrder(
   payload: V2CreatePaymentOrderPayload,
-  accessToken: string,
+  accessToken: string | null,
+  injectedToken: string | null = null,
 ): Promise<AggregatorEnvelope<V2PaymentOrderCreateData>> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  if (injectedToken) {
+    headers["x-injected-token"] = injectedToken;
+  } else if (accessToken) {
+    headers.Authorization = `Bearer ${accessToken}`;
+  }
   const response = await axios.post<AggregatorEnvelope<V2PaymentOrderCreateData>>(
     "/api/v1/payment-orders",
     payload,
-    {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-      },
-    },
+    { headers },
   );
   return response.data;
 }
@@ -1486,15 +1682,18 @@ export async function createV2SenderPaymentOrder(
  */
 export async function fetchV2SenderPaymentOrderById(
   orderId: string,
-  accessToken: string,
+  accessToken: string | null,
+  injectedToken: string | null = null,
 ): Promise<AggregatorEnvelope<V2PaymentOrderGetData>> {
+  const headers: Record<string, string> = {};
+  if (injectedToken) {
+    headers["x-injected-token"] = injectedToken;
+  } else if (accessToken) {
+    headers.Authorization = `Bearer ${accessToken}`;
+  }
   const response = await axios.get<AggregatorEnvelope<V2PaymentOrderGetData>>(
     `/api/v1/payment-orders/${encodeURIComponent(orderId)}`,
-    {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-      },
-    },
+    { headers },
   );
   return response.data;
 }

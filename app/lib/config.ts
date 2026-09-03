@@ -1,4 +1,5 @@
 import { Config, JWTProviderConfig } from "@/app/types";
+import { resolveLayerswapApiBaseUrl } from "./layerswapConfig";
 
 /** EIP-7702 delegation contract (ProviderBatchCallAndSponsor) per chain. */
 export const DELEGATION_CONTRACT_BY_CHAIN: Record<number, string> = {
@@ -68,11 +69,15 @@ const config: Config = {
   moralisBaseUrl:
     process.env.MORALIS_BASE_URL || "https://api.moralis-streams.com",
   earnEnabled: process.env.NEXT_PUBLIC_EARN_ENABLED === "true",
+  evmEarnEnabled: process.env.NEXT_PUBLIC_EVM_EARN_ENABLED === "true",
   tronEnabled: process.env.NEXT_PUBLIC_TRON_ENABLED === "true",
   referralEnabled: (process.env.NEXT_PUBLIC_REFERRAL_ENABLED || "").trim().toLowerCase() !== "false",
   bridgeEnabled: process.env.NEXT_PUBLIC_BRIDGE_ENABLED === "true",
+  textileEnabled: process.env.NEXT_PUBLIC_TEXTILE_ENABLED === "true",
+  hyperfxEnabled: process.env.NEXT_PUBLIC_HYPERFX_ENABLED === "true",
   onrampChainedForwardingEnabled:
     process.env.NEXT_PUBLIC_ONRAMP_CHAINED_FORWARDING_ENABLED === "true",
+  kesOnrampEnabled: process.env.NEXT_PUBLIC_KES_ONRAMP_ENABLED !== "false",
   fantasyEnabled: process.env.NEXT_PUBLIC_FANTASY_ENABLED === "true",
   // When true (and fantasyEnabled), public /play shows the end-of-campaign
   // announcement instead of the live game. Flip off to revive Play for a
@@ -80,6 +85,11 @@ const config: Config = {
   fantasyCampaignEnded:
     process.env.NEXT_PUBLIC_FANTASY_CAMPAIGN_ENDED === "true",
   embedEnabled: process.env.NEXT_PUBLIC_EMBED_ENABLED === "true",
+  /** Server-side LayerSwap API key (EVM earn bridge). */
+  layerswapApiKey: (process.env.LAYERSWAP_API_KEY || "").trim(),
+  layerswapApiBaseUrl: resolveLayerswapApiBaseUrl(
+    process.env.LAYERSWAP_API_BASE_URL,
+  ),
 };
 
 export default config;

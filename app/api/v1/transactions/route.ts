@@ -18,6 +18,7 @@ import {
   assertTransactionWalletAuthorized,
   executeSwapTransactionLimitCheck,
 } from "@/app/lib/swap-transaction-limit-server";
+import { monthlyLimitReachedMessage } from "@/app/lib/kyc-limit-copy";
 
 // Route handler for GET requests
 export const GET = withRateLimit(async (request: NextRequest) => {
@@ -285,7 +286,10 @@ export const POST = withRateLimit(async (request: NextRequest) => {
         return NextResponse.json(
           {
             success: false,
-            error: `Monthly transaction limit of $${swapResult.monthlyLimit.toLocaleString()} reached. Upgrade your verification tier to continue.`,
+            error: monthlyLimitReachedMessage(
+              swapResult.monthlyLimit,
+              swapResult.pooledWalletCount,
+            ),
           },
           { status: 403 },
         );

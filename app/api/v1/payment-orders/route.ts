@@ -8,6 +8,7 @@ import {
 } from "@/app/lib/server-analytics";
 import config from "@/app/lib/config";
 import { getKycFullName } from "@/app/lib/kyc-profile-server";
+import { isOnrampFiatCurrencyCode } from "@/app/utils";
 import {
   accountNameMatchesKyc,
   REFUND_NAME_MISMATCH_MESSAGE,
@@ -77,6 +78,32 @@ export const POST = withRateLimit(async (request: NextRequest) => {
         { status: 400 },
       );
     }
+
+    const sourceCurrencyRaw =
+      typeof (source as { currency?: unknown })?.currency === "string"
+        ? (source as { currency: string }).currency.trim()
+        : "";
+    const sourceCurrency = sourceCurrencyRaw.toUpperCase();
+    if (!sourceCurrency || !isOnrampFiatCurrencyCode(sourceCurrency)) {
+      trackApiError(
+        request,
+        "/api/v1/payment-orders",
+        "POST",
+        new Error(`On-ramp not supported for fiat currency: ${sourceCurrencyRaw || "missing"}`),
+        400,
+      );
+      return NextResponse.json(
+        {
+          success: false,
+          error: sourceCurrencyRaw
+            ? `${sourceCurrencyRaw} on-ramp is not available.`
+            : "On-ramp order is missing source currency.",
+        },
+        { status: 400 },
+      );
+    }
+
+    (body as { source?: { currency?: string } }).source!.currency = sourceCurrency;
 
     // Refund-account name policy (authoritative gate at money time). The refund account must belong
     // to the same person as the verified KYC profile. A modified client must not be able to bypass

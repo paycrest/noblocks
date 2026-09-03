@@ -20,8 +20,6 @@ interface AdminParticipant {
   rank: number;
   previous_rank: number | null;
   badge: string;
-  activated_referrals: number;
-  qualified: boolean;
   disqualified: boolean;
   giveaway_opt_in: boolean;
   joined_at: string;
@@ -32,10 +30,8 @@ const shortAddress = (address: string) =>
   `${address.slice(0, 6)}…${address.slice(-4)}`;
 
 const badgeClasses: Record<string, string> = {
-  qualified:
+  active:
     "bg-green-100 text-green-800 dark:bg-green-500/10 dark:text-green-400",
-  in_progress:
-    "bg-lavender-100 text-lavender-800 dark:bg-lavender-500/10 dark:text-lavender-400",
   opted_out:
     "bg-gray-100 text-gray-600 dark:bg-white/5 dark:text-white/50",
 };
@@ -51,6 +47,179 @@ const secondaryButtonClasses =
 
 const rowActionClasses =
   "rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors";
+
+function ChallengeAdmin({
+  adminFetch,
+}: {
+  adminFetch: (path: string, init?: RequestInit) => Promise<Response>;
+}) {
+  const [challenges, setChallenges] = useState<
+    {
+      id: string;
+      gameweek_id: number;
+      title: string;
+      prize_usdc: number;
+      status: string;
+      winner_wallet: string | null;
+    }[]
+  >([]);
+  const [gw, setGw] = useState("101");
+  const [title, setTitle] = useState("");
+  const [prize, setPrize] = useState("10");
+
+  const load = useCallback(async () => {
+    try {
+      const response = await adminFetch("/api/play/admin/challenges");
+      const json = await response.json();
+      if (!json.success) throw new Error(json.error || "Failed");
+      setChallenges(json.data.challenges ?? []);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to load challenges");
+    }
+  }, [adminFetch]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const create = async () => {
+    try {
+      const response = await adminFetch("/api/play/admin/challenges", {
+        method: "POST",
+        body: JSON.stringify({
+          gameweekId: Number(gw),
+          title,
+          prizeUsdc: Number(prize),
+        }),
+      });
+      const json = await response.json();
+      if (!json.success) throw new Error(json.error || "Failed");
+      toast.success("Challenge created");
+      setTitle("");
+      await load();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Create failed");
+    }
+  };
+
+  const resolve = async (challengeId: string) => {
+    try {
+      const response = await adminFetch("/api/play/admin/challenges?resolve=1", {
+        method: "POST",
+        body: JSON.stringify({ challengeId }),
+      });
+      const json = await response.json();
+      if (!json.success) throw new Error(json.error || "Failed");
+      toast.success("Challenge resolved");
+      await load();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Resolve failed");
+    }
+  };
+
+  const downloadCsv = async (challengeId: string) => {
+    try {
+      const response = await adminFetch(
+        `/api/play/admin/challenges?id=${encodeURIComponent(challengeId)}&format=csv`,
+      );
+      if (!response.ok) throw new Error("Export failed");
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `challenge-${challengeId}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      toast.success("Challenge CSV downloaded");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "CSV failed");
+    }
+  };
+
+  return (
+    <section className="space-y-3 rounded-2xl border border-border-light p-4 dark:border-white/10">
+      <div>
+        <h2 className="text-sm font-semibold text-text-body dark:text-white">
+          Gameweek challenges
+        </h2>
+        <p className="text-sm text-text-secondary dark:text-white/50">
+          Ops tooling for marketing campaigns — create challenges, resolve winners
+          after scores are final (worker also resolves when the GW goes final),
+          then export CSV for manual payout.
+        </p>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <input
+          value={gw}
+          onChange={(e) => setGw(e.target.value)}
+          placeholder="GW id (101)"
+          className={`${inputClasses} max-w-[8rem]`}
+        />
+        <input
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="Title"
+          className={`${inputClasses} min-w-[12rem] flex-1`}
+        />
+        <input
+          value={prize}
+          onChange={(e) => setPrize(e.target.value)}
+          placeholder="Payout USDC"
+          className={`${inputClasses} max-w-[6rem]`}
+        />
+        <button
+          type="button"
+          onClick={create}
+          disabled={title.trim().length < 3}
+          className={primaryButtonClasses}
+        >
+          Create
+        </button>
+      </div>
+      <ul className="space-y-2 text-sm">
+        {challenges.map((c) => (
+          <li
+            key={c.id}
+            className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-background-neutral px-3 py-2 dark:bg-white/5"
+          >
+            <span className="text-text-body dark:text-white">
+              {c.title} · GW {c.gameweek_id - 100} · {c.prize_usdc} USDC ·{" "}
+              <span className="font-medium">{c.status}</span>
+              {c.winner_wallet
+                ? ` · ${c.winner_wallet.slice(0, 6)}…${c.winner_wallet.slice(-4)}`
+                : ""}
+            </span>
+            <span className="flex gap-2">
+              {c.status !== "resolved" && (
+                <button
+                  type="button"
+                  onClick={() => resolve(c.id)}
+                  className={secondaryButtonClasses}
+                >
+                  Resolve
+                </button>
+              )}
+              {c.status === "resolved" && (
+                <button
+                  type="button"
+                  onClick={() => downloadCsv(c.id)}
+                  className={secondaryButtonClasses}
+                >
+                  CSV
+                </button>
+              )}
+            </span>
+          </li>
+        ))}
+        {challenges.length === 0 && (
+          <li className="text-text-secondary dark:text-white/50">No challenges yet.</li>
+        )}
+      </ul>
+    </section>
+  );
+}
 
 export default function PlayAdminPage() {
   const [adminKey, setAdminKey] = useState<string | null>(null);
@@ -252,7 +421,7 @@ export default function PlayAdminPage() {
           Noblocks Play — Admin
         </h1>
         <p className="text-sm text-text-secondary dark:text-white/50">
-          Enter the admin key to manage participants, moderation and winner
+          Enter the admin key to manage participants, moderation and campaign
           exports. The key is kept in this browser session only.
         </p>
         <input
@@ -287,15 +456,16 @@ export default function PlayAdminPage() {
         </button>
       </header>
 
-      {/* Winners export */}
+      <ChallengeAdmin adminFetch={adminFetch} />
+
       <section className="space-y-3 rounded-2xl border border-border-light p-4 dark:border-white/10">
         <div>
           <h2 className="text-sm font-semibold text-text-body dark:text-white">
             Winners export
           </h2>
           <p className="text-sm text-text-secondary dark:text-white/50">
-            Qualified-only prize order: positions 1–5 get 50 USDC, 6–10 get 40
-            USDC, 11–20 get 15 USDC (600 USDC total, paid on Base).
+            Ranked managers for marketing campaign payouts. Prefer the Challenges
+            CSV for GW pots; this export is for broader ops use (e.g. MotM).
           </p>
         </div>
         <div className="flex flex-wrap gap-3">
@@ -372,7 +542,6 @@ export default function PlayAdminPage() {
                 <th className="px-3 py-2.5 font-medium">Username</th>
                 <th className="px-3 py-2.5 font-medium">Wallet</th>
                 <th className="px-3 py-2.5 font-medium">Points</th>
-                <th className="px-3 py-2.5 font-medium">Referrals</th>
                 <th className="px-3 py-2.5 font-medium">Badge</th>
                 <th className="px-3 py-2.5 font-medium">Flags</th>
                 <th className="px-3 py-2.5 font-medium">Actions</th>
@@ -402,9 +571,6 @@ export default function PlayAdminPage() {
                   </td>
                   <td className="px-3 py-2.5 text-text-body dark:text-white">
                     {p.total_points}
-                  </td>
-                  <td className="px-3 py-2.5 text-text-body dark:text-white">
-                    {p.activated_referrals}
                   </td>
                   <td className="px-3 py-2.5">
                     <span

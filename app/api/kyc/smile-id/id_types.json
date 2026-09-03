@@ -439,8 +439,7 @@
             { "type": "REGISTRATION_CERTIFICATE", "verification_method": "doc_verification" },
             { "type": "RESIDENT_ID", "verification_method": "doc_verification" },
             { "type": "TRAVEL_DOC", "verification_method": "doc_verification" },
-            { "type": "VOTER_ID", "verification_method": "doc_verification" },
-            { "type": "V_NIN", "verification_method": "biometric_kyc" }
+            { "type": "VOTER_ID", "verification_method": "doc_verification" }
           ]
         },
         {

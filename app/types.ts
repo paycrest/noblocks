@@ -493,6 +493,8 @@ export type Config = {
   referralEnabled: boolean;
   /** Bridge/Swap feature flag. Controls Convert button visibility + proxy routes. */
   bridgeEnabled: boolean;
+  /** Textile FX for same-chain USDT↔cNGN on BSC and Celo. Requires TEXTILE_API_KEY server-side. */
+  textileEnabled: boolean;
   /** HyperFX (Hyperbridge IntentGateway) USDC↔cNGN same-chain swaps in Convert. */
   hyperfxEnabled: boolean;
   onrampChainedForwardingEnabled: boolean;

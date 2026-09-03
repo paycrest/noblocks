@@ -8,7 +8,7 @@ interface BridgeQuoteCardProps {
   quote: BridgeQuote | null;
   isLoading: boolean;
   error: Error | null;
-  engine: "near" | "lifi" | "hyperfx" | null;
+  engine: "near" | "lifi" | "textile" | "hyperfx" | null;
   toToken?: string;
   onExpire?: () => void;
 }
@@ -17,7 +17,7 @@ export const BridgeQuoteCard: React.FC<BridgeQuoteCardProps> = ({
   quote,
   isLoading,
   error,
-  engine,
+  engine: _engine,
   toToken,
   onExpire,
 }) => {
@@ -64,11 +64,13 @@ export const BridgeQuoteCard: React.FC<BridgeQuoteCardProps> = ({
   if (!quote) return null;
 
   const engineLabel =
-    engine === "near"
+    quote.kind === "near-deposit"
       ? "NEAR Intents"
-      : engine === "hyperfx"
-        ? "HyperFX"
-        : "LI.FI";
+      : quote.kind === "textile-swap"
+        ? "Textile FX"
+        : quote.kind === "hyperfx-intent"
+          ? "HyperFX"
+          : "LI.FI";
   const routeName =
     quote.kind === "lifi-tx" &&
     quote.raw &&

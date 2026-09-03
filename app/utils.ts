@@ -94,6 +94,9 @@ export function getInstitutionNameByCode(
 /** Safaricom M-Pesa institution code (KES). Till/Paybill use the same code + channel metadata. */
 export const KES_MPESA_INSTITUTION_CODE = "SAFAKEPC";
 
+/** NGN NUBAN account numbers are always 10 digits. */
+export const NGN_NUBAN_LENGTH = 10;
+
 export type { KesMpesaChannel };
 
 const KES_MPESA_VIRTUAL_OPTIONS: {

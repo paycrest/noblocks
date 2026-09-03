@@ -178,6 +178,7 @@ type SavedRecipientIdentity = {
   accountIdentifier: string;
   institutionCode: string;
   channel?: KesMpesaChannel | "" | null;
+  businessNumber?: string | null;
 };
 
 /**
@@ -204,10 +205,12 @@ export function normalizeSavedRecipientChannel(
 /**
  * True when two saved recipients are the same payout target.
  *
- * Channel is part of the identity: Send Money / Till / Paybill share the
- * `SAFAKEPC` code and may share an identifier, and the saved-recipient unique
- * key includes channel — so matching on code alone can hide a row in the
- * beneficiaries list or delete the wrong one.
+ * Mirrors the saved-recipient unique key exactly. Channel matters because Send
+ * Money / Till / Paybill share the `SAFAKEPC` code and may share an identifier;
+ * business number matters because two Paybills can share a reference under
+ * different businesses ("INV-001" billed by 400200 and by 888880). Comparing on
+ * fewer fields than the key hides rows in the beneficiaries list and can delete
+ * the wrong one.
  */
 export function isSameSavedRecipient(
   a: SavedRecipientIdentity,
@@ -217,7 +220,8 @@ export function isSameSavedRecipient(
     a.accountIdentifier === b.accountIdentifier &&
     a.institutionCode === b.institutionCode &&
     normalizeSavedRecipientChannel(a.channel) ===
-      normalizeSavedRecipientChannel(b.channel)
+      normalizeSavedRecipientChannel(b.channel) &&
+    (a.businessNumber ?? "").trim() === (b.businessNumber ?? "").trim()
   );
 }
 

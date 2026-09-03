@@ -138,4 +138,37 @@ describe("KES M-Pesa virtual institution split", () => {
       isSameSavedRecipient(sendMoney, { ...legacy, channel: "Till" as const }),
     ).toBe(false);
   });
+  it("keeps two Paybills with the same reference but different businesses apart", () => {
+    // "INV-001" billed by 400200 is a different payout target than by 888880.
+    const base = {
+      accountIdentifier: "INV-001",
+      institutionCode: KES_MPESA_INSTITUTION_CODE,
+      channel: "Paybill" as const,
+    };
+    expect(
+      isSameSavedRecipient(
+        { ...base, businessNumber: "400200" },
+        { ...base, businessNumber: "888880" },
+      ),
+    ).toBe(false);
+    expect(
+      isSameSavedRecipient(
+        { ...base, businessNumber: "400200" },
+        { ...base, businessNumber: "400200" },
+      ),
+    ).toBe(true);
+  });
+
+  it("treats a missing and an empty business number as the same recipient", () => {
+    const base = {
+      accountIdentifier: "0712345678",
+      institutionCode: KES_MPESA_INSTITUTION_CODE,
+    };
+    expect(
+      isSameSavedRecipient(base, { ...base, businessNumber: "" }),
+    ).toBe(true);
+    expect(
+      isSameSavedRecipient(base, { ...base, businessNumber: null }),
+    ).toBe(true);
+  });
 });

@@ -424,10 +424,10 @@ export const POST = withRateLimit(async (request: NextRequest) => {
     // Insert recipient (upsert on unique constraint) - store sanitized digits so DB has consistent format
     const channelValue =
       typeof channel === "string" ? normalizeSavedRecipientChannel(channel) : "";
+    // "" rather than null: business_number is part of the recipient unique key, and
+    // Postgres treats NULLs as distinct, which would defeat the upsert.
     const businessNumberValue =
-      typeof businessNumber === "string" && businessNumber.trim()
-        ? businessNumber.trim()
-        : null;
+      typeof businessNumber === "string" ? businessNumber.trim() : "";
 
     const { data, error } = await supabaseAdmin
       .from("saved_recipients")
@@ -445,7 +445,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
         },
         {
           onConflict:
-            "normalized_wallet_address,institution_code,account_identifier,channel",
+            "normalized_wallet_address,institution_code,account_identifier,channel,business_number",
         },
       )
       .select()

@@ -3,6 +3,7 @@ import {
   getOfframpAccountIdentifierPlaceholder,
   formatKesMpesaAccountDisplay,
   formatRecipientInstitutionDisplay,
+  isSameSavedRecipient,
   getKesMpesaInstitutionLabel,
   KES_MPESA_INSTITUTION_CODE,
 } from "../app/utils";
@@ -88,5 +89,29 @@ describe("KES M-Pesa virtual institution split", () => {
         currency: "KES",
       }),
     ).toBe("Equity Bank");
+  });
+  it("treats KES M-Pesa channels as distinct saved recipients", () => {
+    const till = {
+      accountIdentifier: "123456",
+      institutionCode: KES_MPESA_INSTITUTION_CODE,
+      channel: "Till" as const,
+    };
+    const paybill = {
+      accountIdentifier: "123456",
+      institutionCode: KES_MPESA_INSTITUTION_CODE,
+      channel: "Paybill" as const,
+    };
+    // Same code + identifier, different rail: must not collapse or cross-delete.
+    expect(isSameSavedRecipient(till, paybill)).toBe(false);
+    expect(isSameSavedRecipient(till, { ...till })).toBe(true);
+  });
+
+  it("treats a missing channel and an empty channel as the same recipient", () => {
+    const legacy = {
+      accountIdentifier: "0712345678",
+      institutionCode: KES_MPESA_INSTITUTION_CODE,
+    };
+    const empty = { ...legacy, channel: "" as const };
+    expect(isSameSavedRecipient(legacy, empty)).toBe(true);
   });
 });

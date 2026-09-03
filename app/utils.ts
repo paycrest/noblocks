@@ -170,6 +170,32 @@ export function formatKesMpesaAccountDisplay(
   return `${id} • M-PESA`;
 }
 
+/** Identity of a saved bank/mobile-money recipient, for dedupe and delete matching. */
+type SavedRecipientIdentity = {
+  accountIdentifier: string;
+  institutionCode: string;
+  channel?: KesMpesaChannel | "" | null;
+};
+
+/**
+ * True when two saved recipients are the same payout target.
+ *
+ * Channel is part of the identity: Send Money / Till / Paybill share the
+ * `SAFAKEPC` code and may share an identifier, and the saved-recipient unique
+ * key includes channel — so matching on code alone can hide a row in the
+ * beneficiaries list or delete the wrong one.
+ */
+export function isSameSavedRecipient(
+  a: SavedRecipientIdentity,
+  b: SavedRecipientIdentity,
+): boolean {
+  return (
+    a.accountIdentifier === b.accountIdentifier &&
+    a.institutionCode === b.institutionCode &&
+    (a.channel ?? "") === (b.channel ?? "")
+  );
+}
+
 /**
  * Resolve institution display for preview/history, including KES channel rails.
  * With `accountIdentifier` set, returns the full account line (`id • name`);

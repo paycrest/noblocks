@@ -15,7 +15,7 @@ import { useOutsideClick } from "@/app/hooks";
 import { fetchAccountName } from "@/app/api/aggregator";
 import { usePrivy } from "@privy-io/react-auth";
 import { InputError } from "@/app/components/InputError";
-import { classNames, getOfframpAccountIdentifierPlaceholder, filterAndSortInstitutions, expandKesMpesaInstitutions, KES_MPESA_INSTITUTION_CODE, kesMpesaUiKey, getKesMpesaInstitutionLabel } from "@/app/utils";
+import { classNames, getOfframpAccountIdentifierPlaceholder, filterAndSortInstitutions, expandKesMpesaInstitutions, KES_MPESA_INSTITUTION_CODE, kesMpesaUiKey, getKesMpesaInstitutionLabel, isSameSavedRecipient } from "@/app/utils";
 import type { KesMpesaChannel } from "@/app/types";
 import {
   RecipientDetails,
@@ -167,8 +167,7 @@ export const RecipientDetailsForm = ({
           recipientToDeleteParam.type === "wallet"
             ? r.type === "wallet" && r.walletAddress === recipientToDeleteParam.walletAddress
             : r.type !== "wallet" &&
-            r.accountIdentifier === recipientToDeleteParam.accountIdentifier &&
-            r.institutionCode === recipientToDeleteParam.institutionCode,
+            isSameSavedRecipient(r, recipientToDeleteParam),
       );
 
       if (!recipientWithId) {
@@ -201,8 +200,7 @@ export const RecipientDetailsForm = ({
             recipientToDeleteParam.type === "wallet"
               ? selectedRecipient.type === "wallet" && selectedRecipient.walletAddress === recipientToDeleteParam.walletAddress
               : selectedRecipient.type !== "wallet" &&
-              selectedRecipient.accountIdentifier === recipientToDeleteParam.accountIdentifier &&
-              selectedRecipient.institutionCode === recipientToDeleteParam.institutionCode
+              isSameSavedRecipient(selectedRecipient, recipientToDeleteParam)
           ) {
             setSelectedRecipient(null);
           }

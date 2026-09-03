@@ -8,7 +8,7 @@ import {
   trackBusinessEvent,
 } from "@/app/lib/server-analytics";
 import { isValidEvmAddressCaseInsensitive } from "@/app/lib/validation";
-import { normalizeSavedRecipientChannel } from "@/app/utils";
+import { normalizeSavedRecipientChannel, NGN_NUBAN_LENGTH } from "@/app/utils";
 import type {
   RecipientDetailsWithId,
   SavedRecipientsResponse,
@@ -356,8 +356,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
     // Only enforce NUBAN digit-length validation for NGN recipients
     if (currency === "NGN") {
       const digits = sanitizedIdentifier.replace(/\D/g, "");
-      const requiredLen = trimmedInstitutionCode === "SAFAKEPC" ? 6 : 10;
-      if (digits.length !== requiredLen) {
+      if (digits.length !== NGN_NUBAN_LENGTH) {
         trackApiError(
           request,
           "/api/v1/recipients",
@@ -368,10 +367,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
         return NextResponse.json(
           {
             success: false,
-            error:
-              requiredLen === 10
-                ? "Please enter a valid 10-digit account number."
-                : "Please enter a valid 6-digit account number.",
+            error: "Please enter a valid 10-digit account number.",
           },
           { status: 400 },
         );

@@ -3,6 +3,11 @@
 import React, { useEffect, useRef } from "react";
 import { useStep } from "../context/StepContext";
 
+/**
+ * Registers the PWA service worker and keeps open tabs on the current build:
+ * when a new worker takes control it reloads the page — skipped on first
+ * install, and deferred while a transaction step is on screen.
+ */
 export default function PWAInstall() {
   const { isFormStep } = useStep();
   // True once this page has been controlled by a service worker. The first

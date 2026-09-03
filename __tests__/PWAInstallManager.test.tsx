@@ -15,6 +15,7 @@ type MockServiceWorkerContainer = EventTarget & {
   register: jest.Mock;
 };
 
+/** Installs a mock `navigator.serviceWorker`; `controller` says whether the page is already controlled. */
 function installServiceWorkerMock(controller: object | null) {
   const sw = new EventTarget() as MockServiceWorkerContainer;
   sw.controller = controller;
@@ -26,6 +27,7 @@ function installServiceWorkerMock(controller: object | null) {
   return sw;
 }
 
+/** Dispatches `controllerchange` on the mock container inside React's `act`. */
 function fireControllerChange(sw: EventTarget) {
   act(() => {
     sw.dispatchEvent(new Event("controllerchange"));

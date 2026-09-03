@@ -12,7 +12,12 @@ jest.mock("../app/lib/config", () => ({
   },
 }));
 
-import { normalizeTextileQuote, selectEngine, type BridgeLeg } from "../app/lib/bridge";
+import {
+  engineFromQuote,
+  normalizeTextileQuote,
+  selectEngine,
+  type BridgeLeg,
+} from "../app/lib/bridge";
 import { isTextileRoute } from "../app/lib/bridgeFeature";
 
 const leg = (
@@ -90,6 +95,24 @@ describe("textile routing", () => {
 
   it("does not select textile for non-cNGN pairs on BSC", () => {
     expect(selectEngine(BSC_USDC, BASE_USDC)).toBe("near");
+  });
+});
+
+describe("engineFromQuote", () => {
+  it("maps textile-swap quotes to the textile engine", () => {
+    expect(
+      engineFromQuote({
+        kind: "textile-swap",
+        amountOut: "100",
+        feeReceivingToken: "0",
+        chainId: 56,
+        sellToken: "0xabc",
+        buyToken: "0xdef",
+        sellAmount: "1000000",
+        toDecimals: 6,
+        raw: {},
+      }),
+    ).toBe("textile");
   });
 });
 

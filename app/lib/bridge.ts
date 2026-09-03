@@ -198,6 +198,35 @@ export function selectEngine(from: BridgeLeg, to: BridgeLeg): BridgeEngine {
   return "near";
 }
 
+/** Resolve the status-polling engine from a concrete quote (source of truth after fetch). */
+export function engineFromQuote(quote: BridgeQuote): BridgeEngine {
+  switch (quote.kind) {
+    case "lifi-tx":
+      return "lifi";
+    case "hyperfx-intent":
+      return "hyperfx";
+    case "textile-swap":
+      return "textile";
+    case "near-deposit":
+    default:
+      return "near";
+  }
+}
+
+/** Institution label persisted on bridge transactions and shown in history. */
+export function bridgeInstitutionLabel(quote: BridgeQuote): string {
+  switch (quote.kind) {
+    case "near-deposit":
+      return "NEAR Intents";
+    case "textile-swap":
+      return "Textile FX";
+    case "hyperfx-intent":
+      return "HyperFX";
+    case "lifi-tx":
+      return "LI.FI";
+  }
+}
+
 /**
  * Returns true when a route between `from` and `to` is supported.
  * Starknet legs are unsupported: NEAR Intents only has STRK/ZEC/XRP (no stablecoins),

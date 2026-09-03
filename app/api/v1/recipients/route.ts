@@ -8,7 +8,7 @@ import {
   trackBusinessEvent,
 } from "@/app/lib/server-analytics";
 import { isValidEvmAddressCaseInsensitive } from "@/app/lib/validation";
-import { NGN_NUBAN_LENGTH } from "@/app/utils";
+import { normalizeSavedRecipientChannel, NGN_NUBAN_LENGTH } from "@/app/utils";
 import type {
   RecipientDetailsWithId,
   SavedRecipientsResponse,
@@ -95,6 +95,10 @@ export const GET = withRateLimit(async (request: NextRequest) => {
         institutionCode: recipient.institution_code,
         accountIdentifier: recipient.account_identifier,
         type: recipient.type,
+        ...(recipient.channel ? { channel: recipient.channel } : {}),
+        ...(recipient.business_number
+          ? { businessNumber: recipient.business_number }
+          : {}),
       })) || [];
 
     // Transform wallet recipients
@@ -172,8 +176,17 @@ export const POST = withRateLimit(async (request: NextRequest) => {
     });
 
     const body = await request.json();
-    const { name, institution, institutionCode, accountIdentifier, type, currency, walletAddress: walletAddressFromBody } =
-      body;
+    const {
+      name,
+      institution,
+      institutionCode,
+      accountIdentifier,
+      type,
+      currency,
+      walletAddress: walletAddressFromBody,
+      channel,
+      businessNumber,
+    } = body;
 
     // Handle wallet recipients (onramp)
     if (type === "wallet") {
@@ -409,6 +422,13 @@ export const POST = withRateLimit(async (request: NextRequest) => {
     }
 
     // Insert recipient (upsert on unique constraint) - store sanitized digits so DB has consistent format
+    const channelValue =
+      typeof channel === "string" ? normalizeSavedRecipientChannel(channel) : "";
+    // "" rather than null: business_number is part of the recipient unique key, and
+    // Postgres treats NULLs as distinct, which would defeat the upsert.
+    const businessNumberValue =
+      typeof businessNumber === "string" ? businessNumber.trim() : "";
+
     const { data, error } = await supabaseAdmin
       .from("saved_recipients")
       .upsert(
@@ -420,10 +440,12 @@ export const POST = withRateLimit(async (request: NextRequest) => {
           institution_code: trimmedInstitutionCode,
           account_identifier: currency === "NGN" ? sanitizedIdentifier.replace(/\D/g, "") : sanitizedIdentifier,
           type,
+          channel: channelValue,
+          business_number: businessNumberValue,
         },
         {
           onConflict:
-            "normalized_wallet_address,institution_code,account_identifier",
+            "normalized_wallet_address,institution_code,account_identifier,channel,business_number",
         },
       )
       .select()
@@ -442,6 +464,10 @@ export const POST = withRateLimit(async (request: NextRequest) => {
       institutionCode: data.institution_code,
       accountIdentifier: data.account_identifier,
       type: data.type,
+      ...(data.channel ? { channel: data.channel } : {}),
+      ...(data.business_number
+        ? { businessNumber: data.business_number }
+        : {}),
     };
 
     const response: SaveRecipientResponse = {

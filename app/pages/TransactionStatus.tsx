@@ -31,6 +31,10 @@ import {
   formatRecipientNameFirstWordForPill,
   getExplorerLink,
   getInstitutionNameByCode,
+  getKesMpesaInstitutionLabel,
+  KES_MPESA_INSTITUTION_CODE,
+  normalizeSavedRecipientChannel,
+  isSameSavedRecipient,
   getRpcUrl,
   isBlockFestActive,
 } from "../utils";
@@ -50,6 +54,7 @@ import {
   STEPS,
   type OrderDetailsData,
   type TransactionStatusProps,
+  type KesMpesaChannel,
 } from "../types";
 import { toast } from "sonner";
 import { trackEvent } from "../hooks/analytics/client";
@@ -236,6 +241,8 @@ export function TransactionStatus({
   const recipientName = String(watch("recipientName")) || "";
   const accountIdentifier = watch("accountIdentifier") || "";
   const institution = watch("institution") || "";
+  const watchedKesChannel = watch("kesChannel") || "";
+  const watchedBusinessNumber = watch("businessNumber") || "";
   const recipientWalletAddress = String(watch("walletAddress") || "");
   const amountReceivedCrypto = Number(watch("amountReceived")) || 0;
 
@@ -616,8 +623,12 @@ export function TransactionStatus({
         const exists = savedRecipients.some(
           (r) =>
             r.type !== "wallet" &&
-            r.accountIdentifier === accountIdentifier &&
-            r.institutionCode === institution,
+            isSameSavedRecipient(r, {
+              accountIdentifier: String(accountIdentifier),
+              institutionCode: String(institution),
+              channel: String(watchedKesChannel) as KesMpesaChannel | "",
+              businessNumber: String(watchedBusinessNumber),
+            }),
         );
         setIsRecipientInBeneficiaries(exists);
       } catch (error) {
@@ -627,7 +638,13 @@ export function TransactionStatus({
     };
 
     checkRecipientExists();
-  }, [accountIdentifier, institution, getAccessToken]);
+  }, [
+    accountIdentifier,
+    institution,
+    watchedKesChannel,
+    watchedBusinessNumber,
+    getAccessToken,
+  ]);
 
   /**
    * Updates transaction status in the backend
@@ -1184,10 +1201,22 @@ export function TransactionStatus({
       return false;
     }
 
-    const institutionName = getInstitutionNameByCode(
-      String(institutionCode),
-      supportedInstitutions,
-    );
+    const kesChannel = formMethods.watch("kesChannel") as
+      | KesMpesaChannel
+      | ""
+      | undefined;
+    const businessNumber = String(
+      formMethods.watch("businessNumber") || "",
+    ).trim();
+    const savedChannel = normalizeSavedRecipientChannel(kesChannel);
+
+    const institutionName =
+      String(institutionCode) === KES_MPESA_INSTITUTION_CODE && kesChannel
+        ? getKesMpesaInstitutionLabel(kesChannel)
+        : getInstitutionNameByCode(
+            String(institutionCode),
+            supportedInstitutions,
+          );
 
     if (!institutionName) {
       console.error("Institution name not found");
@@ -1203,6 +1232,9 @@ export function TransactionStatus({
       type:
         (formMethods.watch("accountType") as "bank" | "mobile_money") || "bank",
       currency: String(formMethods.watch("currency") || ""),
+      // Send Money normalizes away so it matches pre-channel saved recipients.
+      ...(savedChannel ? { channel: savedChannel } : {}),
+      ...(businessNumber ? { businessNumber } : {}),
     };
 
     const accessToken = await getAccessToken();
@@ -1237,6 +1269,8 @@ export function TransactionStatus({
   const removeRecipient = async () => {
     const accountIdentifier = formMethods.watch("accountIdentifier");
     const institutionCode = formMethods.watch("institution");
+    const channel = formMethods.watch("kesChannel") || "";
+    const businessNumber = formMethods.watch("businessNumber") || "";
 
     if (!accountIdentifier || !institutionCode) {
       console.error("Missing account identifier or institution code");
@@ -1255,8 +1289,12 @@ export function TransactionStatus({
       const recipientToDelete = savedRecipients.find(
         (r) =>
           r.type !== "wallet" &&
-          r.accountIdentifier === accountIdentifier &&
-          r.institutionCode === institutionCode,
+          isSameSavedRecipient(r, {
+            accountIdentifier: String(accountIdentifier),
+            institutionCode: String(institutionCode),
+            channel: String(channel) as KesMpesaChannel | "",
+            businessNumber: String(businessNumber),
+          }),
       );
 
       if (!recipientToDelete) {

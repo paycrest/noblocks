@@ -173,6 +173,58 @@ export function formatKesMpesaAccountDisplay(
   return `${id} • M-PESA`;
 }
 
+/** Identity of a saved bank/mobile-money recipient, for dedupe and delete matching. */
+type SavedRecipientIdentity = {
+  accountIdentifier: string;
+  institutionCode: string;
+  channel?: KesMpesaChannel | "" | null;
+  businessNumber?: string | null;
+};
+
+/**
+ * Channel value to persist on a *saved recipient*, whose unique key includes it.
+ *
+ * Send Money collapses to `""` so it matches recipients saved before channels
+ * existed — otherwise the same phone number would be stored twice, once as `""`
+ * and once as `"Mobile"`. Only Till and Paybill, which are genuinely different
+ * payout targets, get a distinguishing value.
+ *
+ * Transaction history is not identity and keeps the literal channel, so past
+ * orders still show the rail the user actually picked.
+ *
+ * Unrecognized values also collapse to `""`, so an unexpected channel can never
+ * open a new slot in the recipient unique key.
+ */
+export function normalizeSavedRecipientChannel(
+  channel?: string | null,
+): "" | "Till" | "Paybill" {
+  const value = (channel ?? "").trim();
+  return value === "Till" || value === "Paybill" ? value : "";
+}
+
+/**
+ * True when two saved recipients are the same payout target.
+ *
+ * Mirrors the saved-recipient unique key exactly. Channel matters because Send
+ * Money / Till / Paybill share the `SAFAKEPC` code and may share an identifier;
+ * business number matters because two Paybills can share a reference under
+ * different businesses ("INV-001" billed by 400200 and by 888880). Comparing on
+ * fewer fields than the key hides rows in the beneficiaries list and can delete
+ * the wrong one.
+ */
+export function isSameSavedRecipient(
+  a: SavedRecipientIdentity,
+  b: SavedRecipientIdentity,
+): boolean {
+  return (
+    a.accountIdentifier === b.accountIdentifier &&
+    a.institutionCode === b.institutionCode &&
+    normalizeSavedRecipientChannel(a.channel) ===
+      normalizeSavedRecipientChannel(b.channel) &&
+    (a.businessNumber ?? "").trim() === (b.businessNumber ?? "").trim()
+  );
+}
+
 /**
  * Resolve institution display for preview/history, including KES channel rails.
  * With `accountIdentifier` set, returns the full account line (`id • name`);

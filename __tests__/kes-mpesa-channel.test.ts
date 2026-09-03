@@ -3,6 +3,8 @@ import {
   getOfframpAccountIdentifierPlaceholder,
   formatKesMpesaAccountDisplay,
   formatRecipientInstitutionDisplay,
+  isSameSavedRecipient,
+  normalizeSavedRecipientChannel,
   getKesMpesaInstitutionLabel,
   KES_MPESA_INSTITUTION_CODE,
 } from "../app/utils";
@@ -88,5 +90,85 @@ describe("KES M-Pesa virtual institution split", () => {
         currency: "KES",
       }),
     ).toBe("Equity Bank");
+  });
+  it("treats KES M-Pesa channels as distinct saved recipients", () => {
+    const till = {
+      accountIdentifier: "123456",
+      institutionCode: KES_MPESA_INSTITUTION_CODE,
+      channel: "Till" as const,
+    };
+    const paybill = {
+      accountIdentifier: "123456",
+      institutionCode: KES_MPESA_INSTITUTION_CODE,
+      channel: "Paybill" as const,
+    };
+    // Same code + identifier, different rail: must not collapse or cross-delete.
+    expect(isSameSavedRecipient(till, paybill)).toBe(false);
+    expect(isSameSavedRecipient(till, { ...till })).toBe(true);
+  });
+
+  it("treats a missing channel and an empty channel as the same recipient", () => {
+    const legacy = {
+      accountIdentifier: "0712345678",
+      institutionCode: KES_MPESA_INSTITUTION_CODE,
+    };
+    const empty = { ...legacy, channel: "" as const };
+    expect(isSameSavedRecipient(legacy, empty)).toBe(true);
+  });
+  it("collapses Send Money to an empty stored channel, keeps Till/Paybill", () => {
+    // Send Money must match recipients saved before channels existed,
+    // or the same phone number is stored twice ("" and "Mobile").
+    expect(normalizeSavedRecipientChannel("Mobile")).toBe("");
+    expect(normalizeSavedRecipientChannel("")).toBe("");
+    expect(normalizeSavedRecipientChannel(undefined)).toBe("");
+    expect(normalizeSavedRecipientChannel(null)).toBe("");
+    expect(normalizeSavedRecipientChannel("Till")).toBe("Till");
+    expect(normalizeSavedRecipientChannel("Paybill")).toBe("Paybill");
+  });
+
+  it("matches a legacy M-Pesa recipient against a Send Money selection", () => {
+    const legacy = {
+      accountIdentifier: "0712345678",
+      institutionCode: KES_MPESA_INSTITUTION_CODE,
+    };
+    const sendMoney = { ...legacy, channel: "Mobile" as const };
+    expect(isSameSavedRecipient(legacy, sendMoney)).toBe(true);
+    // Still distinct from the business rails.
+    expect(
+      isSameSavedRecipient(sendMoney, { ...legacy, channel: "Till" as const }),
+    ).toBe(false);
+  });
+  it("keeps two Paybills with the same reference but different businesses apart", () => {
+    // "INV-001" billed by 400200 is a different payout target than by 888880.
+    const base = {
+      accountIdentifier: "INV-001",
+      institutionCode: KES_MPESA_INSTITUTION_CODE,
+      channel: "Paybill" as const,
+    };
+    expect(
+      isSameSavedRecipient(
+        { ...base, businessNumber: "400200" },
+        { ...base, businessNumber: "888880" },
+      ),
+    ).toBe(false);
+    expect(
+      isSameSavedRecipient(
+        { ...base, businessNumber: "400200" },
+        { ...base, businessNumber: "400200" },
+      ),
+    ).toBe(true);
+  });
+
+  it("treats a missing and an empty business number as the same recipient", () => {
+    const base = {
+      accountIdentifier: "0712345678",
+      institutionCode: KES_MPESA_INSTITUTION_CODE,
+    };
+    expect(
+      isSameSavedRecipient(base, { ...base, businessNumber: "" }),
+    ).toBe(true);
+    expect(
+      isSameSavedRecipient(base, { ...base, businessNumber: null }),
+    ).toBe(true);
   });
 });

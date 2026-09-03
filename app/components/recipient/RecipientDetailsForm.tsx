@@ -15,7 +15,7 @@ import { useOutsideClick } from "@/app/hooks";
 import { fetchAccountName } from "@/app/api/aggregator";
 import { usePrivy } from "@privy-io/react-auth";
 import { InputError } from "@/app/components/InputError";
-import { classNames, getOfframpAccountIdentifierPlaceholder, filterAndSortInstitutions } from "@/app/utils";
+import { classNames, getOfframpAccountIdentifierPlaceholder, filterAndSortInstitutions, NGN_NUBAN_LENGTH } from "@/app/utils";
 import {
   RecipientDetails,
   RecipientDetailsFormProps,
@@ -93,11 +93,11 @@ export const RecipientDetailsForm = ({
   const [isManualEntry, setIsManualEntry] = useState(true);
   const [isReturningFromPreview, setIsReturningFromPreview] = useState(false);
 
-  /** NGN NUBAN: cap at 10 digits (6 for SAFAKEPC). Other currencies: no digit cap. */
-  const ngnAccountMaxDigits = useMemo(() => {
-    if (currency !== "NGN") return null;
-    return selectedInstitution?.code === "SAFAKEPC" ? 6 : 10;
-  }, [currency, selectedInstitution?.code]);
+  /** NGN NUBAN: cap at 10 digits. Other currencies: no digit cap. */
+  const ngnAccountMaxDigits = useMemo(
+    () => (currency === "NGN" ? NGN_NUBAN_LENGTH : null),
+    [currency],
+  );
 
   const prevCurrencyRef = useRef(currency);
   const isDark = useActualTheme();
@@ -279,19 +279,16 @@ export const RecipientDetailsForm = ({
 
       const isNGN = currency === "NGN";
       const digits = String(accountIdentifier ?? "").replace(/\D/g, "");
-      const requiredLen = selectedInstitution?.code === "SAFAKEPC" ? 6 : 10;
 
       if (!institution || !accountIdentifier) {
         setRecipientNameError("");
         return;
       }
 
-      if (isNGN && digits.length !== requiredLen) {
+      if (isNGN && digits.length !== NGN_NUBAN_LENGTH) {
         if (digits.length > 0) {
           setRecipientNameError(
-            requiredLen === 10
-              ? "Please enter a valid 10-digit account number."
-              : "Invalid account number. Please enter a 6-digit account number.",
+            "Please enter a valid 10-digit account number.",
           );
         } else {
           setRecipientNameError("");
@@ -422,12 +419,8 @@ export const RecipientDetailsForm = ({
     validate: (value) => {
       if (currency !== "NGN") return true;
       const digits = String(value ?? "").replace(/\D/g, "");
-      // SAFAKEPC is the sandbox NGN institution (6-digit accounts, not 10-digit NUBAN).
-      const requiredLen = selectedInstitution?.code === "SAFAKEPC" ? 6 : 10;
-      if (digits.length !== requiredLen) {
-        return requiredLen === 10
-          ? "Please enter a valid 10-digit account number."
-          : "Invalid account number. Please enter a 6-digit account number.";
+      if (digits.length !== NGN_NUBAN_LENGTH) {
+        return "Please enter a valid 10-digit account number.";
       }
       return true;
     },
@@ -569,8 +562,7 @@ export const RecipientDetailsForm = ({
                 </button>
               </div>
 
-              {/* Account number */}
-              {/* Account number - NUBAN is 10 digits; SAFAKEPC uses 6 digits (NGN only) */}
+              {/* Account number - NGN NUBAN is 10 digits */}
               <div className="w-full flex-1 flex-shrink-0 sm:w-1/2">
                 <input
                   type="text"
@@ -580,13 +572,7 @@ export const RecipientDetailsForm = ({
                     currency,
                     selectedInstitution?.type,
                   )}
-                  maxLength={
-                    currency === "NGN"
-                      ? selectedInstitution?.code === "SAFAKEPC"
-                        ? 6
-                        : 10
-                      : undefined
-                  }
+                  maxLength={ngnAccountMaxDigits ?? undefined}
                   {...accountIdentifierRegister}
                   onChange={(e) => {
                     setIsManualEntry(true);

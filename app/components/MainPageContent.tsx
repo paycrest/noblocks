@@ -322,6 +322,8 @@ export function MainPageContent() {
       accountIdentifier: "",
       accountType: "bank",
       walletAddress: "",
+      kesChannel: "",
+      businessNumber: "",
       swapMode: initialSwapMode,
       /** Must match `swapMode` or tabs vs recipient/rates disagree (e.g. Base defaults on-ramp). */
       isSwapped: initialSwapMode === "onramp",

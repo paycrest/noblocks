@@ -13,6 +13,9 @@ import {
   getCurrencySymbol,
   getGatewayContractAddress,
   getInstitutionNameByCode,
+  formatRecipientInstitutionDisplay,
+  getKesMpesaInstitutionLabel,
+  KES_MPESA_INSTITUTION_CODE,
   getNetworkImageUrl,
   getRpcUrl,
   normalizeNetworkName,
@@ -145,6 +148,8 @@ export const TransactionPreview = ({
     accountIdentifier,
     memo,
     walletAddress,
+    kesChannel,
+    businessNumber,
   } = formValues;
 
   // Derive the flow from the form's own mode, never from `!!walletAddress` — a Buy that somehow
@@ -356,7 +361,16 @@ export const TransactionPreview = ({
         .split(" ")
         .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
         .join(" "),
-      account: `${accountIdentifier} • ${getInstitutionNameByCode(institution, supportedInstitutions) ?? institution ?? ""}`,
+      account: formatRecipientInstitutionDisplay(
+        institution,
+        supportedInstitutions,
+        {
+          currency,
+          channel: kesChannel,
+          accountIdentifier,
+          businessNumber,
+        },
+      ),
       ...(memo && { description: memo }),
       network: selectedNetwork.chain.name,
     };
@@ -368,7 +382,23 @@ export const TransactionPreview = ({
         "Sender API key is not configured (set NEXT_PUBLIC_AGGREGATOR_SENDER_API_KEY_ID)",
       );
     }
-    const metadata = { apiKey: senderApiKeyId };
+    const metadata: Record<string, string> = { apiKey: senderApiKeyId };
+    if (
+      !isOnramp &&
+      formValues.institution === KES_MPESA_INSTITUTION_CODE &&
+      formValues.kesChannel
+    ) {
+      // Omit Mobile channel (default phone M-Pesa); include Till/Paybill for aggregator.
+      if (formValues.kesChannel !== "Mobile") {
+        metadata.channel = formValues.kesChannel;
+      }
+      if (
+        formValues.kesChannel === "Paybill" &&
+        formValues.businessNumber?.trim()
+      ) {
+        metadata.businessNumber = formValues.businessNumber.trim();
+      }
+    }
 
     const providerId =
       searchParams.get("provider") || searchParams.get("PROVIDER");
@@ -1052,12 +1082,19 @@ export const TransactionPreview = ({
           fee: Number(rate),
           recipient: {
             account_name: recipientName,
-            institution: getInstitutionNameByCode(
-              institution,
-              supportedInstitutions,
-            ) as string,
+            institution:
+              institution === KES_MPESA_INSTITUTION_CODE && kesChannel
+                ? getKesMpesaInstitutionLabel(kesChannel)
+                : (getInstitutionNameByCode(
+                    institution,
+                    supportedInstitutions,
+                  ) as string),
             account_identifier: accountIdentifier,
             ...(memo && { memo }),
+            ...(kesChannel ? { channel: kesChannel } : {}),
+            ...(businessNumber?.trim()
+              ? { business_number: businessNumber.trim() }
+              : {}),
           },
         },
         accessToken,
@@ -1117,12 +1154,19 @@ export const TransactionPreview = ({
           }
           : {
             account_name: recipientName,
-            institution: getInstitutionNameByCode(
-              institution,
-              supportedInstitutions,
-            ) as string,
+            institution:
+              institution === KES_MPESA_INSTITUTION_CODE && kesChannel
+                ? getKesMpesaInstitutionLabel(kesChannel)
+                : (getInstitutionNameByCode(
+                    institution,
+                    supportedInstitutions,
+                  ) as string),
             account_identifier: accountIdentifier,
             ...(memo && { memo }),
+            ...(kesChannel ? { channel: kesChannel } : {}),
+            ...(businessNumber?.trim()
+              ? { business_number: businessNumber.trim() }
+              : {}),
           },
         status: "pending",
         network: selectedNetwork.chain.name,

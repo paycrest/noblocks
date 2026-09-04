@@ -6,6 +6,7 @@ import {
   ArrowDown01Icon,
   Tick02Icon,
   InformationCircleIcon,
+  InformationSquareIcon,
 } from "hugeicons-react";
 import Image from "next/image";
 
@@ -15,7 +16,7 @@ import { useOutsideClick } from "@/app/hooks";
 import { fetchAccountName } from "@/app/api/aggregator";
 import { usePrivy } from "@privy-io/react-auth";
 import { InputError } from "@/app/components/InputError";
-import { classNames, getOfframpAccountIdentifierPlaceholder, filterAndSortInstitutions, expandKesMpesaInstitutions, KES_MPESA_INSTITUTION_CODE, kesMpesaUiKey, getKesMpesaInstitutionLabel, isSameSavedRecipient, NGN_NUBAN_LENGTH } from "@/app/utils";
+import { classNames, getOfframpAccountIdentifierPlaceholder, filterAndSortInstitutions, expandKesMpesaInstitutions, KES_MPESA_INSTITUTION_CODE, kesMpesaUiKey, getKesMpesaInstitutionLabel, isSameSavedRecipient, NGN_NUBAN_LENGTH, isUnresolvedAccountName } from "@/app/utils";
 import type { KesMpesaChannel } from "@/app/types";
 import {
   RecipientDetails,
@@ -32,6 +33,7 @@ import { validateWalletAddress } from "@/app/lib/validation";
 import { getNetworkImageUrl } from "@/app/utils";
 import { useActualTheme } from "@/app/hooks/useActualTheme";
 import { useNetwork } from "@/app/context";
+import { trackEvent } from "@/app/hooks/analytics/useMixpanel";
 import config from "@/app/lib/config";
 
 export const RecipientDetailsForm = ({
@@ -77,6 +79,15 @@ export const RecipientDetailsForm = ({
 
   const [isFetchingRecipientName, setIsFetchingRecipientName] = useState(false);
   const [recipientNameError, setRecipientNameError] = useState("");
+  /**
+   * The aggregator answers "OK" when no provider can resolve a name (Pretium fiats that
+   * soft-fail, and every currency with no verification at all). That is not a real account
+   * holder, so the user types one instead of being shown "ok" next to a success tick.
+   */
+  const [isRecipientNameEditable, setIsRecipientNameEditable] = useState(false);
+  const [alertViewed, setAlertViewed] = useState(false);
+  /** Guards against a slow verify overwriting a newer one (see getRecipientName). */
+  const nameRequestIdRef = useRef(0);
 
   const [savedRecipients, setSavedRecipients] = useState<
     RecipientDetailsWithId[]
@@ -125,8 +136,14 @@ export const RecipientDetailsForm = ({
         shouldValidate: true,
       });
     } else {
-      // Handle bank/mobile money selection for offramp
-      const channel = recipient.channel;
+      // Handle bank/mobile money selection for offramp.
+      // Send Money rows store channel as "" (the column default), so the API omits it.
+      // Restore the explicit Mobile rail, or the option cannot be matched back to its
+      // virtual split and the row shows unselected when the bank modal is reopened.
+      const channel: KesMpesaChannel | undefined =
+        recipient.institutionCode === KES_MPESA_INSTITUTION_CODE
+          ? (recipient.channel ?? "Mobile")
+          : recipient.channel;
       setSelectedInstitution({
         name:
           recipient.institutionCode === KES_MPESA_INSTITUTION_CODE && channel
@@ -147,6 +164,8 @@ export const RecipientDetailsForm = ({
       setValue("businessNumber", recipient.businessNumber ?? "", {
         shouldDirty: true,
       });
+      // Saved recipients carry a name already; never open the manual-entry input for them.
+      setIsRecipientNameEditable(false);
 
       // Remove extra spaces from recipient name
       recipient.name = recipient.name.replace(/\s+/g, " ").trim();
@@ -284,6 +303,7 @@ export const RecipientDetailsForm = ({
         setValue("accountIdentifier", "");
         setValue("businessNumber", "");
         setRecipientNameError("");
+        setIsRecipientNameEditable(false);
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -294,6 +314,11 @@ export const RecipientDetailsForm = ({
     let timeoutId: NodeJS.Timeout;
     const getRecipientName = async () => {
       if (!isManualEntry) return;
+
+      // Re-evaluating: drop the manual-name input until this attempt resolves. The
+      // local validation branches below render their error in the input's else branch,
+      // so leaving it mounted would make those messages unreachable.
+      setIsRecipientNameEditable(false);
 
       const isNGN = currency === "NGN";
       const digits = String(accountIdentifier ?? "").replace(/\D/g, "");
@@ -336,6 +361,11 @@ export const RecipientDetailsForm = ({
       setIsFetchingRecipientName(true);
       setValue("recipientName", "");
 
+      // Verify runs on a debounce, so a slow response can land after the user has
+      // already changed the institution or identifier. Only the newest request is
+      // allowed to write state.
+      const requestId = ++nameRequestIdRef.current;
+
       try {
         const channel = (kesChannel || undefined) as
           | KesMpesaChannel
@@ -355,9 +385,22 @@ export const RecipientDetailsForm = ({
           accountIdentifier: accountIdentifier.toString(),
           ...(metadata ? { metadata } : {}),
         });
-        setValue("recipientName", accountName);
+        if (requestId !== nameRequestIdRef.current) return;
+
+        if (isUnresolvedAccountName(accountName)) {
+          // No provider could resolve a name. Ask for one instead of presenting
+          // the literal "OK" as a verified account holder.
+          setIsRecipientNameEditable(true);
+          setValue("recipientName", "");
+          setRecipientNameError("");
+        } else {
+          setIsRecipientNameEditable(false);
+          setValue("recipientName", accountName);
+        }
         setIsFetchingRecipientName(false);
       } catch (error) {
+        if (requestId !== nameRequestIdRef.current) return;
+        setIsRecipientNameEditable(false);
         setRecipientNameError("No recipient account found.");
         setIsFetchingRecipientName(false);
       }
@@ -423,6 +466,38 @@ export const RecipientDetailsForm = ({
     kesChannel,
   ]);
 
+  const handleLearnMore = () => {
+    trackEvent("recipient_alert_learn_more_clicked", {
+      currency,
+      institution: selectedInstitution?.name || "",
+    });
+    window.open(
+      "https://noblocks.xyz/blog/understanding-account-name-verification-on-noblocks",
+      "_blank",
+      "noopener,noreferrer",
+    );
+  };
+
+  // Fire once per time the manual-name alert becomes visible, not on every render.
+  useEffect(() => {
+    if (isRecipientNameEditable && !alertViewed) {
+      trackEvent("recipient_alert_viewed", {
+        currency,
+        institution: selectedInstitution?.name || "",
+        kes_channel: kesChannel || "",
+      });
+      setAlertViewed(true);
+    } else if (!isRecipientNameEditable && alertViewed) {
+      setAlertViewed(false);
+    }
+  }, [
+    isRecipientNameEditable,
+    alertViewed,
+    currency,
+    selectedInstitution?.name,
+    kesChannel,
+  ]);
+
   // Simplified recipient details management
   const clearRecipientDetails = () => {
     setSelectedInstitution(null);
@@ -433,6 +508,7 @@ export const RecipientDetailsForm = ({
     setValue("kesChannel", "");
     setValue("businessNumber", "");
     setRecipientNameError("");
+    setIsRecipientNameEditable(false);
     setIsManualEntry(true);
   };
 
@@ -509,6 +585,20 @@ export const RecipientDetailsForm = ({
       if (digits.length !== NGN_NUBAN_LENGTH) {
         return "Please enter a valid 10-digit account number.";
       }
+      return true;
+    },
+  });
+
+  const recipientNameRegister = register("recipientName", {
+    validate: (value) => {
+      if (!isRecipientNameEditable) return true;
+      const name = String(value ?? "").replace(/\s+/g, " ").trim();
+      if (!name) return "Recipient name is required";
+      // Never let the sentinel through as if it were a real account holder.
+      if (isUnresolvedAccountName(name)) {
+        return "Enter the recipient's account name";
+      }
+      if (name.length < 2) return "Enter the recipient's full account name";
       return true;
     },
   });
@@ -740,6 +830,39 @@ export const RecipientDetailsForm = ({
                     <ImSpinner className="size-4 animate-spin" />
                     <p className="text-xs">Verifying account name...</p>
                   </AnimatedFeedbackItem>
+                </div>
+              ) : isRecipientNameEditable ? (
+                <div className="w-full space-y-2">
+                  <input
+                    type="text"
+                    autoComplete="off"
+                    placeholder="Enter recipient name"
+                    {...recipientNameRegister}
+                    className={classNames(
+                      "w-full rounded-xl border bg-transparent px-4 py-2.5 text-base outline-none transition-all duration-300 placeholder:text-text-placeholder focus:outline-none dark:text-white/80 dark:placeholder:text-white/30 sm:text-sm",
+                      errors.recipientName
+                        ? "border-input-destructive focus:border-gray-400 dark:border-input-destructive"
+                        : "border-border-input dark:border-white/20 dark:focus:border-white/40 dark:focus:ring-offset-neutral-900",
+                    )}
+                  />
+                  {errors.recipientName && (
+                    <InputError message={errors.recipientName.message} />
+                  )}
+                  <div className="flex w-full min-w-0 items-start gap-2 rounded-xl bg-warning-background/[8%] px-3 py-2">
+                    <InformationSquareIcon className="mt-0.5 size-5 shrink-0 text-warning-foreground dark:text-warning-text" />
+                    <p className="min-w-0 flex-1 break-words text-xs font-light leading-snug text-warning-foreground dark:text-warning-text">
+                      We couldn&apos;t confirm this account name. Make sure the
+                      recipient&apos;s account number is accurate before proceeding
+                      with your swap.{" "}
+                      <button
+                        type="button"
+                        onClick={handleLearnMore}
+                        className="font-semibold text-lavender-500"
+                      >
+                        Learn more.
+                      </button>
+                    </p>
+                  </div>
                 </div>
               ) : (
                 <>

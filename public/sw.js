@@ -1,8 +1,8 @@
 // Bump BOTH versions on any deploy that changes build-time config (e.g. a
 // NEXT_PUBLIC_* key). The activate handler below purges every cache that does
 // not match, which is the only thing that evicts a stale precached shell.
-const CACHE_NAME = 'noblocks-pwa-v4';
-const RUNTIME_CACHE = 'noblocks-runtime-v4';
+const CACHE_NAME = 'noblocks-pwa-v5';
+const RUNTIME_CACHE = 'noblocks-runtime-v5';
 const OFFLINE_URL = '/offline.html';
 
 // Static assets to cache immediately

@@ -60,7 +60,6 @@
     "hugeicons-react": "^0.3.0",
     "jose": "^6.0.11",
     "js-cookie": "^3.0.5",
-    "jsencrypt": "^3.3.2",
     "jsonwebtoken": "^9.0.2",
     "libphonenumber-js": "^1.12.42",
     "lottie-react": "^2.4.1",

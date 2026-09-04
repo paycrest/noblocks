@@ -147,9 +147,6 @@ importers:
       js-cookie:
         specifier: ^3.0.5
         version: 3.0.5
-      jsencrypt:
-        specifier: ^3.3.2
-        version: 3.3.2
       jsonwebtoken:
         specifier: ^9.0.2
         version: 9.0.2
@@ -7706,9 +7703,6 @@ packages:
     peerDependenciesMeta:
       canvas:
         optional: true
-
-  jsencrypt@3.3.2:
-    resolution: {integrity: sha512-arQR1R1ESGdAxY7ZheWr12wCaF2yF47v5qpB76TtV64H1pyGudk9Hvw8Y9tb/FiTIaaTRUyaSnm5T/Y53Ghm/A==}
 
   jsesc@3.0.2:
     resolution: {integrity: sha512-xKqzzWXDttJuOcawBt4KnKHHIf5oQ/Cxax+0PWFG+DFDgHNAdi+TXECADI+RYiFUMmx8792xsMbbgXj4CwnP4g==}
@@ -21561,8 +21555,6 @@ snapshots:
       - bufferutil
       - supports-color
       - utf-8-validate
-
-  jsencrypt@3.3.2: {}
 
   jsesc@3.0.2: {}
 

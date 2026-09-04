@@ -1,5 +1,4 @@
 import { createElement, type ReactElement } from "react";
-import JSEncrypt from "jsencrypt";
 import type {
   InstitutionProps,
   KesMpesaChannel,
@@ -666,24 +665,6 @@ export async function getEmailForMonitoredAddress(
     console.warn("[privy] getUserBySmartWalletAddress", normalized, e);
   }
   return null;
-}
-
-/**
- * Encrypts data using the provided public key.
- * @param data - The data to be encrypted.
- * @param publicKeyPEM - The public key in PEM format.
- * @returns The encrypted data as a base64-encoded string.
- */
-export function publicKeyEncrypt(data: unknown, publicKeyPEM: string): string {
-  const encrypt = new JSEncrypt();
-  encrypt.setPublicKey(publicKeyPEM);
-
-  const encrypted = encrypt.encrypt(JSON.stringify(data));
-  if (encrypted === false) {
-    throw new Error("Failed to encrypt data");
-  }
-
-  return encrypted;
 }
 
 /**

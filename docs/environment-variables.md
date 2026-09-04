@@ -16,7 +16,7 @@ This document lists all environment variables used by the Noblocks application. 
    - `SUPABASE_URL` and `SUPABASE_SECRET_KEY` – From Supabase Dashboard
    - `INTERNAL_API_KEY` – Generate with `openssl rand -hex 32`
 
-   `NEXT_PUBLIC_AGGREGATOR_SENDER_API_KEY_ID` is optional for local UI exploration; set it when you need live order creation against the aggregator.
+   `AGGREGATOR_SENDER_API_KEY_ID` (server-only — never `NEXT_PUBLIC_`) is optional for local UI exploration; set it when you need live order creation against the aggregator.
 
 ## Variable Reference
 
@@ -25,10 +25,6 @@ This document lists all environment variables used by the Noblocks application. 
 ```bash
 # Aggregator API base URL
 NEXT_PUBLIC_AGGREGATOR_URL=https://api.paycrest.io/v1
-
-# Optional: Sender API key UUID (aggregator dashboard). Required for live order creation;
-# used by the payment-orders proxy and client for encrypted gateway.createOrder messageHash.
-NEXT_PUBLIC_AGGREGATOR_SENDER_API_KEY_ID=
 
 # KYC tier monthly swap limits (USD). Omitted or empty = use defaults below.
 # Tier 3 also accepts "unlimited" (case-insensitive) to remove cap.
@@ -149,6 +145,12 @@ NEXT_PUBLIC_SENTRY_ENABLE_IN_DEV=false          # Send events from local dev whe
 # Secret for internal API endpoints
 # Generate with: openssl rand -hex 32
 INTERNAL_API_KEY=
+
+# Server-only: Sender API key UUID (aggregator dashboard). Used by the
+# /api/v1/payment-orders* routes (API-Key header + encrypted offramp messageHash).
+# Never NEXT_PUBLIC_ — it must not reach the browser. Rotate it in the aggregator
+# dashboard if it was ever exposed in a client bundle.
+AGGREGATOR_SENDER_API_KEY_ID=
 ```
 
 ### Injected-Wallet Session Auth (SIWE)
@@ -388,6 +390,7 @@ NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE=0.1
 4. **Wallet Private Keys**: `CASHBACK_WALLET_PRIVATE_KEY`, `SPONSOR_EVM_WALLET_PRIVATE_KEY` control funds — use vaulted secrets in CI/CD
 5. **Internal API Key**: All internal endpoints require this — generate randomly and rotate periodically
 6. **SmileID/Dojah**: Treat as any third-party API credential — never commit raw values
+7. **Aggregator Sender API Key**: `AGGREGATOR_SENDER_API_KEY_ID` is server-only — never prefix it `NEXT_PUBLIC_`. It is both the aggregator `API-Key` credential and the value that attributes on-chain orders to our sender profile; if it was ever exposed in a client bundle, rotate it in the aggregator dashboard
 
 ## Related Documentation
 

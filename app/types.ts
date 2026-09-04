@@ -490,7 +490,6 @@ export type Config = {
   maintenanceSchedule: string; // e.g. "Friday, February 13th, from 7:00 PM to 11:00 PM WAT"
   referralMinQualifyingVolumeUsd: number;
   referralRewardAmountUsd: number;
-  aggregatorSenderApiKey: string;
   moralisWebhookSecret: string;
   activepiecesWebhookUrl: string;
   /**

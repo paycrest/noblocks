@@ -137,12 +137,13 @@ export const RecipientDetailsForm = ({
       });
     } else {
       // Handle bank/mobile money selection for offramp.
-      // Send Money rows store channel as "" (the column default), so the API omits it.
-      // Restore the explicit Mobile rail, or the option cannot be matched back to its
-      // virtual split and the row shows unselected when the bank modal is reopened.
+      // Send Money rows store channel as "" (the column default). The API omits an
+      // empty channel, but a cached or hand-built recipient can still carry the ""
+      // itself, and `??` would preserve it — so treat any falsy channel as Mobile.
+      // Only Till and Paybill are real business rails.
       const channel: KesMpesaChannel | undefined =
         recipient.institutionCode === KES_MPESA_INSTITUTION_CODE
-          ? (recipient.channel ?? "Mobile")
+          ? (recipient.channel || "Mobile")
           : recipient.channel;
       setSelectedInstitution({
         name:
@@ -311,60 +312,65 @@ export const RecipientDetailsForm = ({
 
   // Fetch recipient name based on institution and account identifier (only enforce digit-length for NGN)
   useEffect(() => {
+    // Bump synchronously on every dependency change, not just before a fetch: a
+    // lookup already in flight must be invalidated even when this run bails out in
+    // validation below, or its response would still be "current" and populate a
+    // name for an identifier the user has since replaced.
+    const requestId = ++nameRequestIdRef.current;
     let timeoutId: NodeJS.Timeout;
     const getRecipientName = async () => {
       if (!isManualEntry) return;
 
-      // Re-evaluating: drop the manual-name input until this attempt resolves. The
-      // local validation branches below render their error in the input's else branch,
-      // so leaving it mounted would make those messages unreachable.
+      // Re-evaluating: drop the manual-name input and any name already resolved or
+      // typed for the previous identifier. Both matter — the validation branches
+      // below render their error in the input's else branch, so a surviving name
+      // would show with a success tick and suppress the error entirely.
       setIsRecipientNameEditable(false);
+      setValue("recipientName", "");
 
       const isNGN = currency === "NGN";
       const digits = String(accountIdentifier ?? "").replace(/\D/g, "");
 
+      // Bail out without starting a lookup. Clears the spinner too: an earlier
+      // request may still be in flight, and its response now returns at the stale
+      // guard without touching state, which would leave the spinner up forever.
+      const stopWithoutLookup = (message: string) => {
+        setRecipientNameError(message);
+        setIsFetchingRecipientName(false);
+      };
+
       if (!institution || !accountIdentifier) {
-        setRecipientNameError("");
+        stopWithoutLookup("");
         return;
       }
 
       if (isKesPaybill && !(businessNumber ?? "").trim()) {
-        setRecipientNameError("");
+        stopWithoutLookup("");
         return;
       }
 
       if (isKesTill) {
         if (digits.length < 5 || digits.length > 7) {
-          if (digits.length > 0) {
-            setRecipientNameError(
-              "Please enter a valid till number (5–7 digits).",
-            );
-          } else {
-            setRecipientNameError("");
-          }
+          stopWithoutLookup(
+            digits.length > 0
+              ? "Please enter a valid till number (5–7 digits)."
+              : "",
+          );
           return;
         }
       }
 
       if (isNGN && digits.length !== NGN_NUBAN_LENGTH) {
-        if (digits.length > 0) {
-          setRecipientNameError(
-            "Please enter a valid 10-digit account number.",
-          );
-        } else {
-          setRecipientNameError("");
-        }
+        stopWithoutLookup(
+          digits.length > 0
+            ? "Please enter a valid 10-digit account number."
+            : "",
+        );
         return;
       }
 
       setRecipientNameError("");
       setIsFetchingRecipientName(true);
-      setValue("recipientName", "");
-
-      // Verify runs on a debounce, so a slow response can land after the user has
-      // already changed the institution or identifier. Only the newest request is
-      // allowed to write state.
-      const requestId = ++nameRequestIdRef.current;
 
       try {
         const channel = (kesChannel || undefined) as
@@ -595,10 +601,11 @@ export const RecipientDetailsForm = ({
       const name = String(value ?? "").replace(/\s+/g, " ").trim();
       if (!name) return "Recipient name is required";
       // Never let the sentinel through as if it were a real account holder.
+      // Any other non-empty name is accepted — no minimum length, since a short
+      // trading name is legitimate and there is no product rule requiring one.
       if (isUnresolvedAccountName(name)) {
         return "Enter the recipient's account name";
       }
-      if (name.length < 2) return "Enter the recipient's full account name";
       return true;
     },
   });

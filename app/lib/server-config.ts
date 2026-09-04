@@ -60,3 +60,18 @@ export function getServerMixpanelToken(): string {
     false, // Optional - analytics can fail gracefully
   );
 }
+
+/**
+ * Aggregator sender API key (UUID from the aggregator dashboard).
+ *
+ * SERVER-ONLY. Sent as the `API-Key` header by the /api/v1/payment-orders*
+ * routes and injected into the encrypted offramp messageHash by
+ * app/lib/payment-order-message-hash.ts. Never NEXT_PUBLIC_ — the value must
+ * not reach the browser. Read lazily per call so a missing variable degrades
+ * to a 503 at request time instead of breaking `next build` (CI builds with it
+ * unset).
+ */
+export function getAggregatorSenderApiKey(): string {
+  if (typeof window !== "undefined") return "";
+  return (process.env.AGGREGATOR_SENDER_API_KEY_ID || "").trim();
+}

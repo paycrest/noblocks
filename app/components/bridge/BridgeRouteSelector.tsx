@@ -27,7 +27,7 @@ interface BridgeRouteSelectorProps {
   onFromNetworkChange: (name: string) => void;
   onToNetworkChange: (name: string) => void;
   outputAmount?: string;
-  engine?: "near" | "lifi" | null;
+  engine?: "near" | "lifi" | "textile" | "hyperfx" | null;
   timeEstimate?: string;
   isQuoteLoading?: boolean;
   /** When true, styles the From amount like swap validation errors. */

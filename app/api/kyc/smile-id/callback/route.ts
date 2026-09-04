@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/app/lib/supabase";
 import { getSmileIdJobStatus } from "@/app/lib/smileID";
 import { notifyKycResultEmail } from "@/app/lib/activepieces-kyc-result";
+import { createKycReporter } from "@/app/lib/kyc-telemetry";
 
 // The callback signature only covers timestamp + partner_id (per SmileID's
 // protocol), NOT the body. A captured (timestamp, signature) pair could be
@@ -41,10 +42,23 @@ function confirmSmileSignature(
 }
 
 export async function POST(request: NextRequest) {
+  // The wallet is only known once the body is parsed, so the reporter starts
+  // without one and each call supplies it as soon as it is available.
+  const report = createKycReporter({
+    step: "id_callback",
+    targetTier: 2,
+    provider: "smile_id",
+  });
+
   let body: Record<string, any>;
   try {
     body = await request.json();
   } catch {
+    report.rejected({
+      stage: "request_validation",
+      reason: "invalid_json",
+      statusCode: 400,
+    });
     return NextResponse.json({ status: "error", message: "Invalid JSON" }, { status: 400 });
   }
 
@@ -52,7 +66,13 @@ export async function POST(request: NextRequest) {
   const apiKey = process.env.SMILE_IDENTITY_API_KEY;
 
   if (!partnerId || !apiKey) {
-    console.error("[smile-id/callback] Missing SMILE_IDENTITY_PARTNER_ID or SMILE_IDENTITY_API_KEY");
+    report.failed({
+      stage: "provider_config",
+      reason: "missing_provider_config",
+      detail:
+        "SMILE_IDENTITY_PARTNER_ID or SMILE_IDENTITY_API_KEY is not set",
+      statusCode: 500,
+    });
     return NextResponse.json({ status: "error", message: "Server misconfiguration" }, { status: 500 });
   }
 
@@ -60,6 +80,11 @@ export async function POST(request: NextRequest) {
   const { timestamp, signature } = body;
 
   if (!timestamp || !signature) {
+    report.rejected({
+      stage: "signature_check",
+      reason: "missing_signature_fields",
+      statusCode: 400,
+    });
     return NextResponse.json(
       { status: "error", message: "Missing signature fields" },
       { status: 400 },
@@ -74,7 +99,12 @@ export async function POST(request: NextRequest) {
   );
 
   if (!isValid) {
-    console.warn("[smile-id/callback] Signature verification failed", { timestamp });
+    // Worth alerting on: a genuine Smile ID callback never fails this.
+    report.rejected({
+      stage: "signature_check",
+      reason: "invalid_signature",
+      statusCode: 401,
+    });
     return NextResponse.json(
       { status: "error", message: "Invalid signature" },
       { status: 401 },
@@ -87,7 +117,11 @@ export async function POST(request: NextRequest) {
     timestampMs === null ||
     Math.abs(Date.now() - timestampMs) > MAX_CALLBACK_AGE_MS
   ) {
-    console.warn("[smile-id/callback] Stale or unparseable timestamp", { timestamp });
+    report.rejected({
+      stage: "signature_check",
+      reason: "stale_callback",
+      statusCode: 401,
+    });
     return NextResponse.json(
       { status: "error", message: "Stale callback" },
       { status: 401 },
@@ -103,7 +137,11 @@ export async function POST(request: NextRequest) {
     : rawUserId;
 
   if (!walletAddress) {
-    console.error("[smile-id/callback] Could not extract wallet address", { rawUserId });
+    report.failed({
+      stage: "request_validation",
+      reason: "missing_user_identifier",
+      statusCode: 400,
+    });
     return NextResponse.json(
       { status: "error", message: "Missing user identifier" },
       { status: 400 },
@@ -128,19 +166,42 @@ export async function POST(request: NextRequest) {
     .maybeSingle();
 
   if (fetchError) {
-    console.error("[smile-id/callback] Failed to fetch profile", { walletAddress, fetchError });
+    report.failed({
+      walletAddress,
+      stage: "profile_fetch",
+      reason: "supabase_error",
+      provider: "supabase",
+      providerCode: fetchError.code,
+      detail: fetchError.message,
+      jobId,
+      statusCode: 500,
+    });
     // Return 500 so SmileID retries delivery.
     return NextResponse.json({ status: "error", message: "Database error" }, { status: 500 });
   }
 
   if (!existing) {
-    console.warn("[smile-id/callback] No KYC profile found for wallet", { walletAddress });
+    report.rejected({
+      walletAddress,
+      stage: "profile_fetch",
+      reason: "no_kyc_profile",
+      jobId,
+      statusCode: 200,
+    });
     return NextResponse.json({ status: "ok", action: "none" });
   }
 
   // Already verified at tier 2+ — the sync response handled it; nothing to do.
   if (existing.verified && Number(existing.tier) >= 2) {
-    console.log("[smile-id/callback] Profile already verified, skipping", { walletAddress });
+    // The expected path: the synchronous submission already promoted them.
+    report.noop({
+      walletAddress,
+      stage: "profile_fetch",
+      reason: "already_verified",
+      tierFrom: Number(existing.tier) || 0,
+      jobId,
+      statusCode: 200,
+    });
     return NextResponse.json({ status: "ok", action: "already_verified" });
   }
 
@@ -148,8 +209,12 @@ export async function POST(request: NextRequest) {
   // Body fields are not covered by the callback signature; only proceed if
   // SmileID's signed job_status API reports the same success.
   if (!jobId) {
-    console.warn("[smile-id/callback] Missing job_id, cannot confirm job — no action", {
+    report.rejected({
       walletAddress,
+      stage: "job_status_confirm",
+      reason: "missing_job_id",
+      tierFrom: Number(existing.tier) || 0,
+      statusCode: 200,
     });
     return NextResponse.json({ status: "ok", action: "none" });
   }
@@ -168,12 +233,20 @@ export async function POST(request: NextRequest) {
     if (!confirmed) {
       // Covers failed/incomplete jobs too: SmileID sends callbacks for those,
       // and the signed status is the only outcome we act on.
-      console.log("[smile-id/callback] job_status did not confirm verification — no action", {
+      // A failed or still-incomplete job. Smile ID calls back for both, and
+      // the signed status is the only outcome we act on — so this is where an
+      // asynchronously rejected upgrade becomes visible.
+      report.rejected({
         walletAddress,
+        stage: "job_status_confirm",
+        reason: "provider_rejected",
+        detail:
+          (jobStatus?.result?.ResultText as string) ??
+          `job_complete=${jobStatus?.job_complete} job_success=${jobStatus?.job_success}`,
+        providerCode: jobStatus?.result?.ResultCode,
+        tierFrom: Number(existing.tier) || 0,
         jobId,
-        job_complete: jobStatus?.job_complete,
-        job_success: jobStatus?.job_success,
-        ResultCode: jobStatus?.result?.ResultCode,
+        statusCode: 200,
       });
       return NextResponse.json({ status: "ok", action: "none" });
     }
@@ -181,10 +254,14 @@ export async function POST(request: NextRequest) {
     const statusResult = (jobStatus?.result ?? {}) as Record<string, any>;
     signedIdInfo = statusResult.id_info ?? statusResult.ID_Info ?? {};
   } catch (e) {
-    console.error("[smile-id/callback] job_status confirmation failed", {
+    report.failed({
       walletAddress,
+      stage: "job_status_confirm",
+      reason: "provider_status_failed",
+      detail: e instanceof Error ? e.message : String(e),
+      error: e,
       jobId,
-      error: e instanceof Error ? e.message : e,
+      statusCode: 500,
     });
     // 500 so SmileID retries once the status API is reachable again.
     return NextResponse.json(
@@ -235,9 +312,15 @@ export async function POST(request: NextRequest) {
       .maybeSingle();
 
     if (idOwnerError) {
-      console.error("[smile-id/callback] ID ownership check failed", {
+      report.failed({
         walletAddress,
-        idOwnerError,
+        stage: "duplicate_id_check",
+        reason: "supabase_error",
+        provider: "supabase",
+        providerCode: idOwnerError.code,
+        detail: idOwnerError.message,
+        jobId,
+        statusCode: 500,
       });
       // Transient: 500 so SmileID retries.
       return NextResponse.json(
@@ -247,10 +330,14 @@ export async function POST(request: NextRequest) {
     }
 
     if (idOwner) {
-      console.warn(
-        "[smile-id/callback] ID document already verified on another wallet — skipping tier promotion",
-        { walletAddress, jobId },
-      );
+      report.rejected({
+        walletAddress,
+        stage: "duplicate_id_check",
+        reason: "duplicate_id_document",
+        tierFrom: currentTier,
+        jobId,
+        statusCode: 200,
+      });
       // 200: the conflict is permanent, so retrying would loop forever.
       return NextResponse.json({
         status: "ok",
@@ -275,24 +362,43 @@ export async function POST(request: NextRequest) {
     // Same conflict, lost to a concurrent verification after the check above.
     // Still permanent — do not ask SmileID to retry.
     if (updateError.code === "23505") {
-      console.warn(
-        "[smile-id/callback] Tier promotion hit the verified-ID unique index",
-        { walletAddress, jobId },
-      );
+      report.rejected({
+        walletAddress,
+        stage: "profile_update",
+        reason: "duplicate_id_document",
+        provider: "supabase",
+        providerCode: updateError.code,
+        tierFrom: currentTier,
+        jobId,
+        statusCode: 200,
+      });
       return NextResponse.json({
         status: "ok",
         action: "duplicate_id_conflict",
       });
     }
-    console.error("[smile-id/callback] Failed to update profile", { walletAddress, updateError });
+    report.failed({
+      walletAddress,
+      stage: "profile_update",
+      reason: "supabase_error",
+      provider: "supabase",
+      providerCode: updateError.code,
+      detail: updateError.message,
+      tierFrom: currentTier,
+      jobId,
+      statusCode: 500,
+    });
     // Return 500 so SmileID retries.
     return NextResponse.json({ status: "error", message: "Database update failed" }, { status: 500 });
   }
 
-  console.log("[smile-id/callback] Profile verified via async callback", {
+  report.success({
     walletAddress,
+    stage: "profile_update",
+    tierFrom: currentTier,
+    tierTo: newTier,
     jobId,
-    newTier,
+    statusCode: 200,
   });
 
   // Notify once, only on the first promotion to tier 2. Earlier guards already

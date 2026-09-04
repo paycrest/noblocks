@@ -7,7 +7,13 @@ import { useNetwork } from "@/app/context/NetworksContext";
 import { useStarknet } from "@/app/context/StarknetContext";
 import { useBalance, useTokens, useInjectedWallet } from "@/app/context";
 import { useBridgeQuote, useBridgeExecute, useBridgeStatus } from "@/app/hooks/bridge";
-import { selectEngine, toRawAmount, bridgeFeeInReceivingToken } from "@/app/lib/bridge";
+import {
+  selectEngine,
+  engineFromQuote,
+  bridgeInstitutionLabel,
+  toRawAmount,
+  bridgeFeeInReceivingToken,
+} from "@/app/lib/bridge";
 import type { BridgeLeg, BridgeEngine } from "@/app/lib/bridge";
 import { minOffRampTokenAmount } from "@/app/lib/marketLiquidity";
 import { BridgeRouteSelector } from "./BridgeRouteSelector";
@@ -206,9 +212,7 @@ export const BridgeForm: React.FC<BridgeFormProps> = ({
   // once a quote lands it is the source of truth, because a NEAR pair with no solver
   // inventory (USDT on Base, any Lisk/Celo leg) falls back to LI.FI inside useBridgeQuote.
   const engine: BridgeEngine | null = quote
-    ? quote.kind === "lifi-tx"
-      ? "lifi"
-      : "near"
+    ? engineFromQuote(quote)
     : from && to
       ? selectEngine(from, to)
       : null;
@@ -295,7 +299,8 @@ export const BridgeForm: React.FC<BridgeFormProps> = ({
     try {
       setIsFinalizing(true);
       const { txHash, depositRefId } = await execute(quote, fromWithAmount);
-      const resolvedEngine: BridgeEngine = quote.kind === "lifi-tx" ? "lifi" : "near";
+      const resolvedEngine = engineFromQuote(quote);
+      const initialDbStatus = "pending";
 
       // Injected wallets authenticate saves via the x-injected-token session
       // JWT (interactive: the user just executed a convert, so a re-prompt on
@@ -318,12 +323,12 @@ export const BridgeForm: React.FC<BridgeFormProps> = ({
             fee: bridgeFeeInReceivingToken(quote),
             recipient: {
               account_name: "Convert",
-              institution: quote.kind === "lifi-tx" ? "LI.FI" : "NEAR Intents",
+              institution: bridgeInstitutionLabel(quote),
               account_identifier: txHash,
               // network is the source; persist the destination here (no schema change).
               to_network: to.network,
             },
-            status: "pending",
+            status: initialDbStatus,
             network: from.network,
             txHash,
             orderId: depositRefId,

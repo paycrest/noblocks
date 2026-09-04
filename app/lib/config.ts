@@ -56,8 +56,6 @@ const config: Config = {
     );
     return Number.isFinite(parsed) ? parsed : 0;
   })(),
-  /** Sender API key UUID (aggregator dashboard). Used by server proxy and client (on-chain messageHash metadata). */
-  aggregatorSenderApiKey: (process.env.NEXT_PUBLIC_AGGREGATOR_SENDER_API_KEY_ID || "").trim(),
   moralisWebhookSecret: process.env.MORALIS_WEBHOOK_SECRET || "",
   activepiecesWebhookUrl: process.env.ACTIVEPIECES_WEBHOOK_URL || "",
   activepiecesSignupVerifyWebhookUrl:
@@ -73,6 +71,8 @@ const config: Config = {
   tronEnabled: process.env.NEXT_PUBLIC_TRON_ENABLED === "true",
   referralEnabled: (process.env.NEXT_PUBLIC_REFERRAL_ENABLED || "").trim().toLowerCase() !== "false",
   bridgeEnabled: process.env.NEXT_PUBLIC_BRIDGE_ENABLED === "true",
+  textileEnabled: process.env.NEXT_PUBLIC_TEXTILE_ENABLED === "true",
+  hyperfxEnabled: process.env.NEXT_PUBLIC_HYPERFX_ENABLED === "true",
   onrampChainedForwardingEnabled:
     process.env.NEXT_PUBLIC_ONRAMP_CHAINED_FORWARDING_ENABLED === "true",
   kesOnrampEnabled: process.env.NEXT_PUBLIC_KES_ONRAMP_ENABLED !== "false",

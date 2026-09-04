@@ -13,6 +13,15 @@ import { buildBatchDigest, encodeExecuteBatch, readBatchNonce } from "./provider
 import { getRpcUrl } from "@/app/utils";
 import { getDelegationContractAddress } from "./config";
 import { get7702AuthorizedImplementationForAddress } from "../hooks/useEIP7702Account";
+import { isTextileRoute } from "./bridgeFeature";
+import {
+  HYPERFX_SUPPORTED_NETWORKS,
+  isHyperfxSwapEnabled,
+} from "./bridgeFeature";
+import {
+  getTextileRfqClaim,
+  storeTextileRfqClaim,
+} from "./textileServer";
 
 // ============================================================================
 // TYPES
@@ -69,7 +78,60 @@ export interface LifiTxQuote {
   raw: unknown;
 }
 
-export type BridgeQuote = NearDepositQuote | LifiTxQuote;
+/** Textile FX v2 RFQ preview — firm quote + txs fetched on confirm via POST /v2/rfq/request. */
+export interface TextileSwapQuote {
+  kind: "textile-swap";
+  amountOut: string;
+  /** Protocol fee in receiving token (0 when not surfaced at preview time). */
+  feeReceivingToken: string;
+  chainId: number;
+  sellToken: string;
+  buyToken: string;
+  /** Exact-input sell cap in atomic units — pass to POST /v2/rfq/request. */
+  sellAmount: string;
+  toDecimals: number;
+  raw: unknown;
+}
+
+/** Built Textile v2 RFQ with unsigned approval + swap txs (short-lived). */
+export interface TextileBuiltSwap {
+  rfqId: string;
+  claimToken: string;
+  /** Gross sell-token debit including protocol fee — approve this to reactor. */
+  takerPays: string;
+  reactor: `0x${string}`;
+  expiresAt: string;
+  approval?: { to: string; data: string; value: string; chainId: number };
+  swap: { to: string; data: string; value: string; chainId: number };
+}
+
+/** Hyperbridge IntentGateway quote for same-chain USDC/USDT↔cNGN (HyperFX). */
+export interface HyperfxIntentQuote {
+  kind: "hyperfx-intent";
+  amountOut: string;
+  /** Protocol fee deducted from input, expressed in the receiving token. */
+  fee: string;
+  amountIn: string;
+  rawAmountIn: string;
+  rawAmountOut: string;
+  tokenIn: string;
+  tokenOut: string;
+  network: string;
+  chainId: number;
+  protocolFeeBps: number;
+  /** Quote validity window (ms since epoch). */
+  expiresAt: number;
+  /** ERC-4337 bundler URL from the authenticated quote response. */
+  bundlerUrl?: string;
+}
+
+export { storeTextileRfqClaim, getTextileRfqClaim };
+
+export type BridgeQuote =
+  | NearDepositQuote
+  | LifiTxQuote
+  | TextileSwapQuote
+  | HyperfxIntentQuote;
 
 export type BridgeStatus =
   | "PENDING_DEPOSIT"
@@ -85,23 +147,84 @@ export interface BridgeStatusResult {
   destinationTxHash?: string;
 }
 
-export type BridgeEngine = "near" | "lifi";
+export type BridgeEngine = "near" | "lifi" | "textile" | "hyperfx";
+
+export { HYPERFX_SUPPORTED_NETWORKS };
+
+export function isHyperfxEnabled(): boolean {
+  return isHyperfxSwapEnabled();
+}
+
+const HYPERFX_STABLES = new Set(["usdc", "usdt"]);
+
+function isHyperfxStableCngnPair(fromSym: string, toSym: string): boolean {
+  return (
+    (HYPERFX_STABLES.has(fromSym) && toSym === "cngn") ||
+    (fromSym === "cngn" && HYPERFX_STABLES.has(toSym))
+  );
+}
+
+/**
+ * True when this leg pair should route through HyperFX (same-chain USDC/USDT↔cNGN).
+ */
+export function isHyperfxRoute(from: BridgeLeg, to: BridgeLeg): boolean {
+  if (!isHyperfxEnabled()) return false;
+  if (from.network !== to.network) return false;
+  if (!HYPERFX_SUPPORTED_NETWORKS.has(from.network)) return false;
+
+  return isHyperfxStableCngnPair(
+    from.token.toLowerCase(),
+    to.token.toLowerCase(),
+  );
+}
 
 // ============================================================================
 // ROUTING
 // ============================================================================
 
 /**
- * Routes to LI.FI for cNGN legs or any Starknet leg; NEAR Intents otherwise (EVM↔EVM stablecoins).
- * Starknet uses LI.FI because NEAR Intents' token list only includes STRK/ZEC/XRP on Starknet —
- * no USDC/stablecoins — so stablecoin routes via NEAR always fail asset resolution.
+ * Routes Textile for same-chain USDT↔cNGN on BSC/Celo; HyperFX for same-chain
+ * USDC/USDT↔cNGN on supported networks; LI.FI for other cNGN legs or Starknet;
+ * NEAR Intents otherwise (EVM↔EVM stablecoins).
  */
 export function selectEngine(from: BridgeLeg, to: BridgeLeg): BridgeEngine {
+  if (isTextileRoute(from, to)) return "textile";
+  if (isHyperfxRoute(from, to)) return "hyperfx";
+
   const cngn = "cngn";
   const isStarknet = (n: string) => n.toLowerCase() === "starknet";
   if (from.token.toLowerCase() === cngn || to.token.toLowerCase() === cngn) return "lifi";
   if (isStarknet(from.network) || isStarknet(to.network)) return "lifi";
   return "near";
+}
+
+/** Resolve the status-polling engine from a concrete quote (source of truth after fetch). */
+export function engineFromQuote(quote: BridgeQuote): BridgeEngine {
+  switch (quote.kind) {
+    case "lifi-tx":
+      return "lifi";
+    case "hyperfx-intent":
+      return "hyperfx";
+    case "textile-swap":
+      return "textile";
+    case "near-deposit":
+    default:
+      return "near";
+  }
+}
+
+/** Institution label persisted on bridge transactions and shown in history. */
+export function bridgeInstitutionLabel(quote: BridgeQuote): string {
+  switch (quote.kind) {
+    case "near-deposit":
+      return "NEAR Intents";
+    case "textile-swap":
+      return "Textile FX";
+    case "hyperfx-intent":
+      return "HyperFX";
+    case "lifi-tx":
+      return "LI.FI";
+  }
 }
 
 /**
@@ -221,7 +344,13 @@ export function toRawAmount(amount: string, decimals: number): string {
  * comment there for how the origin-denominated `refundFee` fallback is converted.
  */
 export function bridgeFeeInReceivingToken(quote: BridgeQuote): number {
+  if (quote.kind === "hyperfx-intent") {
+    return parseFloat(quote.fee) || 0;
+  }
   if (quote.kind === "lifi-tx") {
+    return parseFloat(quote.feeReceivingToken) || 0;
+  }
+  if (quote.kind === "textile-swap") {
     return parseFloat(quote.feeReceivingToken) || 0;
   }
   return parseFloat(quote.fee) || 0;
@@ -460,6 +589,337 @@ export class LifiClient {
       txHash: data.txHash,
       destinationTxHash: data.receiving?.txHash,
     };
+  }
+}
+
+
+export function mapTextileStatus(status?: string): BridgeStatus {
+  switch ((status ?? "").toLowerCase()) {
+    case "filled":
+      return "SUCCESS";
+    case "failed":
+    case "expired":
+    case "no_quote":
+      return "FAILED";
+    case "quoted":
+    case "submitted":
+    case "soliciting":
+    default:
+      return "PROCESSING";
+  }
+}
+
+/**
+ * Accept Textile v2 RFQ previews with status `preview`.
+ * Falls back to LI.FI on `no_quote` or missing liquidity.
+ */
+export function normalizeTextileQuote(
+  data: unknown,
+  params: {
+    chainId: number;
+    sellToken: string;
+    buyToken: string;
+    sellAmount: string;
+    toDecimals: number;
+  },
+): TextileSwapQuote | null {
+  const preview = (data as { data?: Record<string, unknown> })?.data;
+  if (!preview || preview.status !== "preview") return null;
+
+  const buyAmount = String(preview.buyAmount ?? "0");
+  let amountOut = "0";
+  try {
+    if (BigInt(buyAmount) > BigInt(0)) {
+      amountOut = formatUnits(BigInt(buyAmount), params.toDecimals);
+    }
+  } catch {
+    return null;
+  }
+  if (parseFloat(amountOut) <= 0) return null;
+
+  return {
+    kind: "textile-swap",
+    amountOut,
+    feeReceivingToken: "0",
+    chainId: params.chainId,
+    sellToken: params.sellToken,
+    buyToken: params.buyToken,
+    sellAmount: params.sellAmount,
+    toDecimals: params.toDecimals,
+    raw: data,
+  };
+}
+
+export class TextileClient {
+  async getQuote(
+    params: {
+      chainId: number;
+      sellToken: string;
+      buyToken: string;
+      sellAmount: string;
+      toDecimals: number;
+    },
+    auth?: BridgeAuth | string | null,
+  ): Promise<BridgeQuote | null> {
+    const { data, status } = await axios.post(
+      "/api/bridge/textile/quote",
+      {
+        chainId: params.chainId,
+        sellToken: params.sellToken,
+        buyToken: params.buyToken,
+        sellAmount: params.sellAmount,
+      },
+      {
+        headers: authHeaders(auth),
+        validateStatus: () => true,
+      },
+    );
+
+    if (status === 404) return null;
+    if (status === 401 || status === 403) {
+      throw new Error("Authentication required for bridge quote");
+    }
+    if (status === 429) {
+      throw new Error("Textile quote rate-limited. Please retry shortly.");
+    }
+    if (status >= 400 && status < 500) return null;
+    if (status >= 500) {
+      throw new Error(data?.message || `Textile service error (${status})`);
+    }
+
+    return normalizeTextileQuote(data, {
+      chainId: params.chainId,
+      sellToken: params.sellToken,
+      buyToken: params.buyToken,
+      sellAmount: params.sellAmount,
+      toDecimals: params.toDecimals,
+    });
+  }
+
+  async requestQuote(
+    params: {
+      chainId: number;
+      sellToken: string;
+      buyToken: string;
+      sellAmount: string;
+      taker: string;
+    },
+    auth?: BridgeAuth | string | null,
+  ): Promise<TextileBuiltSwap | null> {
+    const { data, status } = await axios.post(
+      "/api/bridge/textile/swap",
+      {
+        chainId: params.chainId,
+        sellToken: params.sellToken,
+        buyToken: params.buyToken,
+        sellAmount: params.sellAmount,
+        taker: params.taker,
+      },
+      {
+        headers: authHeaders(auth),
+        validateStatus: () => true,
+      },
+    );
+
+    if (status === 401 || status === 403) {
+      throw new Error("Authentication required for bridge swap");
+    }
+    if (status >= 500) {
+      throw new Error(data?.message || `Textile service error (${status})`);
+    }
+    if (status >= 400) return null;
+
+    const rfq = data?.data;
+    if (rfq?.status !== "quoted" || !rfq.transactions?.swap) return null;
+
+    const firm = rfq.quote as Record<string, unknown> | undefined;
+    const reactor = firm?.reactor as string | undefined;
+    if (!rfq.rfqId || !rfq.claimToken || !reactor || !firm?.takerPays) return null;
+
+    storeTextileRfqClaim(String(rfq.rfqId), String(rfq.claimToken));
+
+    return {
+      rfqId: String(rfq.rfqId),
+      claimToken: String(rfq.claimToken),
+      takerPays: String(firm.takerPays),
+      reactor: reactor as `0x${string}`,
+      expiresAt: String(firm.expiresAt ?? ""),
+      approval: rfq.transactions.approval,
+      swap: rfq.transactions.swap,
+    };
+  }
+
+  /** @deprecated use requestQuote — kept as alias for call sites */
+  async buildSwap(
+    params: {
+      chainId: number;
+      sellToken: string;
+      buyToken: string;
+      sellAmount: string;
+      taker: string;
+    },
+    auth?: BridgeAuth | string | null,
+  ): Promise<TextileBuiltSwap | null> {
+    return this.requestQuote(params, auth);
+  }
+
+  async submitSwap(
+    rfqId: string,
+    txHash: string,
+    auth?: BridgeAuth | string | null,
+    claimToken?: string | null,
+  ): Promise<void> {
+    const claim = claimToken ?? getTextileRfqClaim(rfqId);
+    const maxAttempts = 3;
+    let lastError: Error | null = null;
+
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      try {
+        const { data, status } = await axios.post(
+          `/api/bridge/textile/submit`,
+          { rfqId, txHash, claimToken: claim ?? undefined },
+          {
+            headers: authHeaders(auth),
+            validateStatus: () => true,
+          },
+        );
+        if (status >= 200 && status < 300) return;
+
+        const message =
+          (data as { error?: { message?: string }; message?: string })?.error
+            ?.message ||
+          (data as { message?: string })?.message ||
+          `Textile submit failed (${status})`;
+        lastError = new Error(message);
+      } catch (err) {
+        lastError =
+          err instanceof Error ? err : new Error("Textile submit request failed");
+      }
+
+      if (attempt < maxAttempts - 1) {
+        await new Promise((resolve) => setTimeout(resolve, 500 * (attempt + 1)));
+      }
+    }
+
+    throw lastError ?? new Error("Textile submit failed");
+  }
+
+  async getStatus(
+    rfqId: string,
+    auth?: BridgeAuth | string | null,
+    claimToken?: string | null,
+  ): Promise<BridgeStatusResult> {
+    const claim = claimToken ?? getTextileRfqClaim(rfqId);
+    const { data } = await axios.get("/api/bridge/textile/status", {
+      params: {
+        rfqId,
+        ...(claim ? { claimToken: claim } : {}),
+      },
+      headers: authHeaders(auth),
+    });
+    const rfq = data?.data;
+    return {
+      status: mapTextileStatus(rfq?.status),
+      txHash: rfq?.txHash,
+    };
+  }
+}
+
+type HyperfxQuoteParams = {
+  network: string;
+  chainId: number;
+  fromToken: string;
+  toToken: string;
+  fromAmount: string;
+  fromDecimals: number;
+  fromAddress: string;
+};
+
+export class HyperfxClient {
+  async getQuote(
+    params: HyperfxQuoteParams,
+    auth?: BridgeAuth | string | null,
+  ): Promise<HyperfxIntentQuote | null> {
+    const { data, status } = await axios.get("/api/bridge/hyperfx/quote", {
+      params: {
+        network: params.network,
+        chainId: params.chainId,
+        fromToken: params.fromToken,
+        toToken: params.toToken,
+        fromAmount: params.fromAmount,
+        fromDecimals: params.fromDecimals,
+        fromAddress: params.fromAddress,
+      },
+      headers: authHeaders(auth),
+      validateStatus: () => true,
+    });
+
+    if (status === 404 || status === 422) return null;
+    if (status >= 400) {
+      throw new Error(data?.error || data?.message || `HyperFX quote failed (${status})`);
+    }
+    if (!data?.quote) return null;
+    return data.quote as HyperfxIntentQuote;
+  }
+
+  /**
+   * HyperFX status via server-side on-chain reads (same pattern as LI.FI status API).
+   */
+  async getStatus(
+    txHash: string,
+    auth?: BridgeAuth | string | null,
+    opts?: { settled?: boolean; fillTxHash?: string },
+  ): Promise<BridgeStatusResult> {
+    if (opts?.settled) {
+      return {
+        status: "SUCCESS",
+        txHash,
+        destinationTxHash: opts.fillTxHash ?? txHash,
+      };
+    }
+    if (typeof window !== "undefined") {
+      try {
+        const fillTxHash = sessionStorage.getItem(`hyperfx-settled-${txHash}`);
+        if (fillTxHash) {
+          return {
+            status: "SUCCESS",
+            txHash,
+            destinationTxHash: fillTxHash,
+          };
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    try {
+      const { data } = await axios.get<BridgeStatusResult>(
+        "/api/bridge/hyperfx/status",
+        {
+          params: { txHash, network: "Base" },
+          headers: authHeaders(auth),
+        },
+      );
+      if (typeof window !== "undefined") {
+        if (data.status === "SUCCESS") {
+          sessionStorage.setItem(
+            `hyperfx-settled-${txHash}`,
+            data.destinationTxHash ?? txHash,
+          );
+          sessionStorage.removeItem(`hyperfx-failed-${txHash}`);
+        } else if (data.status === "FAILED" || data.status === "REFUNDED") {
+          sessionStorage.setItem(
+            `hyperfx-failed-${txHash}`,
+            data.status === "REFUNDED" ? "refunded" : "expired",
+          );
+        }
+      }
+      return data;
+    } catch (err) {
+      console.warn("[HyperFX] Status check failed:", err);
+    }
+
+    return { status: "PROCESSING", txHash };
   }
 }
 

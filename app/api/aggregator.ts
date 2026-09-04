@@ -33,6 +33,7 @@ import type {
   ReferralData,
   ApiResponse,
   SubmitReferralResult,
+  KesMpesaChannel,
 } from "../types";
 import {
   trackServerEvent,
@@ -41,6 +42,7 @@ import {
   trackApiResponse,
 } from "../lib/server-analytics";
 import config from "../lib/config";
+import { getAggregatorSenderApiKey } from "../lib/server-config";
 import {
   isGatewayOrderId,
   isStarknetOrderId,
@@ -731,7 +733,12 @@ export const fetchOrderDetails = async (
 
   const injectedToken = options?.injectedToken?.trim();
 
-  if (typeof window !== "undefined" && (accessToken?.trim() || injectedToken)) {
+  if (typeof window !== "undefined") {
+    // Browser: always go through the Noblocks proxy. The direct aggregator
+    // path below attaches the sender API key, which is server-only.
+    if (!accessToken?.trim() && !injectedToken) {
+      throw new Error("Authentication required to fetch order details");
+    }
     const headers: Record<string, string> = {};
     if (injectedToken) {
       headers["x-injected-token"] = injectedToken;
@@ -763,11 +770,9 @@ export const fetchOrderDetails = async (
       : buildV2SenderOrderUrl(id);
     const headers: Record<string, string> = {};
     if (!gatewayLookup) {
-      const apiKey = config.aggregatorSenderApiKey?.trim();
+      const apiKey = getAggregatorSenderApiKey();
       if (!apiKey) {
-        throw new Error(
-          "NEXT_PUBLIC_AGGREGATOR_SENDER_API_KEY_ID is not configured",
-        );
+        throw new Error("AGGREGATOR_SENDER_API_KEY_ID is not configured");
       }
       headers["API-Key"] = apiKey;
     }
@@ -1675,6 +1680,63 @@ export async function createV2SenderPaymentOrder(
     { headers },
   );
   return response.data;
+}
+
+/** Recipient fields the client supplies for an offramp order; the server adds the nonce and sender API key. */
+export type OfframpMessageHashPayload = {
+  accountIdentifier: string;
+  accountName: string;
+  institution: string;
+  memo?: string;
+  providerId?: string;
+  kesChannel?: KesMpesaChannel;
+  businessNumber?: string;
+};
+
+/**
+ * Offramp only. Asks the server to build the encrypted recipient payload for
+ * gateway.createOrder. The server generates the nonce, injects the sender API
+ * key (which never reaches the browser), applies the KES M-Pesa metadata rules,
+ * and RSA-encrypts with the aggregator public key. Returns the base64
+ * ciphertext used as the on-chain `messageHash` argument.
+ * Injected wallets authenticate via `x-injected-token`; Privy via Bearer.
+ */
+export async function createOfframpMessageHash(
+  payload: OfframpMessageHashPayload,
+  accessToken: string | null,
+  injectedToken: string | null = null,
+): Promise<string> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  if (injectedToken) {
+    headers["x-injected-token"] = injectedToken;
+  } else if (accessToken) {
+    headers.Authorization = `Bearer ${accessToken}`;
+  }
+  // validateStatus + manual throw: middleware 401s carry `{ error }` rather than
+  // `{ message }`, and an axios throw on 5xx would collapse to the generic
+  // server-error copy. This keeps the server's specific message when present.
+  const response = await axios.post<AggregatorEnvelope<{ messageHash: string }>>(
+    "/api/v1/payment-orders/message-hash",
+    payload,
+    { headers, validateStatus: () => true },
+  );
+  const envelope = response.data;
+  const messageHash = envelope?.data?.messageHash;
+  if (
+    response.status >= 400 ||
+    envelope?.status !== "success" ||
+    typeof messageHash !== "string" ||
+    !messageHash
+  ) {
+    throw new Error(
+      typeof envelope?.message === "string" && envelope.message
+        ? envelope.message
+        : `Could not prepare order (${response.status})`,
+    );
+  }
+  return messageHash;
 }
 
 /**

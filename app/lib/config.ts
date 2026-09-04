@@ -56,8 +56,6 @@ const config: Config = {
     );
     return Number.isFinite(parsed) ? parsed : 0;
   })(),
-  /** Sender API key UUID (aggregator dashboard). Used by server proxy and client (on-chain messageHash metadata). */
-  aggregatorSenderApiKey: (process.env.NEXT_PUBLIC_AGGREGATOR_SENDER_API_KEY_ID || "").trim(),
   moralisWebhookSecret: process.env.MORALIS_WEBHOOK_SECRET || "",
   activepiecesWebhookUrl: process.env.ACTIVEPIECES_WEBHOOK_URL || "",
   activepiecesSignupVerifyWebhookUrl:

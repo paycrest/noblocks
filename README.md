@@ -43,7 +43,7 @@ Visit the live site at [noblocks.xyz](https://noblocks.xyz).
      - `SUPABASE_URL` and `SUPABASE_SECRET_KEY` – From Supabase Dashboard → Project Settings → API
      - `INTERNAL_API_KEY` – Generate with `openssl rand -hex 32`
 
-   See [`.env.example`](.env.example) or [docs/environment-variables.md](docs/environment-variables.md) for all options, including optional variables such as `NEXT_PUBLIC_AGGREGATOR_SENDER_API_KEY_ID` for live order creation.
+   See [`.env.example`](.env.example) or [docs/environment-variables.md](docs/environment-variables.md) for all options, including optional variables such as `AGGREGATOR_SENDER_API_KEY_ID` for live order creation.
 
 3. Install dependencies and start the development server:
 

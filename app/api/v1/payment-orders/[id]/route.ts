@@ -7,6 +7,7 @@ import {
   trackApiError,
 } from "@/app/lib/server-analytics";
 import config from "@/app/lib/config";
+import { getAggregatorSenderApiKey } from "@/app/lib/server-config";
 import { aggregatorOriginForV2 } from "@/app/api/aggregator";
 import {
   isGatewayOrderId,
@@ -84,21 +85,22 @@ export const GET = withRateLimit(
         }
         url = `${base}/v2/orders/${chainId}/${encodeURIComponent(orderId)}`;
       } else if (isSenderPaymentOrderUuid(orderId)) {
-        if (!config.aggregatorSenderApiKey?.trim()) {
+        const senderApiKey = getAggregatorSenderApiKey();
+        if (!senderApiKey) {
           trackApiError(
             request,
             "/api/v1/payment-orders/[id]",
             "GET",
-            new Error("NEXT_PUBLIC_AGGREGATOR_SENDER_API_KEY_ID is not configured"),
+            new Error("AGGREGATOR_SENDER_API_KEY_ID is not configured"),
             500,
           );
           return NextResponse.json(
-            { success: false, error: "NEXT_PUBLIC_AGGREGATOR_SENDER_API_KEY_ID is not configured" },
+            { success: false, error: "AGGREGATOR_SENDER_API_KEY_ID is not configured" },
             { status: 500 },
           );
         }
         url = `${base}/v2/sender/orders/${encodeURIComponent(orderId)}`;
-        headers = { "API-Key": config.aggregatorSenderApiKey.trim() };
+        headers = { "API-Key": senderApiKey };
       } else {
         return NextResponse.json(
           {

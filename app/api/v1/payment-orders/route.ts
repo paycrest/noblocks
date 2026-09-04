@@ -7,6 +7,7 @@ import {
   trackApiError,
 } from "@/app/lib/server-analytics";
 import config from "@/app/lib/config";
+import { getAggregatorSenderApiKey } from "@/app/lib/server-config";
 import { getKycFullName } from "@/app/lib/kyc-profile-server";
 import { isOnrampFiatCurrencyCode } from "@/app/utils";
 import {
@@ -35,16 +36,17 @@ export const POST = withRateLimit(async (request: NextRequest) => {
       );
     }
 
-    if (!config.aggregatorSenderApiKey?.trim()) {
+    const senderApiKey = getAggregatorSenderApiKey();
+    if (!senderApiKey) {
       trackApiError(
         request,
         "/api/v1/payment-orders",
         "POST",
-        new Error("NEXT_PUBLIC_AGGREGATOR_SENDER_API_KEY_ID is not configured"),
+        new Error("AGGREGATOR_SENDER_API_KEY_ID is not configured"),
         500,
       );
       return NextResponse.json(
-        { success: false, error: "NEXT_PUBLIC_AGGREGATOR_SENDER_API_KEY_ID is not configured" },
+        { success: false, error: "AGGREGATOR_SENDER_API_KEY_ID is not configured" },
         { status: 500 },
       );
     }
@@ -194,7 +196,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
     const { data, status } = await axios.post(url, body, {
       headers: {
         "Content-Type": "application/json",
-        "API-Key": config.aggregatorSenderApiKey.trim(),
+        "API-Key": senderApiKey,
       },
       validateStatus: () => true,
     });

@@ -13,6 +13,7 @@ jest.mock("../app/context/StepContext", () => ({
 type MockServiceWorkerContainer = EventTarget & {
   controller: object | null;
   register: jest.Mock;
+  getRegistration?: jest.Mock;
 };
 
 /** Installs a mock `navigator.serviceWorker`; `controller` says whether the page is already controlled. */
@@ -31,6 +32,14 @@ function installServiceWorkerMock(controller: object | null) {
 function fireControllerChange(sw: EventTarget) {
   act(() => {
     sw.dispatchEvent(new Event("controllerchange"));
+  });
+}
+
+/** Points `document.visibilityState` at a mutable value for the update-check tests. */
+function setVisibilityState(state: DocumentVisibilityState) {
+  Object.defineProperty(document, "visibilityState", {
+    configurable: true,
+    get: () => state,
   });
 }
 
@@ -87,5 +96,73 @@ describe("PWAInstall service worker update handling", () => {
     rerender(<PWAInstall />);
 
     expect(reloadMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("PWAInstall service worker update polling", () => {
+  let updateMock: jest.Mock;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockUseStep.mockReturnValue({ isFormStep: true });
+    updateMock = jest.fn().mockResolvedValue(undefined);
+    setVisibilityState("visible");
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+    delete (window.navigator as { serviceWorker?: unknown }).serviceWorker;
+  });
+
+  function installWithRegistration() {
+    const sw = installServiceWorkerMock({});
+    sw.getRegistration = jest.fn().mockResolvedValue({ update: updateMock });
+    return sw;
+  }
+
+  it("asks the registration to check for an update when the tab becomes visible", async () => {
+    installWithRegistration();
+    render(<PWAInstall />);
+
+    await act(async () => {
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+
+    expect(updateMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not check while the tab is hidden", async () => {
+    installWithRegistration();
+    setVisibilityState("hidden");
+    render(<PWAInstall />);
+
+    await act(async () => {
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+
+    expect(updateMock).not.toHaveBeenCalled();
+  });
+
+  it("checks for an update on the periodic timer", async () => {
+    jest.useFakeTimers();
+    installWithRegistration();
+    render(<PWAInstall />);
+
+    await act(async () => {
+      jest.advanceTimersByTime(15 * 60 * 1000);
+    });
+
+    expect(updateMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("is a no-op when no registration exists yet", async () => {
+    installServiceWorkerMock({});
+    render(<PWAInstall />);
+
+    await act(async () => {
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+
+    expect(updateMock).not.toHaveBeenCalled();
   });
 });

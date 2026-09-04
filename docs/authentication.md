@@ -263,6 +263,11 @@ CREATE POLICY "Allow user registration"
 
 ### Client-Side Auth Setup
 
+> Illustrative only — Noblocks has no browser Supabase client today, and neither
+> `NEXT_PUBLIC_SUPABASE_URL` nor `NEXT_PUBLIC_SUPABASE_ANON_KEY` exists. Server
+> code reads `SUPABASE_URL` / `SUPABASE_SECRET_KEY`; see
+> [environment-variables.md](environment-variables.md).
+
 ```typescript
 import { createClient } from '@supabase/supabase-js';
 

@@ -1,6 +1,8 @@
 # Environment Variables
 
-This document lists all environment variables used by the Noblocks application. Most variables are optional; required ones depend on which features you want to enable locally.
+This document explains the environment variables used by the Noblocks application. Most variables are optional; required ones depend on which features you want to enable locally.
+
+[`.env.example`](../.env.example) is the canonical list — `__tests__/envDocumentation.test.ts` fails CI when it drifts from the variables the code reads. This document is the prose companion and is not machine-checked, so treat `.env.example` as the authority if the two ever disagree.
 
 ## Quick Start
 
@@ -15,6 +17,7 @@ This document lists all environment variables used by the Noblocks application. 
    - `NEXT_PUBLIC_PRIVY_APP_ID` – Your Privy app ID
    - `SUPABASE_URL` and `SUPABASE_SECRET_KEY` – From Supabase Dashboard
    - `INTERNAL_API_KEY` – Generate with `openssl rand -hex 32`
+   - `NEXT_PUBLIC_STARKNET_RPC_URL` – A Starknet JSON-RPC endpoint. `app/lib/starknet.ts` throws when it is missing, so any page that touches Starknet fails without it.
 
    `AGGREGATOR_SENDER_API_KEY_ID` (server-only — never `NEXT_PUBLIC_`) is optional for local UI exploration; set it when you need live order creation against the aggregator.
 
@@ -41,13 +44,21 @@ NEXT_PUBLIC_KYC_TIER_3_MONTHLY=2
 # Privy authentication app ID
 NEXT_PUBLIC_PRIVY_APP_ID=
 
-# RPC URL provider key
+# RPC URL provider key (Dwellir) — see "Keys that ship to the browser" below
 NEXT_PUBLIC_RPC_URL_KEY=
+
+# Starknet JSON-RPC endpoint. Required — app/lib/starknet.ts throws when unset
+NEXT_PUBLIC_STARKNET_RPC_URL=
 
 # Privy server-side secrets
 PRIVY_APP_SECRET=
 PRIVY_JWKS_URL=https://auth.privy.io/api/v1/apps/<your-privy-app-id>/jwks.json
 PRIVY_ISSUER=privy.io
+# Optional: Privy wallet API base (defaults to https://api.privy.io)
+PRIVY_WALLET_API_URL=
+# Optional: authorization key for Privy wallet API calls (Starknet key export).
+# When unset, only the user signature is sent.
+PRIVY_WALLET_AUTH_PRIVATE_KEY=
 ```
 
 ### Database (Supabase)
@@ -61,9 +72,13 @@ SUPABASE_URL=https://your-project.supabase.co
 # Server admin secret key (sb_secret_...) — bypasses RLS, keep private!
 SUPABASE_SECRET_KEY=
 
-# Optional: Client-only publishable key if adding browser Supabase client later
-# NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=
+# Passphrase for the encrypt_recipient_data / decrypt_recipient_data Postgres
+# functions protecting saved recipient details. Rotating it makes existing
+# encrypted rows unreadable.
+ENCRYPTION_KEY=
 ```
+
+There is no `NEXT_PUBLIC_SUPABASE_URL`: `app/lib/supabase.ts` reads `SUPABASE_URL` only, and the client never talks to Supabase directly.
 
 ### Client Analytics
 
@@ -120,12 +135,18 @@ Locally the tracer defaults to `localhost:8126` and is harmless with no agent ru
 
 ### Server-Side Analytics
 
+Powers `app/lib/server-analytics.ts`, which instruments every API route. With no token set, those events are dropped silently.
+
+Mixpanel's server token **is** the project token, so this is usually the same value as `NEXT_PUBLIC_MIXPANEL_TOKEN` — which is accepted as a fallback. Set `MIXPANEL_SERVER_TOKEN` explicitly if you want server events in a separate project.
+
 ```bash
-MIXPANEL_TOKEN=
+MIXPANEL_SERVER_TOKEN=              # Falls back to NEXT_PUBLIC_MIXPANEL_TOKEN
 MIXPANEL_PRIVACY_MODE=strict        # "strict" or "normal"
 MIXPANEL_INCLUDE_IP=false
 MIXPANEL_INCLUDE_ERROR_STACKS=false
 ```
+
+Defaults are privacy-safe when unset: wallet addresses and transaction IDs are always hashed, and IPs are hashed and error stacks dropped unless you opt in above.
 
 ### Client Error Reporting (Optional)
 
@@ -170,7 +191,10 @@ INJECTED_SESSION_SECRET=
 # SIWE messages must name this host (or an allowed embed origin) — configured,
 # never derived from the request Host header, so a signature phished on another
 # domain can't mint a session here.
-NEXT_PUBLIC_APP_URL=http://localhost:3000
+#
+# Read on the server only (app/lib/server-config.ts → getAppUrl). The legacy
+# NEXT_PUBLIC_APP_URL still works as a fallback; prefer APP_URL.
+APP_URL=http://localhost:3000
 ```
 
 - **Minimum 32 characters.** The check runs lazily — when a token is actually
@@ -186,7 +210,7 @@ NEXT_PUBLIC_APP_URL=http://localhost:3000
   settings, not in a tracked file.
 - **Rotating it invalidates all live sessions.** Cost is low: users re-sign
   once, and tokens only last an hour anyway.
-- `NEXT_PUBLIC_APP_URL` must match the deployment's real public origin. If it
+- `APP_URL` must match the deployment's real public origin. If it
   still says `localhost:3000` in a deployed environment, sign-in fails with
   `401 Sign-in domain is not allowed` (embedded widgets additionally need the
   partner origin in `EMBED_ALLOWED_ORIGINS` or the `embed_allowed_origins`
@@ -200,6 +224,52 @@ ENABLE_WALLET_CONTEXT_SYNC=false
 
 # Starknet Earn (Vesu / Starkzap): wallet Earn CTA, deposit/withdraw, activity tab
 NEXT_PUBLIC_EARN_ENABLED=false
+# AVNU paymaster key — required whenever Starknet Earn is on, since the
+# paymaster runs in "sponsored" mode and throws without it
+STARKNET_PAYMASTER_API_KEY=
+# Gas token address; only used in non-sponsored mode (defaults to the first
+# token the paymaster reports as supported)
+STARKNET_GAS_TOKEN_ADDRESS=
+
+# EVM → Starknet Earn via LayerSwap. Requires NEXT_PUBLIC_EARN_ENABLED=true
+NEXT_PUBLIC_EVM_EARN_ENABLED=false
+LAYERSWAP_API_KEY=
+LAYERSWAP_API_BASE_URL=https://api.layerswap.io   # Optional; HTTPS only
+
+# Tron network + Privy Tron wallet
+NEXT_PUBLIC_TRON_ENABLED=false
+NEXT_PUBLIC_TRON_RPC_URL=                         # Optional; defaults to https://api.trongrid.io
+NEXT_PUBLIC_TRONGRID_API_KEY=                     # Optional; see the browser-exposed keys note below
+
+# HyperFX (Hyperbridge IntentGateway) USDC/USDT↔cNGN. Requires bridge enabled.
+NEXT_PUBLIC_HYPERFX_ENABLED=false
+ALCHEMY_API_KEY=                                  # Server-only ERC-4337 bundler
+# Hyperbridge Nexus endpoints; both optional, each falling back to the public
+# Polytope endpoint. The NEXT_PUBLIC_ pair is read by the browser swap client,
+# the unprefixed pair by the server quote route.
+NEXT_PUBLIC_HYPERBRIDGE_WS_URL=
+NEXT_PUBLIC_HYPERBRIDGE_INDEXER_URL=
+HYPERBRIDGE_WS_URL=
+HYPERBRIDGE_INDEXER_URL=
+
+# Textile FX v2 RFQ: USDT↔cNGN on BSC + Celo
+NEXT_PUBLIC_TEXTILE_ENABLED=false
+TEXTILE_API_KEY=
+
+# Noblocks Play (fantasy league)
+NEXT_PUBLIC_FANTASY_ENABLED=true
+# When true, public /play shows the campaign-ended announcement; /play/admin stays live
+NEXT_PUBLIC_FANTASY_CAMPAIGN_ENDED=true
+NEXT_PUBLIC_WORLDCUP_FOOTER_END_DATE=2026-07-19T23:59:59+01:00
+# Admin key for /api/play/admin/* (x-admin-key header). Unset = admin tooling OFF, never open
+FANTASY_ADMIN_KEY=
+# Shared secret for the Cloudflare worker POSTing /api/play/worker
+# (x-internal-auth header); falls back to INTERNAL_API_KEY
+FANTASY_WORKER_SECRET=
+# Dev-only: "true" compresses gameweek timing for local testing. Ignored in production
+FANTASY_LOCAL_TIMELAPSE=
+# API-Football key for fixtures, players and live scores
+API_FOOTBALL_KEY=
 
 # Referral program: show/hide UI and API routes
 NEXT_PUBLIC_REFERRAL_ENABLED=true
@@ -235,12 +305,15 @@ EMBED_ALLOWED_ORIGINS=
 INTERNAL_API_BASE_URL=
 ```
 
+#### Keys that ship to the browser
+
+`NEXT_PUBLIC_RPC_URL_KEY` (Dwellir) and `NEXT_PUBLIC_TRONGRID_API_KEY` are real provider credentials that are inlined into the client bundle by design — balance reads and RPC calls happen directly from the browser, so a server proxy would add a round trip to every one. Anyone can extract them from a deployed page.
+
+Treat them as public: restrict each key by origin in the provider's dashboard, and expect to rotate them like any published identifier. They protect quota, not access. `ALCHEMY_API_KEY` shows the alternative pattern — it stays server-side because `resolveHyperfxBundlerUrl` in `app/utils.ts` proxies through `/api/bridge/hyperfx/bundler` when called from the browser.
+
 ### External Services
 
 ```bash
-# SEO verification
-NEXT_PUBLIC_GOOGLE_VERIFICATION_CODE=
-
 # Notice banner text (see docs/notice-banner.md)
 NEXT_PUBLIC_NOTICE_BANNER_TEXT=
 
@@ -260,10 +333,17 @@ SANITY_STUDIO_PROJECT_ID=your_project_id_here
 # Next.js App (client-side)
 NEXT_PUBLIC_SANITY_DATASET=production
 NEXT_PUBLIC_SANITY_PROJECT_ID=your_project_id_here
+```
 
-# Bundler / EIP-7702 sponsor
-NEXT_PUBLIC_BUNDLER_SERVER_URL=
+### Bundler / EIP-7702 Sponsor
+
+Sponsored batch calls are served by the in-process `/api/bundler` route; there is no external bundler URL to configure.
+
+```bash
+# Sponsor wallet that pays gas for batched EIP-7702 calls.
+# PRIVATE_KEY is a legacy alias, still accepted as a fallback.
 SPONSOR_EVM_WALLET_PRIVATE_KEY=0x...
+PRIVATE_KEY=
 ```
 
 ### Email & Communications
@@ -274,9 +354,28 @@ SPONSOR_EVM_WALLET_PRIVATE_KEY=0x...
 BREVO_API_KEY=
 # List ID from: Brevo Dashboard → Contacts → Lists (numeric)
 BREVO_LIST_ID=
+# From address on transactional email (defaults to no-reply@noblocks.xyz)
+BREVO_SENDER_EMAIL=
 # Brevo Conversations (chat widget)
 NEXT_PUBLIC_BREVO_CONVERSATIONS_ID=
 NEXT_PUBLIC_BREVO_CONVERSATIONS_GROUP_ID=
+
+# Activepieces webhooks. Each is optional — an unset URL skips that forward.
+ACTIVEPIECES_WEBHOOK_URL=                  # Deposit forwarding, from the Moralis stream webhook
+ACTIVEPIECES_SIGNUP_VERIFY_WEBHOOK_URL=    # Tier 1 "verify your phone" email
+ACTIVEPIECES_KYC_RESULT_WEBHOOK_URL=       # SmileID identity result emails
+```
+
+### Moralis EVM Streams (Deposit Watching)
+
+Server-only. Stream and key from the Moralis Dashboard → Streams.
+
+```bash
+MORALIS_STREAM_ID=
+MORALIS_API_KEY=
+MORALIS_BASE_URL=https://api.moralis-streams.com
+# Verifies the x-signature header on incoming stream webhooks
+MORALIS_WEBHOOK_SECRET=
 ```
 
 ### Phone Verification
@@ -288,12 +387,14 @@ KUDISMS_API_KEY=your_kudisms_api_key
 KUDISMS_APP_NAME_CODE=your_app_name_code
 KUDISMS_TEMPLATE_CODE=your_template_code
 KUDISMS_SENDER_ID=Noblocks
+KUDISMS_TIMEOUT_MS=                   # Optional; default 10000
 
 # Twilio (international via Verify API)
 # Get from: Twilio Console → Account Dashboard
 TWILIO_ACCOUNT_SID=your_twilio_account_sid
 TWILIO_AUTH_TOKEN=your_twilio_auth_token
 TWILIO_VERIFY_SERVICE_SID=VAxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+TWILIO_VERIFY_TIMEOUT_MS=             # Optional; default 5000
 ```
 
 ### KYC Verification Services
@@ -301,13 +402,14 @@ TWILIO_VERIFY_SERVICE_SID=VAxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 #### SmileID (Identity Verification)
 
 ```bash
-# API base URL — sandbox ("0"), production ("1"), or full URL
-SMILE_IDENTITY_BASE_URL="XXXXXX"
 SMILE_IDENTITY_API_KEY="your_api_key_here"
 SMILE_IDENTITY_PARTNER_ID="your_partner_id_here"
 SMILE_ID_CALLBACK_URL=""              # Callback URL for async results
-SMILE_IDENTITY_SERVER="0"             # "0" = sandbox, "1" = production
+SMILE_IDENTITY_SERVER="0"             # "0" = sandbox, "1" = production, or a legacy full API URL
+SMILE_IDENTITY_SERVER_MODE=           # Optional override, checked first. "0" or "1" only
 ```
+
+`resolveSmileIdServerConfig` in `app/lib/smileID.ts` checks `SMILE_IDENTITY_SERVER_MODE` before `SMILE_IDENTITY_SERVER`. A legacy full URL in `SMILE_IDENTITY_SERVER` is accepted and its mode inferred from whether the host looks like sandbox. Anything unrecognized logs a warning and fails closed, so KYC requests error rather than hitting the wrong environment.
 
 #### Dojah (Tier 3 Address / Proof-of-Address)
 
@@ -315,15 +417,13 @@ SMILE_IDENTITY_SERVER="0"             # "0" = sandbox, "1" = production
 DOJAH_APP_ID=<YOUR_APP_ID>
 DOJAH_SECRET_KEY=<YOUR_SECRET_KEY>
 DOJAH_BASE_URL=https://api.dojah.io
-
-# Optional: Default false — send only input_type + input_value per Dojah docs
-# DOJAH_UTILITY_BILL_SEND_ADDRESS_FIELDS=true
-# Optional: Default true — retry base64 if URL submission fails (Dojah often can't fetch URLs)
-# DOJAH_UTILITY_BILL_BASE64_FALLBACK=false
+DOJAH_TIMEOUT_MS=                     # Optional; default 25000
 
 # Supabase Storage bucket for KYC documents (create in Supabase Dashboard → Storage)
 KYC_DOCUMENTS_BUCKET=kyc-documents
 ```
+
+Utility-bill submission has no toggles: `app/lib/dojah.ts` always sends the address fields alongside `input_type: "url"`, and submits the document URL with no base64 retry.
 
 ### Campaign Management
 

@@ -628,9 +628,14 @@ export const fetchSupportedInstitutions = async (
  * @returns {Promise<PubkeyResponse>} The public key response
  * @throws {Error} If the API request fails
  */
+/** Bounded so a stalled aggregator surfaces as an error (axios has no default timeout). */
+const PUBKEY_TIMEOUT_MS = 10_000;
+
 export const fetchAggregatorPublicKey = async (): Promise<PubkeyResponse> => {
   try {
-    const response = await axios.get(`${AGGREGATOR_URL}/pubkey`);
+    const response = await axios.get(`${AGGREGATOR_URL}/pubkey`, {
+      timeout: PUBKEY_TIMEOUT_MS,
+    });
     return response.data;
   } catch (error) {
     console.error("Error fetching aggregator public key:", error);

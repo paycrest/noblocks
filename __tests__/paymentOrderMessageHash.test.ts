@@ -55,14 +55,25 @@ function makeKeys(modulusLength: number): Keys {
   return { publicPem: publicKey, privatePem: privateKey };
 }
 
-/** Decrypts the way the aggregator does (Go rsa.DecryptPKCS1v15) and parses the JSON. */
+/**
+ * Decrypts the way the aggregator does (Go rsa.DecryptPKCS1v15) and parses the
+ * JSON. Uses RSA_NO_PADDING and strips the EME-PKCS1-v1_5 padding by hand:
+ * Node's official binaries bundle an OpenSSL without implicit rejection, so
+ * privateDecrypt(RSA_PKCS1_PADDING) is refused there (CVE-2023-46809) and the
+ * suite would fail in CI. Unpadding manually also asserts the exact wire
+ * format the aggregator expects: 0x00 0x02 || PS (>= 8 non-zero bytes) || 0x00 || M.
+ */
 function decrypt(messageHashB64: string, privatePem: string): unknown {
-  return JSON.parse(
-    privateDecrypt(
-      { key: privatePem, padding: constants.RSA_PKCS1_PADDING },
-      Buffer.from(messageHashB64, "base64"),
-    ).toString("utf8"),
+  const em = privateDecrypt(
+    { key: privatePem, padding: constants.RSA_NO_PADDING },
+    Buffer.from(messageHashB64, "base64"),
   );
+  expect(em[0]).toBe(0x00);
+  expect(em[1]).toBe(0x02);
+  const separator = em.indexOf(0x00, 2);
+  expect(separator).toBeGreaterThanOrEqual(2 + 8);
+  expect(em.subarray(2, separator).includes(0x00)).toBe(false);
+  return JSON.parse(em.subarray(separator + 1).toString("utf8"));
 }
 
 function makeRequest(

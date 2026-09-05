@@ -231,7 +231,8 @@ STARKNET_PAYMASTER_API_KEY=
 # token the paymaster reports as supported)
 STARKNET_GAS_TOKEN_ADDRESS=
 
-# EVM → Starknet Earn via LayerSwap. Requires NEXT_PUBLIC_EARN_ENABLED=true
+# EVM → Starknet Earn via LayerSwap. Needs NEXT_PUBLIC_EARN_ENABLED=true as
+# well — isEvmEarnEnabled() requires both flags.
 NEXT_PUBLIC_EVM_EARN_ENABLED=false
 LAYERSWAP_API_KEY=
 LAYERSWAP_API_BASE_URL=https://api.layerswap.io   # Optional; HTTPS only

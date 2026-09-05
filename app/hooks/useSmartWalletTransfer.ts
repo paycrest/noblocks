@@ -343,7 +343,7 @@ export function useSmartWalletTransfer({
           const chainName = selectedNetwork.chain.name;
           throw new Error(
             isNetworkErr
-              ? `Cannot reach the transaction server. Check that NEXT_PUBLIC_BUNDLER_SERVER_URL is set and the server is running. For ${chainName}, ensure the server has been restarted with support for this network.`
+              ? `Cannot reach the transaction service. Check your connection and try again. If this persists, ${chainName} may not be configured for sponsored transactions.`
               : (fetchErr as Error)?.message ?? "Network request failed",
           );
         }

@@ -1,4 +1,4 @@
-import config from "./config";
+import { activepiecesConfig } from "./server-config";
 import type { ActivepiecesDepositPayload } from "../types";
 
 /**
@@ -7,7 +7,7 @@ import type { ActivepiecesDepositPayload } from "../types";
 export async function triggerActivepiecesDeposit(
   payload: ActivepiecesDepositPayload,
 ): Promise<void> {
-  const url = config.activepiecesWebhookUrl;
+  const url = activepiecesConfig.depositWebhookUrl;
   if (!url) {
     console.error(
       "[activepieces] ACTIVEPIECES_WEBHOOK_URL not set — skipping forward",

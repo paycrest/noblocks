@@ -479,7 +479,6 @@ export type Config = {
   rpcUrlKey: string;
   mixpanelToken: string;
   hotjarSiteId: number;
-  googleVerificationCode: string;
   noticeBannerText?: string; // Optional, for dynamic notice banner text
   brevoConversationsId: string; // Brevo chat widget ID
   brevoConversationsGroupId?: string; // Brevo chat widget group ID for routing
@@ -490,21 +489,6 @@ export type Config = {
   maintenanceSchedule: string; // e.g. "Friday, February 13th, from 7:00 PM to 11:00 PM WAT"
   referralMinQualifyingVolumeUsd: number;
   referralRewardAmountUsd: number;
-  moralisWebhookSecret: string;
-  activepiecesWebhookUrl: string;
-  /**
-   * Activepieces webhook for the Tier 1 "verify your phone" email (Brevo flow),
-   * triggered on new email signups. Payload `event`: "signup_verify_phone".
-   */
-  activepiecesSignupVerifyWebhookUrl: string;
-  /**
-   * Activepieces webhook for SmileID identity result emails (Brevo flow).
-   * Payload `event`: "kyc_result" with `status`: "success" | "failure".
-   */
-  activepiecesKycResultWebhookUrl: string;
-  moralisStreamId: string;
-  moralisApiKey: string;
-  moralisBaseUrl: string;
   /** Starknet Earn (Vesu via Starkzap). Requires Starknet wallet + API routes. */
   earnEnabled: boolean;
   /** EVM → Starknet Earn via LayerSwap (Phase 2). Requires LAYERSWAP_API_KEY server-side. */
@@ -534,9 +518,6 @@ export type Config = {
   fantasyCampaignEnded: boolean;
   /** Embeddable widget feature flag. Gates the /widget route (iframe embed for whitelisted partners). */
   embedEnabled: boolean;
-  /** LayerSwap API key (server-side only; used by /api/earn/layerswap/*). */
-  layerswapApiKey: string;
-  layerswapApiBaseUrl: string;
 };
 
 export type Network = {
@@ -646,7 +627,7 @@ export interface TransactionUpdateInput {
   txHash?: string;
 }
 
-export type JWTProvider = "privy" | "thirdweb";
+export type JWTProvider = "privy";
 
 export interface JWTProviderConfig {
   provider: JWTProvider;
@@ -654,10 +635,6 @@ export interface JWTProviderConfig {
     jwksUrl: string;
     issuer: string;
     algorithms: string[];
-  };
-  thirdweb?: {
-    clientId: string;
-    domain: string;
   };
 }
 

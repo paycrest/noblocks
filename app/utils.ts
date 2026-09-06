@@ -202,6 +202,24 @@ export function normalizeSavedRecipientChannel(
 }
 
 /**
+ * True when /verify-account could not resolve a holder name.
+ *
+ * The aggregator answers the literal string `"OK"` when no provider can resolve
+ * an account holder. KES M-Pesa Till and Paybill hit this on every order — a
+ * Paybill lookup is structurally impossible, since the identifier is only the
+ * reference and the business number never reaches the PSP.
+ *
+ * `"OK"` is a sentinel, not a name, so the UI must collect one from the user rather than
+ * display it. The aggregator keeps a client-supplied name in that case
+ * (ResolveAccountNameAfterValidation), and the on-chain path noblocks uses never
+ * re-validates it at all.
+ */
+export function isUnresolvedAccountName(name?: string | null): boolean {
+  const value = (name ?? "").trim();
+  return value === "" || value.toLowerCase() === "ok";
+}
+
+/**
  * True when two saved recipients are the same payout target.
  *
  * Mirrors the saved-recipient unique key exactly. Channel matters because Send

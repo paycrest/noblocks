@@ -1,5 +1,3 @@
-jest.mock("server-only", () => ({}));
-
 import { layerswapDepositActionsToStarknetCalls } from "../app/lib/layerswap";
 
 describe("layerswapDepositActionsToStarknetCalls", () => {

@@ -7,7 +7,7 @@ import { useEarnHandler } from "./useEarnHandler";
 import {
   isLayerswapSuccessStatus,
   isLayerswapTerminalStatus,
-} from "../lib/layerswapStatus";
+} from "../lib/layerswap";
 import {
   addEarnSourcePosition,
   isStaleLiveFlowClaim,

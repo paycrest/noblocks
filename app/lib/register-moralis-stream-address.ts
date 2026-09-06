@@ -1,4 +1,4 @@
-import { moralisConfig } from "./server-config";
+import config from "./config";
 /**
  * Add a wallet address to the configured Moralis EVM stream (e.g. after a new user gets a wallet).
  * Server-only; uses MORALIS_API_KEY, MORALIS_STREAM_ID, and MORALIS_BASE_URL.
@@ -7,9 +7,9 @@ export async function registerWalletForMoralisStream(
   walletAddress: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const address = walletAddress.trim().toLowerCase();
-  const streamId = moralisConfig.streamId;
-  const apiKey = moralisConfig.apiKey;
-  const baseUrl = (moralisConfig.baseUrl || "").trim();
+  const streamId = config.moralisStreamId;
+  const apiKey = config.moralisApiKey;
+  const baseUrl = (config.moralisBaseUrl || "").trim();
   if (!streamId || !apiKey || !baseUrl) {
     return {
       ok: false,

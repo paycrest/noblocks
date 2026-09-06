@@ -9,10 +9,7 @@ import {
   accountNameMatchesKyc,
   REFUND_NAME_MISMATCH_MESSAGE,
 } from "@/app/lib/name-matching";
-import {
-  isUnresolvedAccountName,
-  normalizeRefundAccountCurrency,
-} from "@/app/utils";
+import { normalizeRefundAccountCurrency } from "@/app/utils";
 import { resolveInstitutionForCurrency } from "@/app/lib/refund-account-institutions";
 
 type RefundAccountBody = {
@@ -181,19 +178,6 @@ export async function handlePutRefundAccount(
           success: false,
           error:
             "Missing required fields: currency, institution, institutionCode, accountIdentifier, accountName",
-        },
-      };
-    }
-
-    // Reject the verify-account "OK" sentinel. Clients must collect a real account
-    // name when verification cannot resolve one (same policy as recipient form #698).
-    if (isUnresolvedAccountName(accountName)) {
-      return {
-        status: 422,
-        body: {
-          success: false,
-          error:
-            "Account name could not be verified. Please enter the name on the account.",
         },
       };
     }

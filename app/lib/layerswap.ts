@@ -1,30 +1,33 @@
 /**
  * LayerSwap API client (server-side). Proxied via /api/earn/layerswap/* routes.
- *
- * Status vocabulary and predicates live in ./layerswapStatus so client code can
- * import them without dragging this module — and LAYERSWAP_API_KEY — into the
- * browser bundle. They are re-exported here for server callers.
  */
 
-import "server-only";
 import axios from "axios";
 import type { Call } from "starknet";
-import { getLayerswapApiBase, getLayerswapApiKey } from "./server-config";
+import config from "./config";
 import {
   EARN_USDC_SYMBOL,
   LAYERSWAP_STARKNET_NETWORK,
   layerswapSourceNetwork,
 } from "./earnChains";
-import type { LayerswapSwapStatus } from "./layerswapStatus";
 
-export {
-  isLayerswapSuccessStatus,
-  isLayerswapTerminalStatus,
-} from "./layerswapStatus";
-export type { LayerswapSwapStatus };
-export { getLayerswapApiKey };
+export const LAYERSWAP_API_BASE = config.layerswapApiBaseUrl;
+
+/** LayerSwap API key from config (server routes only). */
+export function getLayerswapApiKey(): string {
+  return config.layerswapApiKey;
+}
 
 const UPSTREAM_TIMEOUT_MS = 30_000;
+
+export type LayerswapSwapStatus =
+  | "user_transfer_pending"
+  | "completed"
+  | "failed"
+  | "expired"
+  | "ls_transfer_pending"
+  | "pending_refund"
+  | "refunded";
 
 export interface LayerswapDepositAction {
   type: string;
@@ -77,7 +80,7 @@ export async function layerswapGetQuote(params: {
   destinationNetwork?: string;
 }): Promise<LayerswapQuote> {
   const { data } = await axios.get<LayerswapApiResponse<LayerswapQuote>>(
-    `${getLayerswapApiBase()}/api/v2/quote`,
+    `${LAYERSWAP_API_BASE}/api/v2/quote`,
     {
       headers: layerswapHeaders(params.apiKey),
       params: {
@@ -116,7 +119,7 @@ export async function layerswapCreateEarnSwap(params: {
   }
 
   const { data } = await axios.post<LayerswapApiResponse<LayerswapPreparedSwap>>(
-    `${getLayerswapApiBase()}/api/v2/swaps`,
+    `${LAYERSWAP_API_BASE}/api/v2/swaps`,
     {
       source_network: sourceNetwork,
       source_token: EARN_USDC_SYMBOL,
@@ -165,7 +168,7 @@ export async function layerswapCreateEarnWithdrawSwap(params: {
   }
 
   const { data } = await axios.post<LayerswapApiResponse<LayerswapPreparedSwap>>(
-    `${getLayerswapApiBase()}/api/v2/swaps`,
+    `${LAYERSWAP_API_BASE}/api/v2/swaps`,
     {
       source_network: LAYERSWAP_STARKNET_NETWORK,
       source_token: EARN_USDC_SYMBOL,
@@ -201,7 +204,7 @@ export async function layerswapGetSwap(params: {
 }): Promise<LayerswapPreparedSwap & { swap: NonNullable<LayerswapPreparedSwap["swap"]> }> {
   const { data } = await axios.get<
     LayerswapApiResponse<LayerswapPreparedSwap>
-  >(`${getLayerswapApiBase()}/api/v2/swaps/${encodeURIComponent(params.swapId)}`, {
+  >(`${LAYERSWAP_API_BASE}/api/v2/swaps/${encodeURIComponent(params.swapId)}`, {
     headers: layerswapHeaders(params.apiKey),
     timeout: UPSTREAM_TIMEOUT_MS,
     validateStatus: () => true,
@@ -215,6 +218,21 @@ export async function layerswapGetSwap(params: {
   return data.data as LayerswapPreparedSwap & {
     swap: NonNullable<LayerswapPreparedSwap["swap"]>;
   };
+}
+
+export function isLayerswapTerminalStatus(
+  status: LayerswapSwapStatus,
+): boolean {
+  return (
+    status === "completed" ||
+    status === "failed" ||
+    status === "expired" ||
+    status === "refunded"
+  );
+}
+
+export function isLayerswapSuccessStatus(status: LayerswapSwapStatus): boolean {
+  return status === "completed";
 }
 
 interface ParsedLayerswapCall {

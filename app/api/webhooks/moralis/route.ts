@@ -8,7 +8,7 @@ import {
 } from "@/app/lib/server-analytics";
 import { verifyMoralisSignature } from "@/app/utils";
 import { processMoralisDepositPayload } from "@/app/lib/moralis-deposit-processing";
-import { moralisConfig } from "@/app/lib/server-config";
+import config from "@/app/lib/config";
 import type { MoralisWebhookBody } from "@/app/types";
 
 /**
@@ -25,7 +25,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
     });
 
     const raw = await request.text();
-    const secret = moralisConfig.webhookSecret;
+    const secret = config.moralisWebhookSecret;
     const sig = request.headers.get("x-signature");
 
     if (secret) {

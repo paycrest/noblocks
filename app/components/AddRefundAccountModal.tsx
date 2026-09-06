@@ -1,26 +1,15 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { DialogTitle } from "@headlessui/react";
 import { AnimatePresence, motion } from "framer-motion";
-import {
-  ArrowDown01Icon,
-  ArrowLeft02Icon,
-  InformationSquareIcon,
-  Tick02Icon,
-} from "hugeicons-react";
+import { ArrowDown01Icon, ArrowLeft02Icon, Tick02Icon } from "hugeicons-react";
 import { ImSpinner } from "react-icons/im";
 import { AnimatedModal, AnimatedFeedbackItem } from "@/app/components/AnimatedComponents";
 import { SearchInput } from "@/app/components/recipient/SearchInput";
 import { InputError } from "@/app/components/InputError";
 import type { InstitutionProps, RefundAccountDetails } from "@/app/types";
-import {
-  classNames,
-  getOfframpAccountIdentifierPlaceholder,
-  filterAndSortInstitutions,
-  NGN_NUBAN_LENGTH,
-  isUnresolvedAccountName,
-} from "@/app/utils";
+import { classNames, getOfframpAccountIdentifierPlaceholder, filterAndSortInstitutions, NGN_NUBAN_LENGTH } from "@/app/utils";
 import { fetchAccountName } from "@/app/api/aggregator";
 import { primaryBtnClasses, secondaryBtnClasses } from "@/app/components/Styles";
 import { useKYC } from "@/app/context";
@@ -64,12 +53,10 @@ export function AddRefundAccountModal({
   const [accountName, setAccountName] = useState("");
   const [accountNumber, setAccountNumber] = useState("");
   const [isFetchingAccountName, setIsFetchingAccountName] = useState(false);
-  const [isAccountNameEditable, setIsAccountNameEditable] = useState(false);
   const [accountNumberError, setAccountNumberError] = useState<string | null>(null);
   const [accountNameError, setAccountNameError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
-  const nameRequestIdRef = useRef(0);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -78,7 +65,6 @@ export function AddRefundAccountModal({
     setFormError(null);
     setAccountNumberError(null);
     setAccountNameError(null);
-    setIsAccountNameEditable(false);
     if (initial) {
       const fromList = institutions.find(
         (i) => i.code === initial.institutionCode,
@@ -103,27 +89,11 @@ export function AddRefundAccountModal({
 
   // Auto-fetch account name when institution + account number are ready
   useEffect(() => {
-    // Invalidate any in-flight lookup on every dependency change (including bail-outs).
-    const requestId = ++nameRequestIdRef.current;
-
-    const stopWithoutLookup = (message: string | null) => {
-      setIsAccountNameEditable(false);
-      setAccountName("");
-      setAccountNameError(message);
-      setFormError(null);
-      setIsFetchingAccountName(false);
-    };
-
-    // Bail before scheduling when the modal is closed so a late response cannot
-    // write a stale name that briefly shows on the next open.
-    if (!isOpen) {
-      stopWithoutLookup(null);
-      return;
-    }
+    setAccountName("");
+    setAccountNameError(null);
 
     if (!selectedInstitution || !accountNumber) {
       setAccountNumberError(null);
-      stopWithoutLookup(null);
       return;
     }
 
@@ -132,25 +102,17 @@ export function AddRefundAccountModal({
     if (currency === "NGN") {
       if (digits.length === 0) {
         setAccountNumberError(null);
-        stopWithoutLookup(null);
         return;
       }
       if (digits.length !== NGN_NUBAN_LENGTH) {
         setAccountNumberError(
           `Please enter a valid 10-digit account number (${digits.length} entered).`,
         );
-        stopWithoutLookup(null);
         return;
       }
     }
 
-    // Drop any previously resolved/typed name so a stale success tick cannot
-    // suppress a later error, and so "OK" is never left visible while we re-verify.
-    setIsAccountNameEditable(false);
-    setAccountName("");
     setAccountNumberError(null);
-    setAccountNameError(null);
-    setFormError(null);
     setIsFetchingAccountName(true);
 
     const timeoutId = setTimeout(async () => {
@@ -159,60 +121,27 @@ export function AddRefundAccountModal({
           institution: selectedInstitution.code,
           accountIdentifier: digits || accountNumber,
         });
-        if (requestId !== nameRequestIdRef.current) return;
-
-        if (isUnresolvedAccountName(name)) {
-          // Same path as RecipientDetailsForm (#698): verification soft-failed with
-          // the "OK" sentinel. Ask for the account holder's name instead of showing
-          // "ok" with a green tick (and then failing KYC match against "OK").
-          setIsAccountNameEditable(true);
-          setAccountName("");
-          setFormError(null);
-          setAccountNameError(null);
+        setAccountName(name);
+        if (kycFullName && !accountNameMatchesKyc(kycFullName, name)) {
+          setFormError(REFUND_NAME_MISMATCH_MESSAGE);
         } else {
-          setIsAccountNameEditable(false);
-          setAccountName(name);
-          if (kycFullName && !accountNameMatchesKyc(kycFullName, name)) {
-            setFormError(REFUND_NAME_MISMATCH_MESSAGE);
-          } else {
-            setFormError(null);
-          }
-          setAccountNameError(null);
+          setFormError(null);
         }
+        setAccountNameError(null);
       } catch {
-        if (requestId !== nameRequestIdRef.current) return;
-        setIsAccountNameEditable(false);
-        setAccountName("");
         setAccountNameError("Account not found. Check the number and bank.");
-        setFormError(null);
       } finally {
-        if (requestId === nameRequestIdRef.current) {
-          setIsFetchingAccountName(false);
-        }
+        setIsFetchingAccountName(false);
       }
     }, 800);
 
     return () => clearTimeout(timeoutId);
-  }, [isOpen, selectedInstitution, accountNumber, currency, kycFullName]);
+  }, [selectedInstitution, accountNumber, currency]);
 
   const filteredInstitutions = useMemo(
     () => filterAndSortInstitutions(institutions, bankSearchTerm),
     [institutions, bankSearchTerm],
   );
-
-  const applyManualAccountName = (value: string) => {
-    setAccountName(value);
-    const trimmed = value.trim();
-    if (!trimmed || isUnresolvedAccountName(trimmed)) {
-      setFormError(null);
-      return;
-    }
-    if (kycFullName && !accountNameMatchesKyc(kycFullName, trimmed)) {
-      setFormError(REFUND_NAME_MISMATCH_MESSAGE);
-    } else {
-      setFormError(null);
-    }
-  };
 
   const handleAddAccount = async () => {
     setFormError(null);
@@ -226,12 +155,8 @@ export function AddRefundAccountModal({
       return;
     }
     const name = accountName.trim();
-    if (!name || isUnresolvedAccountName(name)) {
-      setFormError(
-        isAccountNameEditable
-          ? "Please enter the name on the account."
-          : "Account name could not be verified. Check the account number.",
-      );
+    if (!name) {
+      setFormError("Account name could not be verified. Check the account number.");
       return;
     }
     // Must belong to the same person as the verified KYC profile. Only block here when we already
@@ -266,14 +191,11 @@ export function AddRefundAccountModal({
     }
   };
 
-  const resolvedNameReady =
-    accountName.trim().length > 0 && !isUnresolvedAccountName(accountName);
-
   const allFieldsFilled =
     selectedInstitution !== null &&
     accountNumber.trim().length > 0 &&
     !accountNumberError &&
-    resolvedNameReady &&
+    accountName.trim().length > 0 &&
     !isFetchingAccountName &&
     !accountNameError;
 
@@ -365,7 +287,7 @@ export function AddRefundAccountModal({
                 ) : null}
               </div>
 
-              {/* 3. Account name — auto-fetched, or typed when verification returns OK */}
+              {/* 3. Account name — auto-fetched */}
               <AnimatePresence mode="wait">
                 {isFetchingAccountName ? (
                   <div className="flex items-center gap-1 text-gray-400 dark:text-white/50">
@@ -373,35 +295,6 @@ export function AddRefundAccountModal({
                       <ImSpinner className="size-4 animate-spin" />
                       <p className="text-xs">Verifying account name...</p>
                     </AnimatedFeedbackItem>
-                  </div>
-                ) : isAccountNameEditable ? (
-                  <div className="w-full space-y-2">
-                    <label
-                      htmlFor="refund-account-name"
-                      className="mb-2 block text-sm font-semibold text-neutral-900 dark:text-white"
-                    >
-                      Account name
-                    </label>
-                    <input
-                      id="refund-account-name"
-                      type="text"
-                      autoComplete="off"
-                      value={accountName}
-                      onChange={(e) => applyManualAccountName(e.target.value)}
-                      placeholder="Enter your account name"
-                      className={classNames(
-                        "w-full rounded-xl border bg-white px-3.5 py-3 text-sm text-neutral-900 outline-none transition-colors placeholder:text-neutral-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/25 dark:bg-[#202020] dark:text-white dark:placeholder:text-white/40 dark:focus:border-blue-500 dark:focus:ring-blue-500/35",
-                        "border-neutral-200 dark:border-white/[0.12]",
-                      )}
-                    />
-                    <div className="flex w-full min-w-0 items-start gap-2 rounded-xl bg-warning-background/[8%] px-3 py-2">
-                      <InformationSquareIcon className="mt-0.5 size-5 shrink-0 text-warning-foreground dark:text-warning-text" />
-                      <p className="min-w-0 flex-1 break-words text-xs font-light leading-snug text-warning-foreground dark:text-warning-text">
-                        We couldn&apos;t confirm this account name. Enter the
-                        name on the account — it must match your verified
-                        identity.
-                      </p>
-                    </div>
                   </div>
                 ) : accountName ? (
                   <AnimatedFeedbackItem className="justify-between text-gray-400 dark:text-white/50">

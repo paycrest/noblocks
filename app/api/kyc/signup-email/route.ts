@@ -6,7 +6,7 @@ import {
   trackApiError,
 } from "@/app/lib/server-analytics";
 import { getEmailForMonitoredAddress } from "@/app/utils";
-import { activepiecesConfig } from "@/app/lib/server-config";
+import config from "@/app/lib/config";
 import { createKycReporter } from "@/app/lib/kyc-telemetry";
 
 /**
@@ -45,7 +45,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
       );
     }
 
-    const webhookUrl = activepiecesConfig.signupVerifyWebhookUrl;
+    const webhookUrl = config.activepiecesSignupVerifyWebhookUrl;
     if (!webhookUrl) {
       report.failed({
         walletAddress,

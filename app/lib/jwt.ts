@@ -2,7 +2,7 @@ import { jwtVerify, createRemoteJWKSet } from 'jose';
 import { JWTPayload, JWTProviderConfig, VerifyJWTResult } from '@/app/types';
 
 /**
- * Verifies a JWT token for either Privy or Thirdweb provider
+ * Verifies a Privy-issued JWT token
  * @param token - The JWT token to verify
  * @param config - Configuration for the JWT provider
  * @returns The verified payload and provider
@@ -21,11 +21,6 @@ export async function verifyJWT(token: string, config: JWTProviderConfig): Promi
                 payload: payload as JWTPayload,
                 provider: config.provider,
             };
-        } else if (config.provider === 'thirdweb' && config.thirdweb) {
-            // Placeholder for thirdweb JWT verification
-            // TODO: Thirdweb verification will be implemented when ready to migrate
-            throw new Error('Thirdweb JWT verification not implemented yet');
-
         } else {
             throw new Error('Invalid JWT provider configuration');
         }

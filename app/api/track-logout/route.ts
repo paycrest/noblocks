@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { trackServerEvent } from "@/app/lib/server-analytics";
+import { getAppUrl } from "@/app/lib/server-config";
 
 export async function POST(request: NextRequest) {
   try {
@@ -13,7 +14,7 @@ export async function POST(request: NextRequest) {
 
     if (process.env.NODE_ENV === "production") {
       const origin = request.headers.get("origin");
-      const allowed = process.env.NEXT_PUBLIC_APP_URL;
+      const allowed = getAppUrl();
       if (
         origin &&
         allowed &&

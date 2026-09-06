@@ -4,6 +4,7 @@ import {
   formatKesMpesaAccountDisplay,
   formatRecipientInstitutionDisplay,
   isSameSavedRecipient,
+  isUnresolvedAccountName,
   normalizeSavedRecipientChannel,
   getKesMpesaInstitutionLabel,
   KES_MPESA_INSTITUTION_CODE,
@@ -170,5 +171,29 @@ describe("KES M-Pesa virtual institution split", () => {
     expect(
       isSameSavedRecipient(base, { ...base, businessNumber: null }),
     ).toBe(true);
+  });
+});
+
+describe("unresolved account names", () => {
+  it("treats the aggregator's OK sentinel as unresolved, in any casing", () => {
+    expect(isUnresolvedAccountName("OK")).toBe(true);
+    expect(isUnresolvedAccountName("ok")).toBe(true);
+    expect(isUnresolvedAccountName("Ok")).toBe(true);
+    expect(isUnresolvedAccountName("  OK  ")).toBe(true);
+  });
+
+  it("treats empty and missing names as unresolved", () => {
+    expect(isUnresolvedAccountName("")).toBe(true);
+    expect(isUnresolvedAccountName("   ")).toBe(true);
+    expect(isUnresolvedAccountName(undefined)).toBe(true);
+    expect(isUnresolvedAccountName(null)).toBe(true);
+  });
+
+  it("keeps real account names, including ones that merely contain 'ok'", () => {
+    expect(isUnresolvedAccountName("John Doe")).toBe(false);
+    expect(isUnresolvedAccountName("Okon Effiong")).toBe(false);
+    expect(isUnresolvedAccountName("Koko Stores")).toBe(false);
+    // A name that is only "ok" plus more text is a real name.
+    expect(isUnresolvedAccountName("OK Foods Ltd")).toBe(false);
   });
 });

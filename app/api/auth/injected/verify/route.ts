@@ -5,6 +5,7 @@ import { rateLimit } from "@/app/lib/rate-limit";
 import { supabaseAdmin } from "@/app/lib/supabase";
 import { SUPPORTED_CHAINS } from "@/app/lib/bundler/chains";
 import { getRpcUrl } from "@/app/utils";
+import { getAppUrl } from "@/app/lib/server-config";
 import {
   isSiweDomainAllowed,
   isSiweIssuedAtFresh,
@@ -41,7 +42,7 @@ const ORIGIN_RE =
 async function getAllowedSiweOrigins(): Promise<string[]> {
   const origins: string[] = [];
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL?.trim();
+  const appUrl = getAppUrl();
   if (appUrl && ORIGIN_RE.test(appUrl)) {
     origins.push(appUrl);
   }

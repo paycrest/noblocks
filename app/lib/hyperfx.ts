@@ -40,13 +40,14 @@ import {
 } from "@/app/lib/hyperfxStatus";
 import type { HyperfxIntentQuote } from "./bridge";
 
+// This module runs in the browser, where only NEXT_PUBLIC_ vars are inlined —
+// the server-side HYPERBRIDGE_* names would always be undefined here. The
+// quote route reads those separately.
 const WS_URL =
   process.env.NEXT_PUBLIC_HYPERBRIDGE_WS_URL ||
-  process.env.HYPERBRIDGE_WS_URL ||
   "wss://nexus.rpc.polytope.technology";
 const INDEXER_URL =
   process.env.NEXT_PUBLIC_HYPERBRIDGE_INDEXER_URL ||
-  process.env.HYPERBRIDGE_INDEXER_URL ||
   "https://nexus.indexer.polytope.technology";
 
 const NOBLOCKS_GRAFFITI = padHex(stringToHex("noblocks.xyz"), {

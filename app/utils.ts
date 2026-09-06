@@ -202,6 +202,25 @@ export function normalizeSavedRecipientChannel(
 }
 
 /**
+ * True when the aggregator could not resolve a real account holder.
+ *
+ * `/verify-account` answers the literal string "OK" in two cases: a Pretium fiat
+ * (KES, GHS, UGX, MWK) where every provider soft-failed, and any currency with no
+ * verification path at all, which returns "OK" unconditionally. KES M-Pesa Till and
+ * Paybill always land here — a Paybill lookup is structurally impossible because the
+ * identifier is only the reference and the business number never reaches the PSP.
+ *
+ * "OK" is a sentinel, not a name, so the UI must collect one from the user rather than
+ * display it. The aggregator keeps a client-supplied name in that case
+ * (ResolveAccountNameAfterValidation), and the on-chain path noblocks uses never
+ * re-validates it at all.
+ */
+export function isUnresolvedAccountName(name?: string | null): boolean {
+  const value = (name ?? "").trim();
+  return value === "" || value.toLowerCase() === "ok";
+}
+
+/**
  * True when two saved recipients are the same payout target.
  *
  * Mirrors the saved-recipient unique key exactly. Channel matters because Send

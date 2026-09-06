@@ -114,6 +114,13 @@ export function AddRefundAccountModal({
       setIsFetchingAccountName(false);
     };
 
+    // Bail before scheduling when the modal is closed so a late response cannot
+    // write a stale name that briefly shows on the next open.
+    if (!isOpen) {
+      stopWithoutLookup(null);
+      return;
+    }
+
     if (!selectedInstitution || !accountNumber) {
       setAccountNumberError(null);
       stopWithoutLookup(null);
@@ -186,7 +193,7 @@ export function AddRefundAccountModal({
     }, 800);
 
     return () => clearTimeout(timeoutId);
-  }, [selectedInstitution, accountNumber, currency, kycFullName]);
+  }, [isOpen, selectedInstitution, accountNumber, currency, kycFullName]);
 
   const filteredInstitutions = useMemo(
     () => filterAndSortInstitutions(institutions, bankSearchTerm),

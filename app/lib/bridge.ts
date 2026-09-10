@@ -393,6 +393,26 @@ export function authHeaders(auth?: BridgeAuth | string | null): Record<string, s
   return a.token ? { Authorization: `Bearer ${a.token}` } : {};
 }
 
+/**
+ * Prefer the server's `error` / `message` over Axios's generic
+ * "Request failed with status code 4xx" so Convert can show a useful string.
+ */
+function extractAxiosServerMessage(err: unknown, fallback: string): string {
+  if (axios.isAxiosError(err)) {
+    const body = err.response?.data as { error?: unknown; message?: unknown } | undefined;
+    if (typeof body?.error === "string" && body.error.trim()) return body.error.trim();
+    if (typeof body?.message === "string" && body.message.trim()) return body.message.trim();
+  }
+  if (
+    err instanceof Error &&
+    err.message.trim() &&
+    !/^request failed with status code \d+$/i.test(err.message.trim())
+  ) {
+    return err.message.trim();
+  }
+  return fallback;
+}
+
 export class NearIntentsClient {
   /**
    * `withdrawFee` is already denominated in the destination asset — used as-is. `refundFee`
@@ -442,10 +462,19 @@ export class NearIntentsClient {
     auth: BridgeAuth | string | null | undefined,
     decimals: { origin: number; destination: number },
   ): Promise<BridgeQuote> {
-    const { data } = await axios.post("/api/bridge/near-intents/quote", params, {
-      headers: authHeaders(auth),
-    });
-    return this.normalizeQuote(data, params, decimals);
+    try {
+      const { data } = await axios.post("/api/bridge/near-intents/quote", params, {
+        headers: authHeaders(auth),
+      });
+      return this.normalizeQuote(data, params, decimals);
+    } catch (err) {
+      throw new Error(
+        extractAxiosServerMessage(
+          err,
+          "Unable to get a quote for this conversion. Please try again.",
+        ),
+      );
+    }
   }
 
   /** Re-requests with dry:false to get the real deposit address for execution. */
@@ -457,14 +486,26 @@ export class NearIntentsClient {
       dry: false,
       deadline: new Date(Date.now() + 600_000).toISOString(),
     };
-    const { data } = await axios.post("/api/bridge/near-intents/quote", freshParams, {
-      headers: authHeaders(auth),
-    });
-    // 1Click nests the address under data.quote.depositAddress (same shape normalizeQuote
-    // defends against) — reading only data.depositAddress misses it and throws spuriously.
-    const addr = data.quote?.depositAddress ?? data.depositAddress;
-    if (!addr) throw new Error("NEAR Intents did not return a deposit address");
-    return addr;
+    try {
+      const { data } = await axios.post("/api/bridge/near-intents/quote", freshParams, {
+        headers: authHeaders(auth),
+      });
+      // 1Click nests the address under data.quote.depositAddress (same shape normalizeQuote
+      // defends against) — reading only data.depositAddress misses it and throws spuriously.
+      const addr = data.quote?.depositAddress ?? data.depositAddress;
+      if (!addr) throw new Error("NEAR Intents did not return a deposit address");
+      return addr;
+    } catch (err) {
+      if (err instanceof Error && err.message === "NEAR Intents did not return a deposit address") {
+        throw err;
+      }
+      throw new Error(
+        extractAxiosServerMessage(
+          err,
+          "Unable to prepare this conversion. Please try again.",
+        ),
+      );
+    }
   }
 
   async getStatus(depositAddress: string, auth?: BridgeAuth | string | null): Promise<BridgeStatusResult> {

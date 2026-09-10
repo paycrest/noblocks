@@ -400,15 +400,21 @@ export function authHeaders(auth?: BridgeAuth | string | null): Record<string, s
 function extractAxiosServerMessage(err: unknown, fallback: string): string {
   if (axios.isAxiosError(err)) {
     const body = err.response?.data as { error?: unknown; message?: unknown } | undefined;
-    if (typeof body?.error === "string" && body.error.trim()) return body.error.trim();
-    if (typeof body?.message === "string" && body.message.trim()) return body.message.trim();
+    // Same 120-char cap as pickServerMessage — keep Convert banners readable.
+    for (const value of [body?.error, body?.message]) {
+      const message = typeof value === "string" ? value.trim() : "";
+      if (message && message.length <= 120) return message;
+    }
   }
-  if (
-    err instanceof Error &&
-    err.message.trim() &&
-    !/^request failed with status code \d+$/i.test(err.message.trim())
-  ) {
-    return err.message.trim();
+  if (err instanceof Error) {
+    const message = err.message.trim();
+    if (
+      message &&
+      message.length <= 120 &&
+      !/^request failed with status code \d+$/i.test(message)
+    ) {
+      return message;
+    }
   }
   return fallback;
 }

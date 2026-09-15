@@ -279,11 +279,30 @@ export const POST = withRateLimit(async (request: NextRequest) => {
     // requests both pass the limit check before either insert is committed.
     const normalizedTransactionType =
       body.transactionType === "swap" ? "offramp" : body.transactionType;
+    const normalizedOrderId =
+      typeof body.orderId === "string" ? body.orderId.trim() : "";
 
     if (
       normalizedTransactionType === "offramp" ||
       normalizedTransactionType === "onramp"
     ) {
+      if (normalizedTransactionType === "onramp" && !normalizedOrderId) {
+        trackApiError(
+          request,
+          "/api/v1/transactions",
+          "POST",
+          new Error("Missing orderId for onramp"),
+          400,
+        );
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Bad Request: orderId is required for onramp transactions",
+          },
+          { status: 400 },
+        );
+      }
+
       const swapResult = await executeSwapTransactionLimitCheck(
         normalizedBodyWalletAddress,
         {
@@ -298,7 +317,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
           network: body.network,
           time_spent: body.time_spent,
           txHash: body.txHash,
-          orderId: body.orderId,
+          orderId: normalizedOrderId || undefined,
         },
         {
           dryRun: false,
@@ -426,16 +445,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
           );
         };
 
-        const orderId =
-          typeof body.orderId === "string" ? body.orderId.trim() : "";
-        if (!orderId) {
-          return failOnramp(
-            400,
-            "Bad Request: orderId is required for onramp transactions",
-            new Error("Missing orderId for onramp provider_account"),
-          );
-        }
-
+        const orderId = normalizedOrderId;
         let providerAccount: V2FiatProviderAccountDTO | null = null;
         try {
           const orderResponse = await fetchOrderDetails(orderId);
@@ -501,7 +511,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
           fee: body.fee,
           status: body.status,
           network: body.network,
-          order_id: body.orderId,
+          order_id: normalizedOrderId || undefined,
         },
       );
 
@@ -527,7 +537,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
         network: body.network,
         time_spent: body.time_spent,
         tx_hash: body.txHash,
-        order_id: body.orderId,
+        order_id: normalizedOrderId || undefined,
       })
       .select()
       .single();
@@ -562,7 +572,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
       fee: body.fee,
       status: body.status,
       network: body.network,
-      order_id: body.orderId,
+      order_id: normalizedOrderId || undefined,
     });
 
     return NextResponse.json({ success: true, data }, { status: 201 });

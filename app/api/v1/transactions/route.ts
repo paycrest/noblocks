@@ -20,6 +20,7 @@ import {
 } from "@/app/lib/swap-transaction-limit-server";
 import { monthlyLimitReachedMessage } from "@/app/lib/kyc-limit-copy";
 import type { V2FiatProviderAccountDTO } from "@/app/types";
+import { fetchOrderDetails } from "@/app/api/aggregator";
 
 /** Normalize aggregator VA fields for JSONB storage (Activepieces pay-in emails). */
 function normalizeProviderAccount(
@@ -52,6 +53,24 @@ function normalizeProviderAccount(
     ...(amountToTransfer ? { amountToTransfer } : {}),
     ...(currency ? { currency } : {}),
   };
+}
+
+async function persistOnrampProviderAccount(
+  transactionId: string,
+  providerAccount: V2FiatProviderAccountDTO,
+): Promise<{ ok: true } | { ok: false; error: unknown }> {
+  const attempt = async () =>
+    supabaseAdmin
+      .from("transactions")
+      .update({ provider_account: providerAccount })
+      .eq("id", transactionId);
+
+  let { error } = await attempt();
+  if (error) {
+    ({ error } = await attempt());
+  }
+  if (error) return { ok: false, error };
+  return { ok: true };
 }
 
 // Route handler for GET requests
@@ -346,21 +365,101 @@ export const POST = withRateLimit(async (request: NextRequest) => {
         );
       }
 
-      // Persist VA / bank details for Activepieces pay-in instruction emails.
-      // Kept as a follow-up update so the KYC limit RPC insert shape stays unchanged.
-      const providerAccount = normalizeProviderAccount(body.providerAccount);
-      if (
-        normalizedTransactionType === "onramp" &&
-        providerAccount
-      ) {
-        const { error: providerAccountError } = await supabaseAdmin
-          .from("transactions")
-          .update({ provider_account: providerAccount })
-          .eq("id", rpcDataId);
-        if (providerAccountError) {
+      // Onramp pay-in emails need VA details from the aggregator order — never
+      // trust body.providerAccount (client-controlled payment destination).
+      if (normalizedTransactionType === "onramp") {
+        const orderId =
+          typeof body.orderId === "string" ? body.orderId.trim() : "";
+        if (!orderId) {
+          await supabaseAdmin.from("transactions").delete().eq("id", rpcDataId);
+          trackApiError(
+            request,
+            "/api/v1/transactions",
+            "POST",
+            new Error("Missing orderId for onramp provider_account"),
+            400,
+          );
+          return NextResponse.json(
+            {
+              success: false,
+              error: "Bad Request: orderId is required for onramp transactions",
+            },
+            { status: 400 },
+          );
+        }
+
+        let providerAccount: V2FiatProviderAccountDTO | null = null;
+        try {
+          const orderResponse = await fetchOrderDetails(orderId);
+          providerAccount = normalizeProviderAccount(
+            orderResponse.data?.providerAccount,
+          );
+        } catch (orderError) {
+          console.error(
+            "Failed to fetch aggregator order for provider_account:",
+            orderError,
+          );
+          await supabaseAdmin.from("transactions").delete().eq("id", rpcDataId);
+          trackApiError(
+            request,
+            "/api/v1/transactions",
+            "POST",
+            orderError as Error,
+            502,
+          );
+          return NextResponse.json(
+            {
+              success: false,
+              error:
+                "Unable to verify onramp payment details. Please try again.",
+            },
+            { status: 502 },
+          );
+        }
+
+        if (!providerAccount) {
+          await supabaseAdmin.from("transactions").delete().eq("id", rpcDataId);
+          trackApiError(
+            request,
+            "/api/v1/transactions",
+            "POST",
+            new Error("Aggregator order missing providerAccount"),
+            502,
+          );
+          return NextResponse.json(
+            {
+              success: false,
+              error:
+                "Onramp payment details are not available yet. Please try again.",
+            },
+            { status: 502 },
+          );
+        }
+
+        const persistResult = await persistOnrampProviderAccount(
+          rpcDataId,
+          providerAccount,
+        );
+        if (!persistResult.ok) {
           console.error(
             "Failed to persist onramp provider_account:",
-            providerAccountError,
+            persistResult.error,
+          );
+          await supabaseAdmin.from("transactions").delete().eq("id", rpcDataId);
+          trackApiError(
+            request,
+            "/api/v1/transactions",
+            "POST",
+            new Error("Failed to persist provider_account"),
+            500,
+          );
+          return NextResponse.json(
+            {
+              success: false,
+              error:
+                "Failed to save onramp payment details. Please try again.",
+            },
+            { status: 500 },
           );
         }
       }

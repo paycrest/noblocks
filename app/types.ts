@@ -269,6 +269,16 @@ export type OrderDetailsResponse = {
   data: OrderDetailsData;
 };
 
+/** Fiat virtual account returned by aggregator v2 onramp (create / get order). */
+export type V2FiatProviderAccountDTO = {
+  institution: string;
+  accountIdentifier: string;
+  accountName: string;
+  validUntil: string;
+  amountToTransfer?: string;
+  currency?: string;
+};
+
 export type OrderDetailsData = {
   orderId: string;
   amount: string;
@@ -279,6 +289,8 @@ export type OrderDetailsData = {
   txHash: string;
   /** Persisted FX quote (fiat per 1 token); same source history stores as `fee`. */
   rate?: string;
+  /** Onramp VA / bank details from GET /v2/sender/orders/:id when present. */
+  providerAccount?: V2FiatProviderAccountDTO;
   settlements: Settlement[];
   txReceipts: TxReceipt[];
   updatedAt: string;
@@ -312,16 +324,6 @@ type TxReceipt = {
   status: string;
   txHash: string;
   timestamp: string;
-};
-
-/** Fiat virtual account returned by aggregator v2 onramp (create / get order). */
-export type V2FiatProviderAccountDTO = {
-  institution: string;
-  accountIdentifier: string;
-  accountName: string;
-  validUntil: string;
-  amountToTransfer?: string;
-  currency?: string;
 };
 
 /** Display shape for virtual account / bank transfer instructions (mirrors provider/types OnrampPaymentInstructions). */

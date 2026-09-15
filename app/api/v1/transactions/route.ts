@@ -26,14 +26,18 @@ import { fetchOrderDetails } from "@/app/api/aggregator";
 function normalizeProviderAccount(
   raw: unknown,
 ): V2FiatProviderAccountDTO | null {
-  if (!raw || typeof raw !== "object") return null;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
   const o = raw as Record<string, unknown>;
   const institution = typeof o.institution === "string" ? o.institution.trim() : "";
   const accountIdentifier =
     typeof o.accountIdentifier === "string" ? o.accountIdentifier.trim() : "";
   const accountName =
     typeof o.accountName === "string" ? o.accountName.trim() : "";
-  if (!institution || !accountIdentifier || !accountName) return null;
+  const validUntil =
+    typeof o.validUntil === "string" ? o.validUntil.trim() : "";
+  if (!institution || !accountIdentifier || !accountName || !validUntil) {
+    return null;
+  }
   const amountToTransferRaw = o.amountToTransfer;
   const amountToTransfer =
     typeof amountToTransferRaw === "string"
@@ -49,7 +53,7 @@ function normalizeProviderAccount(
     institution,
     accountIdentifier,
     accountName,
-    validUntil: typeof o.validUntil === "string" ? o.validUntil : "",
+    validUntil,
     ...(amountToTransfer ? { amountToTransfer } : {}),
     ...(currency ? { currency } : {}),
   };
@@ -69,6 +73,18 @@ async function persistOnrampProviderAccount(
   if (error) {
     ({ error } = await attempt());
   }
+  if (error) return { ok: false, error };
+  return { ok: true };
+}
+
+/** Remove a limit-RPC insert when onramp VA cannot be verified/persisted. */
+async function rollbackOnrampInsert(
+  transactionId: string,
+): Promise<{ ok: true } | { ok: false; error: unknown }> {
+  const { error } = await supabaseAdmin
+    .from("transactions")
+    .delete()
+    .eq("id", transactionId);
   if (error) return { ok: false, error };
   return { ok: true };
 }
@@ -368,23 +384,55 @@ export const POST = withRateLimit(async (request: NextRequest) => {
       // Onramp pay-in emails need VA details from the aggregator order — never
       // trust body.providerAccount (client-controlled payment destination).
       if (normalizedTransactionType === "onramp") {
-        const orderId =
-          typeof body.orderId === "string" ? body.orderId.trim() : "";
-        if (!orderId) {
-          await supabaseAdmin.from("transactions").delete().eq("id", rpcDataId);
+        const failOnramp = async (
+          status: number,
+          clientError: string,
+          logError: Error,
+        ) => {
+          const cleanup = await rollbackOnrampInsert(rpcDataId);
+          if (!cleanup.ok) {
+            console.error(
+              "Failed to roll back onramp insert after provider_account error:",
+              cleanup.error,
+            );
+            trackApiError(
+              request,
+              "/api/v1/transactions",
+              "POST",
+              new Error("Failed to roll back onramp insert", {
+                cause: cleanup.error,
+              }),
+              500,
+            );
+            return NextResponse.json(
+              {
+                success: false,
+                error:
+                  "Failed to finalize onramp transaction. Please contact support if this persists.",
+              },
+              { status: 500 },
+            );
+          }
           trackApiError(
             request,
             "/api/v1/transactions",
             "POST",
-            new Error("Missing orderId for onramp provider_account"),
-            400,
+            logError,
+            status,
           );
           return NextResponse.json(
-            {
-              success: false,
-              error: "Bad Request: orderId is required for onramp transactions",
-            },
-            { status: 400 },
+            { success: false, error: clientError },
+            { status },
+          );
+        };
+
+        const orderId =
+          typeof body.orderId === "string" ? body.orderId.trim() : "";
+        if (!orderId) {
+          return failOnramp(
+            400,
+            "Bad Request: orderId is required for onramp transactions",
+            new Error("Missing orderId for onramp provider_account"),
           );
         }
 
@@ -399,40 +447,20 @@ export const POST = withRateLimit(async (request: NextRequest) => {
             "Failed to fetch aggregator order for provider_account:",
             orderError,
           );
-          await supabaseAdmin.from("transactions").delete().eq("id", rpcDataId);
-          trackApiError(
-            request,
-            "/api/v1/transactions",
-            "POST",
-            orderError as Error,
+          return failOnramp(
             502,
-          );
-          return NextResponse.json(
-            {
-              success: false,
-              error:
-                "Unable to verify onramp payment details. Please try again.",
-            },
-            { status: 502 },
+            "Unable to verify onramp payment details. Please try again.",
+            orderError instanceof Error
+              ? orderError
+              : new Error(String(orderError)),
           );
         }
 
         if (!providerAccount) {
-          await supabaseAdmin.from("transactions").delete().eq("id", rpcDataId);
-          trackApiError(
-            request,
-            "/api/v1/transactions",
-            "POST",
-            new Error("Aggregator order missing providerAccount"),
+          return failOnramp(
             502,
-          );
-          return NextResponse.json(
-            {
-              success: false,
-              error:
-                "Onramp payment details are not available yet. Please try again.",
-            },
-            { status: 502 },
+            "Onramp payment details are not available yet. Please try again.",
+            new Error("Aggregator order missing providerAccount"),
           );
         }
 
@@ -445,21 +473,12 @@ export const POST = withRateLimit(async (request: NextRequest) => {
             "Failed to persist onramp provider_account:",
             persistResult.error,
           );
-          await supabaseAdmin.from("transactions").delete().eq("id", rpcDataId);
-          trackApiError(
-            request,
-            "/api/v1/transactions",
-            "POST",
-            new Error("Failed to persist provider_account"),
+          return failOnramp(
             500,
-          );
-          return NextResponse.json(
-            {
-              success: false,
-              error:
-                "Failed to save onramp payment details. Please try again.",
-            },
-            { status: 500 },
+            "Failed to save onramp payment details. Please try again.",
+            new Error("Failed to persist provider_account", {
+              cause: persistResult.error,
+            }),
           );
         }
       }

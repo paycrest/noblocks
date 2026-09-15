@@ -602,6 +602,12 @@ export interface TransactionHistory {
   created_at: string;
   updated_at: string;
   order_id?: string;
+  email?: string | null;
+  email_sent_at?: string | null;
+  /** When pay-in instructions email was sent (onramp). */
+  payin_email_sent_at?: string | null;
+  /** Aggregator VA / bank details for onramp pay-in emails. */
+  provider_account?: V2FiatProviderAccountDTO | null;
 }
 
 export interface TransactionCreateInput {
@@ -619,6 +625,8 @@ export interface TransactionCreateInput {
   timeSpent?: string;
   orderId?: string;
   email?: string;
+  /** Onramp only — persisted for Activepieces pay-in instruction emails. */
+  providerAccount?: V2FiatProviderAccountDTO | null;
 }
 
 export interface TransactionUpdateInput {

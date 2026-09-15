@@ -19,6 +19,40 @@ import {
   executeSwapTransactionLimitCheck,
 } from "@/app/lib/swap-transaction-limit-server";
 import { monthlyLimitReachedMessage } from "@/app/lib/kyc-limit-copy";
+import type { V2FiatProviderAccountDTO } from "@/app/types";
+
+/** Normalize aggregator VA fields for JSONB storage (Activepieces pay-in emails). */
+function normalizeProviderAccount(
+  raw: unknown,
+): V2FiatProviderAccountDTO | null {
+  if (!raw || typeof raw !== "object") return null;
+  const o = raw as Record<string, unknown>;
+  const institution = typeof o.institution === "string" ? o.institution.trim() : "";
+  const accountIdentifier =
+    typeof o.accountIdentifier === "string" ? o.accountIdentifier.trim() : "";
+  const accountName =
+    typeof o.accountName === "string" ? o.accountName.trim() : "";
+  if (!institution || !accountIdentifier || !accountName) return null;
+  const amountToTransferRaw = o.amountToTransfer;
+  const amountToTransfer =
+    typeof amountToTransferRaw === "string"
+      ? amountToTransferRaw.trim()
+      : typeof amountToTransferRaw === "number" &&
+          Number.isFinite(amountToTransferRaw)
+        ? String(amountToTransferRaw)
+        : "";
+  const currency =
+    typeof o.currency === "string" ? o.currency.trim() : "";
+
+  return {
+    institution,
+    accountIdentifier,
+    accountName,
+    validUntil: typeof o.validUntil === "string" ? o.validUntil : "",
+    ...(amountToTransfer ? { amountToTransfer } : {}),
+    ...(currency ? { currency } : {}),
+  };
+}
 
 // Route handler for GET requests
 export const GET = withRateLimit(async (request: NextRequest) => {
@@ -310,6 +344,25 @@ export const POST = withRateLimit(async (request: NextRequest) => {
         throw new Error(
           "Unexpected RPC response from insert_swap_transaction_if_within_limit",
         );
+      }
+
+      // Persist VA / bank details for Activepieces pay-in instruction emails.
+      // Kept as a follow-up update so the KYC limit RPC insert shape stays unchanged.
+      const providerAccount = normalizeProviderAccount(body.providerAccount);
+      if (
+        normalizedTransactionType === "onramp" &&
+        providerAccount
+      ) {
+        const { error: providerAccountError } = await supabaseAdmin
+          .from("transactions")
+          .update({ provider_account: providerAccount })
+          .eq("id", rpcDataId);
+        if (providerAccountError) {
+          console.error(
+            "Failed to persist onramp provider_account:",
+            providerAccountError,
+          );
+        }
       }
 
       const responseTime = Date.now() - startTime;

@@ -28,6 +28,7 @@ import type {
   V2CreatePaymentOrderPayload,
   V2PaymentOrderCreateData,
   V2PaymentOrderGetData,
+  V2FiatProviderAccountDTO,
   AggregatorEnvelope,
   RefundAccountDetails,
   ReferralData,
@@ -173,6 +174,12 @@ export function mapV2SenderOrderGetToOrderDetailsData(
       ? String(rateRaw)
       : undefined;
 
+  const providerAccountRaw = d.providerAccount;
+  const providerAccount =
+    providerAccountRaw && typeof providerAccountRaw === "object"
+      ? (providerAccountRaw as V2FiatProviderAccountDTO)
+      : undefined;
+
   return {
     orderId: String(d.id ?? ""),
     amount: String(d.amount ?? ""),
@@ -182,6 +189,7 @@ export function mapV2SenderOrderGetToOrderDetailsData(
     status: d.status,
     txHash: String(d.txHash ?? ""),
     rate,
+    ...(providerAccount ? { providerAccount } : {}),
     settlements: [],
     txReceipts,
     updatedAt,

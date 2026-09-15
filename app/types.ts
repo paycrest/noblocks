@@ -269,6 +269,16 @@ export type OrderDetailsResponse = {
   data: OrderDetailsData;
 };
 
+/** Fiat virtual account returned by aggregator v2 onramp (create / get order). */
+export type V2FiatProviderAccountDTO = {
+  institution: string;
+  accountIdentifier: string;
+  accountName: string;
+  validUntil: string;
+  amountToTransfer?: string;
+  currency?: string;
+};
+
 export type OrderDetailsData = {
   orderId: string;
   amount: string;
@@ -279,6 +289,8 @@ export type OrderDetailsData = {
   txHash: string;
   /** Persisted FX quote (fiat per 1 token); same source history stores as `fee`. */
   rate?: string;
+  /** Onramp VA / bank details from GET /v2/sender/orders/:id when present. */
+  providerAccount?: V2FiatProviderAccountDTO;
   settlements: Settlement[];
   txReceipts: TxReceipt[];
   updatedAt: string;
@@ -312,16 +324,6 @@ type TxReceipt = {
   status: string;
   txHash: string;
   timestamp: string;
-};
-
-/** Fiat virtual account returned by aggregator v2 onramp (create / get order). */
-export type V2FiatProviderAccountDTO = {
-  institution: string;
-  accountIdentifier: string;
-  accountName: string;
-  validUntil: string;
-  amountToTransfer?: string;
-  currency?: string;
 };
 
 /** Display shape for virtual account / bank transfer instructions (mirrors provider/types OnrampPaymentInstructions). */
@@ -602,6 +604,12 @@ export interface TransactionHistory {
   created_at: string;
   updated_at: string;
   order_id?: string;
+  email?: string | null;
+  email_sent_at?: string | null;
+  /** When pay-in instructions email was sent (onramp). */
+  payin_email_sent_at?: string | null;
+  /** Aggregator VA / bank details for onramp pay-in emails. */
+  provider_account?: V2FiatProviderAccountDTO | null;
 }
 
 export interface TransactionCreateInput {
@@ -619,6 +627,8 @@ export interface TransactionCreateInput {
   timeSpent?: string;
   orderId?: string;
   email?: string;
+  /** Onramp only — persisted for Activepieces pay-in instruction emails. */
+  providerAccount?: V2FiatProviderAccountDTO | null;
 }
 
 export interface TransactionUpdateInput {

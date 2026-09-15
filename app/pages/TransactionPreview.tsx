@@ -1146,6 +1146,12 @@ export const TransactionPreview = ({
         orderId: orderId,
         ...(txHash ? { txHash } : {}),
         email: user?.email?.address ?? undefined,
+        ...(isOnramp
+          ? {
+              providerAccount:
+                providerAccount ?? onrampPaymentAccount ?? null,
+            }
+          : {}),
       };
 
       const response = await saveTransaction(

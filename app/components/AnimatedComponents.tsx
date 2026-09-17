@@ -1,5 +1,5 @@
 "use client";
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { useEffect, useLayoutEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Dialog, DialogPanel } from "@headlessui/react";
@@ -453,80 +453,84 @@ export const AnimatedModal = ({
         />
 
         <div className="fixed inset-0 flex w-screen items-end sm:items-center sm:justify-center sm:p-4">
-          {/* animated-modal-panel: stable styling hook (e.g. for widget-mode
-              overrides in globals.css) — style this wrapper rather than
-              DialogPanel, which sets its own inline maxWidth. */}
-          <motion.div
-            initial={{ y: "100%", opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            exit={{ y: "100%", opacity: 0 }}
-            transition={{
-              type: "spring",
-              stiffness: 300,
-              damping: 30,
-            }}
-            className="animated-modal-panel w-full"
+          {/* Scroll lives on this untransformed shell. Animating `y` on the
+              same node as overflow-y-auto breaks touch scrolling on notch-era
+              iOS Safari (e.g. iPhone 12 Pro) inside partner iframes. */}
+          <div
+            className={classNames(
+              "animated-modal-panel w-full max-h-[90dvh] overflow-y-auto overscroll-contain touch-pan-y",
+              "[-webkit-overflow-scrolling:touch]",
+            )}
           >
-            <DialogPanel
-              className={classNames(
-                "relative mx-auto w-full",
-                dialogPanelClassName || "",
-              )}
-              style={{ maxWidth: window.innerWidth > 640 ? maxWidth : "none" }}
+            <motion.div
+              initial={{ y: "100%", opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: "100%", opacity: 0 }}
+              transition={{
+                type: "spring",
+                stiffness: 300,
+                damping: 30,
+              }}
             >
-              <motion.div layout initial={false} className="relative">
-                {showGradientHeader && (
-                  <motion.div
-                    layout
-                    className="h-24 w-full max-sm:rounded-t-[30px] sm:max-h-[90vh] sm:rounded-3xl"
-                    style={{
-                      background: backgroundImagePath
-                        ? `url(${backgroundImagePath})`
-                        : "linear-gradient(to right, #d4e269, #b0a6e4, #f9f1fe)",
-                      backgroundSize: backgroundImagePath ? "cover" : "auto",
-                      backgroundPosition: backgroundImagePath
-                        ? "top center"
-                        : "initial",
-                      backgroundRepeat: backgroundImagePath
-                        ? "no-repeat"
-                        : "initial",
-                    }}
-                  >
-                    <div
-                      className={classNames(
-                        "h-full w-full rounded-t-[30px] sm:rounded-t-3xl",
-                        backgroundImagePath
-                          ? ""
-                          : "bg-gradient-to-r from-[#d4e269] via-[#b0a6e4] to-[#f9f1fe] dark:from-[#7b8c12] dark:via-[#243b81] dark:to-[#1d1324]",
-                      )}
-                    >
-                      <Cancel01Icon
-                        className="absolute right-4 top-4 size-5 cursor-pointer text-text-secondary hover:text-white dark:text-white/50 dark:hover:text-white"
-                        onClick={onClose}
-                      />
-                    </div>
-                  </motion.div>
+              <DialogPanel
+                className={classNames(
+                  // Mobile: full-bleed bottom sheet. sm+: cap via CSS var so we
+                  // never read window during SSR/hydration of this client tree.
+                  "relative mx-auto w-full max-w-none sm:max-w-[var(--animated-modal-max-width)]",
+                  dialogPanelClassName || "",
                 )}
-
-                <motion.div
-                  layout
-                  initial={false}
-                  className={classNames(
-                    // max-h-[90dvh] was sm:-only before, so a tall panel
-                    // (e.g. NetworkSelectionModal's full chain list) on a
-                    // narrow viewport — a real phone or the widget iframe,
-                    // both always below `sm` — had no height bound and no
-                    // way to scroll back to whatever grew past the top.
-                    "w-full max-h-[90dvh] overflow-y-auto bg-white p-5 text-sm dark:bg-surface-overlay max-sm:rounded-t-[30px] sm:rounded-3xl",
-                    showGradientHeader ? "-mt-10" : "",
-                    contentClassName ?? "",
+                style={
+                  {
+                    "--animated-modal-max-width": maxWidth,
+                  } as CSSProperties
+                }
+              >
+                <div className="relative">
+                  {showGradientHeader && (
+                    <div
+                      className="h-24 w-full max-sm:rounded-t-[30px] sm:max-h-[90vh] sm:rounded-3xl"
+                      style={{
+                        background: backgroundImagePath
+                          ? `url(${backgroundImagePath})`
+                          : "linear-gradient(to right, #d4e269, #b0a6e4, #f9f1fe)",
+                        backgroundSize: backgroundImagePath ? "cover" : "auto",
+                        backgroundPosition: backgroundImagePath
+                          ? "top center"
+                          : "initial",
+                        backgroundRepeat: backgroundImagePath
+                          ? "no-repeat"
+                          : "initial",
+                      }}
+                    >
+                      <div
+                        className={classNames(
+                          "h-full w-full rounded-t-[30px] sm:rounded-t-3xl",
+                          backgroundImagePath
+                            ? ""
+                            : "bg-gradient-to-r from-[#d4e269] via-[#b0a6e4] to-[#f9f1fe] dark:from-[#7b8c12] dark:via-[#243b81] dark:to-[#1d1324]",
+                        )}
+                      >
+                        <Cancel01Icon
+                          className="absolute right-4 top-4 size-5 cursor-pointer text-text-secondary hover:text-white dark:text-white/50 dark:hover:text-white"
+                          onClick={onClose}
+                        />
+                      </div>
+                    </div>
                   )}
-                >
-                  <motion.div layout="position">{children}</motion.div>
-                </motion.div>
-              </motion.div>
-            </DialogPanel>
-          </motion.div>
+
+                  <div
+                    className={classNames(
+                      "w-full bg-white p-5 text-sm dark:bg-surface-overlay max-sm:rounded-t-[30px] sm:rounded-3xl",
+                      showGradientHeader ? "-mt-10" : "",
+                      contentClassName ?? "",
+                    )}
+                  >
+                    {children}
+                  </div>
+                </div>
+              </DialogPanel>
+            </motion.div>
+          </div>
         </div>
       </Dialog>
     )}

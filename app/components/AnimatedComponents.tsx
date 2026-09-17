@@ -1,5 +1,5 @@
 "use client";
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { useEffect, useLayoutEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Dialog, DialogPanel } from "@headlessui/react";
@@ -474,10 +474,16 @@ export const AnimatedModal = ({
             >
               <DialogPanel
                 className={classNames(
-                  "relative mx-auto w-full",
+                  // Mobile: full-bleed bottom sheet. sm+: cap via CSS var so we
+                  // never read window during SSR/hydration of this client tree.
+                  "relative mx-auto w-full max-w-none sm:max-w-[var(--animated-modal-max-width)]",
                   dialogPanelClassName || "",
                 )}
-                style={{ maxWidth: window.innerWidth > 640 ? maxWidth : "none" }}
+                style={
+                  {
+                    "--animated-modal-max-width": maxWidth,
+                  } as CSSProperties
+                }
               >
                 <div className="relative">
                   {showGradientHeader && (

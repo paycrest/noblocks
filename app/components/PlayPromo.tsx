@@ -488,7 +488,7 @@ export function PlayPromoButton() {
 
   return (
     <motion.div
-      className="pointer-events-none fixed left-0 right-0 top-[72px] z-30"
+      className="pointer-events-none fixed left-0 right-0 top-[78px] z-30"
       initial={{ opacity: 0, y: -10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3, ease: "easeOut" }}

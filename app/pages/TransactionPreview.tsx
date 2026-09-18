@@ -13,11 +13,13 @@ import {
   getCurrencySymbol,
   getGatewayContractAddress,
   getInstitutionNameByCode,
+  formatRecipientInstitutionDisplay,
+  getKesMpesaInstitutionLabel,
+  KES_MPESA_INSTITUTION_CODE,
   getNetworkImageUrl,
   getRpcUrl,
   normalizeNetworkName,
   normalizeNetworkForRateFetch,
-  publicKeyEncrypt,
   shortenAddress,
   isSolanaChain,
   isEvmChain,
@@ -75,7 +77,7 @@ import {
 import { useApiAuth } from "../hooks/useApiAuth";
 
 import {
-  fetchAggregatorPublicKey,
+  createOfframpMessageHash,
   fetchTokens,
   saveTransaction,
   precheckSwapTransaction,
@@ -172,6 +174,8 @@ export const TransactionPreview = ({
     accountIdentifier,
     memo,
     walletAddress,
+    kesChannel,
+    businessNumber,
   } = formValues;
 
   // Derive the flow from the form's own mode, never from `!!walletAddress` — a Buy that somehow
@@ -394,46 +398,45 @@ export const TransactionPreview = ({
         .split(" ")
         .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
         .join(" "),
-      account: `${accountIdentifier} • ${getInstitutionNameByCode(institution, supportedInstitutions) ?? institution ?? ""}`,
+      account: formatRecipientInstitutionDisplay(
+        institution,
+        supportedInstitutions,
+        {
+          currency,
+          channel: kesChannel,
+          accountIdentifier,
+          businessNumber,
+        },
+      ),
       ...(memo && { description: memo }),
       network: selectedNetwork.chain.name,
     };
 
-  const prepareCreateOrderParams = async () => {
-    const senderApiKeyId = config.aggregatorSenderApiKey?.trim();
-    if (!senderApiKeyId) {
-      throw new Error(
-        "Sender API key is not configured (set NEXT_PUBLIC_AGGREGATOR_SENDER_API_KEY_ID)",
-      );
-    }
-    const metadata = { apiKey: senderApiKeyId };
+  type OrderAuth = { accessToken: string | null; injectedToken: string | null };
 
+  // Offramp only (onramp never reaches createOrder). The server builds the
+  // encrypted recipient — nonce and sender API key are added there, so the key
+  // never reaches the browser. Raw KES fields are sent; the server applies the
+  // channel/businessNumber rules authoritatively.
+  const prepareCreateOrderParams = async (auth: OrderAuth) => {
     const providerId =
       searchParams.get("provider") || searchParams.get("PROVIDER");
 
-    // Prepare recipient data (metadata.apiKey matches aggregator OrderEVM.CreateOrder + indexer)
-    const recipient = isOnramp
-      ? {
-        accountIdentifier: walletAddress || "",
-        accountName: recipientName || walletAddress || "",
-        institution: "Wallet",
-        ...(providerId && { providerId }),
-        nonce: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`,
-        metadata,
-      }
-      : {
+    const messageHash = await createOfframpMessageHash(
+      {
         accountIdentifier: formValues.accountIdentifier,
         accountName: recipientName,
         institution: formValues.institution,
         memo: formValues.memo,
         ...(providerId && { providerId }),
-        nonce: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`,
-        metadata,
-      };
-
-    // Fetch aggregator public key
-    const publicKey = await fetchAggregatorPublicKey();
-    const encryptedRecipient = publicKeyEncrypt(recipient, publicKey.data);
+        ...(formValues.kesChannel && { kesChannel: formValues.kesChannel }),
+        ...(formValues.businessNumber?.trim() && {
+          businessNumber: formValues.businessNumber.trim(),
+        }),
+      },
+      auth.accessToken,
+      auth.injectedToken,
+    );
 
     // Prepare transaction parameters
     const params = {
@@ -443,7 +446,7 @@ export const TransactionPreview = ({
       senderFeeRecipient: zeroAddress,
       senderFee: BigInt(0),
       refundAddress: activeWallet?.address as `0x${string}`,
-      messageHash: encryptedRecipient,
+      messageHash,
     };
 
     return params;
@@ -461,14 +464,14 @@ export const TransactionPreview = ({
     }
   };
 
-  const createOrder = async () => {
+  const createOrder = async (auth: OrderAuth) => {
     try {
       if (isStarknetSelected) {
         if (!starknetWalletId || !starknetPublicKey || !starknetWalletAddress) {
           throw new Error("Starknet wallet not ready");
         }
 
-        const params = await prepareCreateOrderParams();
+        const params = await prepareCreateOrderParams(auth);
         setCreatedAt(new Date().toISOString());
 
         const accessToken = await getAccessToken();
@@ -674,7 +677,7 @@ export const TransactionPreview = ({
           throw new Error("Injected wallet not ready");
         }
 
-        const params = await prepareCreateOrderParams();
+        const params = await prepareCreateOrderParams(auth);
         setCreatedAt(new Date().toISOString());
 
         const requiredSpend = params.amount + params.senderFee;
@@ -816,7 +819,7 @@ export const TransactionPreview = ({
           authorization = await signDelegationAuthorization(chainId);
         }
 
-        const params = await prepareCreateOrderParams();
+        const params = await prepareCreateOrderParams(auth);
         setCreatedAt(new Date().toISOString());
         const requiredSpend = params.amount + params.senderFee;
 
@@ -936,7 +939,7 @@ export const TransactionPreview = ({
           id: selectedNetwork.chain.id,
         });
 
-        const params = await prepareCreateOrderParams();
+        const params = await prepareCreateOrderParams(auth);
         setCreatedAt(new Date().toISOString());
 
         const requiredSpend = params.amount + params.senderFee;
@@ -1239,19 +1242,26 @@ export const TransactionPreview = ({
           network: precheckNetworkSlug,
           recipient: {
             account_name: recipientName,
-            institution: getInstitutionNameByCode(
-              institution,
-              supportedInstitutions,
-            ) as string,
+            institution:
+              institution === KES_MPESA_INSTITUTION_CODE && kesChannel
+                ? getKesMpesaInstitutionLabel(kesChannel)
+                : (getInstitutionNameByCode(
+                    institution,
+                    supportedInstitutions,
+                  ) as string),
             account_identifier: accountIdentifier,
             ...(memo && { memo }),
+            ...(kesChannel ? { channel: kesChannel } : {}),
+            ...(businessNumber?.trim()
+              ? { business_number: businessNumber.trim() }
+              : {}),
           },
         },
         accessToken,
         injectedToken,
       );
 
-      await createOrder();
+      await createOrder({ accessToken, injectedToken });
     } catch (e) {
       const msg =
         e instanceof Error ? e.message : "Unable to start this transaction.";
@@ -1304,18 +1314,31 @@ export const TransactionPreview = ({
           }
           : {
             account_name: recipientName,
-            institution: getInstitutionNameByCode(
-              institution,
-              supportedInstitutions,
-            ) as string,
+            institution:
+              institution === KES_MPESA_INSTITUTION_CODE && kesChannel
+                ? getKesMpesaInstitutionLabel(kesChannel)
+                : (getInstitutionNameByCode(
+                    institution,
+                    supportedInstitutions,
+                  ) as string),
             account_identifier: accountIdentifier,
             ...(memo && { memo }),
+            ...(kesChannel ? { channel: kesChannel } : {}),
+            ...(businessNumber?.trim()
+              ? { business_number: businessNumber.trim() }
+              : {}),
           },
         status: "pending",
         network: selectedNetwork.chain.name,
         orderId: orderId,
         ...(txHash ? { txHash } : {}),
         email: user?.email?.address ?? undefined,
+        ...(isOnramp
+          ? {
+              providerAccount:
+                providerAccount ?? onrampPaymentAccount ?? null,
+            }
+          : {}),
       };
 
       const response = await saveTransaction(

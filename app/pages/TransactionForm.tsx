@@ -1816,7 +1816,9 @@ export const TransactionForm = ({
         <AnimatedModal
           isOpen={isKycModalOpen && tier >= 1}
           onClose={() => setIsKycModalOpen(false)}
-          lockBodyScroll
+          // Embed iframe already constrains height; body pin + nested scroll
+          // fights notch-era iOS Safari (Textile Deposit / iPhone 12 Pro).
+          lockBodyScroll={!isEmbed}
         >
           <KycModal
             setIsKycModalOpen={setIsKycModalOpen}

@@ -1,5 +1,4 @@
 import { Config, JWTProviderConfig } from "@/app/types";
-import { resolveLayerswapApiBaseUrl } from "./layerswapConfig";
 
 /** EIP-7702 delegation contract (ProviderBatchCallAndSponsor) per chain. */
 export const DELEGATION_CONTRACT_BY_CHAIN: Record<number, string> = {
@@ -38,8 +37,6 @@ const config: Config = {
   rpcUrlKey: process.env.NEXT_PUBLIC_RPC_URL_KEY || "",
   mixpanelToken: process.env.NEXT_PUBLIC_MIXPANEL_TOKEN || "",
   hotjarSiteId: Number(process.env.NEXT_PUBLIC_HOTJAR_SITE_ID || ""),
-  googleVerificationCode:
-    process.env.NEXT_PUBLIC_GOOGLE_VERIFICATION_CODE || "",
   noticeBannerText: process.env.NEXT_PUBLIC_NOTICE_BANNER_TEXT || "",
   brevoConversationsId: process.env.NEXT_PUBLIC_BREVO_CONVERSATIONS_ID || "",
   brevoConversationsGroupId: process.env.NEXT_PUBLIC_BREVO_CONVERSATIONS_GROUP_ID || "",
@@ -65,18 +62,6 @@ const config: Config = {
     );
     return Number.isFinite(parsed) ? parsed : 0;
   })(),
-  /** Sender API key UUID (aggregator dashboard). Used by server proxy and client (on-chain messageHash metadata). */
-  aggregatorSenderApiKey: (process.env.NEXT_PUBLIC_AGGREGATOR_SENDER_API_KEY_ID || "").trim(),
-  moralisWebhookSecret: process.env.MORALIS_WEBHOOK_SECRET || "",
-  activepiecesWebhookUrl: process.env.ACTIVEPIECES_WEBHOOK_URL || "",
-  activepiecesSignupVerifyWebhookUrl:
-    process.env.ACTIVEPIECES_SIGNUP_VERIFY_WEBHOOK_URL || "",
-  activepiecesKycResultWebhookUrl:
-    process.env.ACTIVEPIECES_KYC_RESULT_WEBHOOK_URL || "",
-  moralisStreamId: process.env.MORALIS_STREAM_ID || "",
-  moralisApiKey: process.env.MORALIS_API_KEY || "",
-  moralisBaseUrl:
-    process.env.MORALIS_BASE_URL || "https://api.moralis-streams.com",
   earnEnabled: process.env.NEXT_PUBLIC_EARN_ENABLED === "true",
   evmEarnEnabled: process.env.NEXT_PUBLIC_EVM_EARN_ENABLED === "true",
   tronEnabled: process.env.NEXT_PUBLIC_TRON_ENABLED === "true",
@@ -93,6 +78,7 @@ const config: Config = {
     process.env.NEXT_PUBLIC_SOLANA_GATEWAY_PROGRAM_ID || "",
   referralEnabled: (process.env.NEXT_PUBLIC_REFERRAL_ENABLED || "").trim().toLowerCase() !== "false",
   bridgeEnabled: process.env.NEXT_PUBLIC_BRIDGE_ENABLED === "true",
+  textileEnabled: process.env.NEXT_PUBLIC_TEXTILE_ENABLED === "true",
   hyperfxEnabled: process.env.NEXT_PUBLIC_HYPERFX_ENABLED === "true",
   onrampChainedForwardingEnabled:
     process.env.NEXT_PUBLIC_ONRAMP_CHAINED_FORWARDING_ENABLED === "true",
@@ -104,11 +90,6 @@ const config: Config = {
   fantasyCampaignEnded:
     process.env.NEXT_PUBLIC_FANTASY_CAMPAIGN_ENDED === "true",
   embedEnabled: process.env.NEXT_PUBLIC_EMBED_ENABLED === "true",
-  /** Server-side LayerSwap API key (EVM earn bridge). */
-  layerswapApiKey: (process.env.LAYERSWAP_API_KEY || "").trim(),
-  layerswapApiBaseUrl: resolveLayerswapApiBaseUrl(
-    process.env.LAYERSWAP_API_BASE_URL,
-  ),
 };
 
 export default config;
@@ -119,14 +100,6 @@ export const DEFAULT_PRIVY_CONFIG: JWTProviderConfig = {
     jwksUrl: process.env.PRIVY_JWKS_URL || "",
     issuer: process.env.PRIVY_ISSUER || "",
     algorithms: ["ES256"],
-  },
-};
-
-export const DEFAULT_THIRDWEB_CONFIG: JWTProviderConfig = {
-  provider: "thirdweb",
-  thirdweb: {
-    clientId: process.env.THIRDWEB_CLIENT_ID || "",
-    domain: process.env.THIRDWEB_DOMAIN || "",
   },
 };
 

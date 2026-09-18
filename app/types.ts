@@ -24,10 +24,20 @@ import type {
   UseFormReturn,
 } from "react-hook-form";
 
+/** KES M-Pesa payout rail. Till/Paybill share institution SAFAKEPC with channel metadata. */
+export type KesMpesaChannel = "Mobile" | "Till" | "Paybill";
+
 export type InstitutionProps = {
   name: string;
   code: string;
   type: "bank" | "mobile_money";
+  /**
+   * UI-only key for virtual KES M-Pesa splits (e.g. `SAFAKEPC:Till`).
+   * Always submit `code` (SAFAKEPC) to the API.
+   */
+  uiKey?: string;
+  /** Present on virtually expanded KES M-Pesa institution options. */
+  channel?: KesMpesaChannel;
 };
 
 /** Onramp refund bank account (persisted per wallet + fiat currency; v2 order source.refundAccount). */
@@ -59,6 +69,10 @@ export type FormData = {
   isSwapped?: boolean;
   /** True after user picks the Receive row asset (fiat off-ramp, token on-ramp). */
   receiveDestinationExplicitlySelected: boolean;
+  /** KES M-Pesa rail when SAFAKEPC is virtually split in the UI. */
+  kesChannel?: KesMpesaChannel | "";
+  /** Paybill business number (KES Paybill only). */
+  businessNumber?: string;
 };
 
 export const STEPS = {
@@ -106,6 +120,10 @@ export type RecipientDetails =
     institutionCode: string;
     accountIdentifier: string;
     currency?: string;
+    /** KES M-Pesa channel when saved from a virtual institution split. */
+    channel?: KesMpesaChannel;
+    /** Paybill business number when channel is Paybill. */
+    businessNumber?: string;
     walletAddress?: never;
   };
 
@@ -164,6 +182,11 @@ export type SelectFieldProps = {
 export type VerifyAccountPayload = {
   institution: string;
   accountIdentifier: string;
+  /** KES Till/Paybill: skips phone normalization on the aggregator. */
+  metadata?: {
+    channel?: KesMpesaChannel;
+    businessNumber?: string;
+  };
 };
 
 /** Paycrest v2 rates: onramp uses `buy`, offramp uses `sell`. */
@@ -246,6 +269,16 @@ export type OrderDetailsResponse = {
   data: OrderDetailsData;
 };
 
+/** Fiat virtual account returned by aggregator v2 onramp (create / get order). */
+export type V2FiatProviderAccountDTO = {
+  institution: string;
+  accountIdentifier: string;
+  accountName: string;
+  validUntil: string;
+  amountToTransfer?: string;
+  currency?: string;
+};
+
 export type OrderDetailsData = {
   orderId: string;
   amount: string;
@@ -256,6 +289,8 @@ export type OrderDetailsData = {
   txHash: string;
   /** Persisted FX quote (fiat per 1 token); same source history stores as `fee`. */
   rate?: string;
+  /** Onramp VA / bank details from GET /v2/sender/orders/:id when present. */
+  providerAccount?: V2FiatProviderAccountDTO;
   settlements: Settlement[];
   txReceipts: TxReceipt[];
   updatedAt: string;
@@ -289,16 +324,6 @@ type TxReceipt = {
   status: string;
   txHash: string;
   timestamp: string;
-};
-
-/** Fiat virtual account returned by aggregator v2 onramp (create / get order). */
-export type V2FiatProviderAccountDTO = {
-  institution: string;
-  accountIdentifier: string;
-  accountName: string;
-  validUntil: string;
-  amountToTransfer?: string;
-  currency?: string;
 };
 
 /** Display shape for virtual account / bank transfer instructions (mirrors provider/types OnrampPaymentInstructions). */
@@ -456,7 +481,6 @@ export type Config = {
   rpcUrlKey: string;
   mixpanelToken: string;
   hotjarSiteId: number;
-  googleVerificationCode: string;
   noticeBannerText?: string; // Optional, for dynamic notice banner text
   brevoConversationsId: string; // Brevo chat widget ID
   brevoConversationsGroupId?: string; // Brevo chat widget group ID for routing
@@ -467,22 +491,6 @@ export type Config = {
   maintenanceSchedule: string; // e.g. "Friday, February 13th, from 7:00 PM to 11:00 PM WAT"
   referralMinQualifyingVolumeUsd: number;
   referralRewardAmountUsd: number;
-  aggregatorSenderApiKey: string;
-  moralisWebhookSecret: string;
-  activepiecesWebhookUrl: string;
-  /**
-   * Activepieces webhook for the Tier 1 "verify your phone" email (Brevo flow),
-   * triggered on new email signups. Payload `event`: "signup_verify_phone".
-   */
-  activepiecesSignupVerifyWebhookUrl: string;
-  /**
-   * Activepieces webhook for SmileID identity result emails (Brevo flow).
-   * Payload `event`: "kyc_result" with `status`: "success" | "failure".
-   */
-  activepiecesKycResultWebhookUrl: string;
-  moralisStreamId: string;
-  moralisApiKey: string;
-  moralisBaseUrl: string;
   /** Starknet Earn (Vesu via Starkzap). Requires Starknet wallet + API routes. */
   earnEnabled: boolean;
   /** EVM → Starknet Earn via LayerSwap (Phase 2). Requires LAYERSWAP_API_KEY server-side. */
@@ -498,6 +506,8 @@ export type Config = {
   referralEnabled: boolean;
   /** Bridge/Swap feature flag. Controls Convert button visibility + proxy routes. */
   bridgeEnabled: boolean;
+  /** Textile FX for same-chain USDT↔cNGN on BSC and Celo. Requires TEXTILE_API_KEY server-side. */
+  textileEnabled: boolean;
   /** HyperFX (Hyperbridge IntentGateway) USDC↔cNGN same-chain swaps in Convert. */
   hyperfxEnabled: boolean;
   onrampChainedForwardingEnabled: boolean;
@@ -515,9 +525,6 @@ export type Config = {
   fantasyCampaignEnded: boolean;
   /** Embeddable widget feature flag. Gates the /widget route (iframe embed for whitelisted partners). */
   embedEnabled: boolean;
-  /** LayerSwap API key (server-side only; used by /api/earn/layerswap/*). */
-  layerswapApiKey: string;
-  layerswapApiBaseUrl: string;
 };
 
 export type Network = {
@@ -576,6 +583,10 @@ export interface Recipient {
   institution: string;
   account_identifier: string;
   memo?: string;
+  /** KES M-Pesa channel label for history display (e.g. Till, Paybill). */
+  channel?: KesMpesaChannel;
+  /** Paybill business number when applicable. */
+  business_number?: string;
   /** Bridge only: destination network (the transactions.network column holds the source). */
   to_network?: string;
 }
@@ -598,6 +609,12 @@ export interface TransactionHistory {
   created_at: string;
   updated_at: string;
   order_id?: string;
+  email?: string | null;
+  email_sent_at?: string | null;
+  /** When pay-in instructions email was sent (onramp). */
+  payin_email_sent_at?: string | null;
+  /** Aggregator VA / bank details for onramp pay-in emails. */
+  provider_account?: V2FiatProviderAccountDTO | null;
 }
 
 export interface TransactionCreateInput {
@@ -615,6 +632,8 @@ export interface TransactionCreateInput {
   timeSpent?: string;
   orderId?: string;
   email?: string;
+  /** Onramp only — persisted for Activepieces pay-in instruction emails. */
+  providerAccount?: V2FiatProviderAccountDTO | null;
 }
 
 export interface TransactionUpdateInput {
@@ -623,7 +642,7 @@ export interface TransactionUpdateInput {
   txHash?: string;
 }
 
-export type JWTProvider = "privy" | "thirdweb";
+export type JWTProvider = "privy";
 
 export interface JWTProviderConfig {
   provider: JWTProvider;
@@ -631,10 +650,6 @@ export interface JWTProviderConfig {
     jwksUrl: string;
     issuer: string;
     algorithms: string[];
-  };
-  thirdweb?: {
-    clientId: string;
-    domain: string;
   };
 }
 

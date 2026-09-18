@@ -9,17 +9,25 @@ import {
   trackApiResponse,
   trackApiError,
 } from "@/app/lib/server-analytics";
+import { createKycReporter } from "@/app/lib/kyc-telemetry";
 
 export async function GET(request: NextRequest) {
   const startTime = Date.now();
+  // Failures only. Every KYC surface polls this endpoint, so logging its
+  // successes would bury the upgrade steps that matter.
+  const report = createKycReporter({ step: "status" });
+  // Get the wallet address from the header set by the middleware. Read outside
+  // the try so the catch below can still name the user.
+  const walletAddress = request.headers.get("x-wallet-address");
 
   try {
     trackApiRequest(request, "/api/kyc/status", "GET");
 
-    // Get the wallet address from the header set by the middleware
-    const walletAddress = request.headers.get("x-wallet-address");
-
     if (!walletAddress) {
+      // Not an unauthenticated user: middleware matches these routes, turns
+      // those away with its own 401, and strips forged wallet headers. Reaching
+      // the handler without one means the matcher or header propagation broke.
+      report.failed({ reason: "unauthorized", statusCode: 401 });
       trackApiError(
         request,
         "/api/kyc/status",
@@ -41,6 +49,15 @@ export async function GET(request: NextRequest) {
       .maybeSingle();
 
     if (kycProfileError) {
+      report.failed({
+        walletAddress,
+        stage: "profile_fetch",
+        reason: "supabase_error",
+        provider: "supabase",
+        providerCode: kycProfileError.code,
+        detail: kycProfileError.message,
+        statusCode: 500,
+      });
       trackApiError(
         request,
         "/api/kyc/status",
@@ -69,6 +86,17 @@ export async function GET(request: NextRequest) {
       pooledWalletCount = scope.wallets.length;
       scopeWallets = scope.wallets;
     } catch (scopeError) {
+      // The identity scope decides which tier and limit the UI shows, so a
+      // failure here reads to the user as a lost verification.
+      report.failed({
+        walletAddress,
+        stage: "identity_scope",
+        reason: "identity_scope_failed",
+        detail:
+          scopeError instanceof Error ? scopeError.message : String(scopeError),
+        error: scopeError,
+        statusCode: 500,
+      });
       trackApiError(request, "/api/kyc/status", "GET", scopeError as Error, 500);
       return NextResponse.json(
         { success: false, error: "Failed to load KYC profile" },
@@ -93,10 +121,19 @@ export async function GET(request: NextRequest) {
         identityHasVerifiedPhone =
           await identityScopeHasVerifiedPhone(scopeWallets);
       } catch (phoneScopeError) {
-        console.error(
-          "[kyc/status] identity phone lookup failed:",
-          phoneScopeError,
-        );
+        // Fail-soft: the per-wallet answer still stands, but a tier 2 user
+        // whose phone lives on a sibling wallet can loop on the phone gate.
+        report.failed({
+          walletAddress,
+          stage: "identity_phone_lookup",
+          reason: "identity_phone_lookup_failed",
+          detail:
+            phoneScopeError instanceof Error
+              ? phoneScopeError.message
+              : String(phoneScopeError),
+          error: phoneScopeError,
+          tierFrom: tier,
+        });
       }
     }
 
@@ -113,6 +150,14 @@ export async function GET(request: NextRequest) {
       fullName: kycProfile?.full_name || null,
     });
   } catch (error) {
+    report.failed({
+      walletAddress,
+      stage: "unhandled",
+      reason: "unexpected_error",
+      detail: error instanceof Error ? error.message : String(error),
+      error,
+      statusCode: 500,
+    });
     trackApiError(request, '/api/kyc/status', 'GET', error as Error, 500);
     
     return NextResponse.json(

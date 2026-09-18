@@ -15,6 +15,7 @@ import {
   UserGroupIcon,
 } from "hugeicons-react";
 import { toast } from "sonner";
+import { JoinModal } from "@/app/components/play/JoinModal";
 import { LeagueCard } from "@/app/components/play/LeagueCard";
 import { playKeys, useRewards } from "@/app/components/play/hooks";
 import {
@@ -56,10 +57,12 @@ export default function RewardsPage() {
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [joinHighlight, setJoinHighlight] = useState(false);
+  const [playJoinOpen, setPlayJoinOpen] = useState(false);
   const joinInputRef = useRef<HTMLInputElement>(null);
+  const inviteCode = searchParams.get("join")?.trim().toUpperCase() || null;
 
   useEffect(() => {
-    const join = searchParams.get("join")?.trim().toUpperCase();
+    const join = inviteCode;
     if (!join || join.length < 4) return;
     setCode(join);
     setJoinHighlight(true);
@@ -70,7 +73,7 @@ export default function RewardsPage() {
         block: "center",
       });
     }, 300);
-  }, [searchParams]);
+  }, [inviteCode]);
 
   const refresh = async () => {
     await queryClient.invalidateQueries({ queryKey: playKeys.rewards });
@@ -95,7 +98,6 @@ export default function RewardsPage() {
   if (!ready || (authenticated && isLoading)) return <RewardsSkeleton />;
 
   if (!authenticated) {
-    const inviteCode = searchParams.get("join")?.trim().toUpperCase();
     return (
       <EmptyState
         icon={<UserGroupIcon className="size-8 text-lavender-500" />}
@@ -119,17 +121,35 @@ export default function RewardsPage() {
   }
 
   if (error instanceof PlayApiError && error.code === "NOT_JOINED") {
+    // Joining Play used to bounce through /play, which dropped the invite code
+    // and left the user to find Leagues and retype it. Do it here instead: the
+    // modal redeems `inviteCode` as soon as the username is taken.
     return (
-      <EmptyState
-        icon={<UserGroupIcon className="size-8 text-lavender-500" />}
-        title="Join Noblocks Play first"
-        description="Pick a username and enter the league, then come back here to join your friend's mini-league."
-        action={
-          <Link href="/play" className={primaryButtonClasses}>
-            Join the league
-          </Link>
-        }
-      />
+      <>
+        <EmptyState
+          icon={<UserGroupIcon className="size-8 text-lavender-500" />}
+          title="Join Noblocks Play first"
+          description={
+            inviteCode
+              ? `Pick a username to enter the league — we'll add you to the mini-league (${inviteCode}) straight after.`
+              : "Pick a username and enter the league, then come back here to join a friend's mini-league."
+          }
+          action={
+            <button
+              type="button"
+              onClick={() => setPlayJoinOpen(true)}
+              className={primaryButtonClasses}
+            >
+              Join the league
+            </button>
+          }
+        />
+        <JoinModal
+          isOpen={playJoinOpen}
+          onClose={() => setPlayJoinOpen(false)}
+          inviteCode={inviteCode}
+        />
+      </>
     );
   }
 

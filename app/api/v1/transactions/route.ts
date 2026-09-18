@@ -19,6 +19,75 @@ import {
   executeSwapTransactionLimitCheck,
 } from "@/app/lib/swap-transaction-limit-server";
 import { monthlyLimitReachedMessage } from "@/app/lib/kyc-limit-copy";
+import type { V2FiatProviderAccountDTO } from "@/app/types";
+import { fetchOrderDetails } from "@/app/api/aggregator";
+
+/** Normalize aggregator VA fields for JSONB storage (Activepieces pay-in emails). */
+function normalizeProviderAccount(
+  raw: unknown,
+): V2FiatProviderAccountDTO | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const o = raw as Record<string, unknown>;
+  const institution = typeof o.institution === "string" ? o.institution.trim() : "";
+  const accountIdentifier =
+    typeof o.accountIdentifier === "string" ? o.accountIdentifier.trim() : "";
+  const accountName =
+    typeof o.accountName === "string" ? o.accountName.trim() : "";
+  const validUntil =
+    typeof o.validUntil === "string" ? o.validUntil.trim() : "";
+  if (!institution || !accountIdentifier || !accountName || !validUntil) {
+    return null;
+  }
+  const amountToTransferRaw = o.amountToTransfer;
+  const amountToTransfer =
+    typeof amountToTransferRaw === "string"
+      ? amountToTransferRaw.trim()
+      : typeof amountToTransferRaw === "number" &&
+          Number.isFinite(amountToTransferRaw)
+        ? String(amountToTransferRaw)
+        : "";
+  const currency =
+    typeof o.currency === "string" ? o.currency.trim() : "";
+
+  return {
+    institution,
+    accountIdentifier,
+    accountName,
+    validUntil,
+    ...(amountToTransfer ? { amountToTransfer } : {}),
+    ...(currency ? { currency } : {}),
+  };
+}
+
+async function persistOnrampProviderAccount(
+  transactionId: string,
+  providerAccount: V2FiatProviderAccountDTO,
+): Promise<{ ok: true } | { ok: false; error: unknown }> {
+  const attempt = async () =>
+    supabaseAdmin
+      .from("transactions")
+      .update({ provider_account: providerAccount })
+      .eq("id", transactionId);
+
+  let { error } = await attempt();
+  if (error) {
+    ({ error } = await attempt());
+  }
+  if (error) return { ok: false, error };
+  return { ok: true };
+}
+
+/** Remove a limit-RPC insert when onramp VA cannot be verified/persisted. */
+async function rollbackOnrampInsert(
+  transactionId: string,
+): Promise<{ ok: true } | { ok: false; error: unknown }> {
+  const { error } = await supabaseAdmin
+    .from("transactions")
+    .delete()
+    .eq("id", transactionId);
+  if (error) return { ok: false, error };
+  return { ok: true };
+}
 
 // Route handler for GET requests
 export const GET = withRateLimit(async (request: NextRequest) => {
@@ -210,11 +279,30 @@ export const POST = withRateLimit(async (request: NextRequest) => {
     // requests both pass the limit check before either insert is committed.
     const normalizedTransactionType =
       body.transactionType === "swap" ? "offramp" : body.transactionType;
+    const normalizedOrderId =
+      typeof body.orderId === "string" ? body.orderId.trim() : "";
 
     if (
       normalizedTransactionType === "offramp" ||
       normalizedTransactionType === "onramp"
     ) {
+      if (normalizedTransactionType === "onramp" && !normalizedOrderId) {
+        trackApiError(
+          request,
+          "/api/v1/transactions",
+          "POST",
+          new Error("Missing orderId for onramp"),
+          400,
+        );
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Bad Request: orderId is required for onramp transactions",
+          },
+          { status: 400 },
+        );
+      }
+
       const swapResult = await executeSwapTransactionLimitCheck(
         normalizedBodyWalletAddress,
         {
@@ -229,7 +317,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
           network: body.network,
           time_spent: body.time_spent,
           txHash: body.txHash,
-          orderId: body.orderId,
+          orderId: normalizedOrderId || undefined,
         },
         {
           dryRun: false,
@@ -313,6 +401,99 @@ export const POST = withRateLimit(async (request: NextRequest) => {
         );
       }
 
+      // Onramp pay-in emails need VA details from the aggregator order — never
+      // trust body.providerAccount (client-controlled payment destination).
+      if (normalizedTransactionType === "onramp") {
+        const failOnramp = async (
+          status: number,
+          clientError: string,
+          logError: Error,
+        ) => {
+          const cleanup = await rollbackOnrampInsert(rpcDataId);
+          if (!cleanup.ok) {
+            console.error(
+              "Failed to roll back onramp insert after provider_account error:",
+              cleanup.error,
+            );
+            trackApiError(
+              request,
+              "/api/v1/transactions",
+              "POST",
+              new Error("Failed to roll back onramp insert", {
+                cause: cleanup.error,
+              }),
+              500,
+            );
+            return NextResponse.json(
+              {
+                success: false,
+                error:
+                  "Failed to finalize onramp transaction. Please contact support if this persists.",
+              },
+              { status: 500 },
+            );
+          }
+          trackApiError(
+            request,
+            "/api/v1/transactions",
+            "POST",
+            logError,
+            status,
+          );
+          return NextResponse.json(
+            { success: false, error: clientError },
+            { status },
+          );
+        };
+
+        const orderId = normalizedOrderId;
+        let providerAccount: V2FiatProviderAccountDTO | null = null;
+        try {
+          const orderResponse = await fetchOrderDetails(orderId);
+          providerAccount = normalizeProviderAccount(
+            orderResponse.data?.providerAccount,
+          );
+        } catch (orderError) {
+          console.error(
+            "Failed to fetch aggregator order for provider_account:",
+            orderError,
+          );
+          return failOnramp(
+            502,
+            "Unable to verify onramp payment details. Please try again.",
+            orderError instanceof Error
+              ? orderError
+              : new Error(String(orderError)),
+          );
+        }
+
+        if (!providerAccount) {
+          return failOnramp(
+            502,
+            "Onramp payment details are not available yet. Please try again.",
+            new Error("Aggregator order missing providerAccount"),
+          );
+        }
+
+        const persistResult = await persistOnrampProviderAccount(
+          rpcDataId,
+          providerAccount,
+        );
+        if (!persistResult.ok) {
+          console.error(
+            "Failed to persist onramp provider_account:",
+            persistResult.error,
+          );
+          return failOnramp(
+            500,
+            "Failed to save onramp payment details. Please try again.",
+            new Error("Failed to persist provider_account", {
+              cause: persistResult.error,
+            }),
+          );
+        }
+      }
+
       const responseTime = Date.now() - startTime;
       trackApiResponse("/api/v1/transactions", "POST", 201, responseTime, {
         wallet_address: normalizedBodyWalletAddress,
@@ -331,7 +512,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
           fee: body.fee,
           status: body.status,
           network: body.network,
-          order_id: body.orderId,
+          order_id: normalizedOrderId || undefined,
         },
       );
 
@@ -357,7 +538,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
         network: body.network,
         time_spent: body.time_spent,
         tx_hash: body.txHash,
-        order_id: body.orderId,
+        order_id: normalizedOrderId || undefined,
       })
       .select()
       .single();
@@ -392,7 +573,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
       fee: body.fee,
       status: body.status,
       network: body.network,
-      order_id: body.orderId,
+      order_id: normalizedOrderId || undefined,
     });
 
     return NextResponse.json({ success: true, data }, { status: 201 });

@@ -830,7 +830,9 @@ export function TransactionDetails({ transaction }: TransactionDetailsProps) {
             label="Account"
             value={
               <span className="text-text-accent-gray dark:text-white/80">
-                {transaction.recipient.account_identifier}
+                {transaction.recipient.business_number
+                  ? `${transaction.recipient.business_number} / ${transaction.recipient.account_identifier}`
+                  : transaction.recipient.account_identifier}
               </span>
             }
           />

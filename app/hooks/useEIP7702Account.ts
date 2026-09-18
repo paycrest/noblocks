@@ -132,7 +132,7 @@ export function useDelegationContractAuth() {
             }
             const delegationAddress = getDelegationContractAddress(chainId);
             if (!delegationAddress || delegationAddress === "") {
-                throw new Error(`Delegation contract not configured for chain ${chainId}. Add the contract for this chain or set NEXT_PUBLIC_DELEGATION_CONTRACT_ADDRESS.`);
+                throw new Error(`Delegation contract not configured for chain ${chainId}. Add it to DELEGATION_CONTRACT_BY_CHAIN in app/lib/config.ts.`);
             }
             const signed = await signAuthorization(
                 {

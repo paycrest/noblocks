@@ -16,6 +16,7 @@
 
 import { ReactNode } from "react";
 import Link from "next/link";
+import { Home01Icon } from "hugeicons-react";
 import { NoblocksLogo, NoblocksLogoIcon } from "../ImageAssets";
 import { PlayTabs } from "./PlayTabs";
 import { CountdownChip } from "./CountdownChip";
@@ -34,7 +35,20 @@ export const PlayHeader = ({ right }: { right?: ReactNode }) => (
         <NoblocksLogoIcon className="size-[18px] sm:hidden" />
         <NoblocksLogo className="max-sm:hidden" />
       </Link>
-      <div className="flex items-center gap-2">{right}</div>
+      <div className="flex items-center gap-2">
+        {/* The wordmark goes to /play (the game's own home), so leaving the
+            game needed the browser back button until this existed. */}
+        <Link
+          href="/"
+          aria-label="Noblocks home"
+          title="Noblocks home"
+          className="inline-flex min-h-9 items-center gap-2 rounded-lg px-2.5 py-2 text-sm font-medium text-text-secondary transition-colors hover:bg-accent-gray hover:text-text-body dark:text-white/50 dark:hover:bg-white/10 dark:hover:text-white"
+        >
+          <Home01Icon className="size-[18px] shrink-0" />
+          <span className="max-sm:sr-only">Home</span>
+        </Link>
+        {right}
+      </div>
     </div>
   </header>
 );

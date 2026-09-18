@@ -5,6 +5,7 @@ import { Cancel01Icon, InformationSquareIcon } from "hugeicons-react";
 import { AnimatedModal } from "@/app/components/AnimatedComponents";
 import { SearchInput } from "@/app/components/recipient/SearchInput";
 import { SelectBankModalProps } from "@/app/components/recipient/types";
+import { KES_MPESA_INSTITUTION_CODE } from "@/app/utils";
 
 export const SelectBankModal = ({
   isOpen,
@@ -19,6 +20,9 @@ export const SelectBankModal = ({
   setBankSearchTerm,
   isFetchingInstitutions,
 }: SelectBankModalProps) => {
+  const selectedKey =
+    selectedInstitution?.uiKey ?? selectedInstitution?.code ?? "";
+
   return (
     <AnimatedModal isOpen={isOpen} onClose={onClose} maxWidth="28.5rem">
       <div className="flex items-center justify-between">
@@ -68,30 +72,46 @@ export const SelectBankModal = ({
           >
             {currency ? (
               filteredInstitutions && filteredInstitutions.length > 0 ? (
-                filteredInstitutions.map((inst) => (
-                  <motion.li
-                    key={inst.code}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.2 }}
-                    onClick={() => {
-                      setSelectedInstitution(inst);
-                      onClose();
-                      setValue("institution", inst.code, {
-                        shouldValidate: true,
-                      });
-                      setValue("accountType", inst.type, { shouldValidate: true });
-                      setIsManualEntry(true);
-                    }}
-                    className={`cursor-pointer rounded-lg px-3 py-1.5 text-sm transition-colors hover:bg-gray-100 dark:hover:bg-white/5 ${
-                      selectedInstitution?.code === inst.code
-                        ? "bg-gray-100 dark:bg-white/5"
-                        : ""
-                    }`}
-                  >
-                    {inst.name}
-                  </motion.li>
-                ))
+                filteredInstitutions.map((inst) => {
+                  const key = inst.uiKey ?? inst.code;
+                  return (
+                    <motion.li
+                      key={key}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.2 }}
+                      onClick={() => {
+                        setSelectedInstitution(inst);
+                        onClose();
+                        // Always submit the real institution code (SAFAKEPC for all M-Pesa rails).
+                        setValue("institution", inst.code, {
+                          shouldValidate: true,
+                        });
+                        setValue("accountType", inst.type, {
+                          shouldValidate: true,
+                        });
+                        if (inst.code === KES_MPESA_INSTITUTION_CODE && inst.channel) {
+                          setValue("kesChannel", inst.channel, {
+                            shouldValidate: true,
+                          });
+                        } else {
+                          setValue("kesChannel", "", { shouldValidate: true });
+                        }
+                        setValue("businessNumber", "", {
+                          shouldValidate: true,
+                        });
+                        setIsManualEntry(true);
+                      }}
+                      className={`cursor-pointer rounded-lg px-3 py-1.5 text-sm transition-colors hover:bg-gray-100 dark:hover:bg-white/5 ${
+                        selectedKey === key
+                          ? "bg-gray-100 dark:bg-white/5"
+                          : ""
+                      }`}
+                    >
+                      {inst.name}
+                    </motion.li>
+                  );
+                })
               ) : (
                 <motion.li
                   initial={{ opacity: 0 }}

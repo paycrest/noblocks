@@ -12,6 +12,7 @@ jest.mock("../app/lib/bridgeFeature", () => ({
     "Ethereum",
   ]),
   isHyperfxSwapEnabled: jest.fn(() => true),
+  isTextileRoute: jest.fn(() => false),
 }));
 
 import {

@@ -48,11 +48,11 @@ export const POST = withRateLimit(async (request: NextRequest) => {
         request,
         "/api/v1/payment-orders",
         "POST",
-        new Error("NEXT_PUBLIC_AGGREGATOR_SENDER_API_KEY_ID is not configured"),
+        new Error("AGGREGATOR_SENDER_API_KEY_ID is not configured"),
         500,
       );
       return NextResponse.json(
-        { success: false, error: "NEXT_PUBLIC_AGGREGATOR_SENDER_API_KEY_ID is not configured" },
+        { success: false, error: "AGGREGATOR_SENDER_API_KEY_ID is not configured" },
         { status: 500 },
       );
     }

@@ -9,6 +9,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import {
+  keepPreviousData,
   useMutation,
   useQuery,
   useQueryClient,
@@ -102,6 +103,10 @@ export function useLeaderboard(page: number, findMe = false) {
     // findMe only makes sense once signed in — skip the request entirely
     // for anonymous visits instead of issuing a tokenless findMe lookup.
     enabled: ready && (!findMe || authenticated),
+    // Page changes are their own query key, so without this the table would
+    // unmount into skeletons on every Prev/Next. Hold the previous page's rows
+    // until the new ones arrive; callers dim the table via isFetching instead.
+    placeholderData: keepPreviousData,
     staleTime: 60_000,
     refetchInterval: false,
   });

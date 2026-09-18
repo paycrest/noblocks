@@ -6,6 +6,7 @@ import {
   ArrowDown01Icon,
   Tick02Icon,
   InformationCircleIcon,
+  InformationSquareIcon,
 } from "hugeicons-react";
 import Image from "next/image";
 
@@ -15,7 +16,8 @@ import { useOutsideClick } from "@/app/hooks";
 import { fetchAccountName } from "@/app/api/aggregator";
 import { usePrivy } from "@privy-io/react-auth";
 import { InputError } from "@/app/components/InputError";
-import { classNames, getOfframpAccountIdentifierPlaceholder, filterAndSortInstitutions } from "@/app/utils";
+import { classNames, getOfframpAccountIdentifierPlaceholder, filterAndSortInstitutions, expandKesMpesaInstitutions, KES_MPESA_INSTITUTION_CODE, kesMpesaUiKey, getKesMpesaInstitutionLabel, isSameSavedRecipient, NGN_NUBAN_LENGTH, isUnresolvedAccountName } from "@/app/utils";
+import type { KesMpesaChannel } from "@/app/types";
 import {
   RecipientDetails,
   RecipientDetailsFormProps,
@@ -31,6 +33,7 @@ import { validateWalletAddress } from "@/app/lib/validation";
 import { getNetworkImageUrl } from "@/app/utils";
 import { useActualTheme } from "@/app/hooks/useActualTheme";
 import { useNetwork } from "@/app/context";
+import { trackEvent } from "@/app/hooks/analytics/useMixpanel";
 import config from "@/app/lib/config";
 
 export const RecipientDetailsForm = ({
@@ -61,6 +64,8 @@ export const RecipientDetailsForm = ({
   const accountIdentifier = watch("accountIdentifier");
   const recipientName = watch("recipientName");
   const walletAddress = watch("walletAddress");
+  const kesChannel = watch("kesChannel");
+  const businessNumber = watch("businessNumber");
 
   const [isModalOpen, setIsModalOpen] = useState(false);
 
@@ -74,6 +79,15 @@ export const RecipientDetailsForm = ({
 
   const [isFetchingRecipientName, setIsFetchingRecipientName] = useState(false);
   const [recipientNameError, setRecipientNameError] = useState("");
+  /**
+   * The aggregator answers "OK" when no provider can resolve a name (Pretium fiats that
+   * soft-fail, and every currency with no verification at all). That is not a real account
+   * holder, so the user types one instead of being shown "ok" next to a success tick.
+   */
+  const [isRecipientNameEditable, setIsRecipientNameEditable] = useState(false);
+  const [alertViewed, setAlertViewed] = useState(false);
+  /** Guards against a slow verify overwriting a newer one (see getRecipientName). */
+  const nameRequestIdRef = useRef(0);
 
   const [savedRecipients, setSavedRecipients] = useState<
     RecipientDetailsWithId[]
@@ -93,19 +107,24 @@ export const RecipientDetailsForm = ({
   const [isManualEntry, setIsManualEntry] = useState(true);
   const [isReturningFromPreview, setIsReturningFromPreview] = useState(false);
 
-  /** NGN NUBAN: cap at 10 digits (6 for SAFAKEPC). Other currencies: no digit cap. */
-  const ngnAccountMaxDigits = useMemo(() => {
-    if (currency !== "NGN") return null;
-    return selectedInstitution?.code === "SAFAKEPC" ? 6 : 10;
-  }, [currency, selectedInstitution?.code]);
+  /** NGN NUBAN: cap at 10 digits. Other currencies: no digit cap. */
+  const ngnAccountMaxDigits = useMemo(
+    () => (currency === "NGN" ? NGN_NUBAN_LENGTH : null),
+    [currency],
+  );
 
   const prevCurrencyRef = useRef(currency);
   const isDark = useActualTheme();
 
-  const filteredInstitutions = useMemo(
-    () => filterAndSortInstitutions(institutions, bankSearchTerm),
-    [institutions, bankSearchTerm],
-  );
+  const filteredInstitutions = useMemo(() => {
+    const expanded = expandKesMpesaInstitutions(institutions, currency);
+    return filterAndSortInstitutions(expanded, bankSearchTerm);
+  }, [institutions, bankSearchTerm, currency]);
+
+  const isKesMpesa =
+    currency === "KES" && institution === KES_MPESA_INSTITUTION_CODE;
+  const isKesPaybill = isKesMpesa && kesChannel === "Paybill";
+  const isKesTill = isKesMpesa && kesChannel === "Till";
 
   const selectSavedRecipient = (recipient: RecipientDetails) => {
     setSelectedRecipient(recipient);
@@ -117,17 +136,37 @@ export const RecipientDetailsForm = ({
         shouldValidate: true,
       });
     } else {
-      // Handle bank/mobile money selection for offramp
+      // Handle bank/mobile money selection for offramp.
+      // Send Money rows store channel as "" (the column default). The API omits an
+      // empty channel, but a cached or hand-built recipient can still carry the ""
+      // itself, and `??` would preserve it — so treat any falsy channel as Mobile.
+      // Only Till and Paybill are real business rails.
+      const channel: KesMpesaChannel | undefined =
+        recipient.institutionCode === KES_MPESA_INSTITUTION_CODE
+          ? (recipient.channel || "Mobile")
+          : recipient.channel;
       setSelectedInstitution({
-        name: recipient.institution,
+        name:
+          recipient.institutionCode === KES_MPESA_INSTITUTION_CODE && channel
+            ? getKesMpesaInstitutionLabel(channel)
+            : recipient.institution,
         code: recipient.institutionCode,
         type: recipient.type,
+        ...(channel
+          ? { channel, uiKey: kesMpesaUiKey(channel) }
+          : {}),
       });
       setValue("institution", recipient.institutionCode, { shouldDirty: true });
       setValue("accountIdentifier", recipient.accountIdentifier, {
         shouldDirty: true,
       });
       setValue("accountType", recipient.type, { shouldDirty: true });
+      setValue("kesChannel", channel ?? "", { shouldDirty: true });
+      setValue("businessNumber", recipient.businessNumber ?? "", {
+        shouldDirty: true,
+      });
+      // Saved recipients carry a name already; never open the manual-entry input for them.
+      setIsRecipientNameEditable(false);
 
       // Remove extra spaces from recipient name
       recipient.name = recipient.name.replace(/\s+/g, " ").trim();
@@ -148,8 +187,7 @@ export const RecipientDetailsForm = ({
           recipientToDeleteParam.type === "wallet"
             ? r.type === "wallet" && r.walletAddress === recipientToDeleteParam.walletAddress
             : r.type !== "wallet" &&
-            r.accountIdentifier === recipientToDeleteParam.accountIdentifier &&
-            r.institutionCode === recipientToDeleteParam.institutionCode,
+            isSameSavedRecipient(r, recipientToDeleteParam),
       );
 
       if (!recipientWithId) {
@@ -182,8 +220,7 @@ export const RecipientDetailsForm = ({
             recipientToDeleteParam.type === "wallet"
               ? selectedRecipient.type === "wallet" && selectedRecipient.walletAddress === recipientToDeleteParam.walletAddress
               : selectedRecipient.type !== "wallet" &&
-              selectedRecipient.accountIdentifier === recipientToDeleteParam.accountIdentifier &&
-              selectedRecipient.institutionCode === recipientToDeleteParam.institutionCode
+              isSameSavedRecipient(selectedRecipient, recipientToDeleteParam)
           ) {
             setSelectedRecipient(null);
           }
@@ -265,7 +302,9 @@ export const RecipientDetailsForm = ({
       if (isManualEntry) {
         setValue("recipientName", "");
         setValue("accountIdentifier", "");
+        setValue("businessNumber", "");
         setRecipientNameError("");
+        setIsRecipientNameEditable(false);
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -273,44 +312,101 @@ export const RecipientDetailsForm = ({
 
   // Fetch recipient name based on institution and account identifier (only enforce digit-length for NGN)
   useEffect(() => {
+    // Bump synchronously on every dependency change, not just before a fetch: a
+    // lookup already in flight must be invalidated even when this run bails out in
+    // validation below, or its response would still be "current" and populate a
+    // name for an identifier the user has since replaced.
+    const requestId = ++nameRequestIdRef.current;
     let timeoutId: NodeJS.Timeout;
     const getRecipientName = async () => {
       if (!isManualEntry) return;
 
+      // Re-evaluating: drop the manual-name input and any name already resolved or
+      // typed for the previous identifier. Both matter — the validation branches
+      // below render their error in the input's else branch, so a surviving name
+      // would show with a success tick and suppress the error entirely.
+      setIsRecipientNameEditable(false);
+      setValue("recipientName", "");
+
       const isNGN = currency === "NGN";
       const digits = String(accountIdentifier ?? "").replace(/\D/g, "");
-      const requiredLen = selectedInstitution?.code === "SAFAKEPC" ? 6 : 10;
+
+      // Bail out without starting a lookup. Clears the spinner too: an earlier
+      // request may still be in flight, and its response now returns at the stale
+      // guard without touching state, which would leave the spinner up forever.
+      const stopWithoutLookup = (message: string) => {
+        setRecipientNameError(message);
+        setIsFetchingRecipientName(false);
+      };
 
       if (!institution || !accountIdentifier) {
-        setRecipientNameError("");
+        stopWithoutLookup("");
         return;
       }
 
-      if (isNGN && digits.length !== requiredLen) {
-        if (digits.length > 0) {
-          setRecipientNameError(
-            requiredLen === 10
-              ? "Please enter a valid 10-digit account number."
-              : "Invalid account number. Please enter a 6-digit account number.",
+      if (isKesPaybill && !(businessNumber ?? "").trim()) {
+        stopWithoutLookup("");
+        return;
+      }
+
+      if (isKesTill) {
+        if (digits.length < 5 || digits.length > 7) {
+          stopWithoutLookup(
+            digits.length > 0
+              ? "Please enter a valid till number (5–7 digits)."
+              : "",
           );
-        } else {
-          setRecipientNameError("");
+          return;
         }
+      }
+
+      if (isNGN && digits.length !== NGN_NUBAN_LENGTH) {
+        stopWithoutLookup(
+          digits.length > 0
+            ? "Please enter a valid 10-digit account number."
+            : "",
+        );
         return;
       }
 
       setRecipientNameError("");
       setIsFetchingRecipientName(true);
-      setValue("recipientName", "");
 
       try {
+        const channel = (kesChannel || undefined) as
+          | KesMpesaChannel
+          | undefined;
+        const metadata =
+          isKesMpesa && channel
+            ? {
+                channel,
+                ...(channel === "Paybill" && (businessNumber ?? "").trim()
+                  ? { businessNumber: String(businessNumber).trim() }
+                  : {}),
+              }
+            : undefined;
+
         const accountName = await fetchAccountName({
           institution: institution.toString(),
           accountIdentifier: accountIdentifier.toString(),
+          ...(metadata ? { metadata } : {}),
         });
-        setValue("recipientName", accountName);
+        if (requestId !== nameRequestIdRef.current) return;
+
+        if (isUnresolvedAccountName(accountName)) {
+          // No provider could resolve a name. Ask for one instead of presenting
+          // the literal "OK" as a verified account holder.
+          setIsRecipientNameEditable(true);
+          setValue("recipientName", "");
+          setRecipientNameError("");
+        } else {
+          setIsRecipientNameEditable(false);
+          setValue("recipientName", accountName);
+        }
         setIsFetchingRecipientName(false);
       } catch (error) {
+        if (requestId !== nameRequestIdRef.current) return;
+        setIsRecipientNameEditable(false);
         setRecipientNameError("No recipient account found.");
         setIsFetchingRecipientName(false);
       }
@@ -333,24 +429,80 @@ export const RecipientDetailsForm = ({
     isManualEntry,
     selectedInstitution?.code,
     currency,
+    kesChannel,
+    businessNumber,
+    isKesMpesa,
+    isKesPaybill,
+    isKesTill,
   ]);
 
   useEffect(() => {
-    // Initialize selected institution if form has values
+    // Initialize selected institution if form has values (match channel for virtual KES split)
     if (institution && !selectedInstitution) {
-      const foundInstitution = [...(institutions || [])].find(
-        (inst) => inst.code === institution,
-      );
+      const expanded = expandKesMpesaInstitutions(institutions, currency);
+      const foundInstitution =
+        expanded.find((inst) => {
+          if (inst.code !== institution) return false;
+          if (inst.channel) {
+            return inst.channel === kesChannel;
+          }
+          return true;
+        }) ?? expanded.find((inst) => inst.code === institution);
       if (foundInstitution) {
         setSelectedInstitution(foundInstitution);
         setValue("accountType", foundInstitution.type, { shouldValidate: true });
+        if (foundInstitution.channel && !kesChannel) {
+          setValue("kesChannel", foundInstitution.channel, {
+            shouldValidate: true,
+          });
+        }
         // Only set manual entry to false if we have recipient name
         if (recipientName) {
           setIsManualEntry(false);
         }
       }
     }
-  }, [institution, institutions, selectedInstitution, recipientName, setValue]);
+  }, [
+    institution,
+    institutions,
+    selectedInstitution,
+    recipientName,
+    setValue,
+    currency,
+    kesChannel,
+  ]);
+
+  const handleLearnMore = () => {
+    trackEvent("recipient_alert_learn_more_clicked", {
+      currency,
+      institution: selectedInstitution?.name || "",
+    });
+    window.open(
+      "https://noblocks.xyz/blog/understanding-account-name-verification-on-noblocks",
+      "_blank",
+      "noopener,noreferrer",
+    );
+  };
+
+  // Fire once per time the manual-name alert becomes visible, not on every render.
+  useEffect(() => {
+    if (isRecipientNameEditable && !alertViewed) {
+      trackEvent("recipient_alert_viewed", {
+        currency,
+        institution: selectedInstitution?.name || "",
+        kes_channel: kesChannel || "",
+      });
+      setAlertViewed(true);
+    } else if (!isRecipientNameEditable && alertViewed) {
+      setAlertViewed(false);
+    }
+  }, [
+    isRecipientNameEditable,
+    alertViewed,
+    currency,
+    selectedInstitution?.name,
+    kesChannel,
+  ]);
 
   // Simplified recipient details management
   const clearRecipientDetails = () => {
@@ -359,7 +511,10 @@ export const RecipientDetailsForm = ({
     setValue("institution", "");
     setValue("recipientName", "");
     setValue("accountIdentifier", "");
+    setValue("kesChannel", "");
+    setValue("businessNumber", "");
     setRecipientNameError("");
+    setIsRecipientNameEditable(false);
     setIsManualEntry(true);
   };
 
@@ -417,17 +572,49 @@ export const RecipientDetailsForm = ({
   const accountIdentifierRegister = register("accountIdentifier", {
     required: {
       value: true,
-      message: "Account number is required",
+      message: isKesTill
+        ? "Till number is required"
+        : isKesPaybill
+          ? "Account / reference is required"
+          : "Account number is required",
     },
     validate: (value) => {
+      if (isKesTill) {
+        const digits = String(value ?? "").replace(/\D/g, "");
+        if (digits.length < 5 || digits.length > 7) {
+          return "Please enter a valid till number (5–7 digits).";
+        }
+        return true;
+      }
       if (currency !== "NGN") return true;
       const digits = String(value ?? "").replace(/\D/g, "");
-      // SAFAKEPC is the sandbox NGN institution (6-digit accounts, not 10-digit NUBAN).
-      const requiredLen = selectedInstitution?.code === "SAFAKEPC" ? 6 : 10;
-      if (digits.length !== requiredLen) {
-        return requiredLen === 10
-          ? "Please enter a valid 10-digit account number."
-          : "Invalid account number. Please enter a 6-digit account number.";
+      if (digits.length !== NGN_NUBAN_LENGTH) {
+        return "Please enter a valid 10-digit account number.";
+      }
+      return true;
+    },
+  });
+
+  const recipientNameRegister = register("recipientName", {
+    validate: (value) => {
+      if (!isRecipientNameEditable) return true;
+      const name = String(value ?? "").replace(/\s+/g, " ").trim();
+      if (!name) return "Recipient name is required";
+      // Never let the sentinel through as if it were a real account holder.
+      // Any other non-empty name is accepted — no minimum length, since a short
+      // trading name is legitimate and there is no product rule requiring one.
+      if (isUnresolvedAccountName(name)) {
+        return "Enter the recipient's account name";
+      }
+      return true;
+    },
+  });
+
+  const businessNumberRegister = register("businessNumber", {
+    validate: (value) => {
+      if (!isKesPaybill) return true;
+      if (!(value ?? "").toString().trim()) {
+        return "Business number is required";
       }
       return true;
     },
@@ -569,24 +756,18 @@ export const RecipientDetailsForm = ({
                 </button>
               </div>
 
-              {/* Account number */}
-              {/* Account number - NUBAN is 10 digits; SAFAKEPC uses 6 digits (NGN only) */}
+              {/* Account / phone / till / paybill reference (NGN NUBAN is 10 digits) */}
               <div className="w-full flex-1 flex-shrink-0 sm:w-1/2">
                 <input
                   type="text"
-                  inputMode="numeric"
+                  inputMode={isKesPaybill ? "text" : "numeric"}
                   autoComplete="off"
                   placeholder={getOfframpAccountIdentifierPlaceholder(
                     currency,
                     selectedInstitution?.type,
+                    kesChannel,
                   )}
-                  maxLength={
-                    currency === "NGN"
-                      ? selectedInstitution?.code === "SAFAKEPC"
-                        ? 6
-                        : 10
-                      : undefined
-                  }
+                  maxLength={ngnAccountMaxDigits ?? (isKesTill ? 7 : undefined)}
                   {...accountIdentifierRegister}
                   onChange={(e) => {
                     setIsManualEntry(true);
@@ -594,6 +775,13 @@ export const RecipientDetailsForm = ({
                       const next = e.target.value
                         .replace(/\D/g, "")
                         .slice(0, ngnAccountMaxDigits);
+                      if (next !== e.target.value) {
+                        e.target.value = next;
+                      }
+                    } else if (isKesTill) {
+                      const next = e.target.value
+                        .replace(/\D/g, "")
+                        .slice(0, 7);
                       if (next !== e.target.value) {
                         e.target.value = next;
                       }
@@ -610,6 +798,37 @@ export const RecipientDetailsForm = ({
               </div>
             </div>
 
+            {isKesPaybill && (
+              <div className="w-full">
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="off"
+                  placeholder="Business number"
+                  {...businessNumberRegister}
+                  onChange={(e) => {
+                    setIsManualEntry(true);
+                    const next = e.target.value.replace(/\D/g, "");
+                    if (next !== e.target.value) {
+                      e.target.value = next;
+                    }
+                    void businessNumberRegister.onChange(e);
+                  }}
+                  className={classNames(
+                    "w-full rounded-xl border bg-transparent px-4 py-2.5 text-base outline-none transition-all duration-300 placeholder:text-text-placeholder focus:outline-none dark:text-white/80 dark:placeholder:text-white/30 sm:text-sm",
+                    errors.businessNumber
+                      ? "border-input-destructive focus:border-gray-400 dark:border-input-destructive"
+                      : "border-border-input dark:border-white/20 dark:focus:border-white/40 dark:focus:ring-offset-neutral-900",
+                  )}
+                />
+                {errors.businessNumber && (
+                  <div className="mt-2">
+                    <InputError message={errors.businessNumber.message} />
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Account details feedback */}
             <AnimatePresence mode="wait">
               {isFetchingRecipientName ? (
@@ -618,6 +837,39 @@ export const RecipientDetailsForm = ({
                     <ImSpinner className="size-4 animate-spin" />
                     <p className="text-xs">Verifying account name...</p>
                   </AnimatedFeedbackItem>
+                </div>
+              ) : isRecipientNameEditable ? (
+                <div className="w-full space-y-2">
+                  <input
+                    type="text"
+                    autoComplete="off"
+                    placeholder="Enter recipient name"
+                    {...recipientNameRegister}
+                    className={classNames(
+                      "w-full rounded-xl border bg-transparent px-4 py-2.5 text-base outline-none transition-all duration-300 placeholder:text-text-placeholder focus:outline-none dark:text-white/80 dark:placeholder:text-white/30 sm:text-sm",
+                      errors.recipientName
+                        ? "border-input-destructive focus:border-gray-400 dark:border-input-destructive"
+                        : "border-border-input dark:border-white/20 dark:focus:border-white/40 dark:focus:ring-offset-neutral-900",
+                    )}
+                  />
+                  {errors.recipientName && (
+                    <InputError message={errors.recipientName.message} />
+                  )}
+                  <div className="flex w-full min-w-0 items-start gap-2 rounded-xl bg-warning-background/[8%] px-3 py-2">
+                    <InformationSquareIcon className="mt-0.5 size-5 shrink-0 text-warning-foreground dark:text-warning-text" />
+                    <p className="min-w-0 flex-1 break-words text-xs font-light leading-snug text-warning-foreground dark:text-warning-text">
+                      We couldn&apos;t confirm this account name. Make sure the
+                      recipient&apos;s account number is accurate before proceeding
+                      with your swap.{" "}
+                      <button
+                        type="button"
+                        onClick={handleLearnMore}
+                        className="font-semibold text-lavender-500"
+                      >
+                        Learn more.
+                      </button>
+                    </p>
+                  </div>
                 </div>
               ) : (
                 <>

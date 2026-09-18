@@ -9,7 +9,7 @@ import { AnimatedModal, AnimatedFeedbackItem } from "@/app/components/AnimatedCo
 import { SearchInput } from "@/app/components/recipient/SearchInput";
 import { InputError } from "@/app/components/InputError";
 import type { InstitutionProps, RefundAccountDetails } from "@/app/types";
-import { classNames, getOfframpAccountIdentifierPlaceholder, filterAndSortInstitutions } from "@/app/utils";
+import { classNames, getOfframpAccountIdentifierPlaceholder, filterAndSortInstitutions, NGN_NUBAN_LENGTH } from "@/app/utils";
 import { fetchAccountName } from "@/app/api/aggregator";
 import { primaryBtnClasses, secondaryBtnClasses } from "@/app/components/Styles";
 import { useKYC } from "@/app/context";
@@ -98,18 +98,15 @@ export function AddRefundAccountModal({
     }
 
     const digits = accountNumber.replace(/\D/g, "");
-    const requiredLen = selectedInstitution.code === "SAFAKEPC" ? 6 : 10;
 
     if (currency === "NGN") {
       if (digits.length === 0) {
         setAccountNumberError(null);
         return;
       }
-      if (digits.length !== requiredLen) {
+      if (digits.length !== NGN_NUBAN_LENGTH) {
         setAccountNumberError(
-          requiredLen === 6
-            ? `Please enter a valid 6-digit account number (${digits.length} entered).`
-            : `Please enter a valid 10-digit account number (${digits.length} entered).`,
+          `Please enter a valid 10-digit account number (${digits.length} entered).`,
         );
         return;
       }

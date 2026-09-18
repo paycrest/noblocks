@@ -9,7 +9,7 @@ import { AnimatedModal } from "../AnimatedComponents";
 import { RecipientListItem } from "./RecipientListItem";
 import { SearchInput } from "./SearchInput";
 import { SavedBeneficiariesModalProps } from "./types";
-import { isBankOrMobileMoneyRecipient } from "@/app/utils";
+import { isBankOrMobileMoneyRecipient, isSameSavedRecipient } from "@/app/utils";
 
 export const SavedBeneficiariesModal = ({
   isOpen,
@@ -60,12 +60,7 @@ export const SavedBeneficiariesModal = ({
 
     const uniqueRecipients = bankRecipientsOnly.filter(
       (recipient, index, self) =>
-        index ===
-        self.findIndex(
-          (r) =>
-            r.accountIdentifier === recipient.accountIdentifier &&
-            r.institutionCode === recipient.institutionCode,
-        ),
+        index === self.findIndex((r) => isSameSavedRecipient(r, recipient)),
     );
 
     const currentBankCodes = institutions.map(

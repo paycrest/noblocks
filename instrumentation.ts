@@ -16,6 +16,16 @@ export async function register() {
   // Skipped on the Edge runtime (middleware): dd-trace is a Node library and
   // importing it there breaks the Edge bundle.
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
+
+  // Non-fatal: the key is read lazily at request time (app/lib/server-config.ts),
+  // so a missing value surfaces as 503s on offramp order creation and the
+  // sender API proxies rather than a failed boot. Warn here so it is visible in
+  // container logs at deploy.
+  if (!process.env.AGGREGATOR_SENDER_API_KEY_ID?.trim()) {
+    console.warn(
+      "[startup] AGGREGATOR_SENDER_API_KEY_ID is not set — offramp order creation and /api/v1/payment-orders* will return 503",
+    );
+  }
   // Read once, here, at process startup — flipping this on a running
   // container has no effect until it restarts.
   if (process.env.DD_TRACE_ENABLED === "false") return;

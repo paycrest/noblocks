@@ -4,6 +4,7 @@ import {
   LinkedAccountWithMetadata,
   WalletWithMetadata,
 } from "@privy-io/server-auth";
+import { isValidSolanaAddress } from "./validation";
 import { verifyJWT } from "./jwt";
 import { DEFAULT_PRIVY_CONFIG } from "./config";
 
@@ -223,6 +224,27 @@ export async function collectLinkedEvmAddressesForPrivyUserId(
         : null;
     if (addrCandidate && EVM_ADDRESS_LOWER.test(addrCandidate)) {
       addresses.add(addrCandidate);
+    }
+  }
+  return [...addresses];
+}
+
+/** Solana pubkeys linked to this Privy user (embedded + external). */
+export async function collectLinkedSolanaAddressesForPrivyUserId(
+  userId: string,
+): Promise<string[]> {
+  const privy = getPrivyClient();
+  const user = await privy.getUser(userId);
+  const addresses = new Set<string>();
+  for (const account of user?.linkedAccounts ?? []) {
+    if (!isWalletAccount(account)) continue;
+    const chainType =
+      (account as { chainType?: string; chain_type?: string }).chainType ??
+      (account as { chain_type?: string }).chain_type;
+    if (chainType !== "solana") continue;
+    const addr = account.address?.trim();
+    if (addr && isValidSolanaAddress(addr)) {
+      addresses.add(addr);
     }
   }
   return [...addresses];

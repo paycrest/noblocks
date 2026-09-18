@@ -1,7 +1,7 @@
 import React, { createContext, useState, useContext, useEffect } from "react";
 import { networks } from "../mocks";
 import type { Network } from "../types";
-import { isStarknetChain, isTronChain } from "../utils";
+import { isStarknetChain, isTronChain, isSolanaChain } from "../utils";
 import { useEmbed } from "./EmbedContext";
 import { useInjectedWallet } from "./InjectedWalletContext";
 
@@ -56,7 +56,9 @@ export function NetworkProvider({ children }: { children: React.ReactNode }) {
     // injected EVM provider, and their chain.id is a string slug — skip
     // wallet_switchEthereumChain (it would build an invalid `0x<slug>` chainId).
     const isNonEvmNetwork =
-      isStarknetChain(network.chain) || isTronChain(network.chain);
+      isStarknetChain(network.chain) ||
+      isTronChain(network.chain) ||
+      isSolanaChain(network.chain);
     if (isInjectedWallet && injectedReady && !isNonEvmNetwork) {
       const switched = await switchNetwork(network);
       if (switched) {

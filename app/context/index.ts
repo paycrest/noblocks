@@ -23,6 +23,7 @@ export {
 } from "./MigrationStatusContext";
 export { StarknetProvider, useStarknet } from "./StarknetContext";
 export { TronProvider, useTron } from "./TronContext";
+export { SolanaProvider, useSolana } from "./SolanaContext";
 export {
   StarknetExportModalProvider,
   useStarknetExportModal,

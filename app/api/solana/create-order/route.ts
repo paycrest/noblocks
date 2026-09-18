@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { verifyJWT } from "@/app/lib/jwt";
 import { DEFAULT_PRIVY_CONFIG } from "@/app/lib/config";
 import config from "@/app/lib/config";
+import { getAggregatorSenderApiKeyId } from "@/app/lib/aggregator-server-env";
 import { withRateLimit } from "@/app/lib/rate-limit";
 import {
   trackApiError,
@@ -225,10 +226,10 @@ export const POST = withRateLimit(async (request: NextRequest) => {
       return depositorNotAuthorizedResponse();
     }
 
-    const senderApiKeyId = config.aggregatorSenderApiKey;
+    const senderApiKeyId = getAggregatorSenderApiKeyId();
     if (!senderApiKeyId) {
       return NextResponse.json(
-        { error: "NEXT_PUBLIC_AGGREGATOR_SENDER_API_KEY_ID is not configured" },
+        { error: "AGGREGATOR_SENDER_API_KEY_ID is not configured" },
         { status: 503 },
       );
     }

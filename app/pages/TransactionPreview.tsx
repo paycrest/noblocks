@@ -546,13 +546,6 @@ export const TransactionPreview = ({
           throw new Error("Solana wallet not connected in Privy");
         }
 
-        const senderApiKeyId = config.aggregatorSenderApiKey?.trim();
-        if (!senderApiKeyId) {
-          throw new Error(
-            "Sender API key is not configured (set NEXT_PUBLIC_AGGREGATOR_SENDER_API_KEY_ID)",
-          );
-        }
-
         const providerId =
           searchParams.get("provider") || searchParams.get("PROVIDER") || undefined;
 
@@ -592,7 +585,6 @@ export const TransactionPreview = ({
               institution: formValues.institution,
               ...(formValues.memo ? { memo: formValues.memo } : {}),
               ...(providerId ? { providerId } : {}),
-              metadata: { apiKey: senderApiKeyId },
             },
           }),
         });

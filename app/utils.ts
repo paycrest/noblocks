@@ -2304,6 +2304,29 @@ export const currencyToCountryCode = (currency: string) => {
   return currencyOverrides[currency] || currency.slice(0, 2).toLowerCase();
 };
 
+/** Flag CDN URL for a fiat currency code (transaction history / dropdowns). */
+export function getFiatFlagImageUrl(currency: string): string {
+  return `https://flagcdn.com/h24/${currencyToCountryCode(currency)}.webp`;
+}
+
+/**
+ * Icon for a currency in transaction history: on-ramp fiat → country flag;
+ * otherwise local token logo (with Lisk light/dark variants).
+ */
+export function getCurrencyImageSrc(currency: string, isDark = false): string {
+  const code = currency.trim();
+  if (isOnrampFiatCurrencyCode(code)) {
+    return getFiatFlagImageUrl(code);
+  }
+  const logoId = getTokenLogoIdentifier(code);
+  if (logoId === "lisk") {
+    return isDark
+      ? "/logos/lisk-logo-dark.svg"
+      : "/logos/lisk-logo-light.svg";
+  }
+  return `/logos/${logoId}-logo.svg`;
+}
+
 export const generatePaginationItems = (
   currentPage: number,
   totalPages: number,

@@ -16,8 +16,9 @@ import type {
 import {
   getExplorerLink,
   formatNumberWithCommas,
+  getCurrencyImageSrc,
+  getFiatFlagImageUrl,
   getTokenLogoIdentifier,
-  currencyToCountryCode,
   getCurrencySymbol,
   getNetworkImageUrl,
   shortenAddress,
@@ -252,33 +253,23 @@ export function TransactionDetails({ transaction }: TransactionDetailsProps) {
                 );
               }
               if (transaction.transaction_type === "onramp") {
-                const fromId = getTokenLogoIdentifier(
-                  transaction.from_currency,
-                );
-                const toId = getTokenLogoIdentifier(transaction.to_currency);
                 return (
                   <>
                     <Image
-                      src={
-                        fromId === "lisk"
-                          ? isDark
-                            ? "/logos/lisk-logo-dark.svg"
-                            : "/logos/lisk-logo-light.svg"
-                          : `/logos/${fromId}-logo.svg`
-                      }
+                      src={getCurrencyImageSrc(
+                        transaction.from_currency,
+                        isDark,
+                      )}
                       alt={transaction.from_currency}
                       width={20}
                       height={20}
                       className="rounded-full border border-white dark:border-surface-canvas"
                     />
                     <Image
-                      src={
-                        toId === "lisk"
-                          ? isDark
-                            ? "/logos/lisk-logo-dark.svg"
-                            : "/logos/lisk-logo-light.svg"
-                          : `/logos/${toId}-logo.svg`
-                      }
+                      src={getCurrencyImageSrc(
+                        transaction.to_currency,
+                        isDark,
+                      )}
                       alt={transaction.to_currency}
                       width={20}
                       height={20}
@@ -287,27 +278,20 @@ export function TransactionDetails({ transaction }: TransactionDetailsProps) {
                   </>
                 );
               }
-              const fromLogo = getTokenLogoIdentifier(transaction.from_currency);
-              const toCountryCode = currencyToCountryCode(
-                transaction.to_currency,
-              );
               return (
                 <>
                   <Image
-                    src={
-                      fromLogo === "lisk"
-                        ? isDark
-                          ? "/logos/lisk-logo-dark.svg"
-                          : "/logos/lisk-logo-light.svg"
-                        : `/logos/${fromLogo}-logo.svg`
-                    }
+                    src={getCurrencyImageSrc(
+                      transaction.from_currency,
+                      isDark,
+                    )}
                     alt={transaction.from_currency}
                     width={20}
                     height={20}
                     className="rounded-full border border-white dark:border-surface-canvas"
                   />
                   <Image
-                    src={`https://flagcdn.com/h24/${toCountryCode}.webp`}
+                    src={getFiatFlagImageUrl(transaction.to_currency)}
                     alt={transaction.to_currency}
                     width={20}
                     height={20}

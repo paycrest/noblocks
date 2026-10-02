@@ -169,6 +169,22 @@ describe("handlePutRefundAccount", () => {
     expect(mockedFrom).not.toHaveBeenCalled();
   });
 
+  it("returns 422 when accountName is the unresolved OK sentinel", async () => {
+    const res = await handlePutRefundAccount(
+      putRequest({ ...validBody, accountName: "OK" }),
+    );
+    expect(res).toEqual({
+      status: 422,
+      body: {
+        success: false,
+        error:
+          "Account name could not be verified. Please enter the name on the account.",
+      },
+    });
+    expect(mockedResolveInstitution).not.toHaveBeenCalled();
+    expect(mockedFrom).not.toHaveBeenCalled();
+  });
+
   it("upserts with wallet+currency conflict target and aggregator institution name", async () => {
     mockedResolveInstitution.mockResolvedValue({
       ok: true,

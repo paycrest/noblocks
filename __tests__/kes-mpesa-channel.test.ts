@@ -8,6 +8,7 @@ import {
   normalizeSavedRecipientChannel,
   getKesMpesaInstitutionLabel,
   KES_MPESA_INSTITUTION_CODE,
+  isUnresolvedAccountName,
 } from "../app/utils";
 import type { InstitutionProps } from "../app/types";
 

@@ -319,7 +319,11 @@ export const RecipientDetailsForm = ({
     const requestId = ++nameRequestIdRef.current;
     let timeoutId: NodeJS.Timeout;
     const getRecipientName = async () => {
-      if (!isManualEntry || !selectedInstitution) return;
+      if (!isManualEntry) return;
+      if (!selectedInstitution) {
+        setIsFetchingRecipientName(false);
+        return;
+      }
 
       // Re-evaluating: drop the manual-name input and any name already resolved or
       // typed for the previous identifier. Both matter — the validation branches

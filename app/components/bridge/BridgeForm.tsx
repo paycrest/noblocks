@@ -91,7 +91,8 @@ export const BridgeForm: React.FC<BridgeFormProps> = ({
   const starknet = useStarknet();
   const { allTokens } = useTokens();
   const { signDelegationAuthorization } = useDelegationContractAuth();
-  const { refreshBalance, crossChainBalances } = useBalance();
+  const { refreshBalance, crossChainBalances, isLoading: isBalanceLoading } =
+    useBalance();
   const { rate: cngnRate } = useCNGNRate({
     network: CNGN_CROSS_CHAIN_QUOTE_NETWORK,
   });
@@ -132,20 +133,30 @@ export const BridgeForm: React.FC<BridgeFormProps> = ({
     10,
   );
 
-  const fromBalance = useMemo(() => {
-    if (!from) return 0;
-    const entry = crossChainBalances.find(
+  const fromBalanceEntry = useMemo(() => {
+    if (!from) return null;
+    return crossChainBalances.find(
       (b) => b.network.chain.name === from.network,
     );
+  }, [from, crossChainBalances]);
+
+  const isFromBalanceKnown = useMemo(() => {
+    if (!from) return false;
+    if (isBalanceLoading) return false;
+    return fromBalanceEntry !== undefined;
+  }, [from, fromBalanceEntry, isBalanceLoading]);
+
+  const fromBalance = useMemo(() => {
+    if (!from || !fromBalanceEntry) return 0;
     const key = from.token.toUpperCase();
     return (
-      entry?.balances.rawBalances?.[key] ??
-      entry?.balances.rawBalances?.[from.token] ??
-      entry?.balances.balances[key] ??
-      entry?.balances.balances[from.token] ??
+      fromBalanceEntry.balances.rawBalances?.[key] ??
+      fromBalanceEntry.balances.rawBalances?.[from.token] ??
+      fromBalanceEntry.balances.balances[key] ??
+      fromBalanceEntry.balances.balances[from.token] ??
       0
     );
-  }, [from, crossChainBalances]);
+  }, [from, fromBalanceEntry]);
 
   const parsedAmount = Number(amount);
   const minConvertResult = from
@@ -162,6 +173,7 @@ export const BridgeForm: React.FC<BridgeFormProps> = ({
     parsedAmount > 0 &&
     parsedAmount < minConvertAmount;
   const hasInsufficientBalance =
+    isFromBalanceKnown &&
     !!from &&
     Number.isFinite(parsedAmount) &&
     parsedAmount > 0 &&

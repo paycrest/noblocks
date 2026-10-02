@@ -77,7 +77,7 @@ async function persistOnrampProviderAccount(
   return { ok: true };
 }
 
-/** Remove a limit-RPC insert when onramp VA cannot be verified/persisted. */
+/** Remove a limit-RPC insert when onramp provider_account persistence fails. */
 async function rollbackOnrampInsert(
   transactionId: string,
 ): Promise<{ ok: true } | { ok: false; error: unknown }> {
@@ -454,42 +454,34 @@ export const POST = withRateLimit(async (request: NextRequest) => {
           );
         } catch (orderError) {
           console.error(
-            "Failed to fetch aggregator order for provider_account:",
+            "Failed to fetch aggregator order for provider_account; transaction row kept for backfill:",
             orderError,
-          );
-          return failOnramp(
-            502,
-            "Unable to verify onramp payment details. Please try again.",
-            orderError instanceof Error
-              ? orderError
-              : new Error(String(orderError)),
           );
         }
 
         if (!providerAccount) {
-          return failOnramp(
-            502,
-            "Onramp payment details are not available yet. Please try again.",
-            new Error("Aggregator order missing providerAccount"),
+          console.warn(
+            "Onramp transaction saved without provider_account (order may not be ready yet):",
+            { transactionId: rpcDataId, orderId },
           );
-        }
-
-        const persistResult = await persistOnrampProviderAccount(
-          rpcDataId,
-          providerAccount,
-        );
-        if (!persistResult.ok) {
-          console.error(
-            "Failed to persist onramp provider_account:",
-            persistResult.error,
+        } else {
+          const persistResult = await persistOnrampProviderAccount(
+            rpcDataId,
+            providerAccount,
           );
-          return failOnramp(
-            500,
-            "Failed to save onramp payment details. Please try again.",
-            new Error("Failed to persist provider_account", {
-              cause: persistResult.error,
-            }),
-          );
+          if (!persistResult.ok) {
+            console.error(
+              "Failed to persist onramp provider_account:",
+              persistResult.error,
+            );
+            return failOnramp(
+              500,
+              "Failed to save onramp payment details. Please try again.",
+              new Error("Failed to persist provider_account", {
+                cause: persistResult.error,
+              }),
+            );
+          }
         }
       }
 

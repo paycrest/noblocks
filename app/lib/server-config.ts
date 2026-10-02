@@ -103,7 +103,11 @@ export function getAggregatorSenderApiKey(): string {
  */
 export function getAppUrl(): string {
   if (typeof window !== "undefined") return "";
-  return (process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL || "").trim();
+  return (
+    process.env.APP_URL?.trim() ||
+    process.env.NEXT_PUBLIC_APP_URL?.trim() ||
+    ""
+  );
 }
 
 /**

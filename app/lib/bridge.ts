@@ -474,6 +474,7 @@ export class NearIntentsClient {
       });
       return this.normalizeQuote(data, params, decimals);
     } catch (err) {
+      if (axios.isAxiosError(err)) throw err;
       throw new Error(
         extractAxiosServerMessage(
           err,
@@ -505,6 +506,7 @@ export class NearIntentsClient {
       if (err instanceof Error && err.message === "NEAR Intents did not return a deposit address") {
         throw err;
       }
+      if (axios.isAxiosError(err)) throw err;
       throw new Error(
         extractAxiosServerMessage(
           err,

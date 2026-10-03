@@ -221,7 +221,7 @@ export function TransactionDetails({ transaction }: TransactionDetailsProps) {
                         alt={transaction.network}
                         width={20}
                         height={20}
-                        className="rounded-full border border-white dark:border-surface-canvas"
+                        className="border border-white dark:border-surface-canvas"
                       />
                     )}
                     <Image
@@ -406,7 +406,6 @@ export function TransactionDetails({ transaction }: TransactionDetailsProps) {
                               alt={transaction.network}
                               width={16}
                               height={16}
-                              className="rounded-full"
                             />
                           )}
                           <span className="text-text-accent-gray dark:text-white/80">
@@ -441,7 +440,6 @@ export function TransactionDetails({ transaction }: TransactionDetailsProps) {
                           alt={toNetworkName}
                           width={16}
                           height={16}
-                          className="rounded-full"
                         />
                       );
                     }
@@ -484,7 +482,6 @@ export function TransactionDetails({ transaction }: TransactionDetailsProps) {
                               alt={transaction.network}
                               width={16}
                               height={16}
-                              className="rounded-full"
                             />
                           )}
                           <span className="text-text-accent-gray dark:text-white/80">
@@ -576,7 +573,6 @@ export function TransactionDetails({ transaction }: TransactionDetailsProps) {
                               alt={transaction.network}
                               width={16}
                               height={16}
-                              className="rounded-full"
                             />
                           )}
                           <span className="text-text-accent-gray dark:text-white/80">
@@ -661,7 +657,6 @@ export function TransactionDetails({ transaction }: TransactionDetailsProps) {
                               alt={transaction.network}
                               width={16}
                               height={16}
-                              className="rounded-full"
                             />
                           )}
                           <span className="text-text-accent-gray dark:text-white/80">
@@ -775,7 +770,6 @@ export function TransactionDetails({ transaction }: TransactionDetailsProps) {
                               alt={transaction.network}
                               width={16}
                               height={16}
-                              className="rounded-full"
                             />
                           )}
                           <span className="text-text-accent-gray dark:text-white/80">

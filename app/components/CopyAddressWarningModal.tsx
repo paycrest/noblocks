@@ -237,7 +237,7 @@ export const CopyAddressWarningModal: React.FC<
                           alt={`${network.chain.name} logo`}
                           width={24}
                           height={24}
-                          className="h-full w-full rounded-full object-contain"
+                          className="h-full w-full object-contain"
                         />
                       </div>
                       <span className="text-xs font-medium text-text-body dark:text-white/80">
@@ -377,7 +377,7 @@ export const CopyAddressWarningModal: React.FC<
                                 alt={`${network.chain.name} logo`}
                                 width={24}
                                 height={24}
-                                className="h-full w-full rounded-full object-contain"
+                                className="h-full w-full object-contain"
                               />
                             </div>
                             <span className="text-xs font-medium text-text-body dark:text-white/80">

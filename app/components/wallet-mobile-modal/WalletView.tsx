@@ -169,7 +169,7 @@ export const WalletView: React.FC<WalletViewProps> = ({
             alt={selectedNetwork.chain.name}
             width={16}
             height={16}
-            className="size-4 rounded-full"
+            className="size-4"
           />
           <span className="max-w-[5.5rem] truncate text-sm font-medium text-text-body dark:text-white">
             {selectedNetwork.chain.name}
@@ -289,7 +289,7 @@ export const WalletView: React.FC<WalletViewProps> = ({
                               alt={entry.network.chain.name}
                               width={8}
                               height={8}
-                              className="absolute -bottom-0.5 -right-0.5 size-2 rounded-full"
+                              className="absolute -bottom-0.5 -right-0.5 size-2"
                             />
                           </div>
                           <span className="font-medium dark:text-white/80">

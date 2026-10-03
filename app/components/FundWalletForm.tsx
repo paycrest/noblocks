@@ -323,7 +323,7 @@ export const FundWalletForm: React.FC<{
                 alt={selectedNetwork.chain.name}
                 width={24}
                 height={24}
-                className="h-6 w-6 rounded-full"
+                className="h-6 w-6"
               />
               <span
                 className={
@@ -381,7 +381,7 @@ export const FundWalletForm: React.FC<{
                   <Image
                     src={network.imageUrl}
                     alt={network.name}
-                    className="h-6 w-6 rounded-full"
+                    className="h-6 w-6"
                     width={24}
                     height={24}
                   />
@@ -416,7 +416,7 @@ export const FundWalletForm: React.FC<{
             alt={selectedNetwork.chain.name}
             width={16}
             height={16}
-            className="h-4 w-4 flex-shrink-0 rounded-full"
+            className="h-4 w-4 flex-shrink-0"
           />
           <span className="font-light text-text-secondary dark:text-white/70">
             {selectedNetwork.chain.name} network

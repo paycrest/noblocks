@@ -11,15 +11,16 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      # Configured repo secrets
-      AGGREGATOR_DATABASE_URL: ${{ secrets.AGGREGATOR_DATABASE_URL }}
+      # Configured repo secrets. Nothing else belongs here: an env var no code
+      # reads is a secret exposed to the build for no reason. SENTRY_AUTH_TOKEN,
+      # SENTRY_URL, AGGREGATOR_DATABASE_URL and NEXT_PUBLIC_SUPABASE_URL were
+      # removed for that reason — the first two only matter with a sourcemap
+      # upload step, which this project does not have (@sentry/react only, no
+      # @sentry/nextjs); re-add them alongside the step that needs them.
       BREVO_API_KEY: ${{ secrets.BREVO_API_KEY }}
       BREVO_LIST_ID: ${{ secrets.BREVO_LIST_ID }}
       NEXT_PUBLIC_AGGREGATOR_URL: ${{ secrets.NEXT_PUBLIC_AGGREGATOR_URL }}
-      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
       NEXT_PUBLIC_SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
-      SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
-      SENTRY_URL: ${{ secrets.SENTRY_URL }}
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       # Dummy values for vars required at build time but not in repo secrets

@@ -91,7 +91,8 @@ export const BridgeForm: React.FC<BridgeFormProps> = ({
   const starknet = useStarknet();
   const { allTokens } = useTokens();
   const { signDelegationAuthorization } = useDelegationContractAuth();
-  const { refreshBalance } = useBalance();
+  const { refreshBalance, crossChainBalances, isLoading: isBalanceLoading } =
+    useBalance();
   const { rate: cngnRate } = useCNGNRate({
     network: CNGN_CROSS_CHAIN_QUOTE_NETWORK,
   });
@@ -132,6 +133,31 @@ export const BridgeForm: React.FC<BridgeFormProps> = ({
     10,
   );
 
+  const fromBalanceEntry = useMemo(() => {
+    if (!from) return null;
+    return crossChainBalances.find(
+      (b) => b.network.chain.name === from.network,
+    );
+  }, [from, crossChainBalances]);
+
+  const isFromBalanceKnown = useMemo(() => {
+    if (!from) return false;
+    if (isBalanceLoading) return false;
+    return fromBalanceEntry !== undefined;
+  }, [from, fromBalanceEntry, isBalanceLoading]);
+
+  const fromBalance = useMemo(() => {
+    if (!from || !fromBalanceEntry) return 0;
+    const key = from.token.toUpperCase();
+    return (
+      fromBalanceEntry.balances.rawBalances?.[key] ??
+      fromBalanceEntry.balances.rawBalances?.[from.token] ??
+      fromBalanceEntry.balances.balances[key] ??
+      fromBalanceEntry.balances.balances[from.token] ??
+      0
+    );
+  }, [from, fromBalanceEntry]);
+
   const parsedAmount = Number(amount);
   const minConvertResult = from
     ? minOffRampTokenAmount(from.token, cngnRate)
@@ -146,10 +172,17 @@ export const BridgeForm: React.FC<BridgeFormProps> = ({
     Number.isFinite(parsedAmount) &&
     parsedAmount > 0 &&
     parsedAmount < minConvertAmount;
+  const hasInsufficientBalance =
+    isFromBalanceKnown &&
+    !!from &&
+    Number.isFinite(parsedAmount) &&
+    parsedAmount > 0 &&
+    parsedAmount > fromBalance;
   const convertMinMessage =
     amountBelowMin && from && minConvertAmount !== null
       ? `Minimum amount is ${formatNumberWithCommas(minConvertAmount)} ${from.token}`
       : null;
+  const amountHasError = amountBelowMin || hasInsufficientBalance;
 
   const embeddedWallet = wallets.find((w) => w.walletClientType === "privy");
 
@@ -202,6 +235,7 @@ export const BridgeForm: React.FC<BridgeFormProps> = ({
       !routeUnsupported &&
       !!(evmAddress || starknetAddress) &&
       !cngnRateUnavailable &&
+      !hasInsufficientBalance &&
       (minConvertAmount === null || parsedAmount >= minConvertAmount),
     getAccessToken,
     getInjectedToken:
@@ -381,6 +415,7 @@ export const BridgeForm: React.FC<BridgeFormProps> = ({
   // treating that as a dead route showed this error to every user before they connected.
   const noRailAvailable =
     !cngnRateUnavailable &&
+    !hasInsufficientBalance &&
     (routeUnsupported ||
       (quoteFetched &&
         !quoteLoading &&
@@ -397,6 +432,7 @@ export const BridgeForm: React.FC<BridgeFormProps> = ({
     !noRailAvailable &&
     !isQuoteExpired &&
     !amountBelowMin &&
+    !hasInsufficientBalance &&
     !!quote &&
     !quoteLoading &&
     !quoteError &&
@@ -451,7 +487,7 @@ export const BridgeForm: React.FC<BridgeFormProps> = ({
                 engine={engine}
                 timeEstimate={timeEstimate}
                 isQuoteLoading={quoteLoading}
-                amountHasError={amountBelowMin}
+                amountHasError={amountHasError}
               />
 
               {fromNetworkName !== toNetworkName && (
@@ -470,7 +506,13 @@ export const BridgeForm: React.FC<BridgeFormProps> = ({
                 </div>
               )}
 
-              {amountBelowMin && convertMinMessage && (
+              {hasInsufficientBalance && (
+                <div className="rounded-xl border border-red-100 bg-red-50 p-3 text-sm text-red-600 dark:border-red-900/30 dark:bg-red-900/20 dark:text-red-400">
+                  Insufficient balance
+                </div>
+              )}
+
+              {!hasInsufficientBalance && amountBelowMin && convertMinMessage && (
                 <div className="rounded-xl border border-red-100 bg-red-50 p-3 text-sm text-red-600 dark:border-red-900/30 dark:bg-red-900/20 dark:text-red-400">
                   {convertMinMessage}
                 </div>

@@ -202,14 +202,15 @@ export function normalizeSavedRecipientChannel(
 }
 
 /**
- * True when /verify-account could not resolve a holder name.
+ * True when the aggregator could not resolve a real account holder.
  *
- * The aggregator answers the literal string `"OK"` when no provider can resolve
- * an account holder. KES M-Pesa Till and Paybill hit this on every order — a
- * Paybill lookup is structurally impossible, since the identifier is only the
- * reference and the business number never reaches the PSP.
+ * `/verify-account` answers the literal string "OK" in two cases: a Pretium fiat
+ * (KES, GHS, UGX, MWK) where every provider soft-failed, and any currency with no
+ * verification path at all, which returns "OK" unconditionally. KES M-Pesa Till and
+ * Paybill always land here — a Paybill lookup is structurally impossible because the
+ * identifier is only the reference and the business number never reaches the PSP.
  *
- * `"OK"` is a sentinel, not a name, so the UI must collect one from the user rather than
+ * "OK" is a sentinel, not a name, so the UI must collect one from the user rather than
  * display it. The aggregator keeps a client-supplied name in that case
  * (ResolveAccountNameAfterValidation), and the on-chain path noblocks uses never
  * re-validates it at all.
@@ -2302,6 +2303,29 @@ export const currencyToCountryCode = (currency: string) => {
 
   return currencyOverrides[currency] || currency.slice(0, 2).toLowerCase();
 };
+
+/** Flag CDN URL for a fiat currency code (transaction history / dropdowns). */
+export function getFiatFlagImageUrl(currency: string): string {
+  return `https://flagcdn.com/h24/${currencyToCountryCode(currency)}.webp`;
+}
+
+/**
+ * Icon for a currency in transaction history: on-ramp fiat → country flag;
+ * otherwise local token logo (with Lisk light/dark variants).
+ */
+export function getCurrencyImageSrc(currency: string, isDark = false): string {
+  const code = currency.trim();
+  if (isOnrampFiatCurrencyCode(code)) {
+    return getFiatFlagImageUrl(code);
+  }
+  const logoId = getTokenLogoIdentifier(code);
+  if (logoId === "lisk") {
+    return isDark
+      ? "/logos/lisk-logo-dark.svg"
+      : "/logos/lisk-logo-light.svg";
+  }
+  return `/logos/${logoId}-logo.svg`;
+}
 
 export const generatePaginationItems = (
   currentPage: number,

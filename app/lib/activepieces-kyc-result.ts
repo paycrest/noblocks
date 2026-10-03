@@ -1,6 +1,6 @@
 import "server-only";
 import { after } from "next/server";
-import config from "@/app/lib/config";
+import { activepiecesConfig } from "@/app/lib/server-config";
 import type { ActivepiecesKycResultPayload } from "@/app/types";
 import { getEmailForMonitoredAddress } from "@/app/utils";
 import {
@@ -33,7 +33,7 @@ export async function triggerActivepiecesKycResult(
   payload: ActivepiecesKycResultPayload,
   walletAddress?: string,
 ): Promise<void> {
-  const url = config.activepiecesKycResultWebhookUrl;
+  const url = activepiecesConfig.kycResultWebhookUrl;
   if (!url) {
     console.error(
       "[activepieces] ACTIVEPIECES_KYC_RESULT_WEBHOOK_URL not set — skipping KYC result email",

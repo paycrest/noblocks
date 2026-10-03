@@ -121,6 +121,23 @@ function isNetworkError(message: string, code: string): boolean {
   return matchesAny(message, NETWORK_ERROR_PATTERNS) || matchesAny(code, NETWORK_ERROR_PATTERNS);
 }
 
+/** Axios default copy like "Request failed with status code 400" — never show to users. */
+function isHttpStatusMessage(message: string): boolean {
+  return /^request failed with status code \d+$/i.test(message.trim());
+}
+
+function pickServerMessage(data: unknown): string | null {
+  if (!data || typeof data !== "object") return null;
+  const body = data as Record<string, unknown>;
+  for (const key of ["error", "message"] as const) {
+    const value = body[key];
+    if (typeof value === "string" && value.trim().length > 0 && value.length <= 120) {
+      return value.trim();
+    }
+  }
+  return null;
+}
+
 /**
  * True when an error represents "aggregator could not match a liquidity provider"
  * for the requested corridor/amount. Matches on message OR error code.
@@ -163,10 +180,8 @@ export function mapToUserMessage(error: unknown): string {
       return ERROR_MESSAGES.SERVER;
     }
     if (status >= 400) {
-      const serverMsg = error.response.data?.message;
-      if (typeof serverMsg === "string" && serverMsg.length > 0 && serverMsg.length <= 120) {
-        return serverMsg;
-      }
+      const serverMsg = pickServerMessage(error.response.data);
+      if (serverMsg) return serverMsg;
       return ERROR_MESSAGES.CLIENT_REQUEST;
     }
   }
@@ -182,7 +197,8 @@ export function mapToUserMessage(error: unknown): string {
   }
 
   // 6. Prefer backend / library message when nothing else matched (e.g. aggregator rate errors)
-  if (message.trim()) {
+  // Skip Axios's generic status-code copy if it leaked through as a plain Error.
+  if (message.trim() && !isHttpStatusMessage(message)) {
     return message;
   }
 

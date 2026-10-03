@@ -4,10 +4,10 @@ import {
   formatKesMpesaAccountDisplay,
   formatRecipientInstitutionDisplay,
   isSameSavedRecipient,
+  isUnresolvedAccountName,
   normalizeSavedRecipientChannel,
   getKesMpesaInstitutionLabel,
   KES_MPESA_INSTITUTION_CODE,
-  isUnresolvedAccountName,
 } from "../app/utils";
 import type { InstitutionProps } from "../app/types";
 
@@ -197,4 +197,3 @@ describe("unresolved account names", () => {
     expect(isUnresolvedAccountName("OK Foods Ltd")).toBe(false);
   });
 });
-

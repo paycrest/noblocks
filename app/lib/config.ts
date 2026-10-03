@@ -1,5 +1,4 @@
 import { Config, JWTProviderConfig } from "@/app/types";
-import { resolveLayerswapApiBaseUrl } from "./layerswapConfig";
 
 /** EIP-7702 delegation contract (ProviderBatchCallAndSponsor) per chain. */
 export const DELEGATION_CONTRACT_BY_CHAIN: Record<number, string> = {
@@ -12,7 +11,7 @@ export const DELEGATION_CONTRACT_BY_CHAIN: Record<number, string> = {
   1: "0x25054a2b9D4544ed292DC1a74E8bF1f6F449d988",
 };
 
-/** Returns the delegation contract address for the given chainId. Uses NEXT_PUBLIC_DELEGATION_CONTRACT_ADDRESS if set, else DELEGATION_CONTRACT_BY_CHAIN, else "". */
+/** Returns the delegation contract address for the given chainId from DELEGATION_CONTRACT_BY_CHAIN, else "". */
 export function getDelegationContractAddress(chainId: number): string {
   return DELEGATION_CONTRACT_BY_CHAIN[chainId] ?? "";
 }
@@ -29,8 +28,6 @@ const config: Config = {
   rpcUrlKey: process.env.NEXT_PUBLIC_RPC_URL_KEY || "",
   mixpanelToken: process.env.NEXT_PUBLIC_MIXPANEL_TOKEN || "",
   hotjarSiteId: Number(process.env.NEXT_PUBLIC_HOTJAR_SITE_ID || ""),
-  googleVerificationCode:
-    process.env.NEXT_PUBLIC_GOOGLE_VERIFICATION_CODE || "",
   noticeBannerText: process.env.NEXT_PUBLIC_NOTICE_BANNER_TEXT || "",
   brevoConversationsId: process.env.NEXT_PUBLIC_BREVO_CONVERSATIONS_ID || "",
   brevoConversationsGroupId: process.env.NEXT_PUBLIC_BREVO_CONVERSATIONS_GROUP_ID || "",
@@ -56,16 +53,6 @@ const config: Config = {
     );
     return Number.isFinite(parsed) ? parsed : 0;
   })(),
-  moralisWebhookSecret: process.env.MORALIS_WEBHOOK_SECRET || "",
-  activepiecesWebhookUrl: process.env.ACTIVEPIECES_WEBHOOK_URL || "",
-  activepiecesSignupVerifyWebhookUrl:
-    process.env.ACTIVEPIECES_SIGNUP_VERIFY_WEBHOOK_URL || "",
-  activepiecesKycResultWebhookUrl:
-    process.env.ACTIVEPIECES_KYC_RESULT_WEBHOOK_URL || "",
-  moralisStreamId: process.env.MORALIS_STREAM_ID || "",
-  moralisApiKey: process.env.MORALIS_API_KEY || "",
-  moralisBaseUrl:
-    process.env.MORALIS_BASE_URL || "https://api.moralis-streams.com",
   earnEnabled: process.env.NEXT_PUBLIC_EARN_ENABLED === "true",
   evmEarnEnabled: process.env.NEXT_PUBLIC_EVM_EARN_ENABLED === "true",
   tronEnabled: process.env.NEXT_PUBLIC_TRON_ENABLED === "true",
@@ -83,11 +70,6 @@ const config: Config = {
   fantasyCampaignEnded:
     process.env.NEXT_PUBLIC_FANTASY_CAMPAIGN_ENDED === "true",
   embedEnabled: process.env.NEXT_PUBLIC_EMBED_ENABLED === "true",
-  /** Server-side LayerSwap API key (EVM earn bridge). */
-  layerswapApiKey: (process.env.LAYERSWAP_API_KEY || "").trim(),
-  layerswapApiBaseUrl: resolveLayerswapApiBaseUrl(
-    process.env.LAYERSWAP_API_BASE_URL,
-  ),
 };
 
 export default config;
@@ -98,14 +80,6 @@ export const DEFAULT_PRIVY_CONFIG: JWTProviderConfig = {
     jwksUrl: process.env.PRIVY_JWKS_URL || "",
     issuer: process.env.PRIVY_ISSUER || "",
     algorithms: ["ES256"],
-  },
-};
-
-export const DEFAULT_THIRDWEB_CONFIG: JWTProviderConfig = {
-  provider: "thirdweb",
-  thirdweb: {
-    clientId: process.env.THIRDWEB_CLIENT_ID || "",
-    domain: process.env.THIRDWEB_DOMAIN || "",
   },
 };
 

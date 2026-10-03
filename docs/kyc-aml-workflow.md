@@ -119,6 +119,11 @@ Limited verification for very small transaction caps (primarily testing).
 
 ### SmileID Integration
 
+> Sketch, not the shipped code. The identifiers here are placeholders — the real
+> implementation lives in `app/lib/smileID.ts` and resolves its base URL from
+> `SMILE_IDENTITY_SERVER` / `SMILE_IDENTITY_SERVER_MODE`. There is no
+> `SMILE_IDENTITY_BASE_URL` or `SMILE_IDENTITY_PROJECT_ID` variable.
+
 ```typescript
 interface SmileIDRequest {
   url: string;

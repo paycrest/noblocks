@@ -15,8 +15,11 @@ import {
 import {
   isLayerswapSuccessStatus,
   isLayerswapTerminalStatus,
-  type LayerswapDepositAction,
-  type LayerswapQuote,
+} from "../lib/layerswapStatus";
+// Type-only: layerswap.ts is server-only, so this import must stay erasable.
+import type {
+  LayerswapDepositAction,
+  LayerswapQuote,
 } from "../lib/layerswap";
 import { buildLayerswapDepositBatchCalls } from "../lib/layerswapExecute";
 import { executeBatchCalls } from "../lib/bridge";

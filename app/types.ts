@@ -269,6 +269,16 @@ export type OrderDetailsResponse = {
   data: OrderDetailsData;
 };
 
+/** Fiat virtual account returned by aggregator v2 onramp (create / get order). */
+export type V2FiatProviderAccountDTO = {
+  institution: string;
+  accountIdentifier: string;
+  accountName: string;
+  validUntil: string;
+  amountToTransfer?: string;
+  currency?: string;
+};
+
 export type OrderDetailsData = {
   orderId: string;
   amount: string;
@@ -279,6 +289,8 @@ export type OrderDetailsData = {
   txHash: string;
   /** Persisted FX quote (fiat per 1 token); same source history stores as `fee`. */
   rate?: string;
+  /** Onramp VA / bank details from GET /v2/sender/orders/:id when present. */
+  providerAccount?: V2FiatProviderAccountDTO;
   settlements: Settlement[];
   txReceipts: TxReceipt[];
   updatedAt: string;
@@ -312,16 +324,6 @@ type TxReceipt = {
   status: string;
   txHash: string;
   timestamp: string;
-};
-
-/** Fiat virtual account returned by aggregator v2 onramp (create / get order). */
-export type V2FiatProviderAccountDTO = {
-  institution: string;
-  accountIdentifier: string;
-  accountName: string;
-  validUntil: string;
-  amountToTransfer?: string;
-  currency?: string;
 };
 
 /** Display shape for virtual account / bank transfer instructions (mirrors provider/types OnrampPaymentInstructions). */
@@ -479,7 +481,6 @@ export type Config = {
   rpcUrlKey: string;
   mixpanelToken: string;
   hotjarSiteId: number;
-  googleVerificationCode: string;
   noticeBannerText?: string; // Optional, for dynamic notice banner text
   brevoConversationsId: string; // Brevo chat widget ID
   brevoConversationsGroupId?: string; // Brevo chat widget group ID for routing
@@ -490,21 +491,6 @@ export type Config = {
   maintenanceSchedule: string; // e.g. "Friday, February 13th, from 7:00 PM to 11:00 PM WAT"
   referralMinQualifyingVolumeUsd: number;
   referralRewardAmountUsd: number;
-  moralisWebhookSecret: string;
-  activepiecesWebhookUrl: string;
-  /**
-   * Activepieces webhook for the Tier 1 "verify your phone" email (Brevo flow),
-   * triggered on new email signups. Payload `event`: "signup_verify_phone".
-   */
-  activepiecesSignupVerifyWebhookUrl: string;
-  /**
-   * Activepieces webhook for SmileID identity result emails (Brevo flow).
-   * Payload `event`: "kyc_result" with `status`: "success" | "failure".
-   */
-  activepiecesKycResultWebhookUrl: string;
-  moralisStreamId: string;
-  moralisApiKey: string;
-  moralisBaseUrl: string;
   /** Starknet Earn (Vesu via Starkzap). Requires Starknet wallet + API routes. */
   earnEnabled: boolean;
   /** EVM → Starknet Earn via LayerSwap (Phase 2). Requires LAYERSWAP_API_KEY server-side. */
@@ -534,9 +520,6 @@ export type Config = {
   fantasyCampaignEnded: boolean;
   /** Embeddable widget feature flag. Gates the /widget route (iframe embed for whitelisted partners). */
   embedEnabled: boolean;
-  /** LayerSwap API key (server-side only; used by /api/earn/layerswap/*). */
-  layerswapApiKey: string;
-  layerswapApiBaseUrl: string;
 };
 
 export type Network = {
@@ -621,6 +604,12 @@ export interface TransactionHistory {
   created_at: string;
   updated_at: string;
   order_id?: string;
+  email?: string | null;
+  email_sent_at?: string | null;
+  /** When pay-in instructions email was sent (onramp). */
+  payin_email_sent_at?: string | null;
+  /** Aggregator VA / bank details for onramp pay-in emails. */
+  provider_account?: V2FiatProviderAccountDTO | null;
 }
 
 export interface TransactionCreateInput {
@@ -638,6 +627,8 @@ export interface TransactionCreateInput {
   timeSpent?: string;
   orderId?: string;
   email?: string;
+  /** Onramp only — persisted for Activepieces pay-in instruction emails. */
+  providerAccount?: V2FiatProviderAccountDTO | null;
 }
 
 export interface TransactionUpdateInput {
@@ -646,7 +637,7 @@ export interface TransactionUpdateInput {
   txHash?: string;
 }
 
-export type JWTProvider = "privy" | "thirdweb";
+export type JWTProvider = "privy";
 
 export interface JWTProviderConfig {
   provider: JWTProvider;
@@ -654,10 +645,6 @@ export interface JWTProviderConfig {
     jwksUrl: string;
     issuer: string;
     algorithms: string[];
-  };
-  thirdweb?: {
-    clientId: string;
-    domain: string;
   };
 }
 

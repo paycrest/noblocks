@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
 import {
   classNames,
-  getTokenLogoIdentifier,
+  getCurrencyImageSrc,
   generatePaginationItems,
   getRelativeDate,
   isOnrampClientPaymentSessionExpired,
@@ -70,8 +70,6 @@ export const TransactionListItem = ({
   transaction: TransactionHistory;
   onClick: () => void;
 }) => {
-  // Get token logo based on currency
-  const tokenLogo = getTokenLogoIdentifier(transaction.from_currency);
   const isDark = useActualTheme();
 
   return (
@@ -83,13 +81,7 @@ export const TransactionListItem = ({
         <div className="space-y-3 text-sm">
           <div className="flex items-center gap-x-2">
             <Image
-              src={
-                tokenLogo === "lisk"
-                  ? isDark
-                    ? "/logos/lisk-logo-dark.svg"
-                    : "/logos/lisk-logo-light.svg"
-                  : `/logos/${tokenLogo}-logo.svg`
-              }
+              src={getCurrencyImageSrc(transaction.from_currency, isDark)}
               alt={transaction.from_currency}
               width={16}
               height={16}
@@ -342,8 +334,6 @@ export default function TransactionList({
                 </div>
                 <div className="space-y-2">
                   {transactions.map((transaction) => {
-                    const tokenLogo = getTokenLogoIdentifier(transaction.from_currency);
-
                     return (
                       <motion.div
                         key={transaction.id}
@@ -357,13 +347,10 @@ export default function TransactionList({
                           <div className="space-y-3 text-sm">
                             <div className="flex items-center gap-x-2">
                               <Image
-                                src={
-                                  tokenLogo === "lisk"
-                                    ? isDark
-                                      ? "/logos/lisk-logo-dark.svg"
-                                      : "/logos/lisk-logo-light.svg"
-                                    : `/logos/${tokenLogo}-logo.svg`
-                                }
+                                src={getCurrencyImageSrc(
+                                  transaction.from_currency,
+                                  isDark,
+                                )}
                                 alt={transaction.from_currency}
                                 width={16}
                                 height={16}

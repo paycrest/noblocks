@@ -462,7 +462,7 @@ export const TransferForm: React.FC<{
                 <img
                   src={recipientNetworkImageUrl}
                   alt={recipientNetwork}
-                  className="h-6 w-6 rounded-full"
+                  className="h-6 w-6"
                 />
                 {recipientNetwork || "Select network"}
               </span>
@@ -503,7 +503,7 @@ export const TransferForm: React.FC<{
                     <Image
                       src={network.imageUrl}
                       alt={network.name}
-                      className="h-6 w-6 rounded-full"
+                      className="h-6 w-6"
                       width={24}
                       height={24}
                     />

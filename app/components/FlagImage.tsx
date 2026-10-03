@@ -2,6 +2,7 @@
 import React, { useState } from "react";
 import { DropdownItem } from "./FlexibleDropdown";
 import Image from "next/image";
+import { classNames } from "../utils";
 
 type Props = {
   item: DropdownItem;
@@ -10,6 +11,11 @@ type Props = {
 };
 
 const FlagImage = ({ item, imageErrors, setImageErrors }: Props) => {
+  // Remote flag images are rectangular and need the circular crop. Local
+  // network/token logos are already shaped (e.g. Base's rounded square), so
+  // clipping them to a circle would distort the mark.
+  const isLocalLogo = item.imageUrl?.startsWith("/logos/") ?? false;
+
   return (
     <>
       {imageErrors[item.name] ? (
@@ -27,7 +33,10 @@ const FlagImage = ({ item, imageErrors, setImageErrors }: Props) => {
             height={24}
             loading="lazy"
             decoding="async"
-            className="h-6 w-6 rounded-full object-fill"
+            className={classNames(
+              "h-6 w-6",
+              isLocalLogo ? "" : "rounded-full object-fill",
+            )}
             onError={() =>
               setImageErrors((prev) => ({ ...prev, [item.name]: true }))
             }

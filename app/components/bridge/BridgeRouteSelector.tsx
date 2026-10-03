@@ -208,7 +208,7 @@ export const BridgeRouteSelector: React.FC<BridgeRouteSelectorProps> = ({
                     <img
                       src={getNetworkImgSrc(fromNetworkObj)}
                       alt={fromNetworkName}
-                      className="size-5 shrink-0 rounded-full"
+                      className="size-5 shrink-0"
                       onError={(e) => {
                         (e.target as HTMLImageElement).style.display = "none";
                       }}
@@ -243,7 +243,7 @@ export const BridgeRouteSelector: React.FC<BridgeRouteSelectorProps> = ({
                     <img
                       src={getNetworkImgSrc(toNetworkObj)}
                       alt={toNetworkName}
-                      className="size-5 shrink-0 rounded-full"
+                      className="size-5 shrink-0"
                       onError={(e) => {
                         (e.target as HTMLImageElement).style.display = "none";
                       }}

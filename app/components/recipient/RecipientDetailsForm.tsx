@@ -716,7 +716,7 @@ export const RecipientDetailsForm = ({
                     alt={selectedNetwork.chain.name}
                     width={20}
                     height={20}
-                    className="size-5 rounded-full"
+                    className="size-5"
                   />
                 </div>
                 <span

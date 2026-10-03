@@ -388,7 +388,7 @@ export const Navbar = () => {
                   alt={selectedNetwork.chain.name}
                   width={20}
                   height={20}
-                  className="size-5 rounded-full"
+                  className="size-5"
                 />
                 <span className="font-medium dark:text-white">
                   {shortenAddress(activeWallet?.address ?? "", 6)}

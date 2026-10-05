@@ -192,7 +192,6 @@ export function mapV2SenderOrderGetToOrderDetailsData(
     txHash: String(d.txHash ?? ""),
     rate,
     ...(providerAccount ? { providerAccount } : {}),
-    ...(typeof d.reference === "string" ? { reference: d.reference } : {}),
     settlements: [],
     txReceipts,
     updatedAt,
@@ -1673,15 +1672,16 @@ export const submitSmileIDData = async (
 
 /**
  * Creates a v2 on-ramp payment order (fiat source) via the server proxy to aggregator.
- * POST /api/v1/payment-orders (on-ramp only) → aggregator POST /v2/sender/orders.
- * Off-ramp orders are created on-chain (gateway.createOrder), not through this proxy.
+ * POST /api/v1/payment-orders → aggregator POST /v2/sender/orders. The server also
+ * records the order's transaction row and returns its id as `transactionId`; the
+ * client must not save that row itself.
  * Injected wallets authenticate via `x-injected-token`; Privy via Bearer.
  */
 export async function createV2SenderPaymentOrder(
   payload: V2CreatePaymentOrderPayload,
   accessToken: string | null,
   injectedToken: string | null = null,
-): Promise<AggregatorEnvelope<V2PaymentOrderCreateData>> {
+): Promise<AggregatorEnvelope<V2PaymentOrderCreateData> & { transactionId?: string }> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
   };
@@ -1690,7 +1690,9 @@ export async function createV2SenderPaymentOrder(
   } else if (accessToken) {
     headers.Authorization = `Bearer ${accessToken}`;
   }
-  const response = await axios.post<AggregatorEnvelope<V2PaymentOrderCreateData>>(
+  const response = await axios.post<
+    AggregatorEnvelope<V2PaymentOrderCreateData> & { transactionId?: string }
+  >(
     "/api/v1/payment-orders",
     payload,
     { headers },
@@ -1758,15 +1760,16 @@ export async function createOfframpMessageHash(
 /**
  * Sells on sender-API networks (see `isApiOfframpNetwork`). Creates the order
  * through the server, which builds the aggregator body, checks the refund
- * address is the caller's own wallet and enforces the monthly limit. Returns
- * the deposit instructions; the wallet then sends `providerAccount.amountToTransfer`
- * to `providerAccount.receiveAddress`.
+ * address is the caller's own wallet, enforces the monthly limit and records the
+ * order's transaction row (returned as `transactionId`). Returns the deposit
+ * instructions; the wallet then sends `providerAccount.amountToTransfer` to
+ * `providerAccount.receiveAddress`.
  */
 export async function createV2SenderOfframpOrder(
   payload: V2OfframpOrderPayload,
   accessToken: string | null,
   injectedToken: string | null = null,
-): Promise<V2OfframpOrderCreateData> {
+): Promise<V2OfframpOrderCreateData & { transactionId: string }> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
   };
@@ -1779,7 +1782,10 @@ export async function createV2SenderOfframpOrder(
   // aggregator puts the specific reason in `data.message` under a generic
   // title, and middleware 401s carry `{ error }`.
   const response = await axios.post<
-    AggregatorEnvelope<V2OfframpOrderCreateData> & { error?: string }
+    AggregatorEnvelope<V2OfframpOrderCreateData> & {
+      error?: string;
+      transactionId?: string;
+    }
   >("/api/v1/payment-orders", payload, { headers, validateStatus: () => true });
   const envelope = response.data;
   const created = envelope?.data;
@@ -1787,7 +1793,8 @@ export async function createV2SenderOfframpOrder(
     response.status >= 400 ||
     envelope?.status !== "success" ||
     typeof created?.id !== "string" ||
-    !created.providerAccount?.receiveAddress
+    !created.providerAccount?.receiveAddress ||
+    typeof envelope.transactionId !== "string"
   ) {
     const detail = (created as { message?: unknown } | undefined)?.message;
     throw new Error(
@@ -1797,7 +1804,7 @@ export async function createV2SenderOfframpOrder(
         `Could not create order (${response.status})`,
     );
   }
-  return created;
+  return { ...created, transactionId: envelope.transactionId };
 }
 
 /**

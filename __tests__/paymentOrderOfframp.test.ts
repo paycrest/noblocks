@@ -11,12 +11,23 @@ const mockGetSenderApiKey = jest.fn<string, []>(() => SENDER_API_KEY);
 const mockAxiosPost = jest.fn();
 const mockFetchTokens = jest.fn();
 const mockLinkedAddresses = jest.fn();
-const mockLimitCheck = jest.fn();
+const mockParseRecord = jest.fn();
+const mockPrecheckRow = jest.fn();
+const mockRecordRow = jest.fn();
 const mockIsApiOfframpNetwork = jest.fn();
 const mockLinkedEvmAddresses = jest.fn();
 const mockOrderRowLookup = jest.fn();
 
 jest.mock("server-only", () => ({}));
+// jsdom has no Request, so next/server cannot load; the helpers only read status and json().
+jest.mock("next/server", () => ({
+  NextResponse: {
+    json: (body: unknown, init?: { status?: number }) => ({
+      status: init?.status ?? 200,
+      json: async () => body,
+    }),
+  },
+}));
 jest.mock("axios", () => ({
   __esModule: true,
   default: { post: (...args: unknown[]) => mockAxiosPost(...args) },
@@ -44,15 +55,18 @@ jest.mock("../app/lib/supabase", () => ({
     from: () => ({
       select: () => ({
         eq: (_column: string, orderId: string) => ({
-          limit: () => mockOrderRowLookup(orderId),
+          in: (column: string, values: string[]) => ({
+            limit: () => mockOrderRowLookup(orderId, column, values),
+          }),
         }),
       }),
     }),
   },
 }));
 jest.mock("../app/lib/swap-transaction-limit-server", () => ({
-  executeSwapTransactionLimitCheck: (...args: unknown[]) =>
-    mockLimitCheck(...args),
+  parseSenderOrderRecord: (...args: unknown[]) => mockParseRecord(...args),
+  precheckSenderOrderRow: (...args: unknown[]) => mockPrecheckRow(...args),
+  recordSenderOrderRow: (...args: unknown[]) => mockRecordRow(...args),
 }));
 jest.mock("../app/api/aggregator", () => ({
   fetchTokens: () => mockFetchTokens(),
@@ -63,6 +77,11 @@ jest.mock("../app/utils", () => ({
   KES_MPESA_INSTITUTION_CODE: "SAFAKEPC",
   isApiOfframpNetwork: (chain: { name?: string }) =>
     mockIsApiOfframpNetwork(chain),
+  parseValidTransactionAmount: (value: unknown) => {
+    const n = typeof value === "number" ? value : Number(value);
+    return Number.isFinite(n) && n >= 0 ? n : null;
+  },
+  roundAmountForCurrency: (n: number) => Math.round(n * 100) / 100,
   normalizeNetworkName: (id: string) =>
     id
       .split("-")
@@ -77,11 +96,7 @@ import {
   parseOfframpOrderBody,
 } from "../app/lib/payment-order-offramp";
 import type { MessageHashRequest } from "../app/lib/payment-order-message-hash";
-import {
-  assertCallerOwnsSenderOrder,
-  classifyOrderOwnerReference,
-  createOrderOwnerReference,
-} from "../app/lib/transaction-wallet-auth";
+import { assertCallerOwnsSenderOrder } from "../app/lib/transaction-wallet-auth";
 import type { NextRequest } from "next/server";
 
 function makeRequest(
@@ -95,10 +110,22 @@ function makeRequest(
   return { headers: { get: (name: string) => all[name.toLowerCase()] ?? null } };
 }
 
+const RECORD = {
+  walletAddress: "0xabc",
+  amountReceived: 76025,
+  recipient: { account_name: "ADAEZE OKONKWO", institution: "GTBank", account_identifier: "0123456789" },
+  email: null,
+};
+
 function sellBody(overrides: Record<string, unknown> = {}) {
   return {
     amount: "50",
     rate: "1520.5",
+    record: {
+      walletAddress: "0xABC",
+      amountReceived: 76025,
+      recipient: RECORD.recipient,
+    },
     source: {
       type: "crypto",
       currency: "USDC",
@@ -151,11 +178,9 @@ beforeEach(() => {
     { symbol: "USDC", network: "starknet", decimals: 6, contractAddress: "0x1" },
     { symbol: "USDC", network: "base", decimals: 6, contractAddress: "0x2" },
   ]);
-  mockLimitCheck.mockResolvedValue({
-    kind: "success",
-    monthlyLimit: 1000,
-    pooledWalletCount: 1,
-  });
+  mockParseRecord.mockResolvedValue({ ok: true, record: RECORD });
+  mockPrecheckRow.mockResolvedValue({ ok: true });
+  mockRecordRow.mockResolvedValue({ ok: true, id: "tx-row-1" });
   mockAxiosPost.mockResolvedValue({ status: 201, data: createdEnvelope });
 });
 
@@ -296,7 +321,10 @@ describe("handleCreateOfframpOrder", () => {
       }),
     );
 
-    expect(result).toEqual({ status: 201, body: createdEnvelope });
+    expect(result).toEqual({
+      status: 201,
+      body: { ...createdEnvelope, transactionId: "tx-row-1" },
+    });
     expect(mockAxiosPost).toHaveBeenCalledTimes(1);
     const [url, body, options] = mockAxiosPost.mock.calls[0];
     expect(url).toBe("https://aggregator.test/v2/sender/orders");
@@ -304,8 +332,8 @@ describe("handleCreateOfframpOrder", () => {
     expect(Object.keys(body).sort()).toEqual(
       ["amount", "amountIn", "destination", "rate", "reference", "source"].sort(),
     );
-    expect(body.reference).toMatch(/^nb-[0-9a-f]{16}-[0-9a-f]{32}$/);
-    expect(classifyOrderOwnerReference(body.reference, USER_ID)).toBe("owner");
+    expect(body.reference).toMatch(/^nb-[0-9a-f]{24}$/);
+    expect(body).not.toHaveProperty("record");
     expect(body.source).toEqual({
       type: "crypto",
       currency: "USDC",
@@ -315,18 +343,66 @@ describe("handleCreateOfframpOrder", () => {
     expect(body.destination.currency).toBe("NGN");
   });
 
-  it("checks the monthly limit against the caller's wallet before creating", async () => {
+  it("prechecks, creates, then records the row with server-set fields", async () => {
     await handleCreateOfframpOrder(makeRequest(), sellBody());
-    const [wallet, limitBody, options] = mockLimitCheck.mock.calls[0];
-    expect(wallet).toBe("0xabc");
-    expect(limitBody).toMatchObject({
+
+    const [, headerWallet, rawRecord] = mockParseRecord.mock.calls[0];
+    expect(headerWallet).toBe("0xabc");
+    expect(rawRecord).toMatchObject({ walletAddress: "0xABC" });
+
+    const expectedRow = {
       transactionType: "offramp",
       fromCurrency: "USDC",
       toCurrency: "NGN",
       amountSent: 50,
       amountReceived: 76025,
+      fee: 1520.5,
+      recipient: RECORD.recipient,
+      network: "Starknet",
+    };
+    expect(mockPrecheckRow).toHaveBeenCalledWith(RECORD, expectedRow);
+    expect(mockRecordRow).toHaveBeenCalledWith(
+      RECORD,
+      expectedRow,
+      createdEnvelope.data.id,
+      null,
+    );
+    // Precheck before the order exists, record after.
+    expect(mockPrecheckRow.mock.invocationCallOrder[0]).toBeLessThan(
+      mockAxiosPost.mock.invocationCallOrder[0],
+    );
+    expect(mockRecordRow.mock.invocationCallOrder[0]).toBeGreaterThan(
+      mockAxiosPost.mock.invocationCallOrder[0],
+    );
+  });
+
+  it("refuses a record that fails validation or wallet authorization", async () => {
+    mockParseRecord.mockResolvedValue({
+      ok: false,
+      status: 403,
+      error: "Unauthorized: Wallet address mismatch",
     });
-    expect(options.dryRun).toBe(true);
+    const result = await handleCreateOfframpOrder(makeRequest(), sellBody());
+    expect(result).toEqual({
+      status: 403,
+      body: { status: "error", message: "Unauthorized: Wallet address mismatch" },
+    });
+    expect(mockAxiosPost).not.toHaveBeenCalled();
+  });
+
+  it("reports an order it created but could not record", async () => {
+    mockRecordRow.mockResolvedValue({
+      ok: false,
+      status: 403,
+      error: "Monthly transaction limit of $100 reached.",
+    });
+    const error = jest.spyOn(console, "error").mockImplementation(() => undefined);
+    const result = await handleCreateOfframpOrder(makeRequest(), sellBody());
+    error.mockRestore();
+    expect(result).toEqual({
+      status: 403,
+      body: { status: "error", message: "Monthly transaction limit of $100 reached." },
+    });
   });
 
   it("returns 401 without a wallet header", async () => {
@@ -405,16 +481,16 @@ describe("handleCreateOfframpOrder", () => {
     expect(mockAxiosPost).not.toHaveBeenCalled();
   });
 
-  it.each([
-    [{ kind: "kyc_required" }, 403],
-    [{ kind: "limit_exceeded", monthlyLimit: 100, pooledWalletCount: 1 }, 403],
-    [{ kind: "rate_unavailable" }, 503],
-    [{ kind: "kyc_db_error" }, 503],
-  ])("stops at the limit check for %j", async (limit, status) => {
-    mockLimitCheck.mockResolvedValue(limit);
+  it("stops at the limit precheck before creating anything", async () => {
+    mockPrecheckRow.mockResolvedValue({
+      ok: false,
+      status: 403,
+      error: "Identity verification required to make transactions.",
+    });
     const result = await handleCreateOfframpOrder(makeRequest(), sellBody());
-    expect(result.status).toBe(status);
+    expect(result.status).toBe(403);
     expect(mockAxiosPost).not.toHaveBeenCalled();
+    expect(mockRecordRow).not.toHaveBeenCalled();
   });
 
   it("passes aggregator errors through unchanged", async () => {
@@ -426,6 +502,7 @@ describe("handleCreateOfframpOrder", () => {
     mockAxiosPost.mockResolvedValue({ status: 503, data: unavailable });
     const result = await handleCreateOfframpOrder(makeRequest(), sellBody());
     expect(result).toEqual({ status: 503, body: unavailable });
+    expect(mockRecordRow).not.toHaveBeenCalled();
   });
 
   it("turns the aggregator's unknown-API-key 404 into a 401", async () => {
@@ -464,7 +541,7 @@ describe("assertCallerOwnsSenderOrder", () => {
       error: null,
     });
     await expect(
-      assertCallerOwnsSenderOrder(asNextRequest(), orderId, "0xabc", undefined),
+      assertCallerOwnsSenderOrder(asNextRequest(), orderId, "0xabc"),
     ).resolves.toEqual({ ok: true });
     expect(mockLinkedEvmAddresses).not.toHaveBeenCalled();
   });
@@ -476,7 +553,7 @@ describe("assertCallerOwnsSenderOrder", () => {
     });
     mockLinkedEvmAddresses.mockResolvedValue([SMART_WALLET]);
     await expect(
-      assertCallerOwnsSenderOrder(asNextRequest(), orderId, "0xabc", undefined),
+      assertCallerOwnsSenderOrder(asNextRequest(), orderId, "0xabc"),
     ).resolves.toEqual({ ok: true });
     expect(mockLinkedEvmAddresses).toHaveBeenCalledWith(USER_ID);
   });
@@ -488,40 +565,32 @@ describe("assertCallerOwnsSenderOrder", () => {
     });
     mockLinkedEvmAddresses.mockResolvedValue([]);
     await expect(
-      assertCallerOwnsSenderOrder(asNextRequest(), orderId, "0xabc", undefined),
+      assertCallerOwnsSenderOrder(asNextRequest(), orderId, "0xabc"),
     ).resolves.toEqual({ ok: false, status: 404, error: "Payment order not found" });
 
     mockOrderRowLookup.mockResolvedValue({ data: [], error: null });
     await expect(
-      assertCallerOwnsSenderOrder(asNextRequest(), orderId, "0xabc", undefined),
+      assertCallerOwnsSenderOrder(asNextRequest(), orderId, "0xabc"),
     ).resolves.toMatchObject({ ok: false, status: 404 });
   });
 
   it("answers 503 when the lookup fails, rather than denying or allowing", async () => {
     mockOrderRowLookup.mockResolvedValue({ data: null, error: { message: "db down" } });
     await expect(
-      assertCallerOwnsSenderOrder(asNextRequest(), orderId, "0xabc", undefined),
+      assertCallerOwnsSenderOrder(asNextRequest(), orderId, "0xabc"),
     ).resolves.toMatchObject({ ok: false, status: 503 });
   });
 
-  it("decides a creator-bound order by its reference alone", async () => {
-    const reference = createOrderOwnerReference(USER_ID);
-    await expect(
-      assertCallerOwnsSenderOrder(asNextRequest(), orderId, "0xabc", reference),
-    ).resolves.toEqual({ ok: true });
-    expect(mockOrderRowLookup).not.toHaveBeenCalled();
-  });
-
-  it("refuses a creator-bound order to anyone else, even with a transaction row", async () => {
-    const reference = createOrderOwnerReference("did:privy:someone-else");
+  it("only trusts on-ramp and off-ramp rows", async () => {
     mockOrderRowLookup.mockResolvedValue({
       data: [{ wallet_address: "0xabc" }],
       error: null,
     });
-    await expect(
-      assertCallerOwnsSenderOrder(asNextRequest(), orderId, "0xabc", reference),
-    ).resolves.toEqual({ ok: false, status: 404, error: "Payment order not found" });
-    expect(mockOrderRowLookup).not.toHaveBeenCalled();
+    await assertCallerOwnsSenderOrder(asNextRequest(), orderId, "0xabc");
+    expect(mockOrderRowLookup).toHaveBeenCalledWith(orderId, "transaction_type", [
+      "onramp",
+      "offramp",
+    ]);
   });
 
   it("remembers a confirmed owner so polls do not repeat the lookup", async () => {
@@ -529,77 +598,74 @@ describe("assertCallerOwnsSenderOrder", () => {
       data: [{ wallet_address: "0xabc" }],
       error: null,
     });
-    await assertCallerOwnsSenderOrder(asNextRequest(), orderId, "0xabc", undefined);
-    await assertCallerOwnsSenderOrder(asNextRequest(), orderId, "0xabc", undefined);
+    await assertCallerOwnsSenderOrder(asNextRequest(), orderId, "0xabc");
+    await assertCallerOwnsSenderOrder(asNextRequest(), orderId, "0xabc");
     expect(mockOrderRowLookup).toHaveBeenCalledTimes(1);
   });
 });
 
-describe("order owner reference", () => {
-  it("is unique, aggregator-safe and verifies only for its creator", () => {
-    const a = createOrderOwnerReference(USER_ID);
-    const b = createOrderOwnerReference(USER_ID);
-    expect(a).not.toBe(b);
-    expect(a).toMatch(/^[a-zA-Z0-9\-_]+$/);
-    expect(classifyOrderOwnerReference(a, USER_ID)).toBe("owner");
-    expect(classifyOrderOwnerReference(a, "did:privy:other")).toBe("other");
-    expect(classifyOrderOwnerReference(a, null)).toBe("other");
+describe("sender order record helpers", () => {
+  const actual = jest.requireActual(
+    "../app/lib/swap-transaction-limit-server",
+  ) as typeof import("../app/lib/swap-transaction-limit-server");
+  const asNextRequest = (headers: Record<string, string | null> = {}) =>
+    makeRequest(headers) as unknown as NextRequest;
+
+  it("accepts a record for the caller's own wallet and normalizes it", async () => {
+    await expect(
+      actual.parseSenderOrderRecord(asNextRequest(), "0xabc", {
+        walletAddress: "0xABC",
+        amountReceived: "76025.004",
+        recipient: RECORD.recipient,
+        email: "  ada@example.com ",
+        orderId: "ignored",
+      }),
+    ).resolves.toEqual({
+      ok: true,
+      record: {
+        walletAddress: "0xabc",
+        amountReceived: 76025,
+        recipient: RECORD.recipient,
+        email: "ada@example.com",
+      },
+    });
   });
 
-  it("rejects a forged mac and treats foreign references as unbound", () => {
-    const forged = createOrderOwnerReference(USER_ID).replace(/.$/, (c) => (c === "0" ? "1" : "0"));
-    expect(classifyOrderOwnerReference(forged, USER_ID)).toBe("other");
-    expect(classifyOrderOwnerReference("partner-ref-123", USER_ID)).toBe("unbound");
-    expect(classifyOrderOwnerReference(undefined, USER_ID)).toBe("unbound");
+  it("refuses a record for a wallet the caller does not own", async () => {
+    mockLinkedEvmAddresses.mockResolvedValue([]);
+    const result = await actual.parseSenderOrderRecord(asNextRequest(), "0xabc", {
+      walletAddress: "0x00000000000000000000000000000000000000ff",
+      amountReceived: 1,
+      recipient: {},
+    });
+    expect(result).toEqual({
+      ok: false,
+      status: 403,
+      error: "Unauthorized: Wallet address mismatch",
+    });
   });
 
-  it("survives a sender key rotation once the dedicated secret is set", () => {
-    process.env.ORDER_OWNER_REFERENCE_SECRET = "a".repeat(64);
-    try {
-      const reference = createOrderOwnerReference(USER_ID);
-      mockGetSenderApiKey.mockReturnValue("99999999-2222-3333-4444-555555555555");
-      expect(classifyOrderOwnerReference(reference, USER_ID)).toBe("owner");
-    } finally {
-      delete process.env.ORDER_OWNER_REFERENCE_SECRET;
-    }
+  it.each([
+    [undefined, "Please refresh the page and try again."],
+    [{ amountReceived: 1, recipient: {} }, "Bad Request: record.walletAddress is required"],
+    [{ walletAddress: "0xabc", amountReceived: "x", recipient: {} }, "Bad Request: record.amountReceived must be a valid number"],
+    [{ walletAddress: "0xabc", amountReceived: 1 }, "Bad Request: record.recipient is required"],
+  ])("refuses a malformed record %j", async (raw, error) => {
+    await expect(
+      actual.parseSenderOrderRecord(asNextRequest(), "0xabc", raw),
+    ).resolves.toEqual({ ok: false, status: 400, error });
   });
 
-  it("keeps references readable across a secret rotation via the previous secret", () => {
-    process.env.ORDER_OWNER_REFERENCE_SECRET = "a".repeat(64);
-    try {
-      const reference = createOrderOwnerReference(USER_ID);
-      process.env.ORDER_OWNER_REFERENCE_SECRET = "b".repeat(64);
-      mockGetSenderApiKey.mockReturnValue("99999999-2222-3333-4444-555555555555");
-      expect(classifyOrderOwnerReference(reference, USER_ID)).toBe("other");
-      process.env.ORDER_OWNER_REFERENCE_SECRET_PREVIOUS = "a".repeat(64);
-      expect(classifyOrderOwnerReference(reference, USER_ID)).toBe("owner");
-    } finally {
-      delete process.env.ORDER_OWNER_REFERENCE_SECRET;
-      delete process.env.ORDER_OWNER_REFERENCE_SECRET_PREVIOUS;
-    }
-  });
-
-  it("still accepts references signed with the sender key after the secret is introduced", () => {
-    const reference = createOrderOwnerReference(USER_ID);
-    process.env.ORDER_OWNER_REFERENCE_SECRET = "a".repeat(64);
-    try {
-      expect(classifyOrderOwnerReference(reference, USER_ID)).toBe("owner");
-    } finally {
-      delete process.env.ORDER_OWNER_REFERENCE_SECRET;
-    }
-  });
-
-  it("ignores a secret that is too short", () => {
-    process.env.ORDER_OWNER_REFERENCE_SECRET = "short";
-    const error = jest.spyOn(console, "error").mockImplementation(() => undefined);
-    try {
-      const reference = createOrderOwnerReference(USER_ID);
-      // Signed with the sender key instead, so it verifies without the secret.
-      delete process.env.ORDER_OWNER_REFERENCE_SECRET;
-      expect(classifyOrderOwnerReference(reference, USER_ID)).toBe("owner");
-    } finally {
-      delete process.env.ORDER_OWNER_REFERENCE_SECRET;
-      error.mockRestore();
-    }
+  it("returns an existing row only to the wallet it is stored under", async () => {
+    mockOrderRowLookup.mockResolvedValue({
+      data: [{ id: "row-1", wallet_address: "0xABC" }],
+      error: null,
+    });
+    await expect(
+      actual.findSenderOrderRowForWallet("order-1", "0xabc"),
+    ).resolves.toEqual({ ok: true, id: "row-1" });
+    await expect(
+      actual.findSenderOrderRowForWallet("order-1", "0xdef"),
+    ).resolves.toEqual({ ok: true, id: null });
   });
 });

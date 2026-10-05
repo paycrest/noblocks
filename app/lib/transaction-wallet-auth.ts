@@ -1,7 +1,5 @@
 import type { NextRequest } from "next/server";
-import { createHmac, randomBytes, timingSafeEqual } from "crypto";
 import { collectLinkedEvmAddressesForPrivyUserId } from "@/app/lib/privy";
-import { getAggregatorSenderApiKey } from "@/app/lib/server-config";
 import { supabaseAdmin } from "@/app/lib/supabase";
 
 const EVM_ADDRESS_LOWER = /^0x[a-f0-9]{40}$/;
@@ -53,84 +51,6 @@ export async function assertTransactionWalletMatchesJwtUser(
   return { ok: true, normalizedRowWallet: normalized };
 }
 
-/**
- * Sender orders created by Noblocks carry their creator in the aggregator `reference`:
- * `nb-<nonce>-<mac>`, where mac is an HMAC of the creator's user id (`x-user-id`) and
- * the nonce. The server sets it when it creates the order, before the client ever sees
- * the order id, so ownership never depends on a client-written transaction row. Unique
- * per sender on the aggregator because of the nonce.
- */
-const OWNER_REFERENCE_RE = /^nb-([0-9a-f]{16})-([0-9a-f]{32})$/;
-const MIN_OWNER_REFERENCE_SECRET_LENGTH = 32;
-
-function ownerReferenceSecret(name: string, raw: string | undefined): string {
-  const value = (raw || "").trim();
-  if (value && value.length < MIN_OWNER_REFERENCE_SECRET_LENGTH) {
-    console.error(`[order-owner] ${name} is shorter than ${MIN_OWNER_REFERENCE_SECRET_LENGTH} characters; ignoring it`);
-    return "";
-  }
-  return value;
-}
-
-/**
- * Signing key first, then every key a live reference may have been signed with.
- * ORDER_OWNER_REFERENCE_SECRET is the signing key; on rotation the old value moves to
- * ORDER_OWNER_REFERENCE_SECRET_PREVIOUS so existing orders stay readable. Until it is
- * set, the sender API key signs, and stays accepted for references made that way.
- */
-function ownerReferenceKeys(): string[] {
-  const keys = [
-    ownerReferenceSecret(
-      "ORDER_OWNER_REFERENCE_SECRET",
-      process.env.ORDER_OWNER_REFERENCE_SECRET,
-    ),
-    ownerReferenceSecret(
-      "ORDER_OWNER_REFERENCE_SECRET_PREVIOUS",
-      process.env.ORDER_OWNER_REFERENCE_SECRET_PREVIOUS,
-    ),
-    getAggregatorSenderApiKey(),
-  ].filter(Boolean);
-  return [...new Set(keys)];
-}
-
-function ownerReferenceMac(key: string, userId: string, nonce: string): string {
-  return createHmac("sha256", key)
-    .update(`noblocks-order-owner-v1:${userId}:${nonce}`)
-    .digest("hex")
-    .slice(0, 32);
-}
-
-/** Aggregator `reference` binding a new sender order to `userId`. */
-export function createOrderOwnerReference(userId: string): string {
-  const [signingKey] = ownerReferenceKeys();
-  if (!signingKey) {
-    throw new Error("ORDER_OWNER_REFERENCE_SECRET is not configured");
-  }
-  const nonce = randomBytes(8).toString("hex");
-  return `nb-${nonce}-${ownerReferenceMac(signingKey, userId, nonce)}`;
-}
-
-/**
- * "owner" / "other" for orders created with createOrderOwnerReference; "unbound" for
- * orders without one (created before it existed), which fall back to the
- * transaction-row check.
- */
-export function classifyOrderOwnerReference(
-  reference: unknown,
-  userId: string | null,
-): "owner" | "other" | "unbound" {
-  const match =
-    typeof reference === "string" ? OWNER_REFERENCE_RE.exec(reference) : null;
-  if (!match) return "unbound";
-  if (!userId) return "other";
-  const given = Buffer.from(match[2]);
-  return ownerReferenceKeys().some((key) =>
-    timingSafeEqual(given, Buffer.from(ownerReferenceMac(key, userId, match[1]))),
-  )
-    ? "owner"
-    : "other";
-}
-
 // Ownership of an order never changes, and the status pages poll every few
 // seconds, so a confirmed owner is remembered instead of re-asking Supabase and
 // Privy on each poll. Bounded like the smart-wallet cache in privy.ts.
@@ -139,26 +59,21 @@ const ORDER_OWNER_CACHE_MAX_ENTRIES = 5000;
 const orderOwnerCache = new Map<string, number>();
 
 /**
- * Confirms a sender payment order (UUID) was created by the caller. Sender orders are
- * all read with one shared API key, so without this any signed-in user could read any
- * order, including a sell's recipient bank details.
- *
- * An order whose `reference` binds it to a creator (createOrderOwnerReference) is
- * decided by that alone. Orders created before the binding existed fall back to a
- * `transactions` row carrying the order id, stored under the header wallet or another
- * wallet linked to the same Privy user.
+ * Confirms a sender payment order (UUID) was created by the caller: a `transactions`
+ * row carries the order id, stored under the header wallet or another wallet linked to
+ * the same Privy user. Sender orders are all read with one shared API key, so without
+ * this any signed-in user could read any order, including a sell's recipient bank
+ * details. The row is trustworthy because only the server writes on-ramp/off-ramp rows
+ * for sender orders, when it creates them (recordSenderOrderRow); POST
+ * /api/v1/transactions refuses their ids for those types, and rows of other types
+ * are never consulted.
  */
 export async function assertCallerOwnsSenderOrder(
   request: NextRequest,
   orderId: string,
   headerWalletAddress: string,
-  reference: unknown,
 ): Promise<{ ok: true } | { ok: false; status: 401 | 404 | 503; error: string }> {
   const notFound = { ok: false as const, status: 404 as const, error: "Payment order not found" };
-  const binding = classifyOrderOwnerReference(reference, request.headers.get("x-user-id"));
-  if (binding === "owner") return { ok: true };
-  if (binding === "other") return notFound;
-
   const cacheKey = `${headerWalletAddress}:${orderId.toLowerCase()}`;
   const cachedUntil = orderOwnerCache.get(cacheKey);
   if (cachedUntil && cachedUntil > Date.now()) return { ok: true };
@@ -167,6 +82,8 @@ export async function assertCallerOwnsSenderOrder(
     .from("transactions")
     .select("wallet_address")
     .eq("order_id", orderId)
+    // Only on-ramp/off-ramp rows, which for sender orders only the server writes.
+    .in("transaction_type", ["onramp", "offramp"])
     .limit(1);
   if (error) {
     console.error("Order ownership lookup failed:", error);

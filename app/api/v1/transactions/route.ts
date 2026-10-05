@@ -17,78 +17,10 @@ import {
 import {
   assertTransactionWalletAuthorized,
   executeSwapTransactionLimitCheck,
+  findSenderOrderRowForWallet,
 } from "@/app/lib/swap-transaction-limit-server";
 import { monthlyLimitReachedMessage } from "@/app/lib/kyc-limit-copy";
-import type { V2FiatProviderAccountDTO } from "@/app/types";
-import { fetchOrderDetails } from "@/app/api/aggregator";
-import { classifyOrderOwnerReference } from "@/app/lib/transaction-wallet-auth";
-
-/** Normalize aggregator VA fields for JSONB storage (Activepieces pay-in emails). */
-function normalizeProviderAccount(
-  raw: unknown,
-): V2FiatProviderAccountDTO | null {
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
-  const o = raw as Record<string, unknown>;
-  const institution = typeof o.institution === "string" ? o.institution.trim() : "";
-  const accountIdentifier =
-    typeof o.accountIdentifier === "string" ? o.accountIdentifier.trim() : "";
-  const accountName =
-    typeof o.accountName === "string" ? o.accountName.trim() : "";
-  const validUntil =
-    typeof o.validUntil === "string" ? o.validUntil.trim() : "";
-  if (!institution || !accountIdentifier || !accountName || !validUntil) {
-    return null;
-  }
-  const amountToTransferRaw = o.amountToTransfer;
-  const amountToTransfer =
-    typeof amountToTransferRaw === "string"
-      ? amountToTransferRaw.trim()
-      : typeof amountToTransferRaw === "number" &&
-          Number.isFinite(amountToTransferRaw)
-        ? String(amountToTransferRaw)
-        : "";
-  const currency =
-    typeof o.currency === "string" ? o.currency.trim() : "";
-
-  return {
-    institution,
-    accountIdentifier,
-    accountName,
-    validUntil,
-    ...(amountToTransfer ? { amountToTransfer } : {}),
-    ...(currency ? { currency } : {}),
-  };
-}
-
-async function persistOnrampProviderAccount(
-  transactionId: string,
-  providerAccount: V2FiatProviderAccountDTO,
-): Promise<{ ok: true } | { ok: false; error: unknown }> {
-  const attempt = async () =>
-    supabaseAdmin
-      .from("transactions")
-      .update({ provider_account: providerAccount })
-      .eq("id", transactionId);
-
-  let { error } = await attempt();
-  if (error) {
-    ({ error } = await attempt());
-  }
-  if (error) return { ok: false, error };
-  return { ok: true };
-}
-
-/** Remove a limit-RPC insert when onramp provider_account persistence fails. */
-async function rollbackOnrampInsert(
-  transactionId: string,
-): Promise<{ ok: true } | { ok: false; error: unknown }> {
-  const { error } = await supabaseAdmin
-    .from("transactions")
-    .delete()
-    .eq("id", transactionId);
-  if (error) return { ok: false, error };
-  return { ok: true };
-}
+import { isSenderPaymentOrderUuid } from "@/app/lib/payment-order-id";
 
 // Route handler for GET requests
 export const GET = withRateLimit(async (request: NextRequest) => {
@@ -283,22 +215,53 @@ export const POST = withRateLimit(async (request: NextRequest) => {
     const normalizedOrderId =
       typeof body.orderId === "string" ? body.orderId.trim() : "";
 
-    if (
+    // Sender orders (UUID ids: every on-ramp, and sells on sender-API networks) get
+    // their row from the server when it creates the order; that on-ramp/off-ramp row
+    // is what order reads authorize against, so no client may write one. A client
+    // still saving it (an older bundle during a deploy) gets its own existing row
+    // back. Other types (bridge, transfer) keep their own ids, which order reads
+    // never trust.
+    const isSwapType =
       normalizedTransactionType === "offramp" ||
-      normalizedTransactionType === "onramp"
-    ) {
-      if (normalizedTransactionType === "onramp" && !normalizedOrderId) {
+      normalizedTransactionType === "onramp";
+    if (isSwapType && normalizedOrderId && isSenderPaymentOrderUuid(normalizedOrderId)) {
+      const existing = await findSenderOrderRowForWallet(
+        normalizedOrderId,
+        normalizedBodyWalletAddress,
+      );
+      if (!existing.ok) throw existing.error;
+      if (existing.id) {
+        return NextResponse.json(
+          { success: true, data: { id: existing.id } },
+          { status: 200 },
+        );
+      }
+      trackApiError(
+        request,
+        "/api/v1/transactions",
+        "POST",
+        new Error("Client-saved row for an unrecorded sender order"),
+        404,
+      );
+      return NextResponse.json(
+        { success: false, error: "Payment order not found" },
+        { status: 404 },
+      );
+    }
+
+    if (isSwapType) {
+      if (normalizedTransactionType === "onramp") {
         trackApiError(
           request,
           "/api/v1/transactions",
           "POST",
-          new Error("Missing orderId for onramp"),
+          new Error("Missing or invalid orderId for onramp"),
           400,
         );
         return NextResponse.json(
           {
             success: false,
-            error: "Bad Request: orderId is required for onramp transactions",
+            error: "Bad Request: onramp transactions are recorded when the order is created",
           },
           { status: 400 },
         );
@@ -399,112 +362,6 @@ export const POST = withRateLimit(async (request: NextRequest) => {
         throw new Error(
           "Unexpected RPC response from insert_swap_transaction_if_within_limit",
         );
-      }
-
-      // Onramp pay-in emails need VA details from the aggregator order — never
-      // trust body.providerAccount (client-controlled payment destination).
-      if (normalizedTransactionType === "onramp") {
-        const failOnramp = async (
-          status: number,
-          clientError: string,
-          logError: Error,
-        ) => {
-          const cleanup = await rollbackOnrampInsert(rpcDataId);
-          if (!cleanup.ok) {
-            console.error(
-              "Failed to roll back onramp insert after provider_account error:",
-              cleanup.error,
-            );
-            trackApiError(
-              request,
-              "/api/v1/transactions",
-              "POST",
-              new Error("Failed to roll back onramp insert", {
-                cause: cleanup.error,
-              }),
-              500,
-            );
-            return NextResponse.json(
-              {
-                success: false,
-                error:
-                  "Failed to finalize onramp transaction. Please contact support if this persists.",
-              },
-              { status: 500 },
-            );
-          }
-          trackApiError(
-            request,
-            "/api/v1/transactions",
-            "POST",
-            logError,
-            status,
-          );
-          return NextResponse.json(
-            { success: false, error: clientError },
-            { status },
-          );
-        };
-
-        const orderId = normalizedOrderId;
-        let providerAccount: V2FiatProviderAccountDTO | null = null;
-        try {
-          const orderResponse = await fetchOrderDetails(orderId);
-          // Never attach another user's payment details: an order bound to a different
-          // creator is refused, and the row just inserted for it is rolled back.
-          if (
-            classifyOrderOwnerReference(
-              orderResponse.data?.reference,
-              request.headers.get("x-user-id"),
-            ) === "other"
-          ) {
-            return failOnramp(
-              404,
-              "Payment order not found",
-              new Error("Onramp order belongs to another user"),
-            );
-          }
-          providerAccount = normalizeProviderAccount(
-            orderResponse.data?.providerAccount,
-          );
-        } catch (orderError) {
-          // Without the order, ownership cannot be checked: never keep a row for an
-          // order id the caller has not been shown to own. Retryable.
-          console.error(
-            "Failed to fetch aggregator order for onramp transaction; rolling back:",
-            orderError,
-          );
-          return failOnramp(
-            503,
-            "Could not confirm your order right now. Please try again.",
-            new Error("Onramp order lookup failed", { cause: orderError }),
-          );
-        }
-
-        if (!providerAccount) {
-          console.warn(
-            "Onramp transaction saved without provider_account (order may not be ready yet):",
-            { transactionId: rpcDataId, orderId },
-          );
-        } else {
-          const persistResult = await persistOnrampProviderAccount(
-            rpcDataId,
-            providerAccount,
-          );
-          if (!persistResult.ok) {
-            console.error(
-              "Failed to persist onramp provider_account:",
-              persistResult.error,
-            );
-            return failOnramp(
-              500,
-              "Failed to save onramp payment details. Please try again.",
-              new Error("Failed to persist provider_account", {
-                cause: persistResult.error,
-              }),
-            );
-          }
-        }
       }
 
       const responseTime = Date.now() - startTime;

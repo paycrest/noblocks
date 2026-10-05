@@ -8,7 +8,7 @@ import {
 import config from "@/app/lib/config";
 import { getAggregatorSenderApiKey } from "@/app/lib/server-config";
 import { getKycFullName } from "@/app/lib/kyc-profile-server";
-import { isOnrampFiatCurrencyCode } from "@/app/utils";
+import { isOnrampFiatCurrencyCode, normalizeNetworkName } from "@/app/utils";
 import {
   accountNameMatchesKyc,
   REFUND_NAME_MISMATCH_MESSAGE,
@@ -17,7 +17,12 @@ import {
   handleCreateOfframpOrder,
   postSenderOrder,
 } from "@/app/lib/payment-order-offramp";
-import { createOrderOwnerReference } from "@/app/lib/transaction-wallet-auth";
+import {
+  parseSenderOrderRecord,
+  precheckSenderOrderRow,
+  recordSenderOrderRow,
+  type SenderOrderRow,
+} from "@/app/lib/swap-transaction-limit-server";
 
 export const POST = withRateLimit(async (request: NextRequest) => {
   const startTime = Date.now();
@@ -195,20 +200,37 @@ export const POST = withRateLimit(async (request: NextRequest) => {
       );
     }
 
-    // Binds the order to its creator before the client learns its id; order reads
-    // authorize against this, not against a client-written transaction row.
-    const userId = request.headers.get("x-user-id");
-    if (!userId) {
-      trackApiError(request, "/api/v1/payment-orders", "POST", new Error("Missing user id"), 401);
-      return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+    // The transaction row is recorded here, not by the client: only the server writes
+    // rows for sender orders, which is what lets order reads trust them. Limits are
+    // checked before the order exists and enforced again atomically by the insert.
+    const { record: rawRecord, ...orderBody } = body as Record<string, unknown>;
+    const record = await parseSenderOrderRecord(request, walletAddress, rawRecord);
+    if (!record.ok) {
+      trackApiError(request, "/api/v1/payment-orders", "POST", new Error(record.error), record.status);
+      return NextResponse.json({ success: false, error: record.error }, { status: record.status });
     }
-    (body as { reference?: string }).reference = createOrderOwnerReference(userId);
+    const destination = (orderBody.destination ?? {}) as { currency?: unknown; network?: unknown };
+    const row: SenderOrderRow = {
+      transactionType: "onramp",
+      fromCurrency: sourceCurrency,
+      toCurrency: String(destination.currency ?? ""),
+      amountSent: Number(orderBody.amount),
+      amountReceived: record.record.amountReceived,
+      fee: 0,
+      recipient: record.record.recipient,
+      network: normalizeNetworkName(String(destination.network ?? "")),
+    };
+    const precheck = await precheckSenderOrderRow(record.record, row);
+    if (!precheck.ok) {
+      trackApiError(request, "/api/v1/payment-orders", "POST", new Error(precheck.error), precheck.status);
+      return NextResponse.json({ success: false, error: precheck.error }, { status: precheck.status });
+    }
 
     if (process.env.NODE_ENV === "development") {
-      console.log("[payment-orders] POST payload →", JSON.stringify(body, null, 2));
+      console.log("[payment-orders] POST payload →", JSON.stringify(orderBody, null, 2));
     }
 
-    const { data, status } = await postSenderOrder(body, senderApiKey);
+    const { data, status } = await postSenderOrder(orderBody, senderApiKey);
 
     if (process.env.NODE_ENV === "development" && status >= 400) {
       console.log("[payment-orders] aggregator response →", status, JSON.stringify(data, null, 2));
@@ -219,7 +241,29 @@ export const POST = withRateLimit(async (request: NextRequest) => {
       wallet_address: walletAddress,
     });
 
-    return NextResponse.json(data, { status });
+    const created = (data as { data?: { id?: unknown; rate?: unknown; providerAccount?: unknown } } | null)?.data;
+    if (status < 200 || status >= 300 || typeof created?.id !== "string") {
+      return NextResponse.json(data, { status });
+    }
+
+    // The order exists but is unrecorded if this fails: it is never shown or paid,
+    // and expires on its own.
+    const recorded = await recordSenderOrderRow(
+      record.record,
+      { ...row, fee: Number(created.rate) || 0 },
+      created.id,
+      created.providerAccount,
+    );
+    if (!recorded.ok) {
+      console.error(`[payment-orders] onramp order ${created.id} created but not recorded: ${recorded.error}`);
+      trackApiError(request, "/api/v1/payment-orders", "POST", new Error(recorded.error), recorded.status);
+      return NextResponse.json({ success: false, error: recorded.error }, { status: recorded.status });
+    }
+
+    return NextResponse.json(
+      { ...(data as Record<string, unknown>), transactionId: recorded.id },
+      { status },
+    );
   } catch (error) {
     console.error("Error creating payment order:", error);
 

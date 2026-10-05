@@ -1,6 +1,7 @@
 import "server-only";
 import type { NextRequest } from "next/server";
 import axios from "axios";
+import { randomBytes } from "crypto";
 import config from "./config";
 import { getAggregatorSenderApiKey } from "./server-config";
 import {
@@ -10,9 +11,12 @@ import {
 } from "./server-analytics";
 import { isInjectedUserId } from "./injected-identity";
 import { collectLinkedWalletAddressesForChainType } from "./privy";
-import { createOrderOwnerReference } from "./transaction-wallet-auth";
-import { executeSwapTransactionLimitCheck } from "./swap-transaction-limit-server";
-import { monthlyLimitReachedMessage } from "./kyc-limit-copy";
+import {
+  parseSenderOrderRecord,
+  precheckSenderOrderRow,
+  recordSenderOrderRow,
+  type SenderOrderRow,
+} from "./swap-transaction-limit-server";
 import {
   kesRecipientMetadata,
   parseMessageHashBody,
@@ -163,6 +167,11 @@ export function normalizeWalletAddress(
   }
   if (family === "tron") return TRON_ADDRESS_RE.test(trimmed) ? trimmed : null;
   return SOLANA_ADDRESS_RE.test(trimmed) ? trimmed : null;
+}
+
+/** Unique per sender on the aggregator, which also accepts it in place of the order id. */
+export function generateOrderReference(): string {
+  return `nb-${randomBytes(12).toString("hex")}`;
 }
 
 /** The complete POST /v2/sender/orders body for a sell. Nothing else is ever sent. */
@@ -321,49 +330,32 @@ export async function handleCreateOfframpOrder(
       return fail(400, `amount has more than ${tokenDecimals} decimal places`);
     }
 
-    // Noblocks is the party creating this order, so the monthly limit is
-    // enforced here and not only by the client's precheck.
-    const limit = await executeSwapTransactionLimitCheck(
+    // The transaction row is recorded here, not by the client: only the server writes
+    // rows for sender orders, which is what lets order reads trust them. Limits are
+    // checked before the order exists and enforced again atomically by the insert.
+    const record = await parseSenderOrderRecord(
+      request as unknown as NextRequest,
       walletAddress,
-      {
-        transactionType: "offramp",
-        fromCurrency: input.token,
-        toCurrency: input.currency,
-        amountSent: Number(input.amount),
-        amountReceived: Number((Number(input.amount) * Number(input.rate)).toFixed(2)),
-        fee: Number(input.rate),
-        recipient: {
-          account_name: input.recipient.accountName,
-          institution: input.recipient.institution,
-          account_identifier: input.recipient.accountIdentifier,
-        },
-        status: "pending",
-      },
-      { dryRun: true, explorerLink: null, normalizedEmail: null },
+      (rawBody as { record?: unknown }).record,
     );
-    if (limit.kind === "kyc_required") {
-      return fail(403, "Identity verification required to make transactions.");
-    }
-    if (limit.kind === "limit_exceeded") {
-      return fail(
-        403,
-        monthlyLimitReachedMessage(limit.monthlyLimit, limit.pooledWalletCount),
-        "Monthly KYC limit exceeded",
-      );
-    }
-    if (limit.kind === "rate_unavailable") {
-      return fail(503, "Unable to verify transaction amount. Please try again.");
-    }
-    if (limit.kind !== "success") {
-      return fail(503, "Unable to verify transaction limits. Please try again.", limit.kind);
-    }
+    if (!record.ok) return fail(record.status, record.error);
+    const row: SenderOrderRow = {
+      transactionType: "offramp",
+      fromCurrency: input.token,
+      toCurrency: input.currency,
+      amountSent: Number(input.amount),
+      amountReceived: record.record.amountReceived,
+      fee: Number(input.rate),
+      recipient: record.record.recipient,
+      network: input.network,
+    };
+    const precheck = await precheckSenderOrderRow(record.record, row);
+    if (!precheck.ok) return fail(precheck.status, precheck.error);
 
     const orderBody = buildSenderOfframpOrderBody(input, {
       aggregatorNetwork,
       refundAddress,
-      // Binds the order to its creator before the client learns its id; order reads
-      // authorize against this, not against a client-written transaction row.
-      reference: createOrderOwnerReference(userId),
+      reference: generateOrderReference(),
     });
 
     let result: { status: number; data: unknown };
@@ -379,9 +371,23 @@ export async function handleCreateOfframpOrder(
       order_type: "offramp",
       network: input.network,
     });
+
+    const envelope = asRecord(result.data) ?? errorBody("Unexpected aggregator response");
+    const orderId = asRecord(envelope.data)?.id;
+    if (result.status < 200 || result.status >= 300 || typeof orderId !== "string") {
+      return { status: result.status, body: envelope };
+    }
+
+    // The order exists but is unrecorded if this fails: it is never shown or paid,
+    // and expires on its own with nothing sent.
+    const recorded = await recordSenderOrderRow(record.record, row, orderId, null);
+    if (!recorded.ok) {
+      console.error(`[payment-orders] sell order ${orderId} created but not recorded: ${recorded.error}`);
+      return fail(recorded.status, recorded.error);
+    }
     return {
       status: result.status,
-      body: (asRecord(result.data) ?? errorBody("Unexpected aggregator response")),
+      body: { ...envelope, transactionId: recorded.id },
     };
   } catch (error) {
     console.error("[payment-orders] unexpected error creating sell order:", error);

@@ -302,8 +302,6 @@ export type OrderDetailsData = {
   rate?: string;
   /** Onramp VA / bank details from GET /v2/sender/orders/:id when present. */
   providerAccount?: V2FiatProviderAccountDTO;
-  /** Sender order `reference` (GET /v2/sender/orders/:id); binds Noblocks orders to their creator. */
-  reference?: string;
   settlements: Settlement[];
   txReceipts: TxReceipt[];
   updatedAt: string;
@@ -361,6 +359,17 @@ export type V2PaymentOrderCreateData = {
   destination: unknown;
 };
 
+/**
+ * Client part of the transaction row the server records when it creates a sender order
+ * (on-ramp, or a sell on a sender-API network). The server sets everything else.
+ */
+export type SenderOrderRecordPayload = {
+  walletAddress: string;
+  amountReceived: number;
+  recipient: Recipient;
+  email?: string;
+};
+
 /** POST /v2/sender/orders response for a sell (crypto source). */
 export type V2OfframpOrderCreateData = Omit<
   V2PaymentOrderCreateData,
@@ -374,6 +383,7 @@ export type V2OfframpOrderCreateData = Omit<
 export type V2OfframpOrderPayload = {
   amount: string;
   rate: string;
+  record: SenderOrderRecordPayload;
   source: {
     type: "crypto";
     currency: string;
@@ -412,6 +422,8 @@ export type V2CreatePaymentOrderPayload = {
   reference?: string;
   source: Record<string, unknown>;
   destination: Record<string, unknown>;
+  /** Stripped by the server before the order reaches the aggregator. */
+  record: SenderOrderRecordPayload;
 };
 
 export type AggregatorEnvelope<T> = {

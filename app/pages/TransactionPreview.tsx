@@ -33,7 +33,6 @@ import type {
   TransactionCreateInput,
   RefundAccountDetails,
   V2CryptoProviderAccountDTO,
-  V2FiatProviderAccountDTO,
 } from "../types";
 import { primaryBtnClasses, secondaryBtnClasses } from "../components/Styles";
 import { gatewayAbi } from "../api/abi";
@@ -148,7 +147,6 @@ export const TransactionPreview = ({
     setOrderId,
     setCreatedAt,
     setTransactionStatus,
-    onrampPaymentAccount,
     setOnrampPaymentAccount,
     setActiveOrderIsOnramp,
   } = stateProps;
@@ -622,6 +620,7 @@ export const TransactionPreview = ({
       {
         amount: String(amountSent),
         rate: String(rate),
+        record: buildSenderOrderRecord(),
         source: {
           type: "crypto",
           currency: toAggregatorToken(token),
@@ -649,12 +648,12 @@ export const TransactionPreview = ({
     );
 
     const pending = { orderId: created.id, account: created.providerAccount };
+    // The server recorded the transaction row with the order, before any funds move, so
+    // limits, history and the reconciler all see it even if this tab never gets to send.
+    localStorage.setItem("currentTransactionId", created.transactionId);
     setOrderId(created.id);
     setActiveOrderIsOnramp(false);
     setCreatedAt(new Date().toISOString());
-    // Recorded before any funds move, so limits, history and the server-side reconciler all see
-    // the order even if this tab never gets to send.
-    await saveTransactionData({ orderId: created.id });
     setDepositAttempted(false);
     setPendingDeposit(pending);
 
@@ -1125,6 +1124,7 @@ export const TransactionPreview = ({
         const payload = {
           amount: String(amountSent),
           amountIn: "fiat" as const,
+          record: buildSenderOrderRecord(),
           source: {
             type: "fiat" as const,
             currency,
@@ -1168,17 +1168,16 @@ export const TransactionPreview = ({
         const created = res.data;
         const orderIdStr =
           typeof created.id === "string" ? created.id : String(created.id);
+        if (!res.transactionId) {
+          throw new Error("Order created but not recorded. Please contact support.");
+        }
+        // The server recorded the transaction row with the order.
+        localStorage.setItem("currentTransactionId", res.transactionId);
         setOrderId(orderIdStr);
         setOnrampPaymentAccount(created.providerAccount);
         setActiveOrderIsOnramp(true);
         setCreatedAt(new Date().toISOString());
         setTransactionStatus("pending");
-
-        await saveTransactionData({
-          orderId: orderIdStr,
-          txHash: undefined,
-          providerAccount: created.providerAccount,
-        });
 
         if ((accessToken || injectedToken) && apiWalletAddress) {
           void fetchTransactions(
@@ -1278,15 +1277,55 @@ export const TransactionPreview = ({
     }
   };
 
+  /**
+   * Recipient labels stored on the transaction row (display only). For an on-ramp the
+   * server replaces the institution with the pay-in bank from the aggregator.
+   */
+  const buildTransactionRecipient = (): TransactionCreateInput["recipient"] =>
+    isOnramp
+      ? {
+        account_name: recipientName || walletAddress || "",
+        institution: "Wallet",
+        account_identifier: walletAddress || "",
+      }
+      : {
+        account_name: recipientName,
+        institution:
+          institution === KES_MPESA_INSTITUTION_CODE && kesChannel
+            ? getKesMpesaInstitutionLabel(kesChannel)
+            : (getInstitutionNameByCode(
+                institution,
+                supportedInstitutions,
+              ) as string),
+        account_identifier: accountIdentifier,
+        ...(memo && { memo }),
+        ...(kesChannel ? { channel: kesChannel } : {}),
+        ...(businessNumber?.trim()
+          ? { business_number: businessNumber.trim() }
+          : {}),
+      };
+
+  /**
+   * The client part of the transaction row the server records when it creates a sender
+   * order; those rows are never saved from the browser.
+   */
+  const buildSenderOrderRecord = () => ({
+    walletAddress: (apiWalletAddress ?? activeWallet?.address ?? "") as string,
+    amountReceived: Number(amountReceived),
+    recipient: buildTransactionRecipient(),
+    ...(user?.email?.address ? { email: user.email.address } : {}),
+  });
+
+  /**
+   * Saves the row of a sell created on-chain (Gateway order id). Sender orders (on-ramp,
+   * sender-API sells) are recorded by the server when it creates them.
+   */
   const saveTransactionData = async ({
     orderId,
     txHash,
-    providerAccount,
   }: {
     orderId: string;
     txHash?: `0x${string}`;
-    /** Pass from create-order response so bank name is saved before React state updates. */
-    providerAccount?: V2FiatProviderAccountDTO | null;
   }) => {
     if (!activeWallet?.address) return;
     if (isSavingTransactionRef.current) return;
@@ -1303,48 +1342,18 @@ export const TransactionPreview = ({
 
       const transaction: TransactionCreateInput = {
         walletAddress: apiWalletAddress ?? activeWallet.address,
-        transactionType: isOnramp ? "onramp" : "offramp",
-        fromCurrency: isOnramp ? currency : token,
-        toCurrency: isOnramp ? token : currency,
+        transactionType: "offramp",
+        fromCurrency: token,
+        toCurrency: currency,
         amountSent: Number(amountSent),
         amountReceived: Number(amountReceived),
         fee: Number(rate),
-        recipient: isOnramp
-          ? {
-            account_name: recipientName || walletAddress || "",
-            institution:
-              providerAccount?.institution?.trim() ||
-              onrampPaymentAccount?.institution?.trim() ||
-              "Wallet",
-            account_identifier: walletAddress || "",
-          }
-          : {
-            account_name: recipientName,
-            institution:
-              institution === KES_MPESA_INSTITUTION_CODE && kesChannel
-                ? getKesMpesaInstitutionLabel(kesChannel)
-                : (getInstitutionNameByCode(
-                    institution,
-                    supportedInstitutions,
-                  ) as string),
-            account_identifier: accountIdentifier,
-            ...(memo && { memo }),
-            ...(kesChannel ? { channel: kesChannel } : {}),
-            ...(businessNumber?.trim()
-              ? { business_number: businessNumber.trim() }
-              : {}),
-          },
+        recipient: buildTransactionRecipient(),
         status: "pending",
         network: selectedNetwork.chain.name,
         orderId: orderId,
         ...(txHash ? { txHash } : {}),
         email: user?.email?.address ?? undefined,
-        ...(isOnramp
-          ? {
-              providerAccount:
-                providerAccount ?? onrampPaymentAccount ?? null,
-            }
-          : {}),
       };
 
       const response = await saveTransaction(

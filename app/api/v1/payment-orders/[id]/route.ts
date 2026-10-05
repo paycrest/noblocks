@@ -100,6 +100,14 @@ export const GET = withRateLimit(
             { status: 500 },
           );
         }
+        const owner = await assertCallerOwnsSenderOrder(request, orderId, walletAddress);
+        if (!owner.ok) {
+          trackApiError(request, "/api/v1/payment-orders/[id]", "GET", new Error(owner.error), owner.status);
+          return NextResponse.json(
+            { status: "error", message: owner.error },
+            { status: owner.status },
+          );
+        }
         url = `${base}/v2/sender/orders/${encodeURIComponent(orderId)}`;
         headers = { "API-Key": senderApiKey };
       } else {
@@ -117,21 +125,6 @@ export const GET = withRateLimit(
         headers,
         validateStatus: () => true,
       });
-
-      // Sender orders are read with the shared API key: return one only to its
-      // creator. Checked after the fetch because the binding lives in the order's
-      // reference; nothing from a refused order leaves this route.
-      if (!isGateway && status >= 200 && status < 300) {
-        const reference = (data as { data?: { reference?: unknown } } | null)?.data?.reference;
-        const owner = await assertCallerOwnsSenderOrder(request, orderId, walletAddress, reference);
-        if (!owner.ok) {
-          trackApiError(request, "/api/v1/payment-orders/[id]", "GET", new Error(owner.error), owner.status);
-          return NextResponse.json(
-            { status: "error", message: owner.error },
-            { status: owner.status },
-          );
-        }
-      }
 
       const responseTime = Date.now() - startTime;
       trackApiResponse("/api/v1/payment-orders/[id]", "GET", status, responseTime, {

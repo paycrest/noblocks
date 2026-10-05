@@ -163,10 +163,16 @@ describe("injected session JWT round-trip", () => {
 
   it("rejects a token whose payload was edited", async () => {
     const { token } = await signInjectedSessionJwt(ADDRESS);
-    const [header, , signature] = token.split(".");
-    const forgedPayload = Buffer.from(
-      JSON.stringify({ sub: "0x000000000000000000000000000000000000dead" }),
-    ).toString("base64url");
+    // Keep every original claim (iss, aud, exp) and change only `sub`, so the
+    // signature check is the only thing that can reject it.
+    const [header, originalPayload, signature] = token.split(".");
+    const forgedClaims = JSON.parse(
+      Buffer.from(originalPayload, "base64url").toString("utf8"),
+    );
+    forgedClaims.sub = "0x000000000000000000000000000000000000dead";
+    const forgedPayload = Buffer.from(JSON.stringify(forgedClaims)).toString(
+      "base64url",
+    );
     await expect(
       verifyInjectedSessionJwt(`${header}.${forgedPayload}.${signature}`),
     ).resolves.toBeNull();

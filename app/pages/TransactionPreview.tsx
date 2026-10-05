@@ -18,6 +18,7 @@ import {
   KES_MPESA_INSTITUTION_CODE,
   getNetworkImageUrl,
   getRpcUrl,
+  isApiOfframpNetwork,
   normalizeNetworkName,
   shortenAddress,
 } from "../utils";
@@ -31,7 +32,7 @@ import type {
   TransactionPreviewProps,
   TransactionCreateInput,
   RefundAccountDetails,
-  V2FiatProviderAccountDTO,
+  V2CryptoProviderAccountDTO,
 } from "../types";
 import { primaryBtnClasses, secondaryBtnClasses } from "../components/Styles";
 import { gatewayAbi } from "../api/abi";
@@ -43,6 +44,7 @@ import {
   encodeFunctionData,
   zeroAddress,
   parseUnits,
+  formatUnits,
   erc20Abi,
   createPublicClient,
   http,
@@ -65,13 +67,20 @@ import {
   needsGatewayApproval,
 } from "../lib/erc20Allowance";
 import { useApiAuth } from "../hooks/useApiAuth";
+import {
+  requestStarknetTransfer,
+  TransferOutcomeUnknownError,
+} from "../hooks/useSmartWalletTransfer";
 
 import {
   createOfframpMessageHash,
   fetchTokens,
   saveTransaction,
+  updateTransactionDetails,
   precheckSwapTransaction,
   createV2SenderPaymentOrder,
+  createV2SenderOfframpOrder,
+  fetchV2SenderPaymentOrderById,
   fetchRefundAccount,
   saveRefundAccount,
 } from "../api/aggregator";
@@ -110,7 +119,13 @@ export const TransactionPreview = ({
     getInjectedToken,
   } = useInjectedWallet();
   const { resolveAuth } = useApiAuth();
-  const { walletId: starknetWalletId, address: starknetWalletAddress, publicKey: starknetPublicKey } = useStarknet();
+  const {
+    walletId: starknetWalletId,
+    address: starknetWalletAddress,
+    publicKey: starknetPublicKey,
+    deployed: starknetDeployed,
+    ensureWalletExists: ensureStarknetWallet,
+  } = useStarknet();
   const shouldUseEOA = useShouldUseEOA();
   const { isLoading: isMigrationLoading } = useMigrationStatus();
   const { signDelegationAuthorization } = useDelegationContractAuth();
@@ -132,7 +147,6 @@ export const TransactionPreview = ({
     setOrderId,
     setCreatedAt,
     setTransactionStatus,
-    onrampPaymentAccount,
     setOnrampPaymentAccount,
     setActiveOrderIsOnramp,
   } = stateProps;
@@ -180,6 +194,13 @@ export const TransactionPreview = ({
     null,
   );
   const orderSubmissionBlock = useRef<bigint | null>(null);
+  // Sender-API sell whose order exists but whose deposit has not been sent (or confirmed) yet.
+  const [pendingDeposit, setPendingDeposit] = useState<{
+    orderId: string;
+    account: V2CryptoProviderAccountDTO;
+  } | null>(null);
+  // Set once a transfer was attempted for the pending deposit, so a retry checks the order first.
+  const [depositAttempted, setDepositAttempted] = useState(false);
 
   // Ref to prevent duplicate transaction saves
   const isSavingTransactionRef = useRef(false);
@@ -264,6 +285,8 @@ export const TransactionPreview = ({
 
   const isStarknetSelected = selectedNetwork.chain.name === "Starknet";
   const isTronSelected = selectedNetwork.chain.name === "Tron";
+  // Sells here are created through the sender API and paid by a plain transfer (no Gateway call).
+  const isApiOfframp = !isOnramp && isApiOfframpNetwork(selectedNetwork.chain);
 
   // Drives the approval-step copy for injected off-ramp only — that's the one flow that tells the
   // user up front how many wallet prompts to expect. Skipped for Starknet/Tron, whose chain objects
@@ -343,6 +366,24 @@ export const TransactionPreview = ({
       0)
     : (activeBalance?.balances[token] ?? 0);
 
+  // A sender-API order charges its network cost on top of the amount; it is only known once the
+  // order exists, so the fee and the total to send appear after the first confirm.
+  const depositTotal = pendingDeposit
+    ? (pendingDeposit.account.amountToTransfer ?? String(amountSent))
+    : null;
+  let depositFee = "0";
+  if (depositTotal) {
+    try {
+      const feeUnits =
+        parseUnits(depositTotal, tokenDecimals ?? 18) -
+        parseUnits(String(amountSent), tokenDecimals ?? 18);
+      if (feeUnits > BigInt(0)) depositFee = formatUnits(feeUnits, tokenDecimals ?? 18);
+    } catch {
+      // Malformed amount from the aggregator: show no fee row; the total still drives the send.
+    }
+  }
+  const showDepositReview = !!depositTotal && depositFee !== "0";
+
   // Rendered tsx info
   const renderedInfo = isOnramp
     ? {
@@ -354,6 +395,10 @@ export const TransactionPreview = ({
     }
     : {
       amount: `${formatNumberWithCommas(amountSent ?? 0)} ${token}`,
+      ...(showDepositReview && {
+        fee: `${depositFee} ${token}`,
+        youSend: `${depositTotal} ${token}`,
+      }),
       totalValue: `${formatCurrency(amountReceived ?? 0, currency, `en-${currency.slice(0, 2)}`)}`,
       recipient: recipientName
         .toLowerCase()
@@ -426,73 +471,210 @@ export const TransactionPreview = ({
     }
   };
 
-  const createOrder = async (auth: OrderAuth) => {
-    try {
-      if (isStarknetSelected) {
-        if (!starknetWalletId || !starknetPublicKey || !starknetWalletAddress) {
-          throw new Error("Starknet wallet not ready");
+  /** Pays a sender-API order's deposit address from the embedded wallet on the selected network. */
+  const sendDeposit = async (
+    receiveAddress: string,
+    amount: string,
+  ): Promise<string> => {
+    if (isStarknetSelected) {
+      if (!starknetWalletId || !starknetPublicKey || !starknetWalletAddress) {
+        throw new Error("Starknet wallet not ready");
+      }
+      if (!starknetDeployed) {
+        try {
+          await ensureStarknetWallet();
+        } catch {
+          // best-effort; the transfer route deploys the account if it still isn't
         }
+      }
+      const accessToken = await getAccessToken();
+      if (!accessToken) throw new Error("Not authenticated");
+      return requestStarknetTransfer({
+        accessToken,
+        walletId: starknetWalletId,
+        publicKey: starknetPublicKey,
+        address: starknetWalletAddress,
+        tokenAddress,
+        amount: parseUnits(amount, tokenDecimals ?? 18).toString(),
+        recipientAddress: receiveAddress,
+      });
+    }
+    throw new Error(
+      `Selling on ${selectedNetwork.chain.name} is not available yet.`,
+    );
+  };
 
-        const params = await prepareCreateOrderParams(auth);
-        setCreatedAt(new Date().toISOString());
+  const goToOrderStatus = () => {
+    setPendingDeposit(null);
+    setDepositAttempted(false);
+    setCreatedAt(new Date().toISOString());
+    setTransactionStatus("pending");
+    setCurrentStep("status");
+    refreshBalance();
+  };
 
-        const accessToken = await getAccessToken();
-        if (!accessToken) throw new Error("Not authenticated");
+  /**
+   * Sends the deposit for a sender-API order. Never sends twice: a retry first asks the aggregator
+   * whether an earlier attempt already landed, and an attempt whose outcome is unknown moves on to
+   * the status page instead of offering another send.
+   */
+  const payDeposit = async (
+    pending: { orderId: string; account: V2CryptoProviderAccountDTO },
+    auth: OrderAuth,
+  ) => {
+    const { orderId: pendingOrderId, account } = pending;
+    const total = account.amountToTransfer ?? String(amountSent);
 
-        const response = await fetch("/api/starknet/create-order", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${accessToken}`,
-          },
-          body: JSON.stringify({
-            walletId: starknetWalletId,
-            publicKey: starknetPublicKey,
-            tokenAddress,
-            gatewayAddress: getGatewayContractAddress("Starknet"),
-            amount: params.amount.toString(),
-            rate: params.rate.toString(),
-            senderFeeRecipient: params.senderFeeRecipient,
-            senderFee: params.senderFee.toString(),
-            refundAddress: starknetWalletAddress,
-            messageHash: params.messageHash,
-            address: starknetWalletAddress,
-          }),
-        });
-
-        if (!response.ok) {
-          const err = (await response.json()) as { error?: string };
-          throw new Error(err.error ?? "Failed to create Starknet order");
-        }
-
-        const data = (await response.json()) as {
-          transactionHash?: string;
-          orderId?: string;
-        };
-
-        setIsGatewayApproved(true);
-        setIsOrderCreated(true);
-
-        const txOrderId = data.orderId ?? "";
-        const txHash = data.transactionHash as `0x${string}` | undefined;
-
-        if (txOrderId) {
-          setOrderId(txOrderId);
-          setActiveOrderIsOnramp(false);
-          await saveTransactionData({ orderId: txOrderId, txHash });
-          setCreatedAt(new Date().toISOString());
-          setTransactionStatus("pending");
-          setCurrentStep("status");
-        }
-
-        trackEvent("Swap started", {
-          "Entry point": "Transaction preview",
-          "Wallet type": "Starknet",
-        });
-        refreshBalance();
+    if (depositAttempted) {
+      const latest = await fetchV2SenderPaymentOrderById(
+        pendingOrderId,
+        auth.accessToken,
+        auth.injectedToken,
+      ).catch(() => null);
+      if (!latest?.data) {
+        throw new Error(
+          "Could not confirm whether your previous transfer went through. Please try again in a moment.",
+        );
+      }
+      const latestStatus = String(latest.data.status ?? "").toLowerCase();
+      const amountPaid = Number(
+        (latest.data as { amountPaid?: unknown }).amountPaid ?? 0,
+      );
+      if (latestStatus !== "initiated" || amountPaid > 0) {
+        goToOrderStatus();
         return;
       }
+    }
 
+    const validUntil = Date.parse(account.validUntil);
+    if (Number.isFinite(validUntil) && validUntil <= Date.now()) {
+      setPendingDeposit(null);
+      setDepositAttempted(false);
+      throw new Error(
+        "This order expired before the transfer was sent. Nothing left your wallet. Please start again.",
+      );
+    }
+    if (Number(total) > balance) {
+      throw new Error(
+        `Insufficient funds. You need ${total} ${token}, including the network fee.`,
+      );
+    }
+
+    setDepositAttempted(true);
+    let depositHash: string;
+    try {
+      depositHash = await sendDeposit(account.receiveAddress, total);
+    } catch (e) {
+      if (e instanceof TransferOutcomeUnknownError) {
+        // It may have gone through. The order page tracks it either way: it completes if the
+        // deposit landed and expires, with nothing sent, if it did not.
+        toast.warning("We couldn't confirm your transfer", {
+          description:
+            "If it went through, this order will continue. Otherwise it will expire and nothing leaves your wallet.",
+        });
+        goToOrderStatus();
+        return;
+      }
+      throw e;
+    }
+
+    const transactionId = localStorage.getItem("currentTransactionId");
+    const rowWallet = apiWalletAddress ?? activeWallet?.address;
+    if (transactionId && rowWallet) {
+      // Best-effort: the status page records the hash again from the order itself.
+      void updateTransactionDetails({
+        transactionId,
+        status: "pending",
+        txHash: depositHash,
+        accessToken: auth.accessToken ?? "",
+        walletAddress: rowWallet,
+        injectedToken: auth.injectedToken,
+      }).catch(() => undefined);
+    }
+
+    trackEvent("Swap started", {
+      "Entry point": "Transaction preview",
+      "Wallet type": selectedNetwork.chain.name,
+    });
+    goToOrderStatus();
+  };
+
+  /**
+   * Sells on sender-API networks: create the order server-side, record it, then pay its deposit
+   * address. When the order charges a network cost on top of the amount, stop after creating it so
+   * the user sees the fee and total before anything is sent.
+   */
+  const createApiOfframpOrder = async (auth: OrderAuth) => {
+    if (!isStarknetSelected) {
+      // No wallet on this network can sign a transfer yet; refuse before an order exists.
+      throw new Error(
+        `Selling on ${selectedNetwork.chain.name} is not available yet.`,
+      );
+    }
+    if (!activeWallet?.address) throw new Error("Wallet not ready");
+
+    const providerId =
+      searchParams.get("provider") || searchParams.get("PROVIDER");
+
+    const created = await createV2SenderOfframpOrder(
+      {
+        amount: String(amountSent),
+        rate: String(rate),
+        record: buildSenderOrderRecord(),
+        source: {
+          type: "crypto",
+          currency: toAggregatorToken(token),
+          network: selectedNetwork.chain.name,
+          refundAddress: activeWallet.address,
+        },
+        destination: {
+          type: "fiat",
+          currency,
+          ...(providerId && { providerId }),
+          recipient: {
+            accountIdentifier: formValues.accountIdentifier,
+            accountName: recipientName,
+            institution: formValues.institution,
+            ...(formValues.memo && { memo: formValues.memo }),
+            ...(formValues.kesChannel && { kesChannel: formValues.kesChannel }),
+            ...(formValues.businessNumber?.trim() && {
+              businessNumber: formValues.businessNumber.trim(),
+            }),
+          },
+        },
+      },
+      auth.accessToken,
+      auth.injectedToken,
+    );
+
+    const pending = { orderId: created.id, account: created.providerAccount };
+    // The server recorded the transaction row with the order, before any funds move, so
+    // limits, history and the reconciler all see it even if this tab never gets to send.
+    localStorage.setItem("currentTransactionId", created.transactionId);
+    setOrderId(created.id);
+    setActiveOrderIsOnramp(false);
+    setCreatedAt(new Date().toISOString());
+    setDepositAttempted(false);
+    setPendingDeposit(pending);
+
+    const total = created.providerAccount.amountToTransfer ?? String(amountSent);
+    let chargesFee = true;
+    try {
+      chargesFee =
+        parseUnits(total, tokenDecimals ?? 18) >
+        parseUnits(String(amountSent), tokenDecimals ?? 18);
+    } catch {
+      // Unreadable total: make the user look at it before sending.
+    }
+    if (chargesFee) {
+      toast.info("Review the network fee, then send");
+      return;
+    }
+    await payDeposit(pending, auth);
+  };
+
+  const createOrder = async (auth: OrderAuth) => {
+    try {
       if (isInjectedWallet && injectedProvider) {
         // Injected wallet
         if (!injectedReady) {
@@ -942,6 +1124,7 @@ export const TransactionPreview = ({
         const payload = {
           amount: String(amountSent),
           amountIn: "fiat" as const,
+          record: buildSenderOrderRecord(),
           source: {
             type: "fiat" as const,
             currency,
@@ -985,17 +1168,16 @@ export const TransactionPreview = ({
         const created = res.data;
         const orderIdStr =
           typeof created.id === "string" ? created.id : String(created.id);
+        if (!res.transactionId) {
+          throw new Error("Order created but not recorded. Please contact support.");
+        }
+        // The server recorded the transaction row with the order.
+        localStorage.setItem("currentTransactionId", res.transactionId);
         setOrderId(orderIdStr);
         setOnrampPaymentAccount(created.providerAccount);
         setActiveOrderIsOnramp(true);
         setCreatedAt(new Date().toISOString());
         setTransactionStatus("pending");
-
-        await saveTransactionData({
-          orderId: orderIdStr,
-          txHash: undefined,
-          providerAccount: created.providerAccount,
-        });
 
         if ((accessToken || injectedToken) && apiWalletAddress) {
           void fetchTransactions(
@@ -1045,6 +1227,12 @@ export const TransactionPreview = ({
         return;
       }
 
+      // The order already exists: this click sends (or retries) its deposit.
+      if (isApiOfframp && pendingDeposit) {
+        await payDeposit(pendingDeposit, { accessToken, injectedToken });
+        return;
+      }
+
       await precheckSwapTransaction(
         {
           walletAddress: apiWalletAddress ?? activeWallet.address,
@@ -1074,7 +1262,11 @@ export const TransactionPreview = ({
         injectedToken,
       );
 
-      await createOrder({ accessToken, injectedToken });
+      if (isApiOfframp) {
+        await createApiOfframpOrder({ accessToken, injectedToken });
+      } else {
+        await createOrder({ accessToken, injectedToken });
+      }
     } catch (e) {
       const msg =
         e instanceof Error ? e.message : "Unable to start this transaction.";
@@ -1085,15 +1277,55 @@ export const TransactionPreview = ({
     }
   };
 
+  /**
+   * Recipient labels stored on the transaction row (display only). For an on-ramp the
+   * server replaces the institution with the pay-in bank from the aggregator.
+   */
+  const buildTransactionRecipient = (): TransactionCreateInput["recipient"] =>
+    isOnramp
+      ? {
+        account_name: recipientName || walletAddress || "",
+        institution: "Wallet",
+        account_identifier: walletAddress || "",
+      }
+      : {
+        account_name: recipientName,
+        institution:
+          institution === KES_MPESA_INSTITUTION_CODE && kesChannel
+            ? getKesMpesaInstitutionLabel(kesChannel)
+            : (getInstitutionNameByCode(
+                institution,
+                supportedInstitutions,
+              ) as string),
+        account_identifier: accountIdentifier,
+        ...(memo && { memo }),
+        ...(kesChannel ? { channel: kesChannel } : {}),
+        ...(businessNumber?.trim()
+          ? { business_number: businessNumber.trim() }
+          : {}),
+      };
+
+  /**
+   * The client part of the transaction row the server records when it creates a sender
+   * order; those rows are never saved from the browser.
+   */
+  const buildSenderOrderRecord = () => ({
+    walletAddress: (apiWalletAddress ?? activeWallet?.address ?? "") as string,
+    amountReceived: Number(amountReceived),
+    recipient: buildTransactionRecipient(),
+    ...(user?.email?.address ? { email: user.email.address } : {}),
+  });
+
+  /**
+   * Saves the row of a sell created on-chain (Gateway order id). Sender orders (on-ramp,
+   * sender-API sells) are recorded by the server when it creates them.
+   */
   const saveTransactionData = async ({
     orderId,
     txHash,
-    providerAccount,
   }: {
     orderId: string;
     txHash?: `0x${string}`;
-    /** Pass from create-order response so bank name is saved before React state updates. */
-    providerAccount?: V2FiatProviderAccountDTO | null;
   }) => {
     if (!activeWallet?.address) return;
     if (isSavingTransactionRef.current) return;
@@ -1110,48 +1342,18 @@ export const TransactionPreview = ({
 
       const transaction: TransactionCreateInput = {
         walletAddress: apiWalletAddress ?? activeWallet.address,
-        transactionType: isOnramp ? "onramp" : "offramp",
-        fromCurrency: isOnramp ? currency : token,
-        toCurrency: isOnramp ? token : currency,
+        transactionType: "offramp",
+        fromCurrency: token,
+        toCurrency: currency,
         amountSent: Number(amountSent),
         amountReceived: Number(amountReceived),
         fee: Number(rate),
-        recipient: isOnramp
-          ? {
-            account_name: recipientName || walletAddress || "",
-            institution:
-              providerAccount?.institution?.trim() ||
-              onrampPaymentAccount?.institution?.trim() ||
-              "Wallet",
-            account_identifier: walletAddress || "",
-          }
-          : {
-            account_name: recipientName,
-            institution:
-              institution === KES_MPESA_INSTITUTION_CODE && kesChannel
-                ? getKesMpesaInstitutionLabel(kesChannel)
-                : (getInstitutionNameByCode(
-                    institution,
-                    supportedInstitutions,
-                  ) as string),
-            account_identifier: accountIdentifier,
-            ...(memo && { memo }),
-            ...(kesChannel ? { channel: kesChannel } : {}),
-            ...(businessNumber?.trim()
-              ? { business_number: businessNumber.trim() }
-              : {}),
-          },
+        recipient: buildTransactionRecipient(),
         status: "pending",
         network: selectedNetwork.chain.name,
         orderId: orderId,
         ...(txHash ? { txHash } : {}),
         email: user?.email?.address ?? undefined,
-        ...(isOnramp
-          ? {
-              providerAccount:
-                providerAccount ?? onrampPaymentAccount ?? null,
-            }
-          : {}),
       };
 
       const response = await saveTransaction(
@@ -1299,7 +1501,8 @@ export const TransactionPreview = ({
         {Object.entries(renderedInfo).map(([key, value]) => {
           const showTokenLogo =
             (isOnramp && key === "totalValue") ||
-            (!isOnramp && (key === "amount" || key === "fee"));
+            (!isOnramp &&
+              (key === "amount" || key === "fee" || key === "youSend"));
 
           return (
             <div key={key} className="flex items-start justify-between gap-2">
@@ -1312,7 +1515,11 @@ export const TransactionPreview = ({
                     ? isOnramp
                       ? "You send"
                       : "Amount"
-                    : key.charAt(0).toUpperCase() + key.slice(1)}
+                    : key === "fee"
+                      ? "Network fee"
+                      : key === "youSend"
+                        ? "You send"
+                        : key.charAt(0).toUpperCase() + key.slice(1)}
               </h3>
 
               <p className="flex flex-grow items-center gap-1 font-medium text-text-body dark:text-white/80">
@@ -1504,6 +1711,12 @@ export const TransactionPreview = ({
               <ImSpinner className="animate-spin text-lg" />
               Confirming...
             </span>
+          ) : pendingDeposit && isApiOfframp ? (
+            depositAttempted ? (
+              "Retry transfer"
+            ) : (
+              `Send ${depositTotal} ${token}`
+            )
           ) : (
             "Confirm payment"
           )}

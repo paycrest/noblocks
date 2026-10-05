@@ -279,6 +279,17 @@ export type V2FiatProviderAccountDTO = {
   currency?: string;
 };
 
+/** Crypto deposit instructions returned by aggregator v2 offramp (create / get order). */
+export type V2CryptoProviderAccountDTO = {
+  network: string;
+  receiveAddress: string;
+  validUntil: string;
+  /** What the wallet must send: order amount plus network (and, when bridged, hop) cost. */
+  amountToTransfer?: string;
+  currency?: string;
+  memo?: string;
+};
+
 export type OrderDetailsData = {
   orderId: string;
   amount: string;
@@ -348,6 +359,53 @@ export type V2PaymentOrderCreateData = {
   destination: unknown;
 };
 
+/**
+ * Client part of the transaction row the server records when it creates a sender order
+ * (on-ramp, or a sell on a sender-API network). The server sets everything else.
+ */
+export type SenderOrderRecordPayload = {
+  walletAddress: string;
+  amountReceived: number;
+  recipient: Recipient;
+  email?: string;
+};
+
+/** POST /v2/sender/orders response for a sell (crypto source). */
+export type V2OfframpOrderCreateData = Omit<
+  V2PaymentOrderCreateData,
+  "providerAccount"
+> & {
+  senderFee?: string;
+  providerAccount: V2CryptoProviderAccountDTO;
+};
+
+/** What the client sends to create a sell through the sender API; the server builds the rest. */
+export type V2OfframpOrderPayload = {
+  amount: string;
+  rate: string;
+  record: SenderOrderRecordPayload;
+  source: {
+    type: "crypto";
+    currency: string;
+    /** Noblocks network display name; the server resolves the aggregator id. */
+    network: string;
+    refundAddress: string;
+  };
+  destination: {
+    type: "fiat";
+    currency: string;
+    providerId?: string;
+    recipient: {
+      accountIdentifier: string;
+      accountName: string;
+      institution: string;
+      memo?: string;
+      kesChannel?: KesMpesaChannel;
+      businessNumber?: string;
+    };
+  };
+};
+
 /** Single order GET /v2/sender/orders/:id — fields used by Noblocks; rest optional. */
 export type V2PaymentOrderGetData = {
   id: string;
@@ -364,6 +422,8 @@ export type V2CreatePaymentOrderPayload = {
   reference?: string;
   source: Record<string, unknown>;
   destination: Record<string, unknown>;
+  /** Stripped by the server before the order reaches the aggregator. */
+  record: SenderOrderRecordPayload;
 };
 
 export type AggregatorEnvelope<T> = {

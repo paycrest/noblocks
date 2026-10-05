@@ -48,7 +48,11 @@ import {
   saveRecipient,
   deleteSavedRecipient,
 } from "../api/aggregator";
-import { isKnownAggregatorOrderStatus } from "../lib/order-status";
+import {
+  isAwaitingOrderStatus,
+  isKnownAggregatorOrderStatus,
+} from "../lib/order-status";
+import { isSenderPaymentOrderUuid } from "../lib/payment-order-id";
 import { reindexSingleTransaction } from "../lib/reindex";
 import {
   STEPS,
@@ -809,7 +813,10 @@ export function TransactionStatus({
 
           // The envelope fallback can surface `"success"`/`"error"` (HTTP envelope, not an order
           // status) — never let those flow into UI state or DB persistence.
-          const rawStatus = responseData?.status;
+          const rawStatus =
+            !isOnramp && isAwaitingOrderStatus(responseData?.status)
+              ? "pending"
+              : responseData?.status;
           if (!isKnownAggregatorOrderStatus(rawStatus)) {
             console.warn(
               "[TransactionStatus] Skipping unknown order status:",
@@ -1035,6 +1042,12 @@ export function TransactionStatus({
         return;
       }
 
+      // A sender-API sell has no Gateway transaction of its own to reindex: the aggregator
+      // watches the deposit address itself and creates the on-chain order afterwards.
+      if (!isOnramp && isSenderPaymentOrderUuid(orderId)) {
+        return;
+      }
+
       // Get txHash from orderDetails.txHash or from txReceipts
       let txHash = orderDetails.txHash;
       if (
@@ -1091,7 +1104,7 @@ export function TransactionStatus({
         }
       };
     },
-    [transactionStatus, hasReindexed, orderDetails, createdAt],
+    [transactionStatus, hasReindexed, orderDetails, createdAt, isOnramp, orderId],
   );
 
   /**

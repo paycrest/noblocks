@@ -227,3 +227,27 @@ export async function collectLinkedEvmAddressesForPrivyUserId(
   }
   return [...addresses];
 }
+
+/**
+ * Addresses of this Privy user's linked wallets on a non-EVM chain ("starknet",
+ * "tron", "solana"), exactly as Privy stores them. Callers normalise before
+ * comparing — Starknet addresses in particular come in padded and short forms.
+ */
+export async function collectLinkedWalletAddressesForChainType(
+  userId: string,
+  chainType: string,
+): Promise<string[]> {
+  const privy = getPrivyClient();
+  const user = await privy.getUser(userId);
+  const addresses = new Set<string>();
+  for (const account of user?.linkedAccounts ?? []) {
+    if (!isWalletAccount(account)) continue;
+    const accountChainType =
+      (account as { chainType?: string }).chainType ??
+      (account as { chain_type?: string }).chain_type;
+    if (accountChainType !== chainType) continue;
+    const address = account.address?.trim();
+    if (address) addresses.add(address);
+  }
+  return [...addresses];
+}

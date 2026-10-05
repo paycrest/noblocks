@@ -27,6 +27,75 @@ import {
   type BatchCall,
 } from "../lib/providerBatch";
 
+/**
+ * The transfer request got no usable answer (network failure, gateway timeout),
+ * so the transaction may or may not have been submitted. Callers must not
+ * simply resend.
+ */
+export class TransferOutcomeUnknownError extends Error {
+  constructor() {
+    super(
+      "Could not confirm the transfer. Check your transaction history before trying again.",
+    );
+    this.name = "TransferOutcomeUnknownError";
+  }
+}
+
+/**
+ * Sends a token from the user's Starknet wallet through the sponsored
+ * /api/starknet/transfer route and returns the transaction hash. `amount` is in
+ * base units. Shared by withdrawals (below) and sender-API sells, which pay
+ * their order's deposit address the same way. An error other than
+ * TransferOutcomeUnknownError means the route answered and nothing was sent.
+ */
+export async function requestStarknetTransfer({
+  accessToken,
+  walletId,
+  publicKey,
+  address,
+  tokenAddress,
+  amount,
+  recipientAddress,
+}: {
+  accessToken: string;
+  walletId: string;
+  publicKey: string;
+  address: string | null;
+  tokenAddress: string;
+  amount: string;
+  recipientAddress: string;
+}): Promise<`0x${string}`> {
+  let response: Response;
+  let data: { error?: string; transactionHash?: string };
+  try {
+    response = await fetch("/api/starknet/transfer", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({
+        walletId,
+        publicKey,
+        classHash: STARKNET_READY_ACCOUNT_CLASSHASH,
+        tokenAddress,
+        amount,
+        recipientAddress,
+        address,
+      }),
+    });
+    data = await response.json();
+  } catch {
+    throw new TransferOutcomeUnknownError();
+  }
+  if (!response.ok) {
+    throw new Error(data.error || "Transfer failed");
+  }
+  const hash = (data.transactionHash ?? "") as `0x${string}`;
+  if (!hash) throw new Error("No transaction hash returned");
+  return hash;
+}
+
 interface UseSmartWalletTransferParams {
   selectedNetwork: { chain: Network["chain"] };
   user: User | null;
@@ -157,33 +226,15 @@ export function useSmartWalletTransfer({
           if (!accessToken) {
             throw new Error("Failed to get access token");
           }
-          const classHash = STARKNET_READY_ACCOUNT_CLASSHASH;
-          const amountInWei = parseUnits(
-            amount.toString(),
-            tokenDecimals,
-          ).toString();
-          const response = await fetch("/api/starknet/transfer", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${accessToken}`,
-            },
-            body: JSON.stringify({
-              walletId: starknetWallet.walletId,
-              publicKey: starknetWallet.publicKey,
-              classHash,
-              tokenAddress,
-              amount: amountInWei,
-              recipientAddress,
-              address: starknetWallet.address,
-            }),
+          const snHash = await requestStarknetTransfer({
+            accessToken,
+            walletId: starknetWallet.walletId,
+            publicKey: starknetWallet.publicKey,
+            address: starknetWallet.address,
+            tokenAddress,
+            amount: parseUnits(amount.toString(), tokenDecimals).toString(),
+            recipientAddress,
           });
-          const data = (await response.json()) as { error?: string; transactionHash?: string };
-          if (!response.ok) {
-            throw new Error(data.error || "Transfer failed");
-          }
-          const snHash = (data.transactionHash ?? "") as `0x${string}`;
-          if (!snHash) throw new Error("No transaction hash returned");
           setTxHash(snHash);
           setTxNetworkName("Starknet");
           setTransferAmount(amount.toString());

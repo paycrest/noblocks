@@ -150,8 +150,32 @@ describe("injected session JWT round-trip", () => {
 
   it("rejects a tampered token", async () => {
     const { token } = await signInjectedSessionJwt(ADDRESS);
-    const tampered = token.slice(0, -2) + "aa";
+    // Change a character inside the signature, never its last one: the final base64url
+    // character of a 32-byte HS256 signature carries only 4 bits, so rewriting the tail can
+    // leave the decoded signature unchanged and the token still valid.
+    const signatureStart = token.lastIndexOf(".") + 1;
+    const index = signatureStart + 10;
+    const replacement = token[index] === "A" ? "B" : "A";
+    const tampered = token.slice(0, index) + replacement + token.slice(index + 1);
+    expect(tampered).not.toBe(token);
     await expect(verifyInjectedSessionJwt(tampered)).resolves.toBeNull();
+  });
+
+  it("rejects a token whose payload was edited", async () => {
+    const { token } = await signInjectedSessionJwt(ADDRESS);
+    // Keep every original claim (iss, aud, exp) and change only `sub`, so the
+    // signature check is the only thing that can reject it.
+    const [header, originalPayload, signature] = token.split(".");
+    const forgedClaims = JSON.parse(
+      Buffer.from(originalPayload, "base64url").toString("utf8"),
+    );
+    forgedClaims.sub = "0x000000000000000000000000000000000000dead";
+    const forgedPayload = Buffer.from(JSON.stringify(forgedClaims)).toString(
+      "base64url",
+    );
+    await expect(
+      verifyInjectedSessionJwt(`${header}.${forgedPayload}.${signature}`),
+    ).resolves.toBeNull();
   });
 
   it("rejects a token signed with a different secret", async () => {

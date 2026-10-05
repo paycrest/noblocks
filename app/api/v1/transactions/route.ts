@@ -21,6 +21,7 @@ import {
 import { monthlyLimitReachedMessage } from "@/app/lib/kyc-limit-copy";
 import type { V2FiatProviderAccountDTO } from "@/app/types";
 import { fetchOrderDetails } from "@/app/api/aggregator";
+import { classifyOrderOwnerReference } from "@/app/lib/transaction-wallet-auth";
 
 /** Normalize aggregator VA fields for JSONB storage (Activepieces pay-in emails). */
 function normalizeProviderAccount(
@@ -449,6 +450,20 @@ export const POST = withRateLimit(async (request: NextRequest) => {
         let providerAccount: V2FiatProviderAccountDTO | null = null;
         try {
           const orderResponse = await fetchOrderDetails(orderId);
+          // Never attach another user's payment details: an order bound to a different
+          // creator is refused, and the row just inserted for it is rolled back.
+          if (
+            classifyOrderOwnerReference(
+              orderResponse.data?.reference,
+              request.headers.get("x-user-id"),
+            ) === "other"
+          ) {
+            return failOnramp(
+              404,
+              "Payment order not found",
+              new Error("Onramp order belongs to another user"),
+            );
+          }
           providerAccount = normalizeProviderAccount(
             orderResponse.data?.providerAccount,
           );

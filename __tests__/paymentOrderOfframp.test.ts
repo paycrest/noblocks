@@ -77,7 +77,11 @@ import {
   parseOfframpOrderBody,
 } from "../app/lib/payment-order-offramp";
 import type { MessageHashRequest } from "../app/lib/payment-order-message-hash";
-import { assertCallerOwnsSenderOrder } from "../app/lib/transaction-wallet-auth";
+import {
+  assertCallerOwnsSenderOrder,
+  classifyOrderOwnerReference,
+  createOrderOwnerReference,
+} from "../app/lib/transaction-wallet-auth";
 import type { NextRequest } from "next/server";
 
 function makeRequest(
@@ -300,7 +304,8 @@ describe("handleCreateOfframpOrder", () => {
     expect(Object.keys(body).sort()).toEqual(
       ["amount", "amountIn", "destination", "rate", "reference", "source"].sort(),
     );
-    expect(body.reference).toMatch(/^nb-[0-9a-f]{24}$/);
+    expect(body.reference).toMatch(/^nb-[0-9a-f]{16}-[0-9a-f]{32}$/);
+    expect(classifyOrderOwnerReference(body.reference, USER_ID)).toBe("owner");
     expect(body.source).toEqual({
       type: "crypto",
       currency: "USDC",
@@ -459,7 +464,7 @@ describe("assertCallerOwnsSenderOrder", () => {
       error: null,
     });
     await expect(
-      assertCallerOwnsSenderOrder(asNextRequest(), orderId, "0xabc"),
+      assertCallerOwnsSenderOrder(asNextRequest(), orderId, "0xabc", undefined),
     ).resolves.toEqual({ ok: true });
     expect(mockLinkedEvmAddresses).not.toHaveBeenCalled();
   });
@@ -471,7 +476,7 @@ describe("assertCallerOwnsSenderOrder", () => {
     });
     mockLinkedEvmAddresses.mockResolvedValue([SMART_WALLET]);
     await expect(
-      assertCallerOwnsSenderOrder(asNextRequest(), orderId, "0xabc"),
+      assertCallerOwnsSenderOrder(asNextRequest(), orderId, "0xabc", undefined),
     ).resolves.toEqual({ ok: true });
     expect(mockLinkedEvmAddresses).toHaveBeenCalledWith(USER_ID);
   });
@@ -483,20 +488,40 @@ describe("assertCallerOwnsSenderOrder", () => {
     });
     mockLinkedEvmAddresses.mockResolvedValue([]);
     await expect(
-      assertCallerOwnsSenderOrder(asNextRequest(), orderId, "0xabc"),
+      assertCallerOwnsSenderOrder(asNextRequest(), orderId, "0xabc", undefined),
     ).resolves.toEqual({ ok: false, status: 404, error: "Payment order not found" });
 
     mockOrderRowLookup.mockResolvedValue({ data: [], error: null });
     await expect(
-      assertCallerOwnsSenderOrder(asNextRequest(), orderId, "0xabc"),
+      assertCallerOwnsSenderOrder(asNextRequest(), orderId, "0xabc", undefined),
     ).resolves.toMatchObject({ ok: false, status: 404 });
   });
 
   it("answers 503 when the lookup fails, rather than denying or allowing", async () => {
     mockOrderRowLookup.mockResolvedValue({ data: null, error: { message: "db down" } });
     await expect(
-      assertCallerOwnsSenderOrder(asNextRequest(), orderId, "0xabc"),
+      assertCallerOwnsSenderOrder(asNextRequest(), orderId, "0xabc", undefined),
     ).resolves.toMatchObject({ ok: false, status: 503 });
+  });
+
+  it("decides a creator-bound order by its reference alone", async () => {
+    const reference = createOrderOwnerReference(USER_ID);
+    await expect(
+      assertCallerOwnsSenderOrder(asNextRequest(), orderId, "0xabc", reference),
+    ).resolves.toEqual({ ok: true });
+    expect(mockOrderRowLookup).not.toHaveBeenCalled();
+  });
+
+  it("refuses a creator-bound order to anyone else, even with a transaction row", async () => {
+    const reference = createOrderOwnerReference("did:privy:someone-else");
+    mockOrderRowLookup.mockResolvedValue({
+      data: [{ wallet_address: "0xabc" }],
+      error: null,
+    });
+    await expect(
+      assertCallerOwnsSenderOrder(asNextRequest(), orderId, "0xabc", reference),
+    ).resolves.toEqual({ ok: false, status: 404, error: "Payment order not found" });
+    expect(mockOrderRowLookup).not.toHaveBeenCalled();
   });
 
   it("remembers a confirmed owner so polls do not repeat the lookup", async () => {
@@ -504,8 +529,33 @@ describe("assertCallerOwnsSenderOrder", () => {
       data: [{ wallet_address: "0xabc" }],
       error: null,
     });
-    await assertCallerOwnsSenderOrder(asNextRequest(), orderId, "0xabc");
-    await assertCallerOwnsSenderOrder(asNextRequest(), orderId, "0xabc");
+    await assertCallerOwnsSenderOrder(asNextRequest(), orderId, "0xabc", undefined);
+    await assertCallerOwnsSenderOrder(asNextRequest(), orderId, "0xabc", undefined);
     expect(mockOrderRowLookup).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("order owner reference", () => {
+  it("is unique, aggregator-safe and verifies only for its creator", () => {
+    const a = createOrderOwnerReference(USER_ID);
+    const b = createOrderOwnerReference(USER_ID);
+    expect(a).not.toBe(b);
+    expect(a).toMatch(/^[a-zA-Z0-9\-_]+$/);
+    expect(classifyOrderOwnerReference(a, USER_ID)).toBe("owner");
+    expect(classifyOrderOwnerReference(a, "did:privy:other")).toBe("other");
+    expect(classifyOrderOwnerReference(a, null)).toBe("other");
+  });
+
+  it("rejects a forged mac and treats foreign references as unbound", () => {
+    const forged = createOrderOwnerReference(USER_ID).replace(/.$/, (c) => (c === "0" ? "1" : "0"));
+    expect(classifyOrderOwnerReference(forged, USER_ID)).toBe("other");
+    expect(classifyOrderOwnerReference("partner-ref-123", USER_ID)).toBe("unbound");
+    expect(classifyOrderOwnerReference(undefined, USER_ID)).toBe("unbound");
+  });
+
+  it("does not verify under a different sender key", () => {
+    const reference = createOrderOwnerReference(USER_ID);
+    mockGetSenderApiKey.mockReturnValue("99999999-2222-3333-4444-555555555555");
+    expect(classifyOrderOwnerReference(reference, USER_ID)).toBe("other");
   });
 });

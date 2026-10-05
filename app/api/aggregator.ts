@@ -192,6 +192,7 @@ export function mapV2SenderOrderGetToOrderDetailsData(
     txHash: String(d.txHash ?? ""),
     rate,
     ...(providerAccount ? { providerAccount } : {}),
+    ...(typeof d.reference === "string" ? { reference: d.reference } : {}),
     settlements: [],
     txReceipts,
     updatedAt,

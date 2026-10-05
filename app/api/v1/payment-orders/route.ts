@@ -17,6 +17,7 @@ import {
   handleCreateOfframpOrder,
   postSenderOrder,
 } from "@/app/lib/payment-order-offramp";
+import { createOrderOwnerReference } from "@/app/lib/transaction-wallet-auth";
 
 export const POST = withRateLimit(async (request: NextRequest) => {
   const startTime = Date.now();
@@ -193,6 +194,15 @@ export const POST = withRateLimit(async (request: NextRequest) => {
         { status: 422 },
       );
     }
+
+    // Binds the order to its creator before the client learns its id; order reads
+    // authorize against this, not against a client-written transaction row.
+    const userId = request.headers.get("x-user-id");
+    if (!userId) {
+      trackApiError(request, "/api/v1/payment-orders", "POST", new Error("Missing user id"), 401);
+      return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+    }
+    (body as { reference?: string }).reference = createOrderOwnerReference(userId);
 
     if (process.env.NODE_ENV === "development") {
       console.log("[payment-orders] POST payload →", JSON.stringify(body, null, 2));

@@ -1,7 +1,6 @@
 import "server-only";
 import type { NextRequest } from "next/server";
 import axios from "axios";
-import { randomBytes } from "crypto";
 import config from "./config";
 import { getAggregatorSenderApiKey } from "./server-config";
 import {
@@ -11,6 +10,7 @@ import {
 } from "./server-analytics";
 import { isInjectedUserId } from "./injected-identity";
 import { collectLinkedWalletAddressesForChainType } from "./privy";
+import { createOrderOwnerReference } from "./transaction-wallet-auth";
 import { executeSwapTransactionLimitCheck } from "./swap-transaction-limit-server";
 import { monthlyLimitReachedMessage } from "./kyc-limit-copy";
 import {
@@ -163,11 +163,6 @@ export function normalizeWalletAddress(
   }
   if (family === "tron") return TRON_ADDRESS_RE.test(trimmed) ? trimmed : null;
   return SOLANA_ADDRESS_RE.test(trimmed) ? trimmed : null;
-}
-
-/** Unique per sender on the aggregator, which also accepts it in place of the order id. */
-export function generateOrderReference(): string {
-  return `nb-${randomBytes(12).toString("hex")}`;
 }
 
 /** The complete POST /v2/sender/orders body for a sell. Nothing else is ever sent. */
@@ -366,7 +361,9 @@ export async function handleCreateOfframpOrder(
     const orderBody = buildSenderOfframpOrderBody(input, {
       aggregatorNetwork,
       refundAddress,
-      reference: generateOrderReference(),
+      // Binds the order to its creator before the client learns its id; order reads
+      // authorize against this, not against a client-written transaction row.
+      reference: createOrderOwnerReference(userId),
     });
 
     let result: { status: number; data: unknown };

@@ -302,6 +302,8 @@ export type OrderDetailsData = {
   rate?: string;
   /** Onramp VA / bank details from GET /v2/sender/orders/:id when present. */
   providerAccount?: V2FiatProviderAccountDTO;
+  /** Sender order `reference` (GET /v2/sender/orders/:id); binds Noblocks orders to their creator. */
+  reference?: string;
   settlements: Settlement[];
   txReceipts: TxReceipt[];
   updatedAt: string;

@@ -353,13 +353,6 @@ describe("handleCreateOfframpOrder", () => {
     expect(mockAxiosPost).not.toHaveBeenCalled();
   });
 
-  it("refuses Starknet while its flag is off", async () => {
-    mockIsApiOfframpNetwork.mockReturnValue(false);
-    const result = await handleCreateOfframpOrder(makeRequest(), sellBody());
-    expect(result.status).toBe(400);
-    expect(mockAxiosPost).not.toHaveBeenCalled();
-  });
-
   it("refuses a refund address that is not the caller's own wallet", async () => {
     mockLinkedAddresses.mockResolvedValue(["0x0999"]);
     const result = await handleCreateOfframpOrder(makeRequest(), sellBody());

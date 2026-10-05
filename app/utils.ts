@@ -1962,16 +1962,15 @@ export function isTronChain(chain: {
 /**
  * Networks whose sells are created through the aggregator sender API: the order comes first and
  * the wallet then makes a plain transfer to the deposit address it returns, with no Gateway call.
- * Tron and Solana are bridged on the aggregator and reachable no other way; Starknet moves over
- * behind NEXT_PUBLIC_STARKNET_API_OFFRAMP.
+ * Tron and Solana are bridged on the aggregator and reachable no other way; Starknet uses it so
+ * its sells keep working if the aggregator bridges Starknet too.
  */
 export function isApiOfframpNetwork(chain: {
   name?: string;
   network?: string;
 } | null | undefined): boolean {
   if (!chain) return false;
-  if (isTronChain(chain) || chain.name === "Solana") return true;
-  return isStarknetChain(chain) && config.starknetApiOfframp;
+  return isTronChain(chain) || isStarknetChain(chain) || chain.name === "Solana";
 }
 
 /** Noblocks: Tron is sell (off-ramp) only; buy (on-ramp) is not supported yet. */

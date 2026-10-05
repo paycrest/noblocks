@@ -543,12 +543,6 @@ export type Config = {
   evmEarnEnabled: boolean;
   /** Tron network + Privy Tron wallet. Opt-in via NEXT_PUBLIC_TRON_ENABLED. */
   tronEnabled: boolean;
-  /**
-   * Starknet sells are created through the aggregator sender API (order first, then a plain
-   * transfer to its receive address) instead of the Starknet Gateway. Opt-in via
-   * NEXT_PUBLIC_STARKNET_API_OFFRAMP; turn off to fall back to the Gateway call.
-   */
-  starknetApiOfframp: boolean;
   /** Referral program feature flag. When false, all referral UI and API routes are disabled. */
   referralEnabled: boolean;
   /** Bridge/Swap feature flag. Controls Convert button visibility + proxy routes. */

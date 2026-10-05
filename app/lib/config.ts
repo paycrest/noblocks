@@ -56,7 +56,6 @@ const config: Config = {
   earnEnabled: process.env.NEXT_PUBLIC_EARN_ENABLED === "true",
   evmEarnEnabled: process.env.NEXT_PUBLIC_EVM_EARN_ENABLED === "true",
   tronEnabled: process.env.NEXT_PUBLIC_TRON_ENABLED === "true",
-  starknetApiOfframp: process.env.NEXT_PUBLIC_STARKNET_API_OFFRAMP === "true",
   referralEnabled: (process.env.NEXT_PUBLIC_REFERRAL_ENABLED || "").trim().toLowerCase() !== "false",
   bridgeEnabled: process.env.NEXT_PUBLIC_BRIDGE_ENABLED === "true",
   textileEnabled: process.env.NEXT_PUBLIC_TEXTILE_ENABLED === "true",

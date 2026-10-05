@@ -554,7 +554,6 @@ export const config = {
     "/api/bundler/:path*",
     "/api/bridge/:path*",
     "/api/starknet/transfer",
-    "/api/starknet/create-order",
     "/api/referral",
     "/api/referral/:path*",
     "/api/play/join",

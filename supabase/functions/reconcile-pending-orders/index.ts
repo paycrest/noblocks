@@ -14,8 +14,8 @@
 // SCOPE: both ramps, each against the endpoint its order id belongs to.
 //   - offramp: gateway ids (0x + 64 hex) -> /v2/orders/{chainId}/{id}, NO API key.
 //   - offramp: sender order UUIDs        -> /v2/sender/orders/{id}, API-Key header.
-//     These are sells created through the sender API (Starknet behind its flag,
-//     Tron, Solana): there is no gateway id and the network needs no chainId.
+//     These are sells created through the sender API (Starknet, Tron, Solana):
+//     there is no gateway id and the network needs no chainId.
 //   - onramp:  sender order UUIDs        -> /v2/sender/orders/{id}, API-Key header.
 // Sender-order reconciliation is skipped (gateway offramp still runs) when
 // AGGREGATOR_SENDER_API_KEY_ID is unset, so a missing secret degrades rather than

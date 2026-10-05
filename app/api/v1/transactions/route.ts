@@ -468,9 +468,16 @@ export const POST = withRateLimit(async (request: NextRequest) => {
             orderResponse.data?.providerAccount,
           );
         } catch (orderError) {
+          // Without the order, ownership cannot be checked: never keep a row for an
+          // order id the caller has not been shown to own. Retryable.
           console.error(
-            "Failed to fetch aggregator order for provider_account; transaction row kept for backfill:",
+            "Failed to fetch aggregator order for onramp transaction; rolling back:",
             orderError,
+          );
+          return failOnramp(
+            503,
+            "Could not confirm your order right now. Please try again.",
+            new Error("Onramp order lookup failed", { cause: orderError }),
           );
         }
 

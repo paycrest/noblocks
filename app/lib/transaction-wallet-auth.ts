@@ -61,11 +61,40 @@ export async function assertTransactionWalletMatchesJwtUser(
  * per sender on the aggregator because of the nonce.
  */
 const OWNER_REFERENCE_RE = /^nb-([0-9a-f]{16})-([0-9a-f]{32})$/;
+const MIN_OWNER_REFERENCE_SECRET_LENGTH = 32;
 
-function ownerReferenceMac(userId: string, nonce: string): string | null {
-  const apiKey = getAggregatorSenderApiKey();
-  if (!apiKey) return null;
-  return createHmac("sha256", apiKey)
+function ownerReferenceSecret(name: string, raw: string | undefined): string {
+  const value = (raw || "").trim();
+  if (value && value.length < MIN_OWNER_REFERENCE_SECRET_LENGTH) {
+    console.error(`[order-owner] ${name} is shorter than ${MIN_OWNER_REFERENCE_SECRET_LENGTH} characters; ignoring it`);
+    return "";
+  }
+  return value;
+}
+
+/**
+ * Signing key first, then every key a live reference may have been signed with.
+ * ORDER_OWNER_REFERENCE_SECRET is the signing key; on rotation the old value moves to
+ * ORDER_OWNER_REFERENCE_SECRET_PREVIOUS so existing orders stay readable. Until it is
+ * set, the sender API key signs, and stays accepted for references made that way.
+ */
+function ownerReferenceKeys(): string[] {
+  const keys = [
+    ownerReferenceSecret(
+      "ORDER_OWNER_REFERENCE_SECRET",
+      process.env.ORDER_OWNER_REFERENCE_SECRET,
+    ),
+    ownerReferenceSecret(
+      "ORDER_OWNER_REFERENCE_SECRET_PREVIOUS",
+      process.env.ORDER_OWNER_REFERENCE_SECRET_PREVIOUS,
+    ),
+    getAggregatorSenderApiKey(),
+  ].filter(Boolean);
+  return [...new Set(keys)];
+}
+
+function ownerReferenceMac(key: string, userId: string, nonce: string): string {
+  return createHmac("sha256", key)
     .update(`noblocks-order-owner-v1:${userId}:${nonce}`)
     .digest("hex")
     .slice(0, 32);
@@ -73,10 +102,12 @@ function ownerReferenceMac(userId: string, nonce: string): string | null {
 
 /** Aggregator `reference` binding a new sender order to `userId`. */
 export function createOrderOwnerReference(userId: string): string {
+  const [signingKey] = ownerReferenceKeys();
+  if (!signingKey) {
+    throw new Error("ORDER_OWNER_REFERENCE_SECRET is not configured");
+  }
   const nonce = randomBytes(8).toString("hex");
-  const mac = ownerReferenceMac(userId, nonce);
-  if (!mac) throw new Error("AGGREGATOR_SENDER_API_KEY_ID is not configured");
-  return `nb-${nonce}-${mac}`;
+  return `nb-${nonce}-${ownerReferenceMac(signingKey, userId, nonce)}`;
 }
 
 /**
@@ -92,9 +123,10 @@ export function classifyOrderOwnerReference(
     typeof reference === "string" ? OWNER_REFERENCE_RE.exec(reference) : null;
   if (!match) return "unbound";
   if (!userId) return "other";
-  const expected = ownerReferenceMac(userId, match[1]);
-  if (!expected) return "other";
-  return timingSafeEqual(Buffer.from(match[2]), Buffer.from(expected))
+  const given = Buffer.from(match[2]);
+  return ownerReferenceKeys().some((key) =>
+    timingSafeEqual(given, Buffer.from(ownerReferenceMac(key, userId, match[1]))),
+  )
     ? "owner"
     : "other";
 }

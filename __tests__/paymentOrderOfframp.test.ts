@@ -553,9 +553,53 @@ describe("order owner reference", () => {
     expect(classifyOrderOwnerReference(undefined, USER_ID)).toBe("unbound");
   });
 
-  it("does not verify under a different sender key", () => {
+  it("survives a sender key rotation once the dedicated secret is set", () => {
+    process.env.ORDER_OWNER_REFERENCE_SECRET = "a".repeat(64);
+    try {
+      const reference = createOrderOwnerReference(USER_ID);
+      mockGetSenderApiKey.mockReturnValue("99999999-2222-3333-4444-555555555555");
+      expect(classifyOrderOwnerReference(reference, USER_ID)).toBe("owner");
+    } finally {
+      delete process.env.ORDER_OWNER_REFERENCE_SECRET;
+    }
+  });
+
+  it("keeps references readable across a secret rotation via the previous secret", () => {
+    process.env.ORDER_OWNER_REFERENCE_SECRET = "a".repeat(64);
+    try {
+      const reference = createOrderOwnerReference(USER_ID);
+      process.env.ORDER_OWNER_REFERENCE_SECRET = "b".repeat(64);
+      mockGetSenderApiKey.mockReturnValue("99999999-2222-3333-4444-555555555555");
+      expect(classifyOrderOwnerReference(reference, USER_ID)).toBe("other");
+      process.env.ORDER_OWNER_REFERENCE_SECRET_PREVIOUS = "a".repeat(64);
+      expect(classifyOrderOwnerReference(reference, USER_ID)).toBe("owner");
+    } finally {
+      delete process.env.ORDER_OWNER_REFERENCE_SECRET;
+      delete process.env.ORDER_OWNER_REFERENCE_SECRET_PREVIOUS;
+    }
+  });
+
+  it("still accepts references signed with the sender key after the secret is introduced", () => {
     const reference = createOrderOwnerReference(USER_ID);
-    mockGetSenderApiKey.mockReturnValue("99999999-2222-3333-4444-555555555555");
-    expect(classifyOrderOwnerReference(reference, USER_ID)).toBe("other");
+    process.env.ORDER_OWNER_REFERENCE_SECRET = "a".repeat(64);
+    try {
+      expect(classifyOrderOwnerReference(reference, USER_ID)).toBe("owner");
+    } finally {
+      delete process.env.ORDER_OWNER_REFERENCE_SECRET;
+    }
+  });
+
+  it("ignores a secret that is too short", () => {
+    process.env.ORDER_OWNER_REFERENCE_SECRET = "short";
+    const error = jest.spyOn(console, "error").mockImplementation(() => undefined);
+    try {
+      const reference = createOrderOwnerReference(USER_ID);
+      // Signed with the sender key instead, so it verifies without the secret.
+      delete process.env.ORDER_OWNER_REFERENCE_SECRET;
+      expect(classifyOrderOwnerReference(reference, USER_ID)).toBe("owner");
+    } finally {
+      delete process.env.ORDER_OWNER_REFERENCE_SECRET;
+      error.mockRestore();
+    }
   });
 });

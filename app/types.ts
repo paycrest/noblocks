@@ -279,6 +279,17 @@ export type V2FiatProviderAccountDTO = {
   currency?: string;
 };
 
+/** Crypto deposit instructions returned by aggregator v2 offramp (create / get order). */
+export type V2CryptoProviderAccountDTO = {
+  network: string;
+  receiveAddress: string;
+  validUntil: string;
+  /** What the wallet must send: order amount plus network (and, when bridged, hop) cost. */
+  amountToTransfer?: string;
+  currency?: string;
+  memo?: string;
+};
+
 export type OrderDetailsData = {
   orderId: string;
   amount: string;
@@ -346,6 +357,41 @@ export type V2PaymentOrderCreateData = {
   providerAccount: V2FiatProviderAccountDTO;
   source: unknown;
   destination: unknown;
+};
+
+/** POST /v2/sender/orders response for a sell (crypto source). */
+export type V2OfframpOrderCreateData = Omit<
+  V2PaymentOrderCreateData,
+  "providerAccount"
+> & {
+  senderFee?: string;
+  providerAccount: V2CryptoProviderAccountDTO;
+};
+
+/** What the client sends to create a sell through the sender API; the server builds the rest. */
+export type V2OfframpOrderPayload = {
+  amount: string;
+  rate: string;
+  source: {
+    type: "crypto";
+    currency: string;
+    /** Noblocks network display name; the server resolves the aggregator id. */
+    network: string;
+    refundAddress: string;
+  };
+  destination: {
+    type: "fiat";
+    currency: string;
+    providerId?: string;
+    recipient: {
+      accountIdentifier: string;
+      accountName: string;
+      institution: string;
+      memo?: string;
+      kesChannel?: KesMpesaChannel;
+      businessNumber?: string;
+    };
+  };
 };
 
 /** Single order GET /v2/sender/orders/:id — fields used by Noblocks; rest optional. */
@@ -497,6 +543,12 @@ export type Config = {
   evmEarnEnabled: boolean;
   /** Tron network + Privy Tron wallet. Opt-in via NEXT_PUBLIC_TRON_ENABLED. */
   tronEnabled: boolean;
+  /**
+   * Starknet sells are created through the aggregator sender API (order first, then a plain
+   * transfer to its receive address) instead of the Starknet Gateway. Opt-in via
+   * NEXT_PUBLIC_STARKNET_API_OFFRAMP; turn off to fall back to the Gateway call.
+   */
+  starknetApiOfframp: boolean;
   /** Referral program feature flag. When false, all referral UI and API routes are disabled. */
   referralEnabled: boolean;
   /** Bridge/Swap feature flag. Controls Convert button visibility + proxy routes. */

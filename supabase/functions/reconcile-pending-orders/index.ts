@@ -13,8 +13,11 @@
 //
 // SCOPE: both ramps, each against the endpoint its order id belongs to.
 //   - offramp: gateway ids (0x + 64 hex) -> /v2/orders/{chainId}/{id}, NO API key.
+//   - offramp: sender order UUIDs        -> /v2/sender/orders/{id}, API-Key header.
+//     These are sells created through the sender API (Starknet behind its flag,
+//     Tron, Solana): there is no gateway id and the network needs no chainId.
 //   - onramp:  sender order UUIDs        -> /v2/sender/orders/{id}, API-Key header.
-// Onramp reconciliation is skipped (offramp still runs) when
+// Sender-order reconciliation is skipped (gateway offramp still runs) when
 // AGGREGATOR_SENDER_API_KEY_ID is unset, so a missing secret degrades rather than
 // failing the run.
 //
@@ -238,9 +241,21 @@ function fetchSenderOrderStatus(
   origin: string,
   apiKey: string,
   orderId: string,
+  transactionType: "offramp" | "onramp",
 ): Promise<StatusResult> {
   const url = `${origin}/v2/sender/orders/${encodeURIComponent(orderId.trim())}`;
-  return fetchAggregatorStatus(url, { "API-Key": apiKey }, resolveOnrampStatus);
+  // The validUntil expiry inference is onramp-only: a sell's deposit window is
+  // enforced by the aggregator, which reports `expired` itself.
+  return fetchAggregatorStatus(
+    url,
+    { "API-Key": apiKey },
+    transactionType === "onramp"
+      ? resolveOnrampStatus
+      : (data) => {
+        const s = data?.status;
+        return typeof s === "string" && s !== "" ? s : null;
+      },
+  );
 }
 
 async function reconcile(): Promise<Summary> {
@@ -294,7 +309,15 @@ async function reconcile(): Promise<Summary> {
       if (!isSenderPaymentOrderUuid(orderId)) {
         return { skipReason: "order_id is not a sender payment order uuid" };
       }
-      return { fetch: () => fetchSenderOrderStatus(origin, senderApiKey, orderId) };
+      return { fetch: () => fetchSenderOrderStatus(origin, senderApiKey, orderId, "onramp") };
+    }
+
+    // A sell created through the sender API carries a UUID, not a gateway id.
+    if (isSenderPaymentOrderUuid(orderId)) {
+      if (!senderApiKey) {
+        return { skipReason: "AGGREGATOR_SENDER_API_KEY_ID is not configured" };
+      }
+      return { fetch: () => fetchSenderOrderStatus(origin, senderApiKey, orderId, "offramp") };
     }
 
     const chainId = row.network ? resolveChainIdFromNetworkName(row.network) : null;

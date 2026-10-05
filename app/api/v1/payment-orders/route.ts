@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import axios from "axios";
 import { withRateLimit } from "@/app/lib/rate-limit";
 import {
   trackApiRequest,
@@ -14,6 +13,10 @@ import {
   accountNameMatchesKyc,
   REFUND_NAME_MISMATCH_MESSAGE,
 } from "@/app/lib/name-matching";
+import {
+  handleCreateOfframpOrder,
+  postSenderOrder,
+} from "@/app/lib/payment-order-offramp";
 
 export const POST = withRateLimit(async (request: NextRequest) => {
   const startTime = Date.now();
@@ -24,6 +27,15 @@ export const POST = withRateLimit(async (request: NextRequest) => {
     if (!walletAddress) {
       trackApiError(request, "/api/v1/payment-orders", "POST", new Error("Unauthorized"), 401);
       return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+    }
+
+    const body = await request.json();
+
+    // Sells on sender-API networks (crypto source). The handler owns its own
+    // validation, limits and tracking; everything below is on-ramp only.
+    if ((body as { source?: { type?: unknown } })?.source?.type === "crypto") {
+      const result = await handleCreateOfframpOrder(request, body);
+      return NextResponse.json(result.body, { status: result.status });
     }
 
     trackApiRequest(request, "/api/v1/payment-orders", "POST", { wallet_address: walletAddress });
@@ -51,9 +63,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
       );
     }
 
-    const body = await request.json();
-
-    // On-ramp (fiat source) only: off-ramp orders are created on-chain via gateway.createOrder, not via this proxy.
+    // On-ramp (fiat source) from here on.
     const source = (
       body as {
         source?: {
@@ -68,14 +78,13 @@ export const POST = withRateLimit(async (request: NextRequest) => {
         request,
         "/api/v1/payment-orders",
         "POST",
-        new Error("Off-ramp payment orders are not created through this endpoint"),
+        new Error("Unsupported payment order source type"),
         400,
       );
       return NextResponse.json(
         {
           success: false,
-          error:
-            "Only on-ramp (fiat source) orders are supported. Off-ramp uses on-chain gateway.createOrder.",
+          error: "Payment order source must be fiat (on-ramp) or crypto (off-ramp).",
         },
         { status: 400 },
       );
@@ -185,21 +194,11 @@ export const POST = withRateLimit(async (request: NextRequest) => {
       );
     }
 
-    const baseUrl = config.aggregatorUrl.replace(/\/+$/, "").replace(/\/v1$/i, "");
-    const url = `${baseUrl}/v2/sender/orders`;
-
     if (process.env.NODE_ENV === "development") {
-      console.log("[payment-orders] onramp→v2 url →", url);
       console.log("[payment-orders] POST payload →", JSON.stringify(body, null, 2));
     }
 
-    const { data, status } = await axios.post(url, body, {
-      headers: {
-        "Content-Type": "application/json",
-        "API-Key": senderApiKey,
-      },
-      validateStatus: () => true,
-    });
+    const { data, status } = await postSenderOrder(body, senderApiKey);
 
     if (process.env.NODE_ENV === "development" && status >= 400) {
       console.log("[payment-orders] aggregator response →", status, JSON.stringify(data, null, 2));
@@ -209,15 +208,6 @@ export const POST = withRateLimit(async (request: NextRequest) => {
     trackApiResponse("/api/v1/payment-orders", "POST", status, responseTime, {
       wallet_address: walletAddress,
     });
-
-    // Aggregator returns 404 for unknown API keys; use 401 so clients don't treat it as "route not found".
-    const msg =
-      data && typeof data === "object" && "message" in data && typeof (data as { message: unknown }).message === "string"
-        ? (data as { message: string }).message
-        : "";
-    if (status === 404 && /api key not found/i.test(msg)) {
-      return NextResponse.json(data, { status: 401 });
-    }
 
     return NextResponse.json(data, { status });
   } catch (error) {

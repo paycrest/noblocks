@@ -27,6 +27,8 @@ import type {
   SavedRecipientsResponse,
   V2CreatePaymentOrderPayload,
   V2PaymentOrderCreateData,
+  V2OfframpOrderCreateData,
+  V2OfframpOrderPayload,
   V2PaymentOrderGetData,
   V2FiatProviderAccountDTO,
   AggregatorEnvelope,
@@ -1750,6 +1752,51 @@ export async function createOfframpMessageHash(
     );
   }
   return messageHash;
+}
+
+/**
+ * Sells on sender-API networks (see `isApiOfframpNetwork`). Creates the order
+ * through the server, which builds the aggregator body, checks the refund
+ * address is the caller's own wallet and enforces the monthly limit. Returns
+ * the deposit instructions; the wallet then sends `providerAccount.amountToTransfer`
+ * to `providerAccount.receiveAddress`.
+ */
+export async function createV2SenderOfframpOrder(
+  payload: V2OfframpOrderPayload,
+  accessToken: string | null,
+  injectedToken: string | null = null,
+): Promise<V2OfframpOrderCreateData> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  if (injectedToken) {
+    headers["x-injected-token"] = injectedToken;
+  } else if (accessToken) {
+    headers.Authorization = `Bearer ${accessToken}`;
+  }
+  // validateStatus + manual throw, as in createOfframpMessageHash: the
+  // aggregator puts the specific reason in `data.message` under a generic
+  // title, and middleware 401s carry `{ error }`.
+  const response = await axios.post<
+    AggregatorEnvelope<V2OfframpOrderCreateData> & { error?: string }
+  >("/api/v1/payment-orders", payload, { headers, validateStatus: () => true });
+  const envelope = response.data;
+  const created = envelope?.data;
+  if (
+    response.status >= 400 ||
+    envelope?.status !== "success" ||
+    typeof created?.id !== "string" ||
+    !created.providerAccount?.receiveAddress
+  ) {
+    const detail = (created as { message?: unknown } | undefined)?.message;
+    throw new Error(
+      (typeof detail === "string" && detail) ||
+        (typeof envelope?.message === "string" && envelope.message) ||
+        (typeof envelope?.error === "string" && envelope.error) ||
+        `Could not create order (${response.status})`,
+    );
+  }
+  return created;
 }
 
 /**

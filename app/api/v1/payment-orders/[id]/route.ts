@@ -15,6 +15,7 @@ import {
   isSenderPaymentOrderUuid,
   resolveChainIdFromNetworkName,
 } from "@/app/lib/payment-order-id";
+import { assertCallerOwnsSenderOrder } from "@/app/lib/transaction-wallet-auth";
 
 export const GET = withRateLimit(
   async (
@@ -99,6 +100,14 @@ export const GET = withRateLimit(
             { status: 500 },
           );
         }
+        const owner = await assertCallerOwnsSenderOrder(request, orderId, walletAddress);
+        if (!owner.ok) {
+          trackApiError(request, "/api/v1/payment-orders/[id]", "GET", new Error(owner.error), owner.status);
+          return NextResponse.json(
+            { status: "error", message: owner.error },
+            { status: owner.status },
+          );
+        }
         url = `${base}/v2/sender/orders/${encodeURIComponent(orderId)}`;
         headers = { "API-Key": senderApiKey };
       } else {
@@ -106,7 +115,7 @@ export const GET = withRateLimit(
           {
             status: "error",
             message:
-              "Invalid order id: expected a sender payment order UUID (onramp) or gateway order id (0x + 64 hex, offramp)",
+              "Invalid order id: expected a sender payment order UUID or a gateway order id (0x + 64 hex)",
           },
           { status: 400 },
         );

@@ -190,7 +190,7 @@ export function useBridgeQuote({
       const destinationAsset = resolveNearAssetId(to.token, to.network, tokenList);
 
       // NEAR Intents solvers only quote assets they hold inventory in, which leaves real
-      // gaps: no USDT on Base, and no Lisk/Celo/Tron at all. Those pairs are still routable
+      // gaps: no USDT on Base, and no Celo/Tron at all. Those pairs are still routable
       // through LI.FI's DEX aggregators, so fall back instead of reporting "no rail".
       if (!originAsset || !destinationAsset) {
         return fetchLifiQuote(from, to, rawAmount, evmAddress, slippageBps, auth);

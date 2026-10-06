@@ -4,7 +4,7 @@
  */
 import { createPublicClient, createWalletClient, http, type PublicClient, type WalletClient } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
-import { bsc, base, arbitrum, polygon, mainnet, lisk, celo, type Chain } from 'viem/chains';
+import { bsc, base, arbitrum, polygon, mainnet, celo, type Chain } from 'viem/chains';
 import { getRpcUrl } from '@/app/utils';
 
 const SUPPORTED_CHAINS: Record<number, { chain: Chain; envKey: string; networkName: string }> = {
@@ -13,7 +13,6 @@ const SUPPORTED_CHAINS: Record<number, { chain: Chain; envKey: string; networkNa
   [arbitrum.id]: { chain: arbitrum, envKey: 'ARB', networkName: 'Arbitrum One' },
   [polygon.id]: { chain: polygon, envKey: 'POLYGON', networkName: 'Polygon' },
   [mainnet.id]: { chain: mainnet, envKey: 'ETHEREUM', networkName: 'Ethereum' },
-  [lisk.id]: { chain: lisk, envKey: 'LISK', networkName: 'Lisk' },
   [celo.id]: { chain: celo, envKey: 'CELO', networkName: 'Celo' },
 };
 

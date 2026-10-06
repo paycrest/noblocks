@@ -4,7 +4,6 @@ import {
   base,
   bsc,
   polygon,
-  lisk,
   celo,
   mainnet,
 } from "viem/chains";
@@ -99,7 +98,7 @@ export const acceptedCurrencies = [
 // Explicit product ranking — not alphabetical (legacy order matched A–Z by coincidence).
 // Ranks 1–3: highest aggregator volume (Base → BNB Smart Chain → Arbitrum).
 // Rank 4: Starknet (fixed position).
-// Ranks 5+: remaining chains by volume (Polygon → Lisk → Ethereum → Celo).
+// Ranks 5+: remaining chains by volume (Polygon → Ethereum → Celo).
 export const networks = [
   {
     chain: base,
@@ -128,13 +127,6 @@ export const networks = [
   {
     chain: polygon,
     imageUrl: "/logos/polygon-logo.svg",
-  },
-  {
-    chain: lisk,
-    imageUrl: {
-      light: "/logos/lisk-logo-light.svg",
-      dark: "/logos/lisk-logo-dark.svg",
-    },
   },
   {
     chain: mainnet,

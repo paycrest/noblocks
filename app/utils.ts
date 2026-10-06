@@ -732,8 +732,6 @@ export const getExplorerLink = (network: string, txHash: string) => {
       return `https://scrollscan.com/tx/${txHash}`;
     case "Celo":
       return `https://celoscan.io/tx/${txHash}`;
-    case "Lisk":
-      return `https://blockscout.lisk.com/tx/${txHash}`;
     case "Ethereum":
       return `https://etherscan.io/tx/${txHash}`;
     case "Starknet":
@@ -755,7 +753,6 @@ const CHAIN_ID_TO_EXPLORER_NETWORK: Record<string, string> = {
   "0xa": "Optimism",
   "0x82750": "Scroll",
   "0xa4ec": "Celo",
-  "0x46f": "Lisk",
 };
 
 /**
@@ -853,8 +850,6 @@ export function getRpcUrl(network: string) {
       return `https://api-celo-mainnet-archive.n.dwellir.com/${rpcUrlKey ?? ""}`;
     case "Scroll":
       return `https://api-scroll-mainnet.n.dwellir.com/${rpcUrlKey ?? ""}`;
-    case "Lisk":
-      return `https://api-lisk-mainnet.n.dwellir.com/${rpcUrlKey ?? ""}`;
     case "Ethereum":
       return `https://api-ethereum-mainnet.n.dwellir.com/${rpcUrlKey ?? ""}`;
     case "Starknet":
@@ -1107,22 +1102,6 @@ export const FALLBACK_TOKENS: { [key: string]: Token[] } = {
       symbol: "cNGN",
       decimals: 6,
       address: "0xF6829D7393dAe24509eb1E52eE8e572e2E271a4f",
-      imageUrl: "/logos/cngn-logo.svg",
-    },
-  ],
-  Lisk: [
-    {
-      name: "Tether USD",
-      symbol: "USDT",
-      decimals: 6,
-      address: "0x05D032ac25d322df992303dCa074EE7392C117b9",
-      imageUrl: "/logos/usdt-logo.svg",
-    },
-    {
-      name: "Compliant Naira",
-      symbol: "cNGN",
-      decimals: 6,
-      address: "0xC7aB2C35Ea37236e644C24A4E4a1911c082887c0",
       imageUrl: "/logos/cngn-logo.svg",
     },
   ],
@@ -1830,7 +1809,7 @@ export function shortenAddress(
  * Resolves ENS name from wallet address for supported networks
  * Falls back to first 5 chars if no ENS name found
  * @param address - The wallet address to resolve
- * @param networkName - Optional network name (Lisk doesn't support ENS)
+ * @param networkName - Optional network name (unused; reserved for per-network behavior)
  * @returns Promise<string> - ENS name or shortened address (first 5 chars after 0x)
  */
 export async function resolveEnsNameOrShorten(
@@ -1843,11 +1822,6 @@ export async function resolveEnsNameOrShorten(
 
   if (!isValidEvmAddressCaseInsensitive(address)) {
     return address.slice(0, 5);
-  }
-
-  // Lisk doesn't support ENS, return shortened address immediately
-  if (networkName === "Lisk") {
-    return address.slice(2, 7); // First 5 chars (skip 0x)
   }
 
   try {
@@ -1979,7 +1953,6 @@ export const GATEWAY_CONTRACT_ADDRESSES = {
   Scroll: "0x663c5bfe7d44ba946c2dd4b2d1cf9580319f9338",
   Optimism: "0xd293fcd3dbc025603911853d893a4724cf9f70a0",
   Celo: "0xf418217e3f81092ef44b81c5c8336e6a6fdb0e4b",
-  Lisk: "0xff0E00E0110C1FBb5315D276243497b66D3a4d8a",
   Ethereum: "0x8d2c0d398832b814e3814802ff2dc8b8ef4381e5",
   Starknet: "0x06ff3a3b1532da65594fc98f9ca7200af6c3dbaf37e7339b0ebd3b3f2390c583",
 } as const;
@@ -2311,7 +2284,7 @@ export function getFiatFlagImageUrl(currency: string): string {
 
 /**
  * Icon for a currency in transaction history: on-ramp fiat → country flag;
- * otherwise local token logo (with Lisk light/dark variants).
+ * otherwise local token logo.
  */
 export function getCurrencyImageSrc(currency: string, isDark = false): string {
   const code = currency.trim();
@@ -2319,11 +2292,6 @@ export function getCurrencyImageSrc(currency: string, isDark = false): string {
     return getFiatFlagImageUrl(code);
   }
   const logoId = getTokenLogoIdentifier(code);
-  if (logoId === "lisk") {
-    return isDark
-      ? "/logos/lisk-logo-dark.svg"
-      : "/logos/lisk-logo-light.svg";
-  }
   return `/logos/${logoId}-logo.svg`;
 }
 

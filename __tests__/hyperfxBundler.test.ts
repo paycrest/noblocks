@@ -34,7 +34,7 @@ describe("HyperFX bundler URL (server)", () => {
 
   it("returns undefined for unsupported networks", () => {
     process.env.ALCHEMY_API_KEY = "test-key";
-    expect(getHyperfxBundlerUrl("Lisk")).toBeUndefined();
+    expect(getHyperfxBundlerUrl("Celo")).toBeUndefined();
   });
 
   it("throws when Alchemy key is missing", () => {

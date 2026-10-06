@@ -18,7 +18,6 @@ import {
   formatNumberWithCommas,
   getCurrencyImageSrc,
   getFiatFlagImageUrl,
-  getTokenLogoIdentifier,
   getCurrencySymbol,
   getNetworkImageUrl,
   shortenAddress,
@@ -235,16 +234,12 @@ export function TransactionDetails({ transaction }: TransactionDetailsProps) {
                 );
               }
               if (transaction.transaction_type === "credit") {
-                const logoId = getTokenLogoIdentifier(transaction.from_currency);
                 return (
                   <Image
-                    src={
-                      logoId === "lisk"
-                        ? isDark
-                          ? "/logos/lisk-logo-dark.svg"
-                          : "/logos/lisk-logo-light.svg"
-                        : `/logos/${logoId}-logo.svg`
-                    }
+                    src={getCurrencyImageSrc(
+                      transaction.from_currency,
+                      isDark,
+                    )}
                     alt={transaction.from_currency}
                     width={20}
                     height={20}

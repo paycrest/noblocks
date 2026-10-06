@@ -210,7 +210,6 @@ const jsonLd = {
     "BNB Chain",
     "Ethereum",
     "Celo",
-    "Lisk",
   ],
   supportedStablecoins: ["USDC", "USDT", "cNGN"],
   audience: {

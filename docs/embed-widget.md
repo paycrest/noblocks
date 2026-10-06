@@ -106,7 +106,7 @@ shows **cNGN**. Aggregator rate/order calls still use the wire form `CNGN`.
 - Without an allowlist key, a lone `network=` / `chainId=` keeps the previous
   **lock** behaviour (read-only chip + no balance auto-hop).
 - Supported network slugs match rate paths: `base`, `arbitrum-one`,
-  `bnb-smart-chain`, `polygon`, `lisk`, `celo`, `scroll`, `ethereum`,
+  `bnb-smart-chain`, `polygon`, `celo`, `scroll`, `ethereum`,
   `starknet`, `tron`. Legacy `starknet-mainnet` is accepted as an alias.
 
 ### Network lock / follow

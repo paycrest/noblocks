@@ -15,7 +15,7 @@ describe("earnChains", () => {
   it("maps noblocks network names to LayerSwap identifiers", () => {
     expect(layerswapSourceNetwork("Base")).toBe("BASE_MAINNET");
     expect(layerswapSourceNetwork("BNB Smart Chain")).toBe("BSC_MAINNET");
-    expect(layerswapSourceNetwork("Lisk")).toBeUndefined();
+    expect(layerswapSourceNetwork("Optimism")).toBeUndefined();
   });
 
   it("recognizes supported source chains", () => {

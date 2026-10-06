@@ -11,9 +11,6 @@ export const EVM_EARN_SOURCE_CHAINS = [
 
 export type EvmEarnSourceChain = (typeof EVM_EARN_SOURCE_CHAINS)[number];
 
-/** Excluded from Phase 2 — LayerSwap does not bridge USDC from Lisk. */
-export const EVM_EARN_EXCLUDED_CHAINS = ["Lisk"] as const;
-
 /**
  * Noblocks network display name → LayerSwap network identifier.
  * LayerSwap also accepts numeric chain IDs; these names match their API docs.

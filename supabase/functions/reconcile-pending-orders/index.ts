@@ -63,7 +63,6 @@ const NETWORK_NAME_TO_CHAIN_ID: Record<string, number> = {
   "BNB Smart Chain": 56,
   "Arbitrum One": 42161,
   "Polygon": 137,
-  "Lisk": 1135,
   "Ethereum": 1,
   "Celo": 42220,
   "Scroll": 534352,

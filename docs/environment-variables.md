@@ -104,6 +104,7 @@ NEXT_PUBLIC_DD_VERSION=                     # Optional (e.g. git SHA from CI)
 NEXT_PUBLIC_DD_RUM_SAMPLE_RATE=100          # 0–100
 NEXT_PUBLIC_DD_SESSION_REPLAY_SAMPLE_RATE=100 # 0–100; % of RUM sessions that record Session Replay
 NEXT_PUBLIC_DD_ENABLE_IN_DEV=false          # Send RUM from local dev when true
+NEXT_PUBLIC_DD_TRACING_ALLOWED_ORIGINS=     # Optional comma-separated extra origins for RUM trace propagation (e.g. staging aggregator)
 ```
 
 ### Datadog Server-Side APM and Logs

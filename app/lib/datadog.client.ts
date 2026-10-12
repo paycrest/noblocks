@@ -3,6 +3,8 @@
 import { datadogRum } from "@datadog/browser-rum";
 import Cookies from "js-cookie";
 
+import { buildAllowedTracingUrls } from "@/app/lib/datadog-rum-tracing";
+
 const INIT_KEY = "__noblocks_datadog_rum_init__" as const;
 
 const SENSITIVE_KEYS = [
@@ -99,6 +101,13 @@ export function initDatadogRum(): boolean {
         ? sessionSampleRate
         : 100,
       sessionReplaySampleRate: resolvedSessionReplaySampleRate,
+      allowedTracingUrls: buildAllowedTracingUrls({
+        aggregatorUrl: process.env.NEXT_PUBLIC_AGGREGATOR_URL,
+        extraOrigins: process.env.NEXT_PUBLIC_DD_TRACING_ALLOWED_ORIGINS,
+      }),
+      // Inject W3C + Datadog headers on traced fetch/XHR so RUM sessions stitch
+      // to noblocks BFF spans and outbound aggregator traces.
+      traceContextInjection: "sampled",
       trackUserInteractions: true,
       trackResources: true,
       trackLongTasks: true,

@@ -15,12 +15,15 @@ import {
   isSenderPaymentOrderUuid,
   resolveChainIdFromNetworkName,
 } from "@/app/lib/payment-order-id";
+import { buildAggregatorOutboundHeaders } from "@/app/lib/aggregator-outbound-headers";
+import { tracePaymentOrdersProxy } from "@/app/lib/payment-orders-tracing";
 
 export const GET = withRateLimit(
   async (
     request: NextRequest,
     { params }: { params: Promise<{ id: string }> },
-  ) => {
+  ) =>
+    tracePaymentOrdersProxy("get", {}, async (span) => {
     const startTime = Date.now();
 
     try {
@@ -61,6 +64,7 @@ export const GET = withRateLimit(
       const isGateway =
         isGatewayOrderId(orderId) ||
         (isStarknetOrderId(orderId) && networkParam === "Starknet");
+      span.setTag("lookup_type", isGateway ? "gateway" : "sender");
 
       if (isGateway) {
         if (!networkParam) {
@@ -113,9 +117,10 @@ export const GET = withRateLimit(
       }
 
       const { data, status } = await axios.get(url, {
-        headers,
+        headers: await buildAggregatorOutboundHeaders(headers, request.headers),
         validateStatus: () => true,
       });
+      span.setTag("http.status_code", status);
 
       const responseTime = Date.now() - startTime;
       trackApiResponse("/api/v1/payment-orders/[id]", "GET", status, responseTime, {
@@ -145,5 +150,5 @@ export const GET = withRateLimit(
         { status: 500 },
       );
     }
-  },
+    }),
 );

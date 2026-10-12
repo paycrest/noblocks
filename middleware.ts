@@ -17,6 +17,17 @@ if (!_appId || !_appSecret) {
 const PRIVY_APP_ID: string = _appId;
 const PRIVY_APP_SECRET: string = _appSecret;
 
+const REQUEST_ID_HEADER = "x-request-id";
+
+/** Ensures every API request has a stable id for log/trace correlation downstream. */
+function headersWithRequestId(req: NextRequest): Headers {
+  const headers = new Headers(req.headers);
+  if (!headers.get(REQUEST_ID_HEADER)?.trim()) {
+    headers.set(REQUEST_ID_HEADER, crypto.randomUUID());
+  }
+  return headers;
+}
+
 const PRIVY_JWKS_URL = `https://auth.privy.io/api/v1/apps/${PRIVY_APP_ID}/jwks.json`;
 const PRIVY_JWT_ISSUER = "privy.io";
 const PRIVY_JWKS = createRemoteJWKSet(new URL(PRIVY_JWKS_URL));
@@ -157,7 +168,7 @@ async function authorizationMiddleware(req: NextRequest) {
   if (isPlaySelfAuthedRoute) {
     // JWT never runs here — strip client-supplied identity headers so downstream
     // rate limiting cannot be keyed on forged x-user-id / x-wallet-address.
-    const headers = new Headers(req.headers);
+    const headers = headersWithRequestId(req);
     headers.delete("x-user-id");
     headers.delete("x-wallet-address");
     return NextResponse.next({ request: { headers } });
@@ -342,7 +353,7 @@ async function authorizationMiddleware(req: NextRequest) {
   });
 
   // Step 4: Create response with proper headers
-  const requestHeaders = new Headers(req.headers);
+  const requestHeaders = headersWithRequestId(req);
   requestHeaders.set("x-wallet-address", walletAddress);
   requestHeaders.set("x-user-id", privyUserId);
   const response = NextResponse.next({

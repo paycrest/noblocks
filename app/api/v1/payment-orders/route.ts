@@ -14,8 +14,11 @@ import {
   accountNameMatchesKyc,
   REFUND_NAME_MISMATCH_MESSAGE,
 } from "@/app/lib/name-matching";
+import { buildAggregatorOutboundHeaders } from "@/app/lib/aggregator-outbound-headers";
+import { tracePaymentOrdersProxy } from "@/app/lib/payment-orders-tracing";
 
-export const POST = withRateLimit(async (request: NextRequest) => {
+export const POST = withRateLimit(async (request: NextRequest) =>
+  tracePaymentOrdersProxy("create", {}, async (span) => {
   const startTime = Date.now();
 
   try {
@@ -106,6 +109,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
     }
 
     (body as { source?: { currency?: string } }).source!.currency = sourceCurrency;
+    span.setTag("source_currency", sourceCurrency);
 
     // Refund-account name policy (authoritative gate at money time). The refund account must belong
     // to the same person as the verified KYC profile. A modified client must not be able to bypass
@@ -194,12 +198,16 @@ export const POST = withRateLimit(async (request: NextRequest) => {
     }
 
     const { data, status } = await axios.post(url, body, {
-      headers: {
-        "Content-Type": "application/json",
-        "API-Key": senderApiKey,
-      },
+      headers: await buildAggregatorOutboundHeaders(
+        {
+          "Content-Type": "application/json",
+          "API-Key": senderApiKey,
+        },
+        request.headers,
+      ),
       validateStatus: () => true,
     });
+    span.setTag("http.status_code", status);
 
     if (process.env.NODE_ENV === "development" && status >= 400) {
       console.log("[payment-orders] aggregator response →", status, JSON.stringify(data, null, 2));
@@ -233,4 +241,5 @@ export const POST = withRateLimit(async (request: NextRequest) => {
       { status: 500 },
     );
   }
-});
+  }),
+);

@@ -1,4 +1,16 @@
-import { buildAllowedTracingUrls } from "@/app/lib/datadog-rum-tracing";
+import {
+  buildAllowedTracingUrls,
+  isNoblocksApiPath,
+} from "@/app/lib/datadog-rum-tracing";
+
+describe("isNoblocksApiPath", () => {
+  it("matches /api and /api/... only", () => {
+    expect(isNoblocksApiPath("/api")).toBe(true);
+    expect(isNoblocksApiPath("/api/v1/payment-orders")).toBe(true);
+    expect(isNoblocksApiPath("/apiary")).toBe(false);
+    expect(isNoblocksApiPath("/apis")).toBe(false);
+  });
+});
 
 describe("buildAllowedTracingUrls", () => {
   it("includes same-origin /api and aggregator origin with propagators", () => {
@@ -12,27 +24,42 @@ describe("buildAllowedTracingUrls", () => {
     expect(apiMatcher("https://noblocks.example/api/v1/payment-orders")).toBe(
       true,
     );
+    expect(apiMatcher("https://noblocks.example/api")).toBe(true);
+    expect(apiMatcher("https://noblocks.example/apiary")).toBe(false);
     expect(apiMatcher("https://other.example/api/foo")).toBe(false);
 
-    const aggregatorMatcher = matchers.find(
-      (m) =>
-        typeof m === "object" &&
-        m !== null &&
-        "propagatorTypes" in m &&
-        m.match === "https://agg.example",
+    const aggregatorMatcher = matchers[1] as {
+      match: (url: string) => boolean;
+      propagatorTypes: string[];
+    };
+    expect(aggregatorMatcher.propagatorTypes).toEqual([
+      "tracecontext",
+      "datadog",
+    ]);
+    expect(
+      aggregatorMatcher.match("https://agg.example/v2/rates"),
+    ).toBe(true);
+    expect(
+      aggregatorMatcher.match("https://agg.example.evil/v2/rates"),
+    ).toBe(false);
+
+    const stagingMatcher = matchers[2] as {
+      match: (url: string) => boolean;
+    };
+    expect(stagingMatcher.match("https://agg-staging.example/v2/markets")).toBe(
+      true,
     );
-    expect(aggregatorMatcher).toEqual({
-      match: "https://agg.example",
-      propagatorTypes: ["tracecontext", "datadog"],
+  });
+
+  it("skips invalid extra origins instead of prefix-matching all https URLs", () => {
+    const matchers = buildAllowedTracingUrls({
+      appOrigin: "https://noblocks.example",
+      extraOrigins: "https://,https://valid-extra.example",
     });
 
-    const stagingMatcher = matchers.find(
-      (m) =>
-        typeof m === "object" &&
-        m !== null &&
-        "match" in m &&
-        m.match === "https://agg-staging.example",
-    );
-    expect(stagingMatcher).toBeTruthy();
+    expect(matchers).toHaveLength(2);
+    const extraMatcher = matchers[1] as { match: (url: string) => boolean };
+    expect(extraMatcher.match("https://valid-extra.example/foo")).toBe(true);
+    expect(extraMatcher.match("https://evil.example/foo")).toBe(false);
   });
 });

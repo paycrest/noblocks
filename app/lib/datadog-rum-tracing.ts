@@ -14,6 +14,21 @@ export type RumTracingUrlMatcher =
 
 const AGGREGATOR_ORIGIN_RE = /\/v1\/?$/i;
 
+const PROPAGATOR_TYPES: Array<"tracecontext" | "datadog"> = [
+  "tracecontext",
+  "datadog",
+];
+
+/**
+ * Same-origin Noblocks BFF prefix: `/api` or `/api/...` (not `/apiary` or `/apis`).
+ */
+export function isNoblocksApiPath(pathname: string): boolean {
+  return pathname === "/api" || pathname.startsWith("/api/");
+}
+
+/**
+ * Normalizes an aggregator base URL or origin string to a URL `origin` for matching.
+ */
 function parseOrigin(url: string): string | null {
   const trimmed = url.trim();
   if (!trimmed) return null;
@@ -23,6 +38,35 @@ function parseOrigin(url: string): string | null {
   } catch {
     return null;
   }
+}
+
+/** Compares request URL origin exactly (avoids Datadog string-prefix host collisions). */
+function urlMatchesOrigin(url: string, allowedOrigin: string): boolean {
+  try {
+    return new URL(url).origin === allowedOrigin;
+  } catch {
+    return false;
+  }
+}
+
+function exactOriginMatcher(allowedOrigin: string): RumTracingUrlMatcher {
+  return {
+    match: (url: string) => urlMatchesOrigin(url, allowedOrigin),
+    propagatorTypes: PROPAGATOR_TYPES,
+  };
+}
+
+function sameOriginApiMatcher(appOrigin: string): (url: string) => boolean {
+  return (url: string) => {
+    try {
+      const parsed = new URL(url, appOrigin);
+      return (
+        parsed.origin === appOrigin && isNoblocksApiPath(parsed.pathname)
+      );
+    } catch {
+      return false;
+    }
+  };
 }
 
 /**
@@ -40,39 +84,17 @@ export function buildAllowedTracingUrls(
 
   const appOrigin = env.appOrigin?.trim();
   if (appOrigin) {
-    matchers.push((url: string) => {
-      try {
-        const parsed = new URL(url, appOrigin);
-        return (
-          parsed.origin === appOrigin && parsed.pathname.startsWith("/api")
-        );
-      } catch {
-        return false;
-      }
-    });
+    matchers.push(sameOriginApiMatcher(appOrigin));
   } else {
     matchers.push((url: string) => {
       if (typeof window === "undefined") return false;
-      try {
-        const parsed = new URL(url, window.location.origin);
-        return (
-          parsed.origin === window.location.origin &&
-          parsed.pathname.startsWith("/api")
-        );
-      } catch {
-        return false;
-      }
+      return sameOriginApiMatcher(window.location.origin)(url);
     });
   }
 
-  const propagatorTypes: Array<"tracecontext" | "datadog"> = [
-    "tracecontext",
-    "datadog",
-  ];
-
   const aggregatorOrigin = parseOrigin(env.aggregatorUrl ?? "");
   if (aggregatorOrigin) {
-    matchers.push({ match: aggregatorOrigin, propagatorTypes });
+    matchers.push(exactOriginMatcher(aggregatorOrigin));
   }
 
   const extra = (env.extraOrigins ?? "")
@@ -80,10 +102,10 @@ export function buildAllowedTracingUrls(
     .map((s) => s.trim())
     .filter(Boolean);
 
-  for (const origin of extra) {
-    const parsed = parseOrigin(origin) ?? origin;
+  for (const entry of extra) {
+    const parsed = parseOrigin(entry);
     if (!parsed) continue;
-    matchers.push({ match: parsed, propagatorTypes });
+    matchers.push(exactOriginMatcher(parsed));
   }
 
   return matchers;

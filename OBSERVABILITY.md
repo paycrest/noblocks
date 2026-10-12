@@ -49,11 +49,45 @@ The agent ports are bound to `127.0.0.1` and the Docker network. **Do not
 publish 8125/8126 on a public interface** — an open trace intake accepts
 arbitrary spans from anyone who can reach it.
 
-> **If noblocks moves to DigitalOcean App Platform** rather than a Droplet,
-> this sidecar does not apply: App Platform gives no Docker socket and no
-> co-located container. That would need a different transport for traces, and
-> the log path would have to change too. Confirm which product is in use before
-> relying on this file.
+## DigitalOcean App Platform (staging / production)
+
+Noblocks on App Platform has no Docker socket, so container log collection via
+the agent does not apply. Use **two paths**, mirroring the `aggregator` app:
+
+1. **Logs** — add a [Datadog log destination](https://docs.digitalocean.com/products/app-platform/how-to/forward-logs/) on the noblocks app (site `datadoghq.eu`). Runtime logs stay JSON on stdout from `app/lib/logger.ts`; the drain ships them to Datadog. The app does **not** need `DD_API_KEY`.
+2. **Traces and DogStatsD** — add a `datadog-agent` **worker** component on the same app spec so the web service can reach APM on port 8126 over App Platform internal networking. See `deploy/datadog-agent/README.md` and merge `deploy/datadog-agent/app-platform.worker.yaml.example` into your app spec.
+
+### Required environment variables (noblocks web service)
+
+Set in the App Platform UI or app spec (values are examples; do not commit secrets):
+
+| Variable | Example | Notes |
+| --- | --- | --- |
+| `DD_SERVICE` | `noblocks` | APM service name |
+| `DD_ENV` | `staging` / `production` | Must match RUM `NEXT_PUBLIC_DD_ENV` for correlation |
+| `DD_VERSION` | git SHA from CI | Optional but recommended |
+| `DD_AGENT_HOST` | `datadog-agent` | **Worker component name** from the example spec |
+| `DD_TRACE_AGENT_PORT` | `8126` | Default APM port |
+| `DD_TRACE_ENABLED` | `true` | Read once at process startup |
+| `LOG_LEVEL` | `info` | pino level |
+
+RUM variables (`NEXT_PUBLIC_DD_*`) remain on the web service as documented in
+`docs/environment-variables.md`.
+
+### Required environment variables (`datadog-agent` worker)
+
+| Variable | Example | Notes |
+| --- | --- | --- |
+| `DD_API_KEY` | *(secret)* | EU org API key — **worker only** |
+| `DD_SITE` | `datadoghq.eu` | Must match org |
+| `DD_ENV` | `staging` / `production` | Tags forwarded traces/logs |
+| `DD_APM_ENABLED` | `true` | |
+| `DD_APM_NON_LOCAL_TRAFFIC` | `true` | Accept traces from the web component |
+| `DD_DOGSTATSD_NON_LOCAL_TRAFFIC` | `true` | Runtime metrics from dd-trace |
+| `DD_LOGS_ENABLED` | `false` | Log drain handles noblocks stdout on App Platform |
+
+After deploy, confirm APM → Services → `noblocks` and Logs Explorer →
+`service:noblocks env:staging` (or `production`).
 
 ## Writing logs
 
@@ -119,6 +153,9 @@ liability. The threshold monitors would likewise fire on staging noise.
 
 The first one is the one that matters. When the cron dies, nothing else
 anywhere reports it.
+
+Codified definitions for import or review live under
+`scripts/datadog/monitors/` (see README there).
 
 ## KYC telemetry
 

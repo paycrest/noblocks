@@ -1,10 +1,10 @@
 {
-  "description": "Noblocks Play worker monitors — production only (env:production).",
+  "description": "Noblocks Play worker monitors — production only (@env:production log attribute).",
   "monitors": [
     {
       "name": "[noblocks production] Play worker: no tick in 10 minutes",
       "type": "log alert",
-      "query": "logs(\"service:noblocks env:production @feature:play @worker.ran_at:*\").index(\"*\").rollup(\"count\").last(\"10m\") < 1",
+      "query": "logs(\"service:noblocks @env:production @feature:play @worker.ran_at:*\").index(\"*\").rollup(\"count\").last(\"10m\") < 1",
       "message": "No Play worker tick in 10 minutes on production. Cron is */5 — scores may have stopped updating.\n\nRunbook: https://github.com/paycrest/noblocks/blob/main/OBSERVABILITY.md",
       "tags": ["service:noblocks", "feature:play", "env:production"],
       "priority": 1,
@@ -17,7 +17,7 @@
     {
       "name": "[noblocks production] Play worker: at least one alert in 15 minutes",
       "type": "log alert",
-      "query": "logs(\"service:noblocks env:production @feature:play @worker.alerts_count:>0\").index(\"*\").rollup(\"count\").last(\"15m\") >= 1",
+      "query": "logs(\"service:noblocks @env:production @feature:play @worker.alerts_count:>0\").index(\"*\").rollup(\"count\").last(\"15m\") >= 1",
       "message": "At least one Play worker tick in the last 15 minutes reported internal alerts on production (HTTP 200 tick with failures inside).",
       "tags": ["service:noblocks", "feature:play", "env:production"],
       "priority": 3
@@ -25,7 +25,7 @@
     {
       "name": "[noblocks production] Play worker: API-Football budget low",
       "type": "log alert",
-      "query": "logs(\"service:noblocks env:production @feature:play @worker.provider_remaining:<200\").index(\"*\").rollup(\"count\").last(\"5m\") >= 1",
+      "query": "logs(\"service:noblocks @env:production @feature:play @worker.provider_remaining:<200\").index(\"*\").rollup(\"count\").last(\"5m\") >= 1",
       "message": "Play worker provider_remaining dropped below 200 on production.",
       "tags": ["service:noblocks", "feature:play", "env:production"],
       "priority": 3
@@ -33,7 +33,7 @@
     {
       "name": "[noblocks production] Play worker: crashed tick",
       "type": "log alert",
-      "query": "logs(\"service:noblocks env:production @feature:play @worker.ok:false\").index(\"*\").rollup(\"count\").last(\"5m\") >= 1",
+      "query": "logs(\"service:noblocks @env:production @feature:play @worker.ok:false\").index(\"*\").rollup(\"count\").last(\"5m\") >= 1",
       "message": "Play worker tick failed outright on production (@worker.ok:false).",
       "tags": ["service:noblocks", "feature:play", "env:production"],
       "priority": 2

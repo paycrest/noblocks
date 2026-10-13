@@ -88,7 +88,9 @@ RUM variables (`NEXT_PUBLIC_DD_*`) remain on the web service as documented in
 | `DD_LOGS_ENABLED` | `false` | Log drain handles noblocks stdout on App Platform |
 
 After deploy, confirm APM → Services → `noblocks` and Logs Explorer →
-`service:noblocks env:staging` (or `production`).
+`service:noblocks @env:staging` (or `@env:production`). On App Platform log
+drains, `env` is a JSON field on each line (`@env` in queries), not the Datadog
+`env` tag — see `app/lib/logger.ts` bindings.
 
 ## Writing logs
 
@@ -140,17 +142,18 @@ failure mode worth alerting on.
 
 ### Monitors worth having
 
-Every query below is scoped `env:production`. **Do not drop that scope.** Staging
-shares this Datadog org, so an unscoped absence monitor is satisfied by staging
-ticks and a production outage would never page — the monitor inverted into a
-liability. The threshold monitors would likewise fire on staging noise.
+Every query below is scoped `@env:production` (log attribute from pino, not the
+Datadog `env` tag — DO log drains do not set tags). **Do not drop that scope.**
+Staging shares this Datadog org, so an unscoped absence monitor is satisfied by
+staging ticks and a production outage would never page — the monitor inverted
+into a liability. The threshold monitors would likewise fire on staging noise.
 
 | Monitor | Query | Why |
 | --- | --- | --- |
-| **No tick in 10 minutes → page** | absence of `service:noblocks env:production @feature:play @worker.ran_at:*` | Cron is `*/5`; two misses means scores silently stopped updating |
-| ≥1 alert log in 15 min → Slack | `service:noblocks env:production @feature:play @worker.alerts_count:>0` | Internal failure inside a 200 (any tick with alerts in the window) |
-| Provider budget low → Slack | `service:noblocks env:production @feature:play @worker.provider_remaining:<200` | Before the API-Football wall |
-| Crashed tick → Slack | `service:noblocks env:production @feature:play @worker.ok:false` | Tick threw outright |
+| **No tick in 10 minutes → page** | absence of `service:noblocks @env:production @feature:play @worker.ran_at:*` | Cron is `*/5`; two misses means scores silently stopped updating |
+| ≥1 alert log in 15 min → Slack | `service:noblocks @env:production @feature:play @worker.alerts_count:>0` | Internal failure inside a 200 (any tick with alerts in the window) |
+| Provider budget low → Slack | `service:noblocks @env:production @feature:play @worker.provider_remaining:<200` | Before the API-Football wall |
+| Crashed tick → Slack | `service:noblocks @env:production @feature:play @worker.ok:false` | Tick threw outright |
 
 The first one is the one that matters. When the cron dies, nothing else
 anywhere reports it.
@@ -201,7 +204,7 @@ header chain rather than an unauthenticated user.
 ### Supporting a user
 
 ```text
-service:noblocks env:production @feature:kyc @kyc.wallet_address:0x1234…
+service:noblocks @env:production @feature:kyc @kyc.wallet_address:0x1234…
 ```
 
 Lower-case the address — the facet is normalised, and a checksummed address
@@ -211,16 +214,16 @@ request itself.
 
 ### Monitors worth having
 
-As with the worker monitors above, every query is scoped `env:production`.
+As with the worker monitors above, every query is scoped `@env:production`.
 **Do not drop that scope** — staging shares this Datadog org.
 
 | Monitor | Query | Why |
 | --- | --- | --- |
-| **KYC infrastructure failure → page** | `service:noblocks env:production @feature:kyc @kyc.outcome:error` | Smile ID, Dojah, or Supabase is failing upgrades; users cannot verify at all |
-| Provider outage burning attempts → Slack | `service:noblocks env:production @feature:kyc @kyc.failure_category:database` | Smile ID infrastructure failures, which refund the attempt — a spike means the provider, not our users |
-| Verified-and-lost → page | `service:noblocks env:production @feature:kyc @kyc.stage:profile_update @kyc.outcome:error` | The provider approved them and the write failed: the user spent an attempt and stayed on the old tier |
-| Callback signature failures → Slack | `service:noblocks env:production @feature:kyc @kyc.reason:invalid_signature` | A genuine Smile ID callback never fails this |
-| Rejection mix → dashboard | `service:noblocks env:production @feature:kyc @kyc.outcome:rejected`, grouped by `@kyc.reason` and `@kyc.id_type` | Which ID types and reasons dominate; the input to fixing the flow rather than individual tickets |
+| **KYC infrastructure failure → page** | `service:noblocks @env:production @feature:kyc @kyc.outcome:error` | Smile ID, Dojah, or Supabase is failing upgrades; users cannot verify at all |
+| Provider outage burning attempts → Slack | `service:noblocks @env:production @feature:kyc @kyc.failure_category:database` | Smile ID infrastructure failures, which refund the attempt — a spike means the provider, not our users |
+| Verified-and-lost → page | `service:noblocks @env:production @feature:kyc @kyc.stage:profile_update @kyc.outcome:error` | The provider approved them and the write failed: the user spent an attempt and stayed on the old tier |
+| Callback signature failures → Slack | `service:noblocks @env:production @feature:kyc @kyc.reason:invalid_signature` | A genuine Smile ID callback never fails this |
+| Rejection mix → dashboard | `service:noblocks @env:production @feature:kyc @kyc.outcome:rejected`, grouped by `@kyc.reason` and `@kyc.id_type` | Which ID types and reasons dominate; the input to fixing the flow rather than individual tickets |
 
 ### Client-side
 
@@ -246,7 +249,7 @@ Deploy, wait ~60s, then in the **EU** app:
 | Check | Where |
 | --- | --- |
 | APM service appears | APM → Services → `noblocks` |
-| Logs flowing | Logs Explorer → `service:noblocks env:production` |
+| Logs flowing | Logs Explorer → `service:noblocks @env:production` |
 | Trace–log correlation | Open a log line → **View Trace** is present |
 | Worker ticks | Logs → `@feature:play @worker.ran_at:*` |
 | KYC steps | Logs → `@feature:kyc @kyc.step:*` |

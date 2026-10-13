@@ -1,9 +1,14 @@
-# Merge this `workers` entry into the noblocks App Platform app spec.
+# Merge this `services` entry into the noblocks App Platform app spec.
 # Component name must match DD_AGENT_HOST on the web service (default: datadog-agent).
+#
+# App Platform workers cannot receive inbound traffic — the agent must be a
+# service with internal_ports so the web component can reach APM on TCP 8126.
+# Internal routing is TCP-only; DogStatsD (UDP 8125) is not available on this
+# path — see OBSERVABILITY.md (runtime metrics from dd-trace are not shipped).
 #
 # Do not commit DD_API_KEY — set it as a RUN_TIME secret in the DO control panel.
 
-workers:
+services:
   - name: datadog-agent
     image:
       registry_type: DOCKER_HUB
@@ -14,7 +19,6 @@ workers:
     instance_size_slug: professional-xs
     internal_ports:
       - 8126
-      - 8125
     envs:
       - key: DD_SITE
         value: datadoghq.eu
@@ -26,9 +30,6 @@ workers:
         value: "true"
         scope: RUN_TIME
       - key: DD_APM_NON_LOCAL_TRAFFIC
-        value: "true"
-        scope: RUN_TIME
-      - key: DD_DOGSTATSD_NON_LOCAL_TRAFFIC
         value: "true"
         scope: RUN_TIME
       - key: DD_LOGS_ENABLED

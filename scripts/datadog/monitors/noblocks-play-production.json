@@ -15,10 +15,10 @@
       }
     },
     {
-      "name": "[noblocks production] Play worker: alerts sustained 15 minutes",
+      "name": "[noblocks production] Play worker: at least one alert in 15 minutes",
       "type": "log alert",
       "query": "logs(\"service:noblocks env:production @feature:play @worker.alerts_count:>0\").index(\"*\").rollup(\"count\").last(\"15m\") >= 1",
-      "message": "Play worker reported internal alerts for 15+ minutes on production (HTTP 200 tick with failures inside).",
+      "message": "At least one Play worker tick in the last 15 minutes reported internal alerts on production (HTTP 200 tick with failures inside).",
       "tags": ["service:noblocks", "feature:play", "env:production"],
       "priority": 3
     },

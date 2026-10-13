@@ -55,7 +55,9 @@ Noblocks on App Platform has no Docker socket, so container log collection via
 the agent does not apply. Use **two paths**, mirroring the `aggregator` app:
 
 1. **Logs** — add a [Datadog log destination](https://docs.digitalocean.com/products/app-platform/how-to/forward-logs/) on the noblocks app (site `datadoghq.eu`). Runtime logs stay JSON on stdout from `app/lib/logger.ts`; the drain ships them to Datadog. The app does **not** need `DD_API_KEY`.
-2. **Traces and DogStatsD** — add a `datadog-agent` **worker** component on the same app spec so the web service can reach APM on port 8126 over App Platform internal networking. See `deploy/datadog-agent/README.md` and merge `deploy/datadog-agent/app-platform.worker.yaml.example` into your app spec.
+2. **APM traces** — add a `datadog-agent` **service** component (not a worker) with `internal_ports: [8126]` so the web service can send traces over App Platform [internal TCP routing](https://docs.digitalocean.com/products/app-platform/how-to/manage-internal-routing/). See `deploy/datadog-agent/README.md` and merge `deploy/datadog-agent/app-platform.service.yaml.example` into your app spec.
+
+   **Runtime metrics (DogStatsD):** internal ports are TCP-only; UDP **8125** is not routable between components. `dd-trace` `runtimeMetrics` in `instrumentation.ts` does not reach the agent on App Platform. Use Droplet/docker-compose (or disable runtime metrics) if you need those signals; APM and log–trace correlation are unaffected.
 
 ### Required environment variables (noblocks web service)
 
@@ -66,7 +68,7 @@ Set in the App Platform UI or app spec (values are examples; do not commit secre
 | `DD_SERVICE` | `noblocks` | APM service name |
 | `DD_ENV` | `staging` / `production` | Must match RUM `NEXT_PUBLIC_DD_ENV` for correlation |
 | `DD_VERSION` | git SHA from CI | Optional but recommended |
-| `DD_AGENT_HOST` | `datadog-agent` | **Worker component name** from the example spec |
+| `DD_AGENT_HOST` | `datadog-agent` | **Internal service component name** from the example spec |
 | `DD_TRACE_AGENT_PORT` | `8126` | Default APM port |
 | `DD_TRACE_ENABLED` | `true` | Read once at process startup |
 | `LOG_LEVEL` | `info` | pino level |
@@ -74,16 +76,15 @@ Set in the App Platform UI or app spec (values are examples; do not commit secre
 RUM variables (`NEXT_PUBLIC_DD_*`) remain on the web service as documented in
 `docs/environment-variables.md`.
 
-### Required environment variables (`datadog-agent` worker)
+### Required environment variables (`datadog-agent` service)
 
 | Variable | Example | Notes |
 | --- | --- | --- |
-| `DD_API_KEY` | *(secret)* | EU org API key — **worker only** |
+| `DD_API_KEY` | *(secret)* | EU org API key — **agent service only** |
 | `DD_SITE` | `datadoghq.eu` | Must match org |
 | `DD_ENV` | `staging` / `production` | Tags forwarded traces/logs |
 | `DD_APM_ENABLED` | `true` | |
 | `DD_APM_NON_LOCAL_TRAFFIC` | `true` | Accept traces from the web component |
-| `DD_DOGSTATSD_NON_LOCAL_TRAFFIC` | `true` | Runtime metrics from dd-trace |
 | `DD_LOGS_ENABLED` | `false` | Log drain handles noblocks stdout on App Platform |
 
 After deploy, confirm APM → Services → `noblocks` and Logs Explorer →
@@ -147,7 +148,7 @@ liability. The threshold monitors would likewise fire on staging noise.
 | Monitor | Query | Why |
 | --- | --- | --- |
 | **No tick in 10 minutes → page** | absence of `service:noblocks env:production @feature:play @worker.ran_at:*` | Cron is `*/5`; two misses means scores silently stopped updating |
-| Alerts sustained 15 min → Slack | `service:noblocks env:production @feature:play @worker.alerts_count:>0` | Internal failure inside a 200 |
+| ≥1 alert log in 15 min → Slack | `service:noblocks env:production @feature:play @worker.alerts_count:>0` | Internal failure inside a 200 (any tick with alerts in the window) |
 | Provider budget low → Slack | `service:noblocks env:production @feature:play @worker.provider_remaining:<200` | Before the API-Football wall |
 | Crashed tick → Slack | `service:noblocks env:production @feature:play @worker.ok:false` | Tick threw outright |
 

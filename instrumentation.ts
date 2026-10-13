@@ -26,6 +26,11 @@ export async function register() {
       "[startup] AGGREGATOR_SENDER_API_KEY_ID is not set — offramp order creation and /api/v1/payment-orders* will return 503",
     );
   }
+  const { registerAggregatorAxiosOutboundTracing } = await import(
+    "./app/lib/aggregator-axios-outbound.server"
+  );
+  registerAggregatorAxiosOutboundTracing();
+
   // Read once, here, at process startup — flipping this on a running
   // container has no effect until it restarts.
   if (process.env.DD_TRACE_ENABLED === "false") return;
@@ -50,4 +55,9 @@ export async function register() {
     // runtime metrics rather than failing.
     runtimeMetrics: true,
   });
+
+  const { registerAggregatorAxiosOutboundTracing } = await import(
+    "./app/lib/aggregator-axios-outbound.server"
+  );
+  registerAggregatorAxiosOutboundTracing();
 }

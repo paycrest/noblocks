@@ -1,9 +1,20 @@
 import "server-only";
 
+import { NextResponse } from "next/server";
 import type { Span } from "dd-trace";
 import tracer from "dd-trace";
 
 export type PaymentOrdersOperation = "create" | "get" | "message_hash";
+
+/** Tags the span with the BFF status actually returned to the client. */
+export function paymentOrdersJson(
+  span: Span,
+  body: unknown,
+  status: number,
+): NextResponse {
+  span.setTag("http.status_code", status);
+  return NextResponse.json(body, { status });
+}
 
 /**
  * Named span for payment-orders BFF routes. Tags must not include PII (no wallet,

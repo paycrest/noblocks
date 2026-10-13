@@ -1,20 +1,16 @@
 import "server-only";
 
-import { randomUUID } from "crypto";
 import { headers as nextHeaders } from "next/headers";
 import tracer from "dd-trace";
 
-export const REQUEST_ID_HEADER = "x-request-id";
+import {
+  REQUEST_ID_HEADER,
+  resolveRequestId,
+} from "@/app/lib/request-id";
+
+export { REQUEST_ID_HEADER, resolveRequestId } from "@/app/lib/request-id";
 
 type HeaderSource = { get(name: string): string | null };
-
-export function resolveRequestId(incoming?: string | null): string {
-  const trimmed = incoming?.trim();
-  if (trimmed && trimmed.length > 0 && trimmed.length <= 128) {
-    return trimmed;
-  }
-  return randomUUID();
-}
 
 function readIncomingRequestId(source?: HeaderSource): string | null {
   if (!source) return null;

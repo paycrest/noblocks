@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify, createRemoteJWKSet } from "jose";
 import { verifyInjectedSessionJwt } from "./app/lib/injectedSessionAuth";
 import { INJECTED_USER_ID_PREFIX } from "./app/lib/injected-identity";
+import {
+  REQUEST_ID_HEADER,
+  normalizeRequestIdHeader,
+} from "./app/lib/request-id";
 
 // Inline lightweight edge-compatible helpers to avoid pulling in heavy SDKs
 
@@ -17,14 +21,13 @@ if (!_appId || !_appSecret) {
 const PRIVY_APP_ID: string = _appId;
 const PRIVY_APP_SECRET: string = _appSecret;
 
-const REQUEST_ID_HEADER = "x-request-id";
-
 /** Ensures every API request has a stable id for log/trace correlation downstream. */
 function headersWithRequestId(req: NextRequest): Headers {
   const headers = new Headers(req.headers);
-  if (!headers.get(REQUEST_ID_HEADER)?.trim()) {
-    headers.set(REQUEST_ID_HEADER, crypto.randomUUID());
-  }
+  headers.set(
+    REQUEST_ID_HEADER,
+    normalizeRequestIdHeader(headers.get(REQUEST_ID_HEADER)),
+  );
   return headers;
 }
 

@@ -50,8 +50,6 @@ import {
   resolveChainIdFromNetworkName,
 } from "../lib/payment-order-id";
 import { isNoProviderError } from "../lib/errorMessages";
-import { withAggregatorOutboundHeaders } from "../lib/aggregator-http-config";
-
 const AGGREGATOR_URL = config.aggregatorUrl;
 
 /** Maps aggregator order status → Supabase `transactions.status`. Swap keeps validated→completed; on-ramp keeps pending until settled. */
@@ -357,10 +355,7 @@ export const fetchRate = async ({
       side,
     });
 
-    const response = await axios.get(
-      endpoint,
-      await withAggregatorOutboundHeaders({ params, signal }),
-    );
+    const response = await axios.get(endpoint, { params, signal });
     const payload = response.data as {
       status: string;
       message: string;
@@ -552,14 +547,11 @@ export const fetchMarkets = async (
         side,
       });
 
-      const response = await axios.get(
-        endpoint,
-        await withAggregatorOutboundHeaders({
-          params,
-          signal,
-          timeout: MARKETS_TIMEOUT_MS,
-        }),
-      );
+      const response = await axios.get(endpoint, {
+        params,
+        signal,
+        timeout: MARKETS_TIMEOUT_MS,
+      });
       const body = response.data as {
         status?: string;
         message?: string;
@@ -630,7 +622,6 @@ export const fetchSupportedInstitutions = async (
   try {
     const response = await axios.get(
       `${AGGREGATOR_URL}/institutions/${currency}`,
-      await withAggregatorOutboundHeaders({}),
     );
     return response.data.data;
   } catch (error) {
@@ -649,10 +640,9 @@ const PUBKEY_TIMEOUT_MS = 10_000;
 
 export const fetchAggregatorPublicKey = async (): Promise<PubkeyResponse> => {
   try {
-    const response = await axios.get(
-      `${AGGREGATOR_URL}/pubkey`,
-      await withAggregatorOutboundHeaders({ timeout: PUBKEY_TIMEOUT_MS }),
-    );
+    const response = await axios.get(`${AGGREGATOR_URL}/pubkey`, {
+      timeout: PUBKEY_TIMEOUT_MS,
+    });
     return response.data;
   } catch (error) {
     console.error("Error fetching aggregator public key:", error);
@@ -684,7 +674,6 @@ export const fetchAccountName = async (
     const response = await axios.post(
       `${AGGREGATOR_URL}/verify-account`,
       payload,
-      await withAggregatorOutboundHeaders({}),
     );
 
     // Track successful response
@@ -799,13 +788,10 @@ export const fetchOrderDetails = async (
       }
       headers["API-Key"] = apiKey;
     }
-    const response = await axios.get(
-      url,
-      await withAggregatorOutboundHeaders({
-        headers,
-        validateStatus: () => true,
-      }),
-    );
+    const response = await axios.get(url, {
+      headers,
+      validateStatus: () => true,
+    });
     envelope = response.data;
     if (response.status >= 400) {
       throw new Error(
@@ -858,11 +844,7 @@ export const initiateKYC = async (
       wallet_address: payload.walletAddress,
     });
 
-    const response = await axios.post(
-      `${AGGREGATOR_URL}/kyc`,
-      payload,
-      await withAggregatorOutboundHeaders({}),
-    );
+    const response = await axios.post(`${AGGREGATOR_URL}/kyc`, payload);
 
     // Track successful response
     const responseTime = Date.now() - startTime;
@@ -915,10 +897,7 @@ export const fetchKYCStatus = async (
       wallet_address: walletAddress,
     });
 
-    const response = await axios.get(
-      `${AGGREGATOR_URL}/kyc/${walletAddress}`,
-      await withAggregatorOutboundHeaders({}),
-    );
+    const response = await axios.get(`${AGGREGATOR_URL}/kyc/${walletAddress}`);
 
     // Track successful response
     const responseTime = Date.now() - startTime;
@@ -1220,10 +1199,7 @@ export async function reindexTransaction(
     });
 
     const endpoint = `${AGGREGATOR_URL}/reindex/${network}/${txHash}`;
-    const response = await axios.get(
-      endpoint,
-      await withAggregatorOutboundHeaders({}),
-    );
+    const response = await axios.get(endpoint);
 
     // Track successful response (2xx status)
     const responseTime = Date.now() - startTime;
@@ -1317,10 +1293,7 @@ export const fetchTokens = async (): Promise<APIToken[]> => {
   }
   tokensInFlight = (async () => {
     try {
-      const response = await axios.get(
-        `${AGGREGATOR_URL}/tokens`,
-        await withAggregatorOutboundHeaders({}),
-      );
+      const response = await axios.get(`${AGGREGATOR_URL}/tokens`);
       const data =
         response.data?.data && Array.isArray(response.data.data)
           ? (response.data.data as APIToken[])
@@ -1342,10 +1315,7 @@ export const fetchTokens = async (): Promise<APIToken[]> => {
  * Currencies omitted from this response are unavailable in the active environment.
  */
 export const fetchSupportedCurrencyCodes = async (): Promise<string[]> => {
-  const response = await axios.get(
-    `${aggregatorOriginForV2()}/v2/currencies`,
-    await withAggregatorOutboundHeaders({}),
-  );
+  const response = await axios.get(`${aggregatorOriginForV2()}/v2/currencies`);
   const currencies = response.data?.data;
 
   if (!Array.isArray(currencies)) {

@@ -132,6 +132,8 @@ LOG_LEVEL=info                              # pino level: trace|debug|info|warn|
 
 Locally the tracer defaults to `localhost:8126` and is harmless with no agent running — traces are dropped, and logs still print as JSON.
 
+On **DigitalOcean App Platform**, pair these variables with a `datadog-agent` internal service component and a Datadog log drain — see [OBSERVABILITY.md](../OBSERVABILITY.md#digitalocean-app-platform-staging--production) and [deploy/datadog-agent/README.md](../deploy/datadog-agent/README.md).
+
 > **Note on `console`:** `next.config.mjs` strips `console.log` from production builds (`warn`/`error`/`info` are preserved). Anything that must be queryable in Datadog should go through `app/lib/logger.ts`, which emits JSON with `dd.trace_id` for trace correlation.
 
 ### Server-Side Analytics

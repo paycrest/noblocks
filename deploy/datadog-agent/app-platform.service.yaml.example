@@ -1,0 +1,56 @@
+# Merge this `services` entry into the noblocks App Platform app spec.
+# Component name must match DD_AGENT_HOST on the web service (default: datadog-agent).
+#
+# App Platform workers cannot receive inbound traffic — the agent must be a
+# service with internal_ports so the web component can reach APM on TCP 8126.
+# Internal routing is TCP-only; DogStatsD (UDP 8125) is not available on this
+# path — see OBSERVABILITY.md (runtime metrics from dd-trace are not shipped).
+#
+# Do not commit DD_API_KEY — set it as a RUN_TIME secret in the DO control panel.
+
+services:
+  - name: datadog-agent
+    image:
+      registry_type: DOCKER_HUB
+      registry: datadog
+      repository: agent
+      tag: "7"
+    instance_count: 1
+    instance_size_slug: professional-xs
+    internal_ports:
+      - 8126
+    envs:
+      - key: DD_SITE
+        value: datadoghq.eu
+        scope: RUN_TIME
+      - key: DD_ENV
+        value: staging
+        scope: RUN_TIME
+      - key: DD_APM_ENABLED
+        value: "true"
+        scope: RUN_TIME
+      - key: DD_APM_NON_LOCAL_TRAFFIC
+        value: "true"
+        scope: RUN_TIME
+      - key: DD_LOGS_ENABLED
+        value: "false"
+        scope: RUN_TIME
+      - key: DD_PROCESS_AGENT_ENABLED
+        value: "false"
+        scope: RUN_TIME
+      - key: DD_API_KEY
+        scope: RUN_TIME
+        type: SECRET
+
+# Example web service env block (add alongside existing noblocks envs):
+#
+#   - key: DD_SERVICE
+#     value: noblocks
+#   - key: DD_ENV
+#     value: staging
+#   - key: DD_AGENT_HOST
+#     value: datadog-agent
+#   - key: DD_TRACE_AGENT_PORT
+#     value: "8126"
+#   - key: DD_TRACE_ENABLED
+#     value: "true"

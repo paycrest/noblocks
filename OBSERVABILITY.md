@@ -107,8 +107,9 @@ The object comes **first** and becomes queryable attributes (`@feature:play`);
 the string is the message. Reversing them stringifies your data into the
 message and makes it unsearchable.
 
-`logger` stamps `dd.trace_id` / `dd.span_id` automatically, which is what makes
-the **View Trace** link appear on a log line in the Logs Explorer.
+`logger` stamps `env`, `dd.service`, `dd.env`, and (when a span is active)
+`dd.trace_id` / `dd.span_id` on every line. Use `@env:production` in log
+queries on App Platform; APM continues to use the `env` **tag** from `DD_ENV`.
 
 ### Why not `console`
 

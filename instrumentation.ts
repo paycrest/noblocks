@@ -55,9 +55,4 @@ export async function register() {
     // runtime metrics rather than failing.
     runtimeMetrics: true,
   });
-
-  const { registerAggregatorAxiosOutboundTracing } = await import(
-    "./app/lib/aggregator-axios-outbound.server"
-  );
-  registerAggregatorAxiosOutboundTracing();
 }

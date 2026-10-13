@@ -152,7 +152,7 @@ into a liability. The threshold monitors would likewise fire on staging noise.
 | Monitor | Query | Why |
 | --- | --- | --- |
 | **No tick in 10 minutes → page** | absence of `service:noblocks @env:production @feature:play @worker.ran_at:*` | Cron is `*/5`; two misses means scores silently stopped updating |
-| ≥1 alert log in 15 min → Slack | `service:noblocks @env:production @feature:play @worker.alerts_count:>0` | Internal failure inside a 200 (any tick with alerts in the window) |
+| ≥1 alert log in 15 min → Slack | `service:noblocks @env:production @feature:play @worker.ok:true @worker.alerts_count:>0` | Internal failure inside a 200 tick only (excludes crashed ticks; see `@worker.ok:false` monitor) |
 | Provider budget low → Slack | `service:noblocks @env:production @feature:play @worker.provider_remaining:<200` | Before the API-Football wall |
 | Crashed tick → Slack | `service:noblocks @env:production @feature:play @worker.ok:false` | Tick threw outright |
 

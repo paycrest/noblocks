@@ -49,11 +49,48 @@ The agent ports are bound to `127.0.0.1` and the Docker network. **Do not
 publish 8125/8126 on a public interface** — an open trace intake accepts
 arbitrary spans from anyone who can reach it.
 
-> **If noblocks moves to DigitalOcean App Platform** rather than a Droplet,
-> this sidecar does not apply: App Platform gives no Docker socket and no
-> co-located container. That would need a different transport for traces, and
-> the log path would have to change too. Confirm which product is in use before
-> relying on this file.
+## DigitalOcean App Platform (staging / production)
+
+Noblocks on App Platform has no Docker socket, so container log collection via
+the agent does not apply. Use **two paths**, mirroring the `aggregator` app:
+
+1. **Logs** — add a [Datadog log destination](https://docs.digitalocean.com/products/app-platform/how-to/forward-logs/) on the noblocks app (site `datadoghq.eu`). Runtime logs stay JSON on stdout from `app/lib/logger.ts`; the drain ships them to Datadog. The app does **not** need `DD_API_KEY`.
+2. **APM traces** — add a `datadog-agent` **service** component (not a worker) with `internal_ports: [8126]` so the web service can send traces over App Platform [internal TCP routing](https://docs.digitalocean.com/products/app-platform/how-to/manage-internal-routing/). See `deploy/datadog-agent/README.md` and merge `deploy/datadog-agent/app-platform.service.yaml.example` into your app spec.
+
+   **Runtime metrics (DogStatsD):** internal ports are TCP-only; UDP **8125** is not routable between components. `dd-trace` `runtimeMetrics` in `instrumentation.ts` does not reach the agent on App Platform. Use Droplet/docker-compose (or disable runtime metrics) if you need those signals; APM and log–trace correlation are unaffected.
+
+### Required environment variables (noblocks web service)
+
+Set in the App Platform UI or app spec (values are examples; do not commit secrets):
+
+| Variable | Example | Notes |
+| --- | --- | --- |
+| `DD_SERVICE` | `noblocks` | APM service name |
+| `DD_ENV` | `staging` / `production` | Must match RUM `NEXT_PUBLIC_DD_ENV` for correlation |
+| `DD_VERSION` | git SHA from CI | Optional but recommended |
+| `DD_AGENT_HOST` | `datadog-agent` | **Internal service component name** from the example spec |
+| `DD_TRACE_AGENT_PORT` | `8126` | Default APM port |
+| `DD_TRACE_ENABLED` | `true` | Read once at process startup |
+| `LOG_LEVEL` | `info` | pino level |
+
+RUM variables (`NEXT_PUBLIC_DD_*`) remain on the web service as documented in
+`docs/environment-variables.md`.
+
+### Required environment variables (`datadog-agent` service)
+
+| Variable | Example | Notes |
+| --- | --- | --- |
+| `DD_API_KEY` | *(secret)* | EU org API key — **agent service only** |
+| `DD_SITE` | `datadoghq.eu` | Must match org |
+| `DD_ENV` | `staging` / `production` | Tags forwarded traces/logs |
+| `DD_APM_ENABLED` | `true` | |
+| `DD_APM_NON_LOCAL_TRAFFIC` | `true` | Accept traces from the web component |
+| `DD_LOGS_ENABLED` | `false` | Log drain handles noblocks stdout on App Platform |
+
+After deploy, confirm APM → Services → `noblocks` and Logs Explorer →
+`service:noblocks @env:staging` (or `@env:production`). On App Platform log
+drains, `env` is a JSON field on each line (`@env` in queries), not the Datadog
+`env` tag — see `app/lib/logger.ts` bindings.
 
 ## Writing logs
 
@@ -70,8 +107,9 @@ The object comes **first** and becomes queryable attributes (`@feature:play`);
 the string is the message. Reversing them stringifies your data into the
 message and makes it unsearchable.
 
-`logger` stamps `dd.trace_id` / `dd.span_id` automatically, which is what makes
-the **View Trace** link appear on a log line in the Logs Explorer.
+`logger` stamps `env`, `dd.service`, `dd.env`, and (when a span is active)
+`dd.trace_id` / `dd.span_id` on every line. Use `@env:production` in log
+queries on App Platform; APM continues to use the `env` **tag** from `DD_ENV`.
 
 ### Why not `console`
 
@@ -105,20 +143,24 @@ failure mode worth alerting on.
 
 ### Monitors worth having
 
-Every query below is scoped `env:production`. **Do not drop that scope.** Staging
-shares this Datadog org, so an unscoped absence monitor is satisfied by staging
-ticks and a production outage would never page — the monitor inverted into a
-liability. The threshold monitors would likewise fire on staging noise.
+Every query below is scoped `@env:production` (log attribute from pino, not the
+Datadog `env` tag — DO log drains do not set tags). **Do not drop that scope.**
+Staging shares this Datadog org, so an unscoped absence monitor is satisfied by
+staging ticks and a production outage would never page — the monitor inverted
+into a liability. The threshold monitors would likewise fire on staging noise.
 
 | Monitor | Query | Why |
 | --- | --- | --- |
-| **No tick in 10 minutes → page** | absence of `service:noblocks env:production @feature:play @worker.ran_at:*` | Cron is `*/5`; two misses means scores silently stopped updating |
-| Alerts sustained 15 min → Slack | `service:noblocks env:production @feature:play @worker.alerts_count:>0` | Internal failure inside a 200 |
-| Provider budget low → Slack | `service:noblocks env:production @feature:play @worker.provider_remaining:<200` | Before the API-Football wall |
-| Crashed tick → Slack | `service:noblocks env:production @feature:play @worker.ok:false` | Tick threw outright |
+| **No tick in 10 minutes → page** | absence of `service:noblocks @env:production @feature:play @worker.ran_at:*` | Cron is `*/5`; two misses means scores silently stopped updating |
+| ≥1 alert log in 15 min → Slack | `service:noblocks @env:production @feature:play @worker.ok:true @worker.alerts_count:>0` | Internal failure inside a 200 tick only (excludes crashed ticks; see `@worker.ok:false` monitor) |
+| Provider budget low → Slack | `service:noblocks @env:production @feature:play @worker.provider_remaining:<200` | Before the API-Football wall |
+| Crashed tick → Slack | `service:noblocks @env:production @feature:play @worker.ok:false` | Tick threw outright |
 
 The first one is the one that matters. When the cron dies, nothing else
 anywhere reports it.
+
+Codified definitions for import or review live under
+`scripts/datadog/monitors/` (see README there).
 
 ## KYC telemetry
 
@@ -163,7 +205,7 @@ header chain rather than an unauthenticated user.
 ### Supporting a user
 
 ```text
-service:noblocks env:production @feature:kyc @kyc.wallet_address:0x1234…
+service:noblocks @env:production @feature:kyc @kyc.wallet_address:0x1234…
 ```
 
 Lower-case the address — the facet is normalised, and a checksummed address
@@ -173,16 +215,16 @@ request itself.
 
 ### Monitors worth having
 
-As with the worker monitors above, every query is scoped `env:production`.
+As with the worker monitors above, every query is scoped `@env:production`.
 **Do not drop that scope** — staging shares this Datadog org.
 
 | Monitor | Query | Why |
 | --- | --- | --- |
-| **KYC infrastructure failure → page** | `service:noblocks env:production @feature:kyc @kyc.outcome:error` | Smile ID, Dojah, or Supabase is failing upgrades; users cannot verify at all |
-| Provider outage burning attempts → Slack | `service:noblocks env:production @feature:kyc @kyc.failure_category:database` | Smile ID infrastructure failures, which refund the attempt — a spike means the provider, not our users |
-| Verified-and-lost → page | `service:noblocks env:production @feature:kyc @kyc.stage:profile_update @kyc.outcome:error` | The provider approved them and the write failed: the user spent an attempt and stayed on the old tier |
-| Callback signature failures → Slack | `service:noblocks env:production @feature:kyc @kyc.reason:invalid_signature` | A genuine Smile ID callback never fails this |
-| Rejection mix → dashboard | `service:noblocks env:production @feature:kyc @kyc.outcome:rejected`, grouped by `@kyc.reason` and `@kyc.id_type` | Which ID types and reasons dominate; the input to fixing the flow rather than individual tickets |
+| **KYC infrastructure failure → page** | `service:noblocks @env:production @feature:kyc @kyc.outcome:error` | Smile ID, Dojah, or Supabase is failing upgrades; users cannot verify at all |
+| Provider outage burning attempts → Slack | `service:noblocks @env:production @feature:kyc @kyc.failure_category:database` | Smile ID infrastructure failures, which refund the attempt — a spike means the provider, not our users |
+| Verified-and-lost → page | `service:noblocks @env:production @feature:kyc @kyc.stage:profile_update @kyc.outcome:error` | The provider approved them and the write failed: the user spent an attempt and stayed on the old tier |
+| Callback signature failures → Slack | `service:noblocks @env:production @feature:kyc @kyc.reason:invalid_signature` | A genuine Smile ID callback never fails this |
+| Rejection mix → dashboard | `service:noblocks @env:production @feature:kyc @kyc.outcome:rejected`, grouped by `@kyc.reason` and `@kyc.id_type` | Which ID types and reasons dominate; the input to fixing the flow rather than individual tickets |
 
 ### Client-side
 
@@ -208,7 +250,7 @@ Deploy, wait ~60s, then in the **EU** app:
 | Check | Where |
 | --- | --- |
 | APM service appears | APM → Services → `noblocks` |
-| Logs flowing | Logs Explorer → `service:noblocks env:production` |
+| Logs flowing | Logs Explorer → `service:noblocks @env:production` |
 | Trace–log correlation | Open a log line → **View Trace** is present |
 | Worker ticks | Logs → `@feature:play @worker.ran_at:*` |
 | KYC steps | Logs → `@feature:kyc @kyc.step:*` |

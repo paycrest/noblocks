@@ -46,11 +46,18 @@ export const logger = pino({
     level: (label) => ({ [DD_LEVEL_KEY]: label }),
     // Stamped on every line so logs are filterable even when a trace is absent
     // (cron ticks, boot-time work).
-    bindings: () => ({
-      "dd.service": process.env.DD_SERVICE || "noblocks",
-      "dd.env": process.env.DD_ENV || process.env.NODE_ENV || "development",
-      "dd.version": process.env.DD_VERSION || "",
-    }),
+    bindings: () => {
+      const env =
+        process.env.DD_ENV || process.env.NODE_ENV || "development";
+      return {
+        // Plain `env` for log queries (@env:…) — DO log drains do not set the
+        // Datadog `env` tag; dd.env remains for trace/log correlation.
+        env,
+        "dd.service": process.env.DD_SERVICE || "noblocks",
+        "dd.env": env,
+        "dd.version": process.env.DD_VERSION || "",
+      };
+    },
   },
   mixin: traceContext,
   // Datadog expects millisecond epoch under `timestamp`.

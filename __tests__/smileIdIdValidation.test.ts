@@ -158,6 +158,8 @@ describe("normalizeSmileIdDate", () => {
     expect(normalizeSmileIdDate("April 12 1990")).toBeNull();
     expect(normalizeSmileIdDate("2999-01-01")).toBeNull();
     expect(normalizeSmileIdDate(null)).toBeNull();
+    expect(normalizeSmileIdDate(19900412)).toBeNull();
+    expect(normalizeSmileIdDate({ year: 1990 })).toBeNull();
   });
 });
 

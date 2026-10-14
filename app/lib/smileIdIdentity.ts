@@ -45,8 +45,9 @@ function firstString(bags: (Bag | null)[], keys: string[]): string | null {
  * and DD-MM-YYYY / DD/MM/YYYY, which some ID authorities return; anything else is null rather
  * than guessed.
  */
-export function normalizeSmileIdDate(raw: string | null): string | null {
-  if (!raw) return null;
+export function normalizeSmileIdDate(raw: unknown): string | null {
+  // Request bodies are untyped: anything but a non-empty string is no date.
+  if (typeof raw !== "string" || !raw) return null;
   const s = raw.trim();
   let y: number, m: number, d: number;
   let match =

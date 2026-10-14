@@ -406,6 +406,20 @@ export async function dojahCallback(request: Request) {
 }
 ```
 
+## On-ramp customer KYC
+
+Every on-ramp (Buy) order must carry the customer's KYC in the aggregator's `source.kyc`. `POST /api/v1/payment-orders` builds it on the server from the user's verified profile (`app/lib/onramp-kyc.ts`), across the wallets of the same identity, and replaces anything the client sent:
+
+- full name, date of birth (18 or over) and the verified identity document;
+- for NGN, the BVN or NIN as the identity document (the NIN first);
+- for KES, the user's Kenyan mobile number.
+
+When something is missing the route answers 422 `{ code: "onramp_kyc_incomplete", error, missing, quickVerify }` and the Buy screen opens `OnrampIdentityModal` instead of showing an error.
+
+### BVN/NIN check (`POST /api/kyc/identity-check`)
+
+For an ID-verified user buying with NGN who lacks only the BVN/NIN, date of birth or verified name, the modal asks for their BVN or NIN. Smile ID's ID-number lookup (Enhanced KYC, job type 5, no selfie) returns the record's name, date of birth and phone. The number is accepted only when the record is the user's: its phone matches their OTP-verified phone, or its name matches their verified name. It is refused when another account's verified profile already holds it. On success the number is stored in `user_kyc_profiles.bvn` / `nin`, beside the verified document, with the date of birth when none is stored and the record's name; then the order is retried.
+
 ## State Machine
 
 KYC status transitions:

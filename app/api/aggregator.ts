@@ -1710,6 +1710,25 @@ export async function createV2SenderPaymentOrder(
   return response.data;
 }
 
+/**
+ * Confirms the user's BVN or NIN for on-ramp KYC (POST /api/kyc/identity-check). Throws an axios
+ * error on refusal; its response body carries `{ code, error }`.
+ */
+export async function submitOnrampIdentityCheck(
+  idType: "BVN" | "NIN",
+  idNumber: string,
+  accessToken: string | null,
+  injectedToken: string | null = null,
+): Promise<void> {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (injectedToken) {
+    headers["x-injected-token"] = injectedToken;
+  } else if (accessToken) {
+    headers.Authorization = `Bearer ${accessToken}`;
+  }
+  await axios.post("/api/kyc/identity-check", { idType, idNumber }, { headers });
+}
+
 /** Recipient fields the client supplies for an offramp order; the server adds the nonce and sender API key. */
 export type OfframpMessageHashPayload = {
   accountIdentifier: string;

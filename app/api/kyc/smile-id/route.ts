@@ -12,6 +12,7 @@ import idTypesData from "./id_types.json";
 import { rateLimit } from "@/app/lib/rate-limit";
 import { notifyKycResultEmail } from "@/app/lib/activepieces-kyc-result";
 import { createKycReporter, emitKycEvent } from "@/app/lib/kyc-telemetry";
+import { extractSmileIdIdentity, normalizeSmileIdDate } from "@/app/lib/smileIdIdentity";
 
 /**
  * Country|ID-type pairs the app actually offers. The KYC modal builds its
@@ -444,8 +445,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Extract ID info from Smile ID response if available
-    const smileIdInfo = smileIdResult?.id_info || {};
+    // The verified identity Smile ID returned (result.FullName / DOB / IDNumber).
+    const smileIdentity = extractSmileIdIdentity(smileIdResult);
 
     const existingPlatform = Array.isArray(existingProfile?.platform)
       ? existingProfile.platform
@@ -466,19 +467,14 @@ export async function POST(request: NextRequest) {
     // Tier 2 (ID) only after Tier 1 (phone): do not promote from tier 0 straight to 2
     const newTier = tierFrom >= 1 ? Math.max(tierFrom, 2) : tierFrom;
 
-    const derivedFullName =
-      smileIdInfo.full_name ||
-      (smileIdInfo.first_name && smileIdInfo.last_name
-        ? `${smileIdInfo.first_name} ${smileIdInfo.last_name}`
-        : null) ||
-      null;
+    const derivedFullName = smileIdentity.fullName;
 
     // One verified identity per ID document: the same document must not back
     // multiple wallet profiles (each would get its own monthly limit).
     // `undefined` (not null) when absent: supabase-js drops undefined keys from
     // the update, preserving any previously stored id_number.
     const idNumberToStore: string | undefined =
-      smileIdInfo.id_number || id_info.id_number || undefined;
+      smileIdentity.idNumber || id_info.id_number || undefined;
     // Injected/bridge wallets are exempt in both directions — neither checked nor
     // counted as owners. Tier >= 1 is a precondition above, so the flag was already
     // set by send-otp when the profile was created; no header read is needed here.
@@ -549,7 +545,8 @@ export async function POST(request: NextRequest) {
         id_country: id_info.country,
         // Personal info from Smile ID response — only overwrite if SmileID returned a name
         ...(derivedFullName ? { full_name: derivedFullName } : {}),
-        date_of_birth: smileIdInfo.dob || id_info.dob || null,
+        date_of_birth:
+          smileIdentity.dateOfBirth || normalizeSmileIdDate(id_info.dob ?? null) || null,
         platform: updatedPlatform,
         verified: true,
         verified_at: new Date().toISOString(),

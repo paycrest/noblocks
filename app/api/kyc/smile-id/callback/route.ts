@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/app/lib/supabase";
 import { getSmileIdJobStatus } from "@/app/lib/smileID";
+import { extractSmileIdIdentity, type SmileIdIdentity } from "@/app/lib/smileIdIdentity";
 import { notifyKycResultEmail } from "@/app/lib/activepieces-kyc-result";
 import { createKycReporter } from "@/app/lib/kyc-telemetry";
 
@@ -219,7 +220,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ status: "ok", action: "none" });
   }
 
-  let signedIdInfo: Record<string, any> = {};
+  let signedIdentity: SmileIdIdentity = { fullName: null, dateOfBirth: null, idNumber: null };
   try {
     const jobStatus = await getSmileIdJobStatus(rawUserId, jobId);
     const statusActions = jobStatus?.result?.Actions ?? {};
@@ -251,8 +252,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ status: "ok", action: "none" });
     }
 
-    const statusResult = (jobStatus?.result ?? {}) as Record<string, any>;
-    signedIdInfo = statusResult.id_info ?? statusResult.ID_Info ?? {};
+    signedIdentity = extractSmileIdIdentity(jobStatus);
   } catch (e) {
     report.failed({
       walletAddress,
@@ -280,14 +280,8 @@ export async function POST(request: NextRequest) {
   const currentTier = Number(existing.tier) || 0;
   const newTier = currentTier >= 1 ? Math.max(currentTier, 2) : currentTier;
 
-  // Optionally enrich with personal info from the signed job_status response.
-  const smileIdInfo = signedIdInfo;
-  const derivedFullName =
-    smileIdInfo.full_name ||
-    (smileIdInfo.first_name && smileIdInfo.last_name
-      ? `${smileIdInfo.first_name} ${smileIdInfo.last_name}`
-      : null) ||
-    null;
+  // Enrich with the verified identity from the signed job_status response.
+  const derivedFullName = signedIdentity.fullName;
 
   // Raising tier to 2 can newly pull this row into uniq_user_kyc_profiles_verified_id
   // (the index covers tier >= 2 only), even though no id_number is written here. If
@@ -354,7 +348,7 @@ export async function POST(request: NextRequest) {
       verified_at: new Date().toISOString(),
       tier: newTier,
       ...(derivedFullName ? { full_name: derivedFullName } : {}),
-      ...(smileIdInfo.dob ? { date_of_birth: smileIdInfo.dob } : {}),
+      ...(signedIdentity.dateOfBirth ? { date_of_birth: signedIdentity.dateOfBirth } : {}),
     })
     .eq("wallet_address", walletAddress);
 

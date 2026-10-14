@@ -205,6 +205,41 @@ describe("handleOnrampIdentityCheck", () => {
     expect(ops.some((o) => o.op === "update" && JSON.stringify(o.payload) === '{"nin":"12345678901"}')).toBe(true);
   });
 
+  it("never replaces a verified name on a phone-only match", async () => {
+    smile({ FullName: "MARY SMITH" });
+    const res = await handleOnrampIdentityCheck(request({ idType: "BVN", idNumber: "22212345678" }));
+    expect(res.status).toBe(200);
+    expect(ops.some((o) => o.op === "update" && "full_name" in (o.payload as object))).toBe(false);
+  });
+
+  it("fills an empty name on a phone match", async () => {
+    const base = respond;
+    respond = (op) =>
+      op.op === "select" && op.filters.some(([, col]) => col === "wallet_address")
+        ? { data: { tier: 2, full_name: null, date_of_birth: null, phone_number: "+2348031234567" }, error: null }
+        : base(op);
+    smile({ FullName: "ADA CHIOMA OBI" });
+    const res = await handleOnrampIdentityCheck(request({ idType: "BVN", idNumber: "22212345678" }));
+    expect(res.status).toBe(200);
+    expect(ops.some((o) => o.op === "update" && JSON.stringify(o.payload) === '{"full_name":"ADA CHIOMA OBI"}')).toBe(true);
+  });
+
+  it("takes the number back when another account claimed it concurrently", async () => {
+    const base = respond;
+    let stored = false;
+    respond = (op) => {
+      if (op.op === "update" && JSON.stringify(op.payload) === '{"bvn":"22212345678"}') stored = true;
+      if (stored && op.op === "select" && op.filters.some(([, col]) => col === "bvn")) {
+        return { data: [{ wallet_address: "0xcccc" }], error: null };
+      }
+      return base(op);
+    };
+    smile();
+    const res = await handleOnrampIdentityCheck(request({ idType: "BVN", idNumber: "22212345678" }));
+    expect(res.status).toBe(409);
+    expect(ops.some((o) => o.op === "update" && JSON.stringify(o.payload) === '{"bvn":null}')).toBe(true);
+  });
+
   it("refuses a record whose phone and name are not the user's, and stores nothing", async () => {
     smile({ PhoneNumber: "08099999999", FullName: "MARY SMITH" });
     const res = await handleOnrampIdentityCheck(request({ idType: "BVN", idNumber: "22212345678" }));

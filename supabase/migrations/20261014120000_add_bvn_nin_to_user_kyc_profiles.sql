@@ -5,8 +5,10 @@
 -- and the identity-uniqueness index); the BVN or NIN confirmed by the on-ramp identity check is
 -- stored alongside it here instead of replacing it.
 --
--- Expand only: nullable columns, no backfill, no constraint. Code that does not know them keeps
--- working.
+-- Expand only: nullable columns, no backfill. No unique index: sibling wallets of one identity
+-- (see app/lib/kyc-identity.ts) may legitimately share a number, so "one number per identity"
+-- is enforced by the identity check, which re-checks for another holder after it writes.
+-- Code that does not know the columns keeps working.
 
 ALTER TABLE public.user_kyc_profiles
   ADD COLUMN IF NOT EXISTS bvn TEXT,

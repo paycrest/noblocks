@@ -68,23 +68,30 @@ export async function handleOnrampIdentityCheck(request: NextRequest): Promise<N
   }
 
   // The number must not already belong to someone else: another verified wallet outside this
-  // person's identity, holding it in the same column or as its verified document.
+  // person's identity, holding it in the same column or as its verified document. A unique
+  // index cannot express this (sibling wallets of one identity may share the number), so it is
+  // checked here, and again after the write to catch a concurrent claim (below).
   const docTypes = idType === "BVN" ? ["BVN"] : ["NIN", "NIN_SLIP", "NIN_V2"];
-  const [byColumn, byDocument] = await Promise.all([
-    supabaseAdmin.from("user_kyc_profiles").select("wallet_address").eq(column, idNumber).gte("tier", 2),
-    supabaseAdmin
-      .from("user_kyc_profiles")
-      .select("wallet_address")
-      .eq("id_number", idNumber)
-      .in("id_type", docTypes)
-      .gte("tier", 2),
-  ]);
-  if (byColumn.error || byDocument.error) {
+  const identityWallets = scope.wallets;
+  const otherHolders = async (): Promise<string[] | null> => {
+    const [byColumn, byDocument] = await Promise.all([
+      supabaseAdmin.from("user_kyc_profiles").select("wallet_address").eq(column, idNumber).gte("tier", 2),
+      supabaseAdmin
+        .from("user_kyc_profiles")
+        .select("wallet_address")
+        .eq("id_number", idNumber)
+        .in("id_type", docTypes)
+        .gte("tier", 2),
+    ]);
+    if (byColumn.error || byDocument.error) return null;
+    return [...(byColumn.data ?? []), ...(byDocument.data ?? [])]
+      .map((r) => String(r.wallet_address ?? "").toLowerCase())
+      .filter((w) => w && !identityWallets.includes(w));
+  };
+  const holders = await otherHolders();
+  if (!holders) {
     return fail(request, 503, "kyc_db_error", "Could not check your identity right now. Please try again.");
   }
-  const holders = [...(byColumn.data ?? []), ...(byDocument.data ?? [])]
-    .map((r) => String(r.wallet_address ?? "").toLowerCase())
-    .filter((w) => w && !scope.wallets.includes(w));
   if (holders.length > 0) {
     return fail(request, 409, "id_in_use", "This number is already linked to another Noblocks account.");
   }
@@ -122,8 +129,10 @@ export async function handleOnrampIdentityCheck(request: NextRequest): Promise<N
     );
   }
 
-  // Store the number; fill the birth date only when none is stored; adopt the record's name when
-  // it is in Latin letters and differs. Each write is conditional on what was read.
+  // Store the number; fill the birth date only when none is stored. The record's name (in Latin
+  // letters) replaces the stored name only when the names already match, so a record accepted on
+  // the phone alone (a relative's BVN on a shared phone) never overwrites a verified name; it may
+  // fill a name that is empty. Each write is conditional on what was read.
   const writes: PromiseLike<{ error: { code?: string } | null }>[] = [
     supabaseAdmin.from("user_kyc_profiles").update({ [column]: idNumber }).eq("wallet_address", walletAddress),
   ];
@@ -136,7 +145,9 @@ export async function handleOnrampIdentityCheck(request: NextRequest): Promise<N
         .is("date_of_birth", null),
     );
   }
-  if (identity.fullName && /[A-Za-z]/.test(identity.fullName) && identity.fullName !== profile.full_name) {
+  const replaceName = nameMatches && identity.fullName !== profile.full_name;
+  const fillName = !profile.full_name && phoneMatches;
+  if (identity.fullName && /[A-Za-z]/.test(identity.fullName) && (replaceName || fillName)) {
     const nameWrite = supabaseAdmin
       .from("user_kyc_profiles")
       .update({ full_name: identity.fullName })
@@ -146,6 +157,20 @@ export async function handleOnrampIdentityCheck(request: NextRequest): Promise<N
   const results = await Promise.all(writes);
   if (results.some((w) => w.error)) {
     return fail(request, 503, "kyc_db_error", "Could not save your details. Please try again.");
+  }
+
+  // A concurrent check by another account may have stored the same number between the first
+  // check and this write. Re-check; on a conflict, take this account's number back and refuse.
+  const after = await otherHolders();
+  if (!after || after.length > 0) {
+    await supabaseAdmin
+      .from("user_kyc_profiles")
+      .update({ [column]: null })
+      .eq("wallet_address", walletAddress)
+      .eq(column, idNumber);
+    return after
+      ? fail(request, 409, "id_in_use", "This number is already linked to another Noblocks account.")
+      : fail(request, 503, "kyc_db_error", "Could not save your details. Please try again.");
   }
 
   trackApiResponse(ROUTE, "POST", 200, Date.now() - startTime, { wallet_address: walletAddress });

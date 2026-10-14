@@ -1,6 +1,8 @@
 import {
   mapAggregatorStatusToDbStatus,
   resolveOnrampOrderStatusFromV2Response,
+  isOnrampUnderReview,
+  mapV2SenderOrderGetToOrderDetailsData,
 } from "../app/api/aggregator";
 
 /**
@@ -70,9 +72,19 @@ describe("resolveOnrampOrderStatusFromV2Response", () => {
     ).toBe("pending");
   });
 
-  it("infers expired once the payment window has closed", () => {
-    // Without this an unfunded onramp order stays pending forever — the client
-    // polls it endlessly and the reconciler re-fetches it on every run.
+  it("never infers expired from a closed payment window", () => {
+    // A deposit held for a compliance review stays pending past validUntil and does not
+    // expire; calling it expired would tell a customer whose money arrived to pay again.
+    // The aggregator expires an unpaid order itself.
+    expect(
+      resolveOnrampOrderStatusFromV2Response(
+        envelope({
+          status: "pending",
+          statusDetail: "under_review",
+          providerAccount: { validUntil: iso(-60_000) },
+        }),
+      ),
+    ).toBe("pending");
     expect(
       resolveOnrampOrderStatusFromV2Response(
         envelope({
@@ -80,7 +92,7 @@ describe("resolveOnrampOrderStatusFromV2Response", () => {
           providerAccount: { validUntil: iso(-60_000) },
         }),
       ),
-    ).toBe("expired");
+    ).toBe("pending");
   });
 
   it("keeps pending when there is no usable validUntil", () => {
@@ -99,5 +111,27 @@ describe("resolveOnrampOrderStatusFromV2Response", () => {
 
   it("returns undefined when the envelope carries no order data", () => {
     expect(resolveOnrampOrderStatusFromV2Response(envelope(null))).toBeUndefined();
+  });
+});
+
+describe("isOnrampUnderReview", () => {
+  it("is true only for a pending order flagged under_review", () => {
+    expect(isOnrampUnderReview({ status: "pending", statusDetail: "under_review" })).toBe(true);
+    expect(isOnrampUnderReview({ status: "PENDING", statusDetail: "under_review" })).toBe(true);
+    expect(isOnrampUnderReview({ status: "pending" })).toBe(false);
+    expect(isOnrampUnderReview({ status: "refunded", statusDetail: "under_review" })).toBe(false);
+    expect(isOnrampUnderReview(null)).toBe(false);
+  });
+});
+
+describe("mapV2SenderOrderGetToOrderDetailsData", () => {
+  it("carries statusDetail and refundReason through", () => {
+    const mapped = mapV2SenderOrderGetToOrderDetailsData({
+      id: "o1",
+      status: "refunded",
+      refundReason: "payer_mismatch",
+    });
+    expect(mapped?.refundReason).toBe("payer_mismatch");
+    expect(mapped?.statusDetail).toBeUndefined();
   });
 });

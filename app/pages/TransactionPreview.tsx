@@ -26,6 +26,7 @@ import { useNetwork, useTokens, useStarknet, useEmbed } from "../context";
 import config, { getDelegationContractAddress } from "../lib/config";
 import { appendAttributionSuffix } from "../lib/baseBuilderCode";
 import { mapReportAndAct } from "../lib/toastMappedError";
+import { onrampOrderErrorMessage } from "../lib/errorMessages";
 import type {
   Token,
   TransactionPreviewProps,
@@ -976,9 +977,7 @@ export const TransactionPreview = ({
         );
         if (res.status !== "success" || !res.data) {
           const msg =
-            typeof res.message === "string"
-              ? res.message
-              : "Failed to create payment order";
+            onrampOrderErrorMessage(res) || "Failed to create payment order";
           throw new Error(msg);
         }
 
@@ -1013,8 +1012,7 @@ export const TransactionPreview = ({
       } catch (e) {
         let msg: string;
         if (axios.isAxiosError(e)) {
-          const data = e.response?.data as { message?: string } | undefined;
-          msg = data?.message || e.message;
+          msg = onrampOrderErrorMessage(e.response?.data) || e.message;
         } else {
           const error = e as BaseError;
           msg = error.shortMessage || error.message;

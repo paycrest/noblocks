@@ -71,22 +71,35 @@ export function mapAggregatorStatusToDbStatus(
 }
 
 /**
- * On-ramp: aggregator may still return `pending` after the VA window; if `validUntil` is in the past
- * and no later status arrived, treat as expired (matches product expectation for unfunded orders).
+ * On-ramp order status as the aggregator reports it. Never inferred from `validUntil`: a deposit
+ * held for a compliance review stays `pending` past the payment window and does not expire, so
+ * calling it expired would tell a customer whose money arrived to pay again. The aggregator
+ * expires an unpaid order itself shortly after the window closes.
  */
 export function resolveOnrampOrderStatusFromV2Response(
   res: AggregatorEnvelope<V2PaymentOrderGetData>,
 ): string | undefined {
   const data = res?.data;
   if (!data || typeof data !== "object") return undefined;
-  const status = String(data.status ?? "");
-  const s = status.toLowerCase();
-  if (s !== "pending") return status;
-  const validUntil = data.providerAccount?.validUntil;
-  if (!validUntil) return status;
-  const end = new Date(validUntil).getTime();
-  if (Number.isNaN(end) || Date.now() <= end) return status;
-  return "expired";
+  return String(data.status ?? "");
+}
+
+/** `statusDetail` while a pending on-ramp deposit is held for a compliance review. */
+export const ONRAMP_STATUS_DETAIL_UNDER_REVIEW = "under_review";
+
+/** `refundReason` values on a deposit returned to the account it came from. */
+export const ONRAMP_REFUND_REASON_PAYER_MISMATCH = "payer_mismatch";
+export const ONRAMP_REFUND_REASON_PAYER_UNVERIFIED = "payer_unverified";
+
+/** Whether a v2 on-ramp order's deposit is being reviewed (`statusDetail: "under_review"`). */
+export function isOnrampUnderReview(
+  data: { status?: unknown; statusDetail?: unknown } | null | undefined,
+): boolean {
+  return (
+    !!data &&
+    String(data.status ?? "").toLowerCase() === "pending" &&
+    data.statusDetail === ONRAMP_STATUS_DETAIL_UNDER_REVIEW
+  );
 }
 
 export function unwrapV2SenderOrderEnvelope(
@@ -193,6 +206,8 @@ export function mapV2SenderOrderGetToOrderDetailsData(
     settlements: [],
     txReceipts,
     updatedAt,
+    ...(typeof d.statusDetail === "string" ? { statusDetail: d.statusDetail } : {}),
+    ...(typeof d.refundReason === "string" ? { refundReason: d.refundReason } : {}),
   };
 }
 

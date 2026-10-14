@@ -244,7 +244,7 @@ export const BridgeForm: React.FC<BridgeFormProps> = ({
 
   // Which rail actually served the quote. Predicted from the pair while one is in flight;
   // once a quote lands it is the source of truth, because a NEAR pair with no solver
-  // inventory (USDT on Base, any Lisk/Celo leg) falls back to LI.FI inside useBridgeQuote.
+  // inventory (USDT on Base, any Celo/Tron leg) falls back to LI.FI inside useBridgeQuote.
   const engine: BridgeEngine | null = quote
     ? engineFromQuote(quote)
     : from && to

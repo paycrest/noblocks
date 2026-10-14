@@ -26,7 +26,6 @@ const CHAIN_ID: Record<string, number> = {
   Polygon: 137,
   "BNB Smart Chain": 56,
   Ethereum: 1,
-  Lisk: 1135,
 };
 
 const leg = (
@@ -84,12 +83,6 @@ describe("HyperFX routing", () => {
     expect(selectEngine(from, to)).toBe("lifi");
   });
 
-  it("does not route hyperfx on Lisk (cNGN present but not on Hyperbridge)", () => {
-    const from = leg("Lisk", "USDT", "0x05D032ac25d322df992303dCa074EE7392C117b9");
-    const to = leg("Lisk", "cNGN", "0xC7aB2C35Ea37236e644C24A4E4a1911c082887c0");
-    expect(isHyperfxRoute(from, to)).toBe(false);
-    expect(selectEngine(from, to)).toBe("lifi");
-  });
 });
 
 describe("HyperFX disabled", () => {

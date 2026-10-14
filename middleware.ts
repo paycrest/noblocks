@@ -544,6 +544,7 @@ export const config = {
     "/api/v1/wallets/moralis-stream/register",
     "/api/blockfest/cashback",
     "/api/kyc/smile-id",
+    "/api/kyc/identity-check",
     "/api/kyc/status",
     "/api/kyc/transaction-summary",
     "/api/kyc/tier3-verify",

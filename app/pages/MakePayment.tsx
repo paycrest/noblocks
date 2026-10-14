@@ -17,8 +17,13 @@ import type { OnrampPaymentInstructions, TransactionPreviewProps } from "../type
 import { useStep } from "../context";
 import {
     fetchV2SenderPaymentOrderById,
+    isOnrampUnderReview,
     resolveOnrampOrderStatusFromV2Response,
 } from "../api/aggregator";
+
+/** How often to check for the payment while the window is open, and after it closes. */
+const PAYMENT_POLL_MS = 3_000;
+const PAYMENT_POLL_AFTER_WINDOW_MS = 10_000;
 function getOrderStatusFromFetchPayload(body: unknown): string | undefined {
     if (!body || typeof body !== "object") return undefined;
     const o = body as Record<string, unknown>;
@@ -59,7 +64,11 @@ export const MakePayment = ({
     const [loadError, setLoadError] = useState<string | null>(null);
 
     const [timeRemaining, setTimeRemaining] = useState<string>("");
-    const [sessionExpired, setSessionExpired] = useState(false);
+    // The client payment window closing is not the order expiring: a payment sent near the end
+    // may still be on its way, and a deposit under review stays pending. Only the aggregator
+    // says an order expired, so the page keeps checking.
+    const [windowClosed, setWindowClosed] = useState(false);
+    const [underReview, setUnderReview] = useState(false);
     const [isAccountNumberCopied, setIsAccountNumberCopied] = useState(false);
     const [isAmountCopied, setIsAmountCopied] = useState(false);
     const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -68,7 +77,8 @@ export const MakePayment = ({
 
     useEffect(() => {
         sessionDeadlineMsRef.current = null;
-        setSessionExpired(false);
+        setWindowClosed(false);
+        setUnderReview(false);
 
         let cancelled = false;
         const load = async () => {
@@ -140,7 +150,7 @@ export const MakePayment = ({
 
     // Countdown from client session deadline (not API expiresAt)
     useEffect(() => {
-        if (!paymentDetails || sessionExpired) return;
+        if (!paymentDetails || windowClosed) return;
         const deadline = sessionDeadlineMsRef.current;
         if (deadline === null) {
             setTimeRemaining("--:--");
@@ -152,8 +162,7 @@ export const MakePayment = ({
 
             if (diff <= 0) {
                 setTimeRemaining("00:00");
-                setSessionExpired(true);
-                setTransactionStatus("expired");
+                setWindowClosed(true);
                 return;
             }
 
@@ -168,19 +177,24 @@ export const MakePayment = ({
         const interval = setInterval(updateTimer, 1000);
 
         return () => clearInterval(interval);
-    }, [paymentDetails, sessionExpired, setTransactionStatus]);
+    }, [paymentDetails, windowClosed]);
+
+    // The order starts waiting for payment once its details load. Separate from polling, which
+    // restarts at a slower pace when the payment window closes.
+    useEffect(() => {
+        if (!paymentDetails || !orderId) return;
+        setTransactionStatus("pending");
+        setCreatedAt(new Date().toISOString());
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- once per loaded order
+    }, [paymentDetails, orderId]);
 
     // Auto-start: poll aggregator for payment detection (no manual "I sent funds" click)
     useEffect(() => {
-        if (sessionExpired) return;
         if (!paymentDetails) return;
         if (!orderId) {
             console.warn("[MakePayment] Missing orderId; staying on bank-details step");
             return;
         }
-
-        setTransactionStatus("pending");
-        setCreatedAt(new Date().toISOString());
 
         let cancelled = false;
 
@@ -211,6 +225,7 @@ export const MakePayment = ({
                 const status =
                     resolveOnrampOrderStatusFromV2Response(res) ??
                     getOrderStatusFromFetchPayload(res);
+                setUnderReview(isOnrampUnderReview(res?.data));
 
                 // Only advance when we have a real order status (not undefined) and fiat is indexed
                 if (
@@ -238,14 +253,17 @@ export const MakePayment = ({
         };
 
         void checkPaymentStatus();
-        pollingIntervalRef.current = setInterval(checkPaymentStatus, 3000);
+        pollingIntervalRef.current = setInterval(
+            checkPaymentStatus,
+            windowClosed ? PAYMENT_POLL_AFTER_WINDOW_MS : PAYMENT_POLL_MS,
+        );
 
         return () => {
             cancelled = true;
             clearPolling();
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps -- stable polling for one order load
-    }, [paymentDetails, orderId, resolveAuth, sessionExpired]);
+    }, [paymentDetails, orderId, resolveAuth, windowClosed]);
 
     const currencySymbol = paymentDetails
         ? getCurrencySymbol(paymentDetails.currency)
@@ -283,16 +301,24 @@ export const MakePayment = ({
         );
     }
 
-    if (sessionExpired) {
+    if (underReview || windowClosed) {
         return (
             <div className="mx-auto grid max-w-[26.0625rem] gap-6 py-10 text-sm">
                 <div className="grid gap-4 rounded-[20px] bg-background-neutral p-6 dark:bg-[#202121]">
                     <h2 className="text-xl font-medium text-text-body dark:text-white/80">
-                        Session expired
+                        {underReview ? "Payment under review" : "Payment window closed"}
                     </h2>
                     <p className="text-text-secondary dark:text-white/50">
-                        This payment window has closed. Start again to get new account details.
+                        {underReview
+                            ? "We received a payment for this order and are reviewing it. Your money is safe: we'll either complete your order or send the money back to the account it came from. Don't pay again."
+                            : "If you already sent the payment, don't pay again. We're still checking for it, and this order will update in your transaction history when it arrives."}
                     </p>
+                    <div className="flex items-center gap-2 text-text-secondary dark:text-white/50">
+                        <ImSpinner className="size-4 shrink-0 animate-spin text-lavender-500" />
+                        <p className="text-sm">
+                            {underReview ? "Waiting for the review…" : "Checking for your payment…"}
+                        </p>
+                    </div>
                     <button
                         type="button"
                         onClick={handleBackButtonClick}
@@ -326,6 +352,10 @@ export const MakePayment = ({
 
                     <p className="text-sm font-normal text-text-secondary dark:text-white/50">
                         Send {formattedAmount} to the account below
+                    </p>
+                    <p className="text-sm font-normal text-text-secondary dark:text-white/50">
+                        Pay from a bank account in your own name. A payment from anyone
+                        else&apos;s account is sent back to it.
                     </p>
                 </div>
 

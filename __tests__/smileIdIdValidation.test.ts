@@ -1,4 +1,4 @@
-import { describeShape, extractSmileIdIdentity, normalizeSmileIdDate } from "../app/lib/smileIdIdentity";
+import { extractSmileIdIdentity, normalizeSmileIdDate } from "../app/lib/smileIdIdentity";
 import {
   getJobTypeForIdType,
   validateSmileIdIdInfo,
@@ -160,14 +160,5 @@ describe("normalizeSmileIdDate", () => {
     expect(normalizeSmileIdDate(null)).toBeNull();
     expect(normalizeSmileIdDate(19900412)).toBeNull();
     expect(normalizeSmileIdDate({ year: 1990 })).toBeNull();
-  });
-});
-
-describe("describeShape", () => {
-  it("lists key paths and kinds, never values", () => {
-    const lines = describeShape({ result: { DOB: "1990-04-12", Empty: "" } }).join("\n");
-    expect(lines).toContain("result.DOB: string");
-    expect(lines).toContain("result.Empty: string (empty)");
-    expect(lines).not.toContain("1990");
   });
 });

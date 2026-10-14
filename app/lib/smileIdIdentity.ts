@@ -7,7 +7,7 @@
  * date of birth was ever stored. The older lowercase and the v3 snake_case shapes are still
  * accepted, in case a payload carries them.
  *
- * No server-only imports: the KYC routes and the backfill script both use it.
+ * No server-only imports, so it can be used outside the Next.js server too.
  */
 export interface SmileIdIdentity {
   fullName: string | null;
@@ -97,25 +97,4 @@ export function extractSmileIdIdentity(response: unknown): SmileIdIdentity {
     idType: idType ? idType.toUpperCase().replace(/\s+/g, "_") : null,
     idCountry: country && /^[A-Za-z]{2}$/.test(country) ? country.toUpperCase() : null,
   };
-}
-
-/**
- * The key paths of a response with their value kinds and no values, for checking the shape of
- * a real Smile ID response without reading anyone's data.
- */
-export function describeShape(value: unknown, prefix = "", out: string[] = [], depth = 0): string[] {
-  const bag = asBag(value);
-  if (!bag || depth > 4) return out;
-  for (const [k, v] of Object.entries(bag)) {
-    const path = prefix ? `${prefix}.${k}` : k;
-    if (asBag(v)) {
-      out.push(`${path}: object`);
-      describeShape(v, path, out, depth + 1);
-    } else {
-      const kind = Array.isArray(v) ? "array" : v === null ? "null" : typeof v;
-      const empty = v === "" || v === null || (Array.isArray(v) && v.length === 0);
-      out.push(`${path}: ${kind}${empty ? " (empty)" : ""}`);
-    }
-  }
-  return out;
 }

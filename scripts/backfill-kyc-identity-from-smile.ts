@@ -3,22 +3,29 @@
  * Smile ID job result. The KYC routes read fields Smile ID never sends, so none of these was
  * stored (no tier 2+ profile has a date of birth), and an on-ramp order needs them.
  *
- * Only empty columns are filled: a stored value is never overwritten, a name that differs from
- * the stored one is only counted, and an ID number another verified profile already holds is
- * skipped (uniq_user_kyc_profiles_verified_id).
+ * The date of birth and ID number are only filled when empty; an ID number another verified
+ * profile already holds is skipped (uniq_user_kyc_profiles_verified_id). The name is set to the
+ * verified one when empty or different: the stored name is usually what the user typed at phone
+ * verification, and the verified one is what an on-ramp is checked against. Every write is
+ * conditional on the value read, so one a KYC route made in the meantime is never replaced.
+ *
+ * A saved refund account was checked against the stored name; the output counts the ones the
+ * verified name no longer matches (refundAccount.wouldStopMatching), whose owners will be asked
+ * for a refund account in their verified name at their next on-ramp.
  *
  * Modes:
  *   --inspect N --input jobs.json   Fetch N jobs of each reference kind and print the response
  *                                   shape (key paths and value kinds, never values).
- *   --dry --input jobs.json         Fetch every job and print counts of what would be filled.
- *   --apply                         Read profiles from Supabase and write the empty columns.
+ *   --dry                           Read profiles from Supabase (or --input jobs.json) and print
+ *                                   counts of what would change. Writes nothing.
+ *   --apply                         Read profiles from Supabase and write.
  *
  * Only references in the current "job-<uuid>" form are looked up. The older 10-digit references
  * are Smile ID's own job ids, which the job status API does not accept ("Job not found"); those
  * users verify again. --include-numeric tries them anyway.
  *
- * jobs.json is [{ "wallet": "0x…", "ref": "<smile job reference>" }]. --apply reads the same
- * from user_kyc_profiles and needs SUPABASE_URL and SUPABASE_SECRET_KEY. All modes need
+ * jobs.json is [{ "wallet": "0x…", "ref": "<smile job reference>" }]. Without it, profiles are read
+ * from user_kyc_profiles with SUPABASE_URL and SUPABASE_SECRET_KEY. All modes need
  * SMILE_IDENTITY_PARTNER_ID, SMILE_IDENTITY_API_KEY and SMILE_IDENTITY_SERVER.
  *
  * Output never contains a name, date of birth or ID number.
@@ -28,6 +35,7 @@ import { readFileSync } from "fs";
 import { createClient } from "@supabase/supabase-js";
 import SIDCore from "smile-identity-core";
 import { describeShape, extractSmileIdIdentity } from "../app/lib/smileIdIdentity";
+import { accountNameMatchesKyc } from "../app/lib/name-matching";
 
 type Job = { wallet: string; ref: string };
 
@@ -166,20 +174,27 @@ async function main() {
     process.exit(1);
   }
 
-  const jobs = APPLY
-    ? await readJobsFromSupabase()
-    : (JSON.parse(readFileSync(arg("--input") ?? "", "utf8")) as Job[]).map((j) => ({
+  const input = arg("--input");
+  if (APPLY && input) {
+    console.error("--apply reads profiles from Supabase; drop --input");
+    process.exit(1);
+  }
+  const jobs = input
+    ? (JSON.parse(readFileSync(input, "utf8")) as Job[]).map((j) => ({
         ...j,
         dob: null as string | null,
         idNumber: null as string | null,
         fullName: null as string | null,
-      }));
+      }))
+    : await readJobsFromSupabase();
 
-  const supabase = APPLY
-    ? createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SECRET_KEY!, {
+  // Read access for the refund-account count in a dry run; writes only with --apply.
+  const db = input
+    ? null
+    : createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SECRET_KEY!, {
         auth: { autoRefreshToken: false, persistSession: false },
-      })
-    : null;
+      });
+  const supabase = APPLY ? db : null;
 
   const counts: Record<string, number> = {};
   const bump = (k: string) => (counts[k] = (counts[k] ?? 0) + 1);
@@ -205,32 +220,52 @@ async function main() {
     if (id.idNumber) bump("found.idNumber");
     if (id.fullName) bump("found.fullName");
 
-    const update: Record<string, string> = {};
-    if (id.dateOfBirth && !job.dob) update.date_of_birth = id.dateOfBirth;
-    if (id.fullName && !job.fullName) update.full_name = id.fullName;
-    if (id.fullName && job.fullName && id.fullName.toLowerCase() !== job.fullName.toLowerCase()) {
-      bump("nameDiffersFromStored");
+    const sameName = (a: string, b: string) =>
+      a.trim().replace(/\s+/g, " ").toLowerCase() === b.trim().replace(/\s+/g, " ").toLowerCase();
+    // Each write carries the condition it was decided on: empty, or still the name that was read.
+    const writes: { column: string; value: string; onlyIf: "empty" | { equals: string } }[] = [];
+    if (id.dateOfBirth && !job.dob) writes.push({ column: "date_of_birth", value: id.dateOfBirth, onlyIf: "empty" });
+    if (id.idNumber && !job.idNumber) writes.push({ column: "id_number", value: id.idNumber, onlyIf: "empty" });
+    if (id.fullName && !job.fullName) {
+      writes.push({ column: "full_name", value: id.fullName, onlyIf: "empty" });
+    } else if (id.fullName && job.fullName && !sameName(id.fullName, job.fullName)) {
+      writes.push({ column: "full_name", value: id.fullName, onlyIf: { equals: job.fullName } });
+      bump("replace.full_name");
+      if (accountNameMatchesKyc(id.fullName, job.fullName)) bump("replace.full_name.sameIdentityByMatcher");
+      if (db) {
+        const { data: accounts, error: accountsError } = await db
+          .from("refund_accounts")
+          .select("account_name")
+          .eq("normalized_wallet_address", job.wallet.toLowerCase());
+        if (accountsError) {
+          bump("refundAccount.readFailed");
+        } else {
+          for (const a of accounts ?? []) {
+            const name = String(a.account_name ?? "");
+            if (name && accountNameMatchesKyc(job.fullName, name) && !accountNameMatchesKyc(id.fullName, name)) {
+              bump("refundAccount.wouldStopMatching");
+            }
+          }
+        }
+      }
     }
-    const writeId = id.idNumber && !job.idNumber;
-    if (Object.keys(update).length === 0 && !writeId) {
-      bump("nothingToFill");
+    if (writes.length === 0) {
+      bump("nothingToChange");
       continue;
     }
-    for (const k of Object.keys(update)) bump(`fill.${k}`);
-    if (writeId) bump("fill.id_number");
+    for (const w of writes) bump(w.onlyIf === "empty" ? `fill.${w.column}` : `write.${w.column}`);
     if (!supabase) continue;
 
-    // One conditional update per column, each landing only while the column is still empty
-    // when it is written, so a value a KYC route stored after the read is never replaced.
-    const columns: [string, string][] = Object.entries(update);
-    if (writeId) columns.push(["id_number", id.idNumber!]);
-    for (const [column, value] of columns) {
-      const { data, error } = await supabase
+    for (const { column, value, onlyIf } of writes) {
+      let q = supabase
         .from("user_kyc_profiles")
         .update({ [column]: value })
-        .eq("wallet_address", job.wallet)
-        .or(column === "date_of_birth" ? `${column}.is.null` : `${column}.is.null,${column}.eq.`)
-        .select("wallet_address");
+        .eq("wallet_address", job.wallet);
+      q =
+        onlyIf === "empty"
+          ? q.or(column === "date_of_birth" ? `${column}.is.null` : `${column}.is.null,${column}.eq.`)
+          : q.eq(column, onlyIf.equals);
+      const { data, error } = await q.select("wallet_address");
       if (error?.code === "23505" && column === "id_number") {
         // Another verified profile holds this document: skip the number only.
         bump("skipped.id_number_in_use");
@@ -238,7 +273,7 @@ async function main() {
         bump("writeFailed");
         console.error(`write failed for ${mask(job.wallet)} (${column}): ${error.code ?? ""}`);
       } else if ((data ?? []).length === 0) {
-        bump(`skipped.${column}_filled_meanwhile`);
+        bump(`skipped.${column}_changed_meanwhile`);
       } else {
         bump(`written.${column}`);
       }

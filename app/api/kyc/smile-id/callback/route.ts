@@ -220,7 +220,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ status: "ok", action: "none" });
   }
 
-  let signedIdentity: SmileIdIdentity = { fullName: null, dateOfBirth: null, idNumber: null };
+  let signedIdentity: SmileIdIdentity = {
+    fullName: null,
+    dateOfBirth: null,
+    idNumber: null,
+    idType: null,
+    idCountry: null,
+  };
   try {
     const jobStatus = await getSmileIdJobStatus(rawUserId, jobId);
     const statusActions = jobStatus?.result?.Actions ?? {};
@@ -288,8 +294,11 @@ export async function POST(request: NextRequest) {
   // another non-injected wallet already holds this document, the promotion can never
   // succeed — so refuse it deliberately instead of letting a 23505 surface as a 500
   // that SmileID retries forever.
-  // The stored number, else the verified one Smile ID returned, which is written below.
+  // The stored document, else the verified one Smile ID returned, which is written below. A
+  // profile promoted here without the synchronous response never had its document saved.
   const idNumberForProfile: string | null = existing.id_number || signedIdentity.idNumber;
+  const idTypeForProfile: string | null = existing.id_type || signedIdentity.idType;
+  const idCountryForProfile: string | null = existing.id_country || signedIdentity.idCountry;
   if (
     newTier >= 2 &&
     idNumberForProfile &&
@@ -298,8 +307,8 @@ export async function POST(request: NextRequest) {
     const { data: idOwner, error: idOwnerError } = await supabaseAdmin
       .from("user_kyc_profiles")
       .select("wallet_address")
-      .eq("id_country", existing.id_country)
-      .eq("id_type", existing.id_type)
+      .eq("id_country", idCountryForProfile)
+      .eq("id_type", idTypeForProfile)
       .eq("id_number", idNumberForProfile)
       .gte("tier", 2)
       .eq("is_injected_wallet", false)
@@ -353,6 +362,8 @@ export async function POST(request: NextRequest) {
       ...(signedIdentity.dateOfBirth ? { date_of_birth: signedIdentity.dateOfBirth } : {}),
       // Never replace a stored number: it may be the one the user's document was checked against.
       ...(!existing.id_number && signedIdentity.idNumber ? { id_number: signedIdentity.idNumber } : {}),
+      ...(!existing.id_type && signedIdentity.idType ? { id_type: signedIdentity.idType } : {}),
+      ...(!existing.id_country && signedIdentity.idCountry ? { id_country: signedIdentity.idCountry } : {}),
     })
     .eq("wallet_address", walletAddress);
 

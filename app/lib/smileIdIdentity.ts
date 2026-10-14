@@ -14,6 +14,10 @@ export interface SmileIdIdentity {
   /** YYYY-MM-DD, or null when absent or not a real calendar date. */
   dateOfBirth: string | null;
   idNumber: string | null;
+  /** Smile ID's id_type (e.g. PASSPORT, BVN), upper-cased. */
+  idType: string | null;
+  /** ISO 3166-1 alpha-2 country of the ID, upper-cased; null when not two letters. */
+  idCountry: string | null;
 }
 
 type Bag = Record<string, unknown>;
@@ -83,10 +87,14 @@ export function extractSmileIdIdentity(response: unknown): SmileIdIdentity {
     fullName = first && last ? `${first} ${last}` : null;
   }
 
+  const idType = firstString(bags, ["IDType", "id_type", "idType"]);
+  const country = firstString(bags, ["Country", "country"]);
   return {
     fullName,
     dateOfBirth: normalizeSmileIdDate(firstString(bags, ["DOB", "dob", "date_of_birth", "DateOfBirth"])),
     idNumber: firstString(bags, ["IDNumber", "id_number", "idNumber"]),
+    idType: idType ? idType.toUpperCase().replace(/\s+/g, "_") : null,
+    idCountry: country && /^[A-Za-z]{2}$/.test(country) ? country.toUpperCase() : null,
   };
 }
 

@@ -118,6 +118,8 @@ describe("extractSmileIdIdentity", () => {
       fullName: "Ada Obi",
       dateOfBirth: "1990-04-12",
       idNumber: "A00000001",
+      idType: "PASSPORT",
+      idCountry: "NG",
     });
   });
 
@@ -136,12 +138,10 @@ describe("extractSmileIdIdentity", () => {
   });
 
   it("returns nulls for a response without personal data", () => {
-    expect(extractSmileIdIdentity({ job_complete: true, result: { ResultCode: "1012", DOB: "Not Available" } })).toEqual({
-      fullName: null,
-      dateOfBirth: null,
-      idNumber: null,
-    });
-    expect(extractSmileIdIdentity(undefined)).toEqual({ fullName: null, dateOfBirth: null, idNumber: null });
+    const empty = { fullName: null, dateOfBirth: null, idNumber: null, idType: null, idCountry: null };
+    expect(extractSmileIdIdentity({ job_complete: true, result: { ResultCode: "1012", DOB: "Not Available" } })).toEqual(empty);
+    expect(extractSmileIdIdentity(undefined)).toEqual(empty);
+    expect(extractSmileIdIdentity({ result: { Country: "Nigeria" } }).idCountry).toBeNull();
   });
 });
 

@@ -288,9 +288,11 @@ export async function POST(request: NextRequest) {
   // another non-injected wallet already holds this document, the promotion can never
   // succeed — so refuse it deliberately instead of letting a 23505 surface as a 500
   // that SmileID retries forever.
+  // The stored number, else the verified one Smile ID returned, which is written below.
+  const idNumberForProfile: string | null = existing.id_number || signedIdentity.idNumber;
   if (
     newTier >= 2 &&
-    existing.id_number &&
+    idNumberForProfile &&
     existing.is_injected_wallet !== true
   ) {
     const { data: idOwner, error: idOwnerError } = await supabaseAdmin
@@ -298,7 +300,7 @@ export async function POST(request: NextRequest) {
       .select("wallet_address")
       .eq("id_country", existing.id_country)
       .eq("id_type", existing.id_type)
-      .eq("id_number", existing.id_number)
+      .eq("id_number", idNumberForProfile)
       .gte("tier", 2)
       .eq("is_injected_wallet", false)
       .neq("wallet_address", walletAddress)
@@ -349,6 +351,8 @@ export async function POST(request: NextRequest) {
       tier: newTier,
       ...(derivedFullName ? { full_name: derivedFullName } : {}),
       ...(signedIdentity.dateOfBirth ? { date_of_birth: signedIdentity.dateOfBirth } : {}),
+      // Never replace a stored number: it may be the one the user's document was checked against.
+      ...(!existing.id_number && signedIdentity.idNumber ? { id_number: signedIdentity.idNumber } : {}),
     })
     .eq("wallet_address", walletAddress);
 

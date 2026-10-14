@@ -13,7 +13,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
     {},
     async (span) => {
       const handled = await handleCreateMessageHash(request);
-      span.setTag("http.status_code", handled.status);
+      span?.setTag("http.status_code", handled.status);
       return handled;
     },
   );

@@ -68,7 +68,7 @@ export const GET = withRateLimit(
       const isGateway =
         isGatewayOrderId(orderId) ||
         (isStarknetOrderId(orderId) && networkParam === "Starknet");
-      span.setTag("lookup_type", isGateway ? "gateway" : "sender");
+      span?.setTag("lookup_type", isGateway ? "gateway" : "sender");
 
       if (isGateway) {
         if (!networkParam) {

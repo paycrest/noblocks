@@ -116,7 +116,7 @@ export const POST = withRateLimit(async (request: NextRequest) =>
     }
 
     (body as { source?: { currency?: string } }).source!.currency = sourceCurrency;
-    span.setTag("source_currency", sourceCurrency);
+    span?.setTag("source_currency", sourceCurrency);
 
     // Refund-account name policy (authoritative gate at money time). The refund account must belong
     // to the same person as the verified KYC profile. A modified client must not be able to bypass

@@ -8,11 +8,11 @@ export type PaymentOrdersOperation = "create" | "get" | "message_hash";
 
 /** Tags the span with the BFF status actually returned to the client. */
 export function paymentOrdersJson(
-  span: Span,
+  span: Span | null | undefined,
   body: unknown,
   status: number,
 ): NextResponse {
-  span.setTag("http.status_code", status);
+  span?.setTag("http.status_code", status);
   return NextResponse.json(body, { status });
 }
 
@@ -23,7 +23,7 @@ export function paymentOrdersJson(
 export async function tracePaymentOrdersProxy<T>(
   operation: PaymentOrdersOperation,
   tags: Record<string, string | number | boolean | undefined>,
-  fn: (span: Span) => Promise<T>,
+  fn: (span: Span | null | undefined) => Promise<T>,
 ): Promise<T> {
   const filteredTags = Object.fromEntries(
     Object.entries(tags).filter(([, value]) => value !== undefined),
@@ -41,7 +41,7 @@ export async function tracePaymentOrdersProxy<T>(
     },
     async (span) => {
       if (!span) {
-        return fn(tracer.scope().active()!);
+        return fn(tracer.scope().active());
       }
       return fn(span);
     },

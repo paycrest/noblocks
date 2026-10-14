@@ -36,7 +36,8 @@ function firstString(bags: (Bag | null)[], keys: string[]): string | null {
 }
 
 /**
- * Normalises a date of birth to YYYY-MM-DD. Accepts YYYY-MM-DD (optionally with a time part)
+ * Normalises a date of birth to YYYY-MM-DD. Accepts YYYY-MM-DD, an ISO date-time whose time
+ * part is well-formed (hours, minutes, optional seconds and fraction, optional Z or offset),
  * and DD-MM-YYYY / DD/MM/YYYY, which some ID authorities return; anything else is null rather
  * than guessed.
  */
@@ -44,7 +45,8 @@ export function normalizeSmileIdDate(raw: string | null): string | null {
   if (!raw) return null;
   const s = raw.trim();
   let y: number, m: number, d: number;
-  let match = /^(\d{4})-(\d{2})-(\d{2})(?:[T ].*)?$/.exec(s);
+  let match =
+    /^(\d{4})-(\d{2})-(\d{2})(?:[T ]([01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z|[+-](?:[01]\d|2[0-3]):?[0-5]\d)?)?$/.exec(s);
   if (match) {
     [y, m, d] = [Number(match[1]), Number(match[2]), Number(match[3])];
   } else if ((match = /^(\d{2})[-/](\d{2})[-/](\d{4})$/.exec(s))) {

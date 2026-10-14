@@ -61,6 +61,22 @@ function userIdCandidates(job: Job): string[] {
   return job.ref.startsWith("job-") ? [`user-${wallet}`, wallet] : [wallet, `user-${wallet}`];
 }
 
+/**
+ * A fixed category for a failed lookup. Provider error text is never printed: it can echo a
+ * name or an ID number.
+ */
+function errorCategory(e: unknown): string {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const err = e as any;
+  const status = Number(err?.response?.status);
+  const text = `${err?.response?.data?.error ?? ""} ${err?.message ?? ""}`;
+  if (status === 400 && /job not found/i.test(text)) return "job_not_found";
+  if (Number.isInteger(status) && status >= 400 && status < 600) return `http_${status}`;
+  const code = String(err?.code ?? "");
+  if (["ETIMEDOUT", "ECONNABORTED", "ECONNRESET", "ENOTFOUND", "EAI_AGAIN"].includes(code)) return code.toLowerCase();
+  return "error";
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function fetchJob(utilities: any, job: Job): Promise<{ status: unknown } | { error: string }> {
   const failures: string[] = [];
@@ -74,14 +90,7 @@ async function fetchJob(utilities: any, job: Job): Promise<{ status: unknown } |
         });
         return { status };
       } catch (e) {
-        // Provider messages can echo identifiers; keep only a short, digit-masked reason.
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const err = e as any;
-        const raw = [err?.response?.status, err?.response?.data?.error, err?.response?.data?.message, err?.message, err?.code]
-          .filter((v) => v !== undefined && v !== null && String(v) !== "")
-          .join(" ");
-        const reason = (raw || `${err?.constructor?.name ?? typeof err} without a message`).replace(/\d{4,}/g, "#").slice(0, 100);
-        if (attempt === 2) failures.push(`${i === 0 ? "primary" : "fallback"} user_id: ${reason}`);
+        if (attempt === 2) failures.push(`${i === 0 ? "primary" : "fallback"} user_id: ${errorCategory(e)}`);
       }
       await sleep(delayMs * (attempt + 1) * 2);
     }
@@ -97,13 +106,22 @@ async function readJobsFromSupabase(): Promise<(Job & { dob: string | null; idNu
   const key = process.env.SUPABASE_SECRET_KEY;
   if (!url || !key) throw new Error("--apply needs SUPABASE_URL and SUPABASE_SECRET_KEY");
   const supabase = createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false } });
-  const { data, error } = await supabase
-    .from("user_kyc_profiles")
-    .select("wallet_address, platform, date_of_birth, id_number, full_name")
-    .gte("tier", 2);
-  if (error) throw error;
+  // Paged: a select returns at most 1,000 rows by default.
+  const pageSize = 500;
+  const rows = [];
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await supabase
+      .from("user_kyc_profiles")
+      .select("wallet_address, platform, date_of_birth, id_number, full_name")
+      .gte("tier", 2)
+      .order("wallet_address", { ascending: true })
+      .range(from, from + pageSize - 1);
+    if (error) throw error;
+    rows.push(...(data ?? []));
+    if (!data || data.length < pageSize) break;
+  }
   const jobs = [];
-  for (const row of data ?? []) {
+  for (const row of rows) {
     const platform = Array.isArray(row.platform) ? row.platform : [];
     const id = platform.find((p: { type?: string; reference?: string }) => p?.type === "id" && p.reference);
     if (!id || !row.wallet_address) continue;
@@ -202,26 +220,29 @@ async function main() {
     if (writeId) bump("fill.id_number");
     if (!supabase) continue;
 
-    const { error } = await supabase
-      .from("user_kyc_profiles")
-      .update(writeId ? { ...update, id_number: id.idNumber } : update)
-      .eq("wallet_address", job.wallet);
-    if (error?.code === "23505" && writeId) {
-      // Another verified profile holds this document: keep the other fields, skip the number.
-      bump("skipped.id_number_in_use");
-      if (Object.keys(update).length > 0) {
-        const retry = await supabase.from("user_kyc_profiles").update(update).eq("wallet_address", job.wallet);
-        if (retry.error) bump("writeFailed");
-        else bump("written");
+    // One conditional update per column, each landing only while the column is still empty
+    // when it is written, so a value a KYC route stored after the read is never replaced.
+    const columns: [string, string][] = Object.entries(update);
+    if (writeId) columns.push(["id_number", id.idNumber!]);
+    for (const [column, value] of columns) {
+      const { data, error } = await supabase
+        .from("user_kyc_profiles")
+        .update({ [column]: value })
+        .eq("wallet_address", job.wallet)
+        .or(column === "date_of_birth" ? `${column}.is.null` : `${column}.is.null,${column}.eq.`)
+        .select("wallet_address");
+      if (error?.code === "23505" && column === "id_number") {
+        // Another verified profile holds this document: skip the number only.
+        bump("skipped.id_number_in_use");
+      } else if (error) {
+        bump("writeFailed");
+        console.error(`write failed for ${mask(job.wallet)} (${column}): ${error.code ?? ""}`);
+      } else if ((data ?? []).length === 0) {
+        bump(`skipped.${column}_filled_meanwhile`);
+      } else {
+        bump(`written.${column}`);
       }
-      continue;
     }
-    if (error) {
-      bump("writeFailed");
-      console.error(`write failed for ${mask(job.wallet)}: ${error.code ?? ""}`);
-      continue;
-    }
-    bump("written");
   }
 
   console.log(JSON.stringify({ mode: APPLY ? "apply" : "dry", counts, errors }, null, 2));

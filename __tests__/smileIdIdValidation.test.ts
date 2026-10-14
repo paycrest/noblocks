@@ -151,6 +151,9 @@ describe("normalizeSmileIdDate", () => {
     expect(normalizeSmileIdDate("1990-04-12T00:00:00Z")).toBe("1990-04-12");
     expect(normalizeSmileIdDate("12/04/1990")).toBe("1990-04-12");
     expect(normalizeSmileIdDate("12-04-1990")).toBe("1990-04-12");
+    expect(normalizeSmileIdDate("1990-04-12 08:30:00+01:00")).toBe("1990-04-12");
+    expect(normalizeSmileIdDate("1990-04-12Tnot-a-time")).toBeNull();
+    expect(normalizeSmileIdDate("1990-04-12T25:00:00Z")).toBeNull();
     expect(normalizeSmileIdDate("1990-02-30")).toBeNull();
     expect(normalizeSmileIdDate("April 12 1990")).toBeNull();
     expect(normalizeSmileIdDate("2999-01-01")).toBeNull();

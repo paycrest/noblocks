@@ -3,7 +3,6 @@ import {
   base,
   bsc,
   polygon,
-  lisk,
   celo,
   mainnet,
 } from "viem/chains";
@@ -46,7 +45,6 @@ const baseConfig: Omit<PrivyClientConfig, "appearance"> = {
     bscOverride,
     arbitrum,
     polygon,
-    lisk,
     celoOverride,
   ],
   plugins: [dataSuffix(BASE_BUILDER_CODE_SUFFIX)],

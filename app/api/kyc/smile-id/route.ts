@@ -468,6 +468,8 @@ export async function POST(request: NextRequest) {
     const newTier = tierFrom >= 1 ? Math.max(tierFrom, 2) : tierFrom;
 
     const derivedFullName = smileIdentity.fullName;
+    const dateOfBirth =
+      smileIdentity.dateOfBirth || normalizeSmileIdDate(id_info.dob ?? null);
 
     // One verified identity per ID document: the same document must not back
     // multiple wallet profiles (each would get its own monthly limit).
@@ -545,8 +547,8 @@ export async function POST(request: NextRequest) {
         id_country: id_info.country,
         // Personal info from Smile ID response — only overwrite if SmileID returned a name
         ...(derivedFullName ? { full_name: derivedFullName } : {}),
-        date_of_birth:
-          smileIdentity.dateOfBirth || normalizeSmileIdDate(id_info.dob ?? null) || null,
+        // Only when there is a valid date: never erase one stored earlier.
+        ...(dateOfBirth ? { date_of_birth: dateOfBirth } : {}),
         platform: updatedPlatform,
         verified: true,
         verified_at: new Date().toISOString(),

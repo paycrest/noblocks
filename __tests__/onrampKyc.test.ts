@@ -238,6 +238,30 @@ describe("handleOnrampIdentityCheck", () => {
     const res = await handleOnrampIdentityCheck(request({ idType: "BVN", idNumber: "22212345678" }));
     expect(res.status).toBe(409);
     expect(ops.some((o) => o.op === "update" && JSON.stringify(o.payload) === '{"bvn":null}')).toBe(true);
+    // Nothing else was written: the birth date and name follow only an uncontested claim.
+    expect(
+      ops.some((o) => o.op === "update" && ("date_of_birth" in (o.payload as object) || "full_name" in (o.payload as object))),
+    ).toBe(false);
+  });
+
+  it("reports a contested number it could not release", async () => {
+    const base = respond;
+    let stored = false;
+    respond = (op) => {
+      const payload = JSON.stringify(op.payload);
+      if (op.op === "update" && payload === '{"bvn":"22212345678"}') stored = true;
+      if (op.op === "update" && payload === '{"bvn":null}') return { data: null, error: { code: "XX000" } };
+      if (stored && op.op === "select" && op.filters.some(([, col]) => col === "bvn")) {
+        return { data: [{ wallet_address: "0xcccc" }], error: null };
+      }
+      return base(op);
+    };
+    const spy = jest.spyOn(console, "error").mockImplementation(() => {});
+    smile();
+    const res = await handleOnrampIdentityCheck(request({ idType: "BVN", idNumber: "22212345678" }));
+    expect(res.status).toBe(503);
+    expect(spy).toHaveBeenCalledWith("[identity-check] could not release a contested number", expect.anything());
+    spy.mockRestore();
   });
 
   it("refuses a record whose phone and name are not the user's, and stores nothing", async () => {
@@ -255,6 +279,9 @@ describe("handleOnrampIdentityCheck", () => {
     const res = await handleOnrampIdentityCheck(request({ idType: "BVN", idNumber: "22212345678" }));
     expect(res.status).toBe(409);
     expect(submitSmileIDJob).not.toHaveBeenCalled();
+    // A holder of any tier counts: bvn / nin may sit on a tier-1 sibling wallet.
+    const bvnLookup = ops.find((o) => o.op === "select" && o.filters.some(([, col]) => col === "bvn"));
+    expect(bvnLookup?.filters.some(([, col]) => col === "tier")).toBe(false);
   });
 
   it("refuses an unverified number and a user who is not ID-verified", async () => {

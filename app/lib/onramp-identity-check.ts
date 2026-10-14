@@ -75,7 +75,9 @@ export async function handleOnrampIdentityCheck(request: NextRequest): Promise<N
   const identityWallets = scope.wallets;
   const otherHolders = async (): Promise<string[] | null> => {
     const [byColumn, byDocument] = await Promise.all([
-      supabaseAdmin.from("user_kyc_profiles").select("wallet_address").eq(column, idNumber).gte("tier", 2),
+      // Any tier: only this check writes bvn / nin, and it may do so on a tier-1 sibling wallet of a
+      // tier-2 identity.
+      supabaseAdmin.from("user_kyc_profiles").select("wallet_address").eq(column, idNumber),
       supabaseAdmin
         .from("user_kyc_profiles")
         .select("wallet_address")
@@ -129,13 +131,40 @@ export async function handleOnrampIdentityCheck(request: NextRequest): Promise<N
     );
   }
 
-  // Store the number; fill the birth date only when none is stored. The record's name (in Latin
-  // letters) replaces the stored name only when the names already match, so a record accepted on
-  // the phone alone (a relative's BVN on a shared phone) never overwrites a verified name; it may
-  // fill a name that is empty. Each write is conditional on what was read.
-  const writes: PromiseLike<{ error: { code?: string } | null }>[] = [
-    supabaseAdmin.from("user_kyc_profiles").update({ [column]: idNumber }).eq("wallet_address", walletAddress),
-  ];
+  // Claim the number first, then re-check for a concurrent claim by another account before
+  // writing anything else, so a refused claim leaves no other change behind.
+  const claim = await supabaseAdmin
+    .from("user_kyc_profiles")
+    .update({ [column]: idNumber })
+    .eq("wallet_address", walletAddress);
+  if (claim.error) {
+    return fail(request, 503, "kyc_db_error", "Could not save your details. Please try again.");
+  }
+  const after = await otherHolders();
+  if (!after || after.length > 0) {
+    const release = await supabaseAdmin
+      .from("user_kyc_profiles")
+      .update({ [column]: null })
+      .eq("wallet_address", walletAddress)
+      .eq(column, idNumber);
+    if (release.error) {
+      // The number may now be held twice; an alert, not a silent success.
+      console.error("[identity-check] could not release a contested number", {
+        wallet: walletAddress,
+        code: release.error.code,
+      });
+      return fail(request, 503, "kyc_db_error", "Could not save your details. Please try again.");
+    }
+    return after
+      ? fail(request, 409, "id_in_use", "This number is already linked to another Noblocks account.")
+      : fail(request, 503, "kyc_db_error", "Could not save your details. Please try again.");
+  }
+
+  // Fill the birth date only when none is stored. The record's name (in Latin letters) replaces
+  // the stored name only when the two already match, so a record accepted on the phone alone (a
+  // relative's BVN on a shared phone) never overwrites a verified name; it may fill an empty one.
+  // Each write is conditional on what was read.
+  const writes: PromiseLike<{ error: { code?: string } | null }>[] = [];
   if (identity.dateOfBirth && !profile.date_of_birth) {
     writes.push(
       supabaseAdmin
@@ -157,20 +186,6 @@ export async function handleOnrampIdentityCheck(request: NextRequest): Promise<N
   const results = await Promise.all(writes);
   if (results.some((w) => w.error)) {
     return fail(request, 503, "kyc_db_error", "Could not save your details. Please try again.");
-  }
-
-  // A concurrent check by another account may have stored the same number between the first
-  // check and this write. Re-check; on a conflict, take this account's number back and refuse.
-  const after = await otherHolders();
-  if (!after || after.length > 0) {
-    await supabaseAdmin
-      .from("user_kyc_profiles")
-      .update({ [column]: null })
-      .eq("wallet_address", walletAddress)
-      .eq(column, idNumber);
-    return after
-      ? fail(request, 409, "id_in_use", "This number is already linked to another Noblocks account.")
-      : fail(request, 503, "kyc_db_error", "Could not save your details. Please try again.");
   }
 
   trackApiResponse(ROUTE, "POST", 200, Date.now() - startTime, { wallet_address: walletAddress });

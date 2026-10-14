@@ -7,7 +7,8 @@
 --
 -- Expand only: nullable columns, no backfill. No unique index: sibling wallets of one identity
 -- (see app/lib/kyc-identity.ts) may legitimately share a number, so "one number per identity"
--- is enforced by the identity check, which re-checks for another holder after it writes.
+-- is enforced by the identity check, which claims the number, then re-checks for another holder
+-- before writing anything else.
 -- Code that does not know the columns keeps working.
 
 ALTER TABLE public.user_kyc_profiles

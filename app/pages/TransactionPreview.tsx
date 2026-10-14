@@ -977,9 +977,7 @@ export const TransactionPreview = ({
         );
         if (res.status !== "success" || !res.data) {
           const msg =
-            typeof res.message === "string"
-              ? res.message
-              : "Failed to create payment order";
+            onrampOrderErrorMessage(res) || "Failed to create payment order";
           throw new Error(msg);
         }
 

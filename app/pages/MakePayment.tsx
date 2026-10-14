@@ -225,7 +225,10 @@ export const MakePayment = ({
                 const status =
                     resolveOnrampOrderStatusFromV2Response(res) ??
                     getOrderStatusFromFetchPayload(res);
-                setUnderReview(isOnrampUnderReview(res?.data));
+                // Sticky: a held deposit never goes back to plain pending (a released hold still
+                // reads under_review, and the order leaves pending when it settles or is returned),
+                // so a slower, older poll must not bring the bank details back.
+                if (isOnrampUnderReview(res?.data)) setUnderReview(true);
 
                 // Only advance when we have a real order status (not undefined) and fiat is indexed
                 if (

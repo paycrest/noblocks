@@ -58,7 +58,12 @@ jobs:
       - name: Build
         run: pnpm run build
 
-  # Applies pending Supabase migrations after a merge to main.
+  # Applies pending Supabase migrations after a merge to main or stable.
+  #
+  # main (crossbow.noblocks.xyz) and stable (production) share one Supabase project, so a
+  # migration must apply on whichever branch gets it first. With main alone, a migration
+  # merged to stable never ran and its code reached production without the schema
+  # (KAN-873). Each run pushes the migrations of both branches; see "Collect migrations".
   #
   # Migrations were previously applied by hand, so application code could reach
   # production before the schema it depends on — a merged change that selected a
@@ -73,15 +78,15 @@ jobs:
   # .github/pull_request_template.md: a migration must be deployable before the code
   # that needs it.
   migrate:
-    # Never from a pull request — only a merge to main touches the database.
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # Never from a pull request — only a merge to main or stable touches the database.
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/stable')
     # Do not migrate for a commit that does not build.
     needs: build
     runs-on: ubuntu-latest
     environment: production
     concurrency:
-      # Two pushes must not apply migrations to one database concurrently, and a
-      # queued run must not be cancelled midway through applying.
+      # Two pushes (from either branch) must not apply migrations to one database
+      # concurrently, and a queued run must not be cancelled midway through applying.
       group: migrate-production
       cancel-in-progress: false
 
@@ -97,6 +102,21 @@ jobs:
         with:
           version: 2.98.2
 
+      # db push refuses a database whose ledger records a version missing from the
+      # checkout, and each branch carries migrations the other lacks until they are
+      # synced. So the checkout gets every migration file from main and stable; a file
+      # already present (same name) is kept as checked out.
+      - name: Collect migrations from main and stable
+        run: |
+          git fetch --no-tags --depth=1 origin \
+            +refs/heads/main:refs/remotes/origin/main \
+            +refs/heads/stable:refs/remotes/origin/stable
+          for ref in origin/main origin/stable; do
+            git ls-tree --name-only "$ref" supabase/migrations/ | while read -r f; do
+              [ -e "$f" ] || git show "$ref:$f" > "$f"
+            done
+          done
+
       # Direct Postgres connection string. The SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY
       # secrets above are PostgREST credentials and cannot apply migrations.
       #
@@ -109,5 +129,8 @@ jobs:
       # that, this job re-applies history and fails on the first duplicate object.
       # Note: files without a `<timestamp>_` prefix are ignored by the CLI entirely
       # and remain hand-managed.
+      #
+      # --include-all: a migration from one branch can be older than one already applied
+      # from the other; without the flag db push refuses to apply it out of order.
       - name: Apply migrations
-        run: supabase db push --db-url "${{ secrets.SUPABASE_DB_URL }}"
+        run: supabase db push --include-all --db-url "${{ secrets.SUPABASE_DB_URL }}"

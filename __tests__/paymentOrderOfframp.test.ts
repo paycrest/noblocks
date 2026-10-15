@@ -32,6 +32,12 @@ jest.mock("axios", () => ({
   __esModule: true,
   default: { post: (...args: unknown[]) => mockAxiosPost(...args) },
 }));
+jest.mock("../app/lib/aggregator-outbound-headers", () => ({
+  buildAggregatorOutboundHeaders: async (
+    base: Record<string, string>,
+    incoming?: { get(name: string): string | null },
+  ) => ({ ...base, "X-Request-ID": incoming?.get("x-request-id") ?? "req-test" }),
+}));
 jest.mock("../app/lib/config", () => ({
   __esModule: true,
   default: { aggregatorUrl: "https://aggregator.test/v1" },
@@ -329,6 +335,7 @@ describe("handleCreateOfframpOrder", () => {
     const [url, body, options] = mockAxiosPost.mock.calls[0];
     expect(url).toBe("https://aggregator.test/v2/sender/orders");
     expect(options.headers["API-Key"]).toBe(SENDER_API_KEY);
+    expect(options.headers["X-Request-ID"]).toBe("req-test");
     expect(Object.keys(body).sort()).toEqual(
       ["amount", "amountIn", "destination", "rate", "reference", "source"].sort(),
     );

@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { withRateLimit } from "@/app/lib/rate-limit";
 import {
   trackApiRequest,
@@ -23,8 +23,13 @@ import {
   recordSenderOrderRow,
   type SenderOrderRow,
 } from "@/app/lib/swap-transaction-limit-server";
+import {
+  paymentOrdersJson,
+  tracePaymentOrdersProxy,
+} from "@/app/lib/payment-orders-tracing";
 
-export const POST = withRateLimit(async (request: NextRequest) => {
+export const POST = withRateLimit(async (request: NextRequest) =>
+  tracePaymentOrdersProxy("create", {}, async (span) => {
   const startTime = Date.now();
 
   try {
@@ -32,7 +37,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
 
     if (!walletAddress) {
       trackApiError(request, "/api/v1/payment-orders", "POST", new Error("Unauthorized"), 401);
-      return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+      return paymentOrdersJson(span, { success: false, error: "Unauthorized" }, 401);
     }
 
     const body = await request.json();
@@ -41,16 +46,18 @@ export const POST = withRateLimit(async (request: NextRequest) => {
     // validation, limits and tracking; everything below is on-ramp only.
     if ((body as { source?: { type?: unknown } })?.source?.type === "crypto") {
       const result = await handleCreateOfframpOrder(request, body);
-      return NextResponse.json(result.body, { status: result.status });
+      span?.setTag("order_type", "offramp");
+      return paymentOrdersJson(span, result.body, result.status);
     }
 
     trackApiRequest(request, "/api/v1/payment-orders", "POST", { wallet_address: walletAddress });
 
     if (!config.aggregatorUrl) {
       trackApiError(request, "/api/v1/payment-orders", "POST", new Error("NEXT_PUBLIC_AGGREGATOR_URL is not configured"), 500);
-      return NextResponse.json(
+      return paymentOrdersJson(
+        span,
         { success: false, error: "NEXT_PUBLIC_AGGREGATOR_URL is not configured" },
-        { status: 500 },
+        500,
       );
     }
 
@@ -63,9 +70,10 @@ export const POST = withRateLimit(async (request: NextRequest) => {
         new Error("AGGREGATOR_SENDER_API_KEY_ID is not configured"),
         500,
       );
-      return NextResponse.json(
+      return paymentOrdersJson(
+        span,
         { success: false, error: "AGGREGATOR_SENDER_API_KEY_ID is not configured" },
-        { status: 500 },
+        500,
       );
     }
 
@@ -87,12 +95,13 @@ export const POST = withRateLimit(async (request: NextRequest) => {
         new Error("Unsupported payment order source type"),
         400,
       );
-      return NextResponse.json(
+      return paymentOrdersJson(
+        span,
         {
           success: false,
           error: "Payment order source must be fiat (on-ramp) or crypto (off-ramp).",
         },
-        { status: 400 },
+        400,
       );
     }
 
@@ -109,18 +118,20 @@ export const POST = withRateLimit(async (request: NextRequest) => {
         new Error(`On-ramp not supported for fiat currency: ${sourceCurrencyRaw || "missing"}`),
         400,
       );
-      return NextResponse.json(
+      return paymentOrdersJson(
+        span,
         {
           success: false,
           error: sourceCurrencyRaw
             ? `${sourceCurrencyRaw} on-ramp is not available.`
             : "On-ramp order is missing source currency.",
         },
-        { status: 400 },
+        400,
       );
     }
 
     (body as { source?: { currency?: string } }).source!.currency = sourceCurrency;
+    span?.setTag("source_currency", sourceCurrency);
 
     // Refund-account name policy (authoritative gate at money time). The refund account must belong
     // to the same person as the verified KYC profile. A modified client must not be able to bypass
@@ -139,13 +150,14 @@ export const POST = withRateLimit(async (request: NextRequest) => {
         new Error("Onramp order is missing a resolved refund account name"),
         422,
       );
-      return NextResponse.json(
+      return paymentOrdersJson(
+        span,
         {
           success: false,
           error:
             "A verified refund account is required. Please add one and try again.",
         },
-        { status: 422 },
+        422,
       );
     }
     // KYC is required to onramp, so the name is present; if a lookup fails, fail closed rather than
@@ -159,12 +171,13 @@ export const POST = withRateLimit(async (request: NextRequest) => {
         new Error("KYC name lookup failed"),
         503,
       );
-      return NextResponse.json(
+      return paymentOrdersJson(
+        span,
         {
           success: false,
           error: "Could not verify your identity right now. Please try again.",
         },
-        { status: 503 },
+        503,
       );
     }
     // Fail closed: reject order if KYC name is missing (null/empty). Without a verified name on file,
@@ -177,12 +190,13 @@ export const POST = withRateLimit(async (request: NextRequest) => {
         new Error("KYC profile is missing verified full name"),
         422,
       );
-      return NextResponse.json(
+      return paymentOrdersJson(
+        span,
         {
           success: false,
           error: "Your identity verification is incomplete. Please complete KYC with your full name.",
         },
-        { status: 422 },
+        422,
       );
     }
     // Validate the refund account name matches the verified KYC name.
@@ -194,9 +208,10 @@ export const POST = withRateLimit(async (request: NextRequest) => {
         new Error("Refund account name does not match KYC profile"),
         422,
       );
-      return NextResponse.json(
+      return paymentOrdersJson(
+        span,
         { success: false, error: REFUND_NAME_MISMATCH_MESSAGE },
-        { status: 422 },
+        422,
       );
     }
 
@@ -207,7 +222,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
     const record = await parseSenderOrderRecord(request, walletAddress, rawRecord);
     if (!record.ok) {
       trackApiError(request, "/api/v1/payment-orders", "POST", new Error(record.error), record.status);
-      return NextResponse.json({ success: false, error: record.error }, { status: record.status });
+      return paymentOrdersJson(span, { success: false, error: record.error }, record.status);
     }
     const destination = (orderBody.destination ?? {}) as { currency?: unknown; network?: unknown };
     const row: SenderOrderRow = {
@@ -223,14 +238,15 @@ export const POST = withRateLimit(async (request: NextRequest) => {
     const precheck = await precheckSenderOrderRow(record.record, row);
     if (!precheck.ok) {
       trackApiError(request, "/api/v1/payment-orders", "POST", new Error(precheck.error), precheck.status);
-      return NextResponse.json({ success: false, error: precheck.error }, { status: precheck.status });
+      return paymentOrdersJson(span, { success: false, error: precheck.error }, precheck.status);
     }
 
     if (process.env.NODE_ENV === "development") {
       console.log("[payment-orders] POST payload →", JSON.stringify(orderBody, null, 2));
     }
 
-    const { data, status } = await postSenderOrder(orderBody, senderApiKey);
+    // Forwards X-Request-ID and trace context, and maps the unknown-API-key 404 to 401.
+    const { data, status } = await postSenderOrder(orderBody, senderApiKey, request.headers);
 
     if (process.env.NODE_ENV === "development" && status >= 400) {
       console.log("[payment-orders] aggregator response →", status, JSON.stringify(data, null, 2));
@@ -243,7 +259,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
 
     const created = (data as { data?: { id?: unknown; rate?: unknown; providerAccount?: unknown } } | null)?.data;
     if (status < 200 || status >= 300 || typeof created?.id !== "string") {
-      return NextResponse.json(data, { status });
+      return paymentOrdersJson(span, data, status);
     }
 
     // The order exists but is unrecorded if this fails: it is never shown or paid,
@@ -257,12 +273,13 @@ export const POST = withRateLimit(async (request: NextRequest) => {
     if (!recorded.ok) {
       console.error(`[payment-orders] onramp order ${created.id} created but not recorded: ${recorded.error}`);
       trackApiError(request, "/api/v1/payment-orders", "POST", new Error(recorded.error), recorded.status);
-      return NextResponse.json({ success: false, error: recorded.error }, { status: recorded.status });
+      return paymentOrdersJson(span, { success: false, error: recorded.error }, recorded.status);
     }
 
-    return NextResponse.json(
+    return paymentOrdersJson(
+      span,
       { ...(data as Record<string, unknown>), transactionId: recorded.id },
-      { status },
+      status,
     );
   } catch (error) {
     console.error("Error creating payment order:", error);
@@ -272,9 +289,11 @@ export const POST = withRateLimit(async (request: NextRequest) => {
       response_time_ms: responseTime,
     });
 
-    return NextResponse.json(
+    return paymentOrdersJson(
+      span,
       { success: false, error: "Internal server error" },
-      { status: 500 },
+      500,
     );
   }
-});
+  }),
+);

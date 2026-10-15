@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 import axios from "axios";
 import { randomBytes } from "crypto";
 import config from "./config";
+import { buildAggregatorOutboundHeaders } from "./aggregator-outbound-headers";
 import { getAggregatorSenderApiKey } from "./server-config";
 import {
   trackApiRequest,
@@ -209,19 +210,24 @@ export function buildSenderOfframpOrderBody(
 }
 
 /**
- * POST /v2/sender/orders with the sender API key. Shared by the on-ramp branch
- * of the route and the sell handler below.
+ * POST /v2/sender/orders with the sender API key, forwarding the caller's
+ * X-Request-ID and trace context. Shared by the on-ramp branch of the route and
+ * the sell handler below.
  */
 export async function postSenderOrder(
   body: unknown,
   apiKey: string,
+  incomingHeaders?: { get(name: string): string | null },
 ): Promise<{ status: number; data: unknown }> {
   const baseUrl = config.aggregatorUrl.replace(/\/+$/, "").replace(/\/v1$/i, "");
   const { data, status } = await axios.post(`${baseUrl}/v2/sender/orders`, body, {
-    headers: {
-      "Content-Type": "application/json",
-      "API-Key": apiKey,
-    },
+    headers: await buildAggregatorOutboundHeaders(
+      {
+        "Content-Type": "application/json",
+        "API-Key": apiKey,
+      },
+      incomingHeaders,
+    ),
     validateStatus: () => true,
   });
 
@@ -360,7 +366,7 @@ export async function handleCreateOfframpOrder(
 
     let result: { status: number; data: unknown };
     try {
-      result = await postSenderOrder(orderBody, apiKey);
+      result = await postSenderOrder(orderBody, apiKey, request.headers);
     } catch (error) {
       console.error("[payment-orders] sender order request failed:", error);
       return fail(502, "Could not reach the aggregator. Please try again.");

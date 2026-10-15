@@ -24,9 +24,9 @@ describe("earnFeature", () => {
     expect(isEvmEarnFlow("Base")).toBe(true);
   });
 
-  it("shows earn action on Lisk (unavailable tooltip, not full UI)", () => {
-    expect(isEarnActionVisible("Lisk")).toBe(true);
-    expect(isEarnUiVisible("Lisk")).toBe(false);
+  it("shows earn action but not full UI on unsupported EVM chains", () => {
+    expect(isEarnActionVisible("Optimism")).toBe(true);
+    expect(isEarnUiVisible("Optimism")).toBe(false);
   });
 
   it("scopes EVM-sourced activity to the source chain wallet view", () => {

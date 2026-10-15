@@ -52,7 +52,6 @@ import {
   resolveChainIdFromNetworkName,
 } from "../lib/payment-order-id";
 import { isNoProviderError } from "../lib/errorMessages";
-
 const AGGREGATOR_URL = config.aggregatorUrl;
 
 /** Maps aggregator order status → Supabase `transactions.status`. Swap keeps validated→completed; on-ramp keeps pending until settled. */

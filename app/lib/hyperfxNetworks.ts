@@ -1,7 +1,4 @@
-/**
- * HyperFX network config: Noblocks chains with cNGN that IntentGateway supports.
- * Lisk has cNGN in Noblocks but is not on Hyperbridge — stays on LI.FI.
- */
+/** HyperFX network config: Noblocks chains with cNGN that IntentGateway supports. */
 
 import { base, bsc, mainnet, polygon, type Chain } from "viem/chains";
 

@@ -151,4 +151,7 @@ const SCRIPT_ONLY = new Set([
   "SEED_TIMELAPSE_GWS",
   "DRY_RUN",
   "MORALIS_MS_DELAY",
+  // scripts/reencrypt-encryption-key.ts
+  "OLD_ENCRYPTION_KEY",
+  "NEW_ENCRYPTION_KEY",
 ]);

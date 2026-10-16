@@ -31,8 +31,6 @@ const config: Config = {
   noticeBannerText: process.env.NEXT_PUBLIC_NOTICE_BANNER_TEXT || "",
   brevoConversationsId: process.env.NEXT_PUBLIC_BREVO_CONVERSATIONS_ID || "",
   brevoConversationsGroupId: process.env.NEXT_PUBLIC_BREVO_CONVERSATIONS_GROUP_ID || "",
-  blockfestEndDate:
-    process.env.NEXT_PUBLIC_BLOCKFEST_END_DATE || "2025-10-11T23:59:00+01:00",
   worldcupFooterEndDate:
     process.env.NEXT_PUBLIC_WORLDCUP_FOOTER_END_DATE ||
     "2026-07-19T23:59:59+01:00",

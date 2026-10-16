@@ -36,7 +36,6 @@ import {
   normalizeSavedRecipientChannel,
   isSameSavedRecipient,
   getRpcUrl,
-  isBlockFestActive,
 } from "../utils";
 import {
   fetchOrderDetails,
@@ -85,40 +84,7 @@ import { usePrivy } from "@privy-io/react-auth";
 import { useApiAuth } from "../hooks/useApiAuth";
 import { TransactionHelperText } from "../components/TransactionHelperText";
 import { useConfetti } from "../hooks/useConfetti";
-import { BlockFestCashbackComponent } from "../components/blockfest";
-import { useBlockFestClaim } from "../context/BlockFestClaimContext";
 import { useRocketStatus } from "../context/RocketStatusContext";
-
-// Allowed tokens for BlockFest cashback
-const ALLOWED_CASHBACK_TOKENS = new Set(["USDC", "USDT"]);
-
-// Helper function to check BlockFest eligibility
-const isBlockFestEligible = (
-  transactionStatus: string,
-  claimed: boolean | null,
-  orderDetails: any,
-  orderId: string | null,
-  isOnrampFlow = false,
-) => {
-  const isCampaignActive = isBlockFestActive();
-  const isTransactionComplete = isOnrampFlow
-    ? transactionStatus === "settled"
-    : ["validated", "settling", "settled"].includes(transactionStatus);
-  const isUserClaimed = claimed === true;
-  const isBaseNetwork = orderDetails?.network?.toLowerCase() === "base";
-  const hasValidOrder = Boolean(orderId && orderDetails?.token);
-  const isEligibleToken =
-    orderDetails?.token && ALLOWED_CASHBACK_TOKENS.has(orderDetails.token);
-
-  return (
-    isCampaignActive &&
-    isTransactionComplete &&
-    isUserClaimed &&
-    isBaseNetwork &&
-    hasValidOrder &&
-    isEligibleToken
-  );
-};
 
 /**
  * Renders the transaction status component.
@@ -147,7 +113,6 @@ export function TransactionStatus({
   refetchRate,
   isOnramp = false,
 }: TransactionStatusProps) {
-  const { claimed } = useBlockFestClaim();
   const { resolvedTheme } = useTheme();
   const { selectedNetwork } = useNetwork();
   const { isEmbed } = useEmbed();
@@ -1662,26 +1627,6 @@ export function TransactionStatus({
             "expired",
           ].includes(transactionStatus) && (
               <>
-                {/* BlockFest Cashback Component - only when validated/settling/settled and claimed and on Base network */}
-                {isBlockFestEligible(
-                  transactionStatus,
-                  claimed,
-                  orderDetails,
-                  orderId,
-                  isOnramp,
-                ) && (
-                    <AnimatedComponent
-                      variant={slideInOut}
-                      delay={0.45}
-                      className="flex justify-center"
-                    >
-                      <BlockFestCashbackComponent
-                        transactionId={orderId}
-                        cashbackPercentage="1%"
-                      />
-                    </AnimatedComponent>
-                  )}
-
                 {(showGetReceiptButton || showNewPaymentButton) &&
                   (isEmbed ? (
                     // Widget design: full-width buttons pinned as one group at
@@ -1952,14 +1897,7 @@ export function TransactionStatus({
         <AnimatePresence>
           {showSuccessVisual &&
             // Widget design has no share section on the success screen.
-            !isEmbed &&
-            !isBlockFestEligible(
-              transactionStatus,
-              claimed,
-              orderDetails,
-              orderId,
-              isOnramp,
-            ) && (
+            !isEmbed && (
               <AnimatedComponent
                 variant={slideInOut}
                 delay={0.8}

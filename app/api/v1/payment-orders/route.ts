@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import axios from "axios";
 import { withRateLimit } from "@/app/lib/rate-limit";
 import {
@@ -14,8 +14,14 @@ import {
   accountNameMatchesKyc,
   REFUND_NAME_MISMATCH_MESSAGE,
 } from "@/app/lib/name-matching";
+import { buildAggregatorOutboundHeaders } from "@/app/lib/aggregator-outbound-headers";
+import {
+  paymentOrdersJson,
+  tracePaymentOrdersProxy,
+} from "@/app/lib/payment-orders-tracing";
 
-export const POST = withRateLimit(async (request: NextRequest) => {
+export const POST = withRateLimit(async (request: NextRequest) =>
+  tracePaymentOrdersProxy("create", {}, async (span) => {
   const startTime = Date.now();
 
   try {
@@ -23,16 +29,17 @@ export const POST = withRateLimit(async (request: NextRequest) => {
 
     if (!walletAddress) {
       trackApiError(request, "/api/v1/payment-orders", "POST", new Error("Unauthorized"), 401);
-      return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+      return paymentOrdersJson(span, { success: false, error: "Unauthorized" }, 401);
     }
 
     trackApiRequest(request, "/api/v1/payment-orders", "POST", { wallet_address: walletAddress });
 
     if (!config.aggregatorUrl) {
       trackApiError(request, "/api/v1/payment-orders", "POST", new Error("NEXT_PUBLIC_AGGREGATOR_URL is not configured"), 500);
-      return NextResponse.json(
+      return paymentOrdersJson(
+        span,
         { success: false, error: "NEXT_PUBLIC_AGGREGATOR_URL is not configured" },
-        { status: 500 },
+        500,
       );
     }
 
@@ -45,9 +52,10 @@ export const POST = withRateLimit(async (request: NextRequest) => {
         new Error("AGGREGATOR_SENDER_API_KEY_ID is not configured"),
         500,
       );
-      return NextResponse.json(
+      return paymentOrdersJson(
+        span,
         { success: false, error: "AGGREGATOR_SENDER_API_KEY_ID is not configured" },
-        { status: 500 },
+        500,
       );
     }
 
@@ -71,13 +79,14 @@ export const POST = withRateLimit(async (request: NextRequest) => {
         new Error("Off-ramp payment orders are not created through this endpoint"),
         400,
       );
-      return NextResponse.json(
+      return paymentOrdersJson(
+        span,
         {
           success: false,
           error:
             "Only on-ramp (fiat source) orders are supported. Off-ramp uses on-chain gateway.createOrder.",
         },
-        { status: 400 },
+        400,
       );
     }
 
@@ -94,18 +103,20 @@ export const POST = withRateLimit(async (request: NextRequest) => {
         new Error(`On-ramp not supported for fiat currency: ${sourceCurrencyRaw || "missing"}`),
         400,
       );
-      return NextResponse.json(
+      return paymentOrdersJson(
+        span,
         {
           success: false,
           error: sourceCurrencyRaw
             ? `${sourceCurrencyRaw} on-ramp is not available.`
             : "On-ramp order is missing source currency.",
         },
-        { status: 400 },
+        400,
       );
     }
 
     (body as { source?: { currency?: string } }).source!.currency = sourceCurrency;
+    span?.setTag("source_currency", sourceCurrency);
 
     // Refund-account name policy (authoritative gate at money time). The refund account must belong
     // to the same person as the verified KYC profile. A modified client must not be able to bypass
@@ -124,13 +135,14 @@ export const POST = withRateLimit(async (request: NextRequest) => {
         new Error("Onramp order is missing a resolved refund account name"),
         422,
       );
-      return NextResponse.json(
+      return paymentOrdersJson(
+        span,
         {
           success: false,
           error:
             "A verified refund account is required. Please add one and try again.",
         },
-        { status: 422 },
+        422,
       );
     }
     // KYC is required to onramp, so the name is present; if a lookup fails, fail closed rather than
@@ -144,12 +156,13 @@ export const POST = withRateLimit(async (request: NextRequest) => {
         new Error("KYC name lookup failed"),
         503,
       );
-      return NextResponse.json(
+      return paymentOrdersJson(
+        span,
         {
           success: false,
           error: "Could not verify your identity right now. Please try again.",
         },
-        { status: 503 },
+        503,
       );
     }
     // Fail closed: reject order if KYC name is missing (null/empty). Without a verified name on file,
@@ -162,12 +175,13 @@ export const POST = withRateLimit(async (request: NextRequest) => {
         new Error("KYC profile is missing verified full name"),
         422,
       );
-      return NextResponse.json(
+      return paymentOrdersJson(
+        span,
         {
           success: false,
           error: "Your identity verification is incomplete. Please complete KYC with your full name.",
         },
-        { status: 422 },
+        422,
       );
     }
     // Validate the refund account name matches the verified KYC name.
@@ -179,9 +193,10 @@ export const POST = withRateLimit(async (request: NextRequest) => {
         new Error("Refund account name does not match KYC profile"),
         422,
       );
-      return NextResponse.json(
+      return paymentOrdersJson(
+        span,
         { success: false, error: REFUND_NAME_MISMATCH_MESSAGE },
-        { status: 422 },
+        422,
       );
     }
 
@@ -194,13 +209,15 @@ export const POST = withRateLimit(async (request: NextRequest) => {
     }
 
     const { data, status } = await axios.post(url, body, {
-      headers: {
-        "Content-Type": "application/json",
-        "API-Key": senderApiKey,
-      },
+      headers: await buildAggregatorOutboundHeaders(
+        {
+          "Content-Type": "application/json",
+          "API-Key": senderApiKey,
+        },
+        request.headers,
+      ),
       validateStatus: () => true,
     });
-
     if (process.env.NODE_ENV === "development" && status >= 400) {
       console.log("[payment-orders] aggregator response →", status, JSON.stringify(data, null, 2));
     }
@@ -216,10 +233,10 @@ export const POST = withRateLimit(async (request: NextRequest) => {
         ? (data as { message: string }).message
         : "";
     if (status === 404 && /api key not found/i.test(msg)) {
-      return NextResponse.json(data, { status: 401 });
+      return paymentOrdersJson(span, data, 401);
     }
 
-    return NextResponse.json(data, { status });
+    return paymentOrdersJson(span, data, status);
   } catch (error) {
     console.error("Error creating payment order:", error);
 
@@ -228,9 +245,11 @@ export const POST = withRateLimit(async (request: NextRequest) => {
       response_time_ms: responseTime,
     });
 
-    return NextResponse.json(
+    return paymentOrdersJson(
+      span,
       { success: false, error: "Internal server error" },
-      { status: 500 },
+      500,
     );
   }
-});
+  }),
+);

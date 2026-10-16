@@ -44,7 +44,7 @@ describe("evmEarnWalletTotal", () => {
       crossChainBalances: [
         entry("Base", 298.77),
         entry("Ethereum", 200.1),
-        entry("Lisk", 200),
+        entry("Scroll", 200),
       ],
       earnDepositedUsd: 0,
     });
@@ -54,8 +54,8 @@ describe("evmEarnWalletTotal", () => {
 
   it("does not add earn on non-earn chains", () => {
     const result = resolveEvmEarnWalletDisplayTotal({
-      chainName: "Lisk",
-      crossChainBalances: [entry("Lisk", 0.2)],
+      chainName: "Optimism",
+      crossChainBalances: [entry("Optimism", 0.2)],
       earnDepositedUsd: 0.048,
     });
     expect(result.displayTotalUsd).toBe(0.2);

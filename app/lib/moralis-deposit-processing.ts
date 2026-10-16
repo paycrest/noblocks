@@ -136,7 +136,6 @@ const CHAIN_NATIVE_SYMBOL: Record<string, string> = {
   "0x89": "MATIC",
   "0xa4b1": "ETH",
   "0x2105": "ETH", // Base
-  "0x46f": "LSK", // Lisk
 };
 
 function nativeSymbol(chainId: string): string {

@@ -18,10 +18,6 @@ import {
   ReferralInputModal,
   WidgetShell,
 } from "./";
-import BlockFestCashbackModal from "./blockfest/BlockFestCashbackModal";
-import { useBlockFestClaim } from "../context/BlockFestClaimContext";
-import { BlockFestClaimGate } from "./blockfest/BlockFestClaimGate";
-import { useBlockFestReferral } from "../hooks/useBlockFestReferral";
 import {
   fetchRate,
   fetchSupportedInstitutions,
@@ -69,7 +65,6 @@ import { useStep } from "../context/StepContext";
 import { useSearchParams } from "next/navigation";
 import { HomePage } from "./HomePage";
 import { useNetwork } from "../context/NetworksContext";
-import { useBlockFestModal } from "../context/BlockFestModalContext";
 import {
   useHomeTransactionFormMode,
   useInjectedWallet,
@@ -91,63 +86,37 @@ import { useWalletAddress } from "../hooks/useWalletAddress";
  * disclaimers, cookie consent, and the transaction form or status view.
  *
  * @param props - The layout properties.
- * @param props.authenticated - Whether the user is authenticated.
- * @param props.ready - Whether the auth state is ready.
  * @param props.currentStep - The current transaction step.
  * @param props.transactionFormComponent - The transaction form or status component to render.
  * @param props.isRecipientFormOpen - Whether the recipient form is open.
  * @param props.isOnramp - Whether the current mode is on-ramp.
- * @param props.isBlockFestReferral - Whether the user is a BlockFest referral.
  * @param props.showReferralModal - Whether to show the referral input modal.
  * @param props.onReferralModalClose - Callback when the referral modal is closed.
  * @param props.onNetworkSelected - Callback when a network is selected.
  * @returns The rendered page layout.
  */
 const PageLayout = ({
-  authenticated,
-  ready,
   currentStep,
   transactionFormComponent,
   isRecipientFormOpen,
   isOnramp,
-  isBlockFestReferral,
   showReferralModal,
   onReferralModalClose,
   onNetworkSelected,
 }: {
-  authenticated: boolean;
-  ready: boolean;
   currentStep: string;
   transactionFormComponent: React.ReactNode;
   isRecipientFormOpen: boolean;
   isOnramp: boolean;
-  isBlockFestReferral: boolean;
   showReferralModal: boolean;
   onReferralModalClose: () => void;
   onNetworkSelected: () => void;
 }) => {
-  const { claimed, resetClaim } = useBlockFestClaim();
-  const { isOpen, openModal, closeModal } = useBlockFestModal();
   const { isInjectedWallet } = useInjectedWallet();
   const { isEmbed } = useEmbed();
-  const walletAddress = useWalletAddress();
-
-  useEffect(() => {
-    if (!authenticated && !isInjectedWallet) {
-      resetClaim();
-    }
-  }, [authenticated, isInjectedWallet, resetClaim]);
 
   return (
     <>
-      <BlockFestClaimGate
-        isReferred={isBlockFestReferral}
-        authenticated={authenticated}
-        ready={ready}
-        userAddress={walletAddress ?? ""}
-        onShowModal={openModal}
-      />
-
       {/* Embed mode: partner iframe — no marketing chrome, no cookie banner
           (client trackers are disabled in embed; see providers.tsx). */}
       {!isEmbed && (
@@ -170,8 +139,6 @@ const PageLayout = ({
         />
       )}
 
-      <BlockFestCashbackModal isOpen={isOpen} onClose={closeModal} />
-
       {isEmbed ? (
         <WidgetShell>{transactionFormComponent}</WidgetShell>
       ) : currentStep === STEPS.FORM ? (
@@ -179,7 +146,6 @@ const PageLayout = ({
           transactionFormComponent={transactionFormComponent}
           isRecipientFormOpen={isRecipientFormOpen}
           isOnramp={isOnramp}
-          showBlockFestBanner={claimed === true}
         />
       ) : (
         <div className={`px-5 py-28 ${getBannerPadding()}`}>
@@ -263,7 +229,6 @@ export function MainPageContent() {
   const shouldUseEOA = useShouldUseEOA();
   const { selectedNetwork, setDisplayedNetwork, setSelectedNetwork } =
     useNetwork();
-  const { isBlockFestReferral } = useBlockFestReferral();
 
   const [isPageLoading, setIsPageLoading] = useState(true);
   const [isFetchingRate, setIsFetchingRate] = useState(false);
@@ -1157,13 +1122,10 @@ export function MainPageContent() {
         <Preloader isLoading={true} />
       ) : (
         <PageLayout
-          authenticated={authenticated}
-          ready={ready}
           currentStep={currentStep}
           transactionFormComponent={transactionFormComponent}
           isRecipientFormOpen={isRecipientFormOpen}
           isOnramp={swapMode === "onramp"}
-          isBlockFestReferral={isBlockFestReferral}
           showReferralModal={showReferralModal}
           onReferralModalClose={handleReferralModalClose}
           onNetworkSelected={handleNetworkSelected}

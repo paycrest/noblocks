@@ -24,14 +24,12 @@ import {
   StepProvider,
   TokensProvider,
   TransactionsProvider,
-  BlockFestModalProvider,
   EmbedProvider,
   isEmbedPath,
 } from "./context";
 import { EmbedNetworkLockApplier } from "./components/EmbedNetworkLockApplier";
 import { useActualTheme } from "./hooks/useActualTheme";
 import { useDatadogRum, useMixpanel } from "./hooks/analytics/client";
-import { BlockFestClaimProvider } from "./context/BlockFestClaimContext";
 import { EarnBridgeTracker } from "./components/EarnBridgeTracker";
 
 function Providers({ children }: { children: ReactNode }) {
@@ -127,13 +125,9 @@ function ContextProviders({ children }: { children: ReactNode }) {
                       <EarnBridgeTracker />
                       <TransactionsProvider>
                         <KYCProvider>
-                          <BlockFestClaimProvider>
-                            <BlockFestModalProvider>
-                              <RocketStatusProvider>
-                                {children}
-                              </RocketStatusProvider>
-                            </BlockFestModalProvider>
-                          </BlockFestClaimProvider>
+                          <RocketStatusProvider>
+                            {children}
+                          </RocketStatusProvider>
                         </KYCProvider>
                       </TransactionsProvider>
                     </BalanceProvider>

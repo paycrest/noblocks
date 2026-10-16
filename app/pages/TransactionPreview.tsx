@@ -52,7 +52,6 @@ import { useBalance, useInjectedWallet, useStep, useTransactions } from "../cont
 import {
   useShouldUseEOA,
   useDelegationContractAuth,
-  useMigrationStatus,
   get7702AuthorizedImplementationForAddress,
 } from "../hooks/useEIP7702Account";
 import {
@@ -119,7 +118,6 @@ export const TransactionPreview = ({
   const { resolveAuth } = useApiAuth();
   const { walletId: starknetWalletId, address: starknetWalletAddress, publicKey: starknetPublicKey } = useStarknet();
   const shouldUseEOA = useShouldUseEOA();
-  const { isLoading: isMigrationLoading } = useMigrationStatus();
   const { signDelegationAuthorization } = useDelegationContractAuth();
   const { embedCode } = useEmbed();
 
@@ -330,17 +328,14 @@ export const TransactionPreview = ({
     ? embeddedWallet.address
     : activeWallet?.address;
 
-  // Get appropriate balance based on migration status
-  // After migration: use externalWalletBalance (EOA balance)
-  // Before migration: use smartWalletBalance (SCW balance)
-  // Wait for migration status to load before making decision
+  // Embedded-wallet users always spend from the EOA (externalWalletBalance); see useShouldUseEOA.
   const activeBalance = injectedWallet
     ? injectedWalletBalance
     : isStarknetSelected
       ? starknetWalletBalance
       : isTronSelected
         ? tronWalletBalance
-        : !isMigrationLoading && shouldUseEOA
+        : shouldUseEOA
           ? externalWalletBalance
           : smartWalletBalance;
 

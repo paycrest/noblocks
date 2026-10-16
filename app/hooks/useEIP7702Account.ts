@@ -1,6 +1,6 @@
 "use client";
-import { usePrivy, useWallets, useSign7702Authorization } from "@privy-io/react-auth";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useWallets, useSign7702Authorization } from "@privy-io/react-auth";
+import { useCallback, useEffect, useState } from "react";
 import {
     type Address,
     type Chain,
@@ -9,16 +9,7 @@ import {
     createPublicClient,
     http,
 } from "viem";
-import { useBalance } from "../context/BalanceContext";
-import { useMigrationStatus, triggerMigrationStatusRefetch } from "../context/MigrationStatusContext";
 import config, { getDelegationContractAddress } from "../lib/config";
-
-// Treat tiny residual balances as zero for migration UX decisions.
-const MIGRATION_DUST_USD_THRESHOLD = 0.001;
-
-function hasMeaningfulBalance(value: number | null | undefined): boolean {
-    return Number(value ?? 0) >= MIGRATION_DUST_USD_THRESHOLD;
-}
 
 // ################################################
 // ########## EIP-7702 LIB HELPERS ################
@@ -77,39 +68,17 @@ export { useMigrationStatus, triggerMigrationStatusRefetch } from "../context/Mi
 
 /**
  * True when the app should use the embedded wallet (EOA) for nav, balance, createOrder, transfer.
- * True if: migrated in DB, OR smart wallet has 0 balance across all networks (treat as EOA without DB migration).
- * Uses cross-chain SCW total so the displayed address does not change when switching networks.
+ *
+ * Always true: legacy smart wallets were discontinued with the Biconomy removal (#557), along
+ * with the migration flow that moved funds off them. Selecting an SCW that still holds a balance
+ * left those users unable to sell (the SCW has no KYC profile, and its orders fail on-chain) or
+ * transfer (which asked for a migration that no longer exists). Residual SCW balances are
+ * recovered outside the app.
+ *
+ * Kept as a hook so the SCW branches at call sites stay compiled until they are removed.
  */
 export function useShouldUseEOA(): boolean {
-    const { user } = usePrivy();
-    const { isMigrationComplete, isLoading: isMigrationLoading } = useMigrationStatus();
-    const { smartWalletCrossChainTotals, isLoading: isBalanceLoading } = useBalance();
-    const lastValueRef = useRef<boolean | null>(null);
-
-    const hasSmartWallet = !!user?.linkedAccounts?.find((a) => a.type === "smart_wallet");
-    const smartWalletCrossChainTotal =
-        hasSmartWallet && !isMigrationComplete
-            ? (smartWalletCrossChainTotals?.totalMigrationRelevant ?? 0)
-            : 0;
-
-    if (user == null) {
-        return lastValueRef.current ?? true;
-    }
-
-    if (!hasSmartWallet) {
-        lastValueRef.current = true;
-        return true;
-    }
-    if (isMigrationComplete) {
-        lastValueRef.current = true;
-        return true;
-    }
-    // While migration status or balances are loading, hold the last value.
-    // Default to true (EOA) so we never briefly flash the old SCW address/balance.
-    if (isMigrationLoading || isBalanceLoading) return lastValueRef.current ?? true;
-    const value = !hasMeaningfulBalance(smartWalletCrossChainTotal);
-    lastValueRef.current = value;
-    return value;
+    return true;
 }
 
 /**

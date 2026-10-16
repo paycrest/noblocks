@@ -65,13 +65,6 @@ function sumMigrationRelevantTotals(entries: CrossChainBalanceEntry[]): number {
   }, 0);
 }
 
-function sumAllChainTotals(entries: CrossChainBalanceEntry[]): number {
-  return entries.reduce(
-    (sum, entry) => sum + (entry.balances.total || 0),
-    0,
-  );
-}
-
 /**
  * Applies CNGN balance conversion logic to balances
  * @param balances - The balance object to convert
@@ -558,75 +551,10 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
               ),
             );
           }
-        } else if (smartWalletAccount) {
-          // Not migrated: fetch SCW cross-chain first to determine total and selected-network balance
-          const scwCrossChainEntries =
-            await fetchCrossChainEntriesForAddress(smartWalletAccount.address, {
-              bypassCache,
-            });
-          const scwCrossChainTotalMigrationRelevant =
-            sumMigrationRelevantTotals(scwCrossChainEntries);
-          const scwTotalAll = sumAllChainTotals(scwCrossChainEntries);
-          setSmartWalletCrossChainTotals({
-            totalAll: scwTotalAll,
-            totalMigrationRelevant: scwCrossChainTotalMigrationRelevant,
-          });
-
-          // Extract selected-network balance from cross-chain entries
-          const selectedEntry = scwCrossChainEntries.find(
-            (e) => e.network.chain.id === selectedNetwork.chain.id,
-          );
-          if (selectedEntry) {
-            setSmartWalletBalance(selectedEntry.balances);
-          } else {
-            const result = await fetchWalletBalance(
-              publicClient,
-              smartWalletAccount.address,
-              { bypassCache },
-            );
-            const rawBalances = { ...result.balances };
-            setSmartWalletBalance(
-              buildWalletBalancesFromRaw(
-                rawBalances,
-                resolvedCngnRate,
-                result.balancesInWei,
-              ),
-            );
-          }
-
-          if (scwCrossChainTotalMigrationRelevant === 0 && embeddedWalletAccount) {
-            primaryIsEOA = true;
-            const eoaEntries =
-              await fetchCrossChainEntriesForAddress(embeddedWalletAccount.address, {
-                bypassCache,
-              });
-            setCrossChainBalances(eoaEntries);
-
-            const eoaSelectedEntry = eoaEntries.find(
-              (e) => e.network.chain.id === selectedNetwork.chain.id,
-            );
-            if (eoaSelectedEntry) {
-              setExternalWalletBalance(eoaSelectedEntry.balances);
-            } else {
-              const eoaResult = await fetchWalletBalance(
-                publicClient,
-                embeddedWalletAccount.address,
-                { bypassCache },
-              );
-              setExternalWalletBalance(
-                buildWalletBalancesFromRaw(
-                  { ...eoaResult.balances },
-                  resolvedCngnRate,
-                  eoaResult.balancesInWei,
-                ),
-              );
-            }
-          } else {
-            setExternalWalletBalance(null);
-            setCrossChainBalances(scwCrossChainEntries);
-          }
         } else if (embeddedWalletAccount) {
-          // New user: has embedded wallet — use EOA directly
+          // Not migrated (or never had an SCW): use the EOA. Legacy smart wallets were
+          // discontinued (#557), so an unmigrated SCW is never the active wallet even when it
+          // still holds funds — those are recovered outside the app.
           primaryIsEOA = true;
           setSmartWalletBalance(null);
           setSmartWalletCrossChainTotals(null);

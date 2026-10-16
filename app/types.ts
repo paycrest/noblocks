@@ -492,7 +492,6 @@ export type Config = {
   noticeBannerText?: string; // Optional, for dynamic notice banner text
   brevoConversationsId: string; // Brevo chat widget ID
   brevoConversationsGroupId?: string; // Brevo chat widget group ID for routing
-  blockfestEndDate: string; // BlockFest campaign end date
   /** World Cup footer Lottie end date (paired with fantasyEnabled). */
   worldcupFooterEndDate: string;
   maintenanceEnabled: boolean; // Maintenance notice modal + banner toggle

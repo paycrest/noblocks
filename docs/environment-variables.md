@@ -429,15 +429,10 @@ KYC_DOCUMENTS_BUCKET=kyc-documents
 
 Utility-bill submission has no toggles: `app/lib/dojah.ts` always sends the address fields alongside `input_type: "url"`, and submits the document URL with no base64 retry.
 
-### Campaign Management
+### Referral Funding Wallet
 
 ```bash
-# BlockFest Campaign End Date
-# Format: ISO 8601 with timezone (YYYY-MM-DDTHH:mm:ss±HH:mm)
-# Example: 2025-10-11T23:59:00+01:00
-NEXT_PUBLIC_BLOCKFEST_END_DATE=2025-10-11T23:59:00+01:00
-
-# BlockFest Cashback Wallet credentials
+# Wallet that pays referral rewards (app/api/referral/claim)
 # ⚠️ WARNING: These control funds — never commit to VCS
 # - Use secure secret management (AWS Secrets Manager, Vault, etc.)
 # - Rotate keys regularly; restrict access

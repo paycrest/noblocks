@@ -305,6 +305,10 @@ export type OrderDetailsData = {
   settlements: Settlement[];
   txReceipts: TxReceipt[];
   updatedAt: string;
+  /** On-ramp: `"under_review"` while the deposit is held for a compliance review. */
+  statusDetail?: string;
+  /** On-ramp: why a refunded deposit went back to the account it came from. */
+  refundReason?: string;
 };
 
 /** Form payload for `PDFReceipt` (offramp + onramp/credit fields). */
@@ -412,6 +416,10 @@ export type V2PaymentOrderGetData = {
   status: string;
   providerAccount: V2FiatProviderAccountDTO;
   direction?: string;
+  /** `"under_review"` while a pending on-ramp deposit is held for a compliance review. */
+  statusDetail?: string;
+  /** `"payer_mismatch"` or `"payer_unverified"` when a deposit went back to the account it came from. */
+  refundReason?: string;
   [key: string]: unknown;
 };
 

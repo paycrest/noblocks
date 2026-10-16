@@ -22,9 +22,10 @@
 // failing the run.
 //
 // ONRAMP TERMINAL SEMANTICS: only `settled` completes an onramp — `validated`
-// maps to `pending`, exactly as the app does. Unfunded onramp orders would
-// otherwise never leave the scan set, so the app's validUntil expiry inference is
-// ported too (see resolveOnrampStatus).
+// maps to `pending`, exactly as the app does. An unfunded onramp order leaves the
+// scan set when the aggregator expires it, shortly after its validUntil; nothing is
+// inferred here, because a deposit held for a compliance review stays pending past
+// that window (see resolveOnrampStatus).
 //
 // PARITY NOTE: mapAggregatorStatusToDbStatus, resolveOnrampStatus,
 // aggregatorOriginForV2, isSenderPaymentOrderUuid and the network-name -> chainId
@@ -96,21 +97,17 @@ function mapAggregatorStatusToDbStatus(
 }
 
 /**
- * Port of resolveOnrampOrderStatusFromV2Response: the aggregator may still report
- * `pending` after the virtual-account window closed. Treat a pending order whose
- * `validUntil` has passed as expired — without this, every unfunded onramp order
- * stays in the scan set forever and each run re-fetches it.
+ * Port of resolveOnrampOrderStatusFromV2Response: the status the aggregator reports, never
+ * inferred from `validUntil`. A deposit held for a compliance review stays `pending` past
+ * the payment window and does not expire; writing `expired` would tell a customer whose
+ * money arrived that it did not. The aggregator expires an unpaid order itself shortly after
+ * the window closes, so it leaves the scan set then.
  */
 function resolveOnrampStatus(data: Record<string, any> | null): string | null {
   if (!data || typeof data !== "object") return null;
   const status = String(data.status ?? "");
   if (status === "") return null;
-  if (status.toLowerCase() !== "pending") return status;
-  const validUntil = data.providerAccount?.validUntil;
-  if (!validUntil) return status;
-  const end = new Date(validUntil).getTime();
-  if (Number.isNaN(end) || Date.now() <= end) return status;
-  return "expired";
+  return status;
 }
 
 /** Port of isSenderPaymentOrderUuid: aggregator v2 sender payment order id. */
@@ -175,8 +172,8 @@ type StatusResult =
 
 /**
  * Shared aggregator GET + envelope handling. `readStatus` pulls the order status
- * out of the envelope's `data` (onramp additionally applies the validUntil expiry
- * inference), so both ramps share timeout, 404 and error-envelope handling.
+ * out of the envelope's `data`, so both ramps share timeout, 404 and error-envelope
+ * handling.
  */
 async function fetchAggregatorStatus(
   url: string,

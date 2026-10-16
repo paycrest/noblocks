@@ -1,7 +1,9 @@
 import {
   isAwaitingOrderStatus,
   isKnownAggregatorOrderStatus,
+  onrampRefundExplanation,
 } from "../app/lib/order-status";
+import { onrampOrderErrorMessage } from "../app/lib/errorMessages";
 
 describe("isKnownAggregatorOrderStatus", () => {
   it.each([
@@ -56,5 +58,44 @@ describe("isAwaitingOrderStatus", () => {
     expect(isAwaitingOrderStatus("pending")).toBe(false);
     expect(isAwaitingOrderStatus("settled")).toBe(false);
     expect(isAwaitingOrderStatus(undefined)).toBe(false);
+  });
+});
+
+describe("onrampRefundExplanation", () => {
+  it("explains a deposit returned for a payer mismatch, done or in progress", () => {
+    expect(onrampRefundExplanation("payer_mismatch")).toMatch(/not in your name, so it was sent back/);
+    expect(onrampRefundExplanation("payer_mismatch", { inProgress: true })).toMatch(/it's being sent back/);
+  });
+
+  it("explains an unverified payer", () => {
+    expect(onrampRefundExplanation("payer_unverified")).toMatch(/couldn't confirm who sent/);
+  });
+
+  it("says nothing for any other refund", () => {
+    expect(onrampRefundExplanation(undefined)).toBeUndefined();
+    expect(onrampRefundExplanation("something_else")).toBeUndefined();
+  });
+});
+
+describe("onrampOrderErrorMessage", () => {
+  it("prefers Noblocks' own error", () => {
+    expect(onrampOrderErrorMessage({ success: false, error: "A verified refund account is required." })).toBe(
+      "A verified refund account is required.",
+    );
+  });
+
+  it("shows the aggregator's field message, not its generic one", () => {
+    expect(
+      onrampOrderErrorMessage({
+        status: "error",
+        message: "Failed to validate payload",
+        data: { field: "Source", message: "Refund account name does not match the customer in source.kyc" },
+      }),
+    ).toBe("Refund account name does not match the customer in source.kyc");
+  });
+
+  it("falls back to the top-level message, then nothing", () => {
+    expect(onrampOrderErrorMessage({ status: "error", message: "No provider available" })).toBe("No provider available");
+    expect(onrampOrderErrorMessage(undefined)).toBeUndefined();
   });
 });

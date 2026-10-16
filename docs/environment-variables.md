@@ -73,10 +73,14 @@ SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_SECRET_KEY=
 
 # Passphrase for the encrypt_recipient_data / decrypt_recipient_data Postgres
-# functions protecting saved recipient details. Rotating it makes existing
-# encrypted rows unreadable.
+# functions protecting saved recipient details. Always used to encrypt.
 ENCRYPTION_KEY=
+
+# Previous passphrase, read-only, set only during a key rotation
+ENCRYPTION_KEY_FALLBACK=
 ```
+
+`ENCRYPTION_KEY` rotation is a three-step process, not a plain swap: deploy the new key as `ENCRYPTION_KEY` with the old one as `ENCRYPTION_KEY_FALLBACK`, re-encrypt stored rows with `scripts/reencrypt-encryption-key.ts`, then remove the fallback. `OLD_ENCRYPTION_KEY` and `NEW_ENCRYPTION_KEY` are read by that script only, never by the app. The full procedure is in [`scripts/reencrypt-encryption-key.md`](../scripts/reencrypt-encryption-key.md).
 
 There is no `NEXT_PUBLIC_SUPABASE_URL`: `app/lib/supabase.ts` reads `SUPABASE_URL` only, and the client never talks to Supabase directly.
 

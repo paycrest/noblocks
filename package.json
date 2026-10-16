@@ -26,6 +26,7 @@
     "test:e2e": "cypress run",
     "seed:fantasy": "tsx scripts/seed-fantasy.ts",
     "seed:fantasy:timelapse": "SEED_TIMELAPSE_HOURS=48 SEED_TIMELAPSE_GWS=4 tsx scripts/seed-fantasy.ts",
+    "rotate:encryption-key": "tsx scripts/reencrypt-encryption-key.ts",
     "sanity:dev": "sanity dev --studio studio",
     "sanity:build": "sanity build --studio studio",
     "sanity:deploy": "sanity deploy",

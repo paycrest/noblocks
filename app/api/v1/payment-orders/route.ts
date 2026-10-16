@@ -8,7 +8,13 @@ import {
 } from "@/app/lib/server-analytics";
 import config from "@/app/lib/config";
 import { getAggregatorSenderApiKey } from "@/app/lib/server-config";
-import { getKycFullName } from "@/app/lib/kyc-profile-server";
+import { loadOnrampKycProfile } from "@/app/lib/onramp-kyc-server";
+import {
+  buildOnrampKyc,
+  canQuickVerify,
+  onrampKycMessage,
+  type OnrampKycProfile,
+} from "@/app/lib/onramp-kyc";
 import { isOnrampFiatCurrencyCode } from "@/app/utils";
 import {
   accountNameMatchesKyc,
@@ -145,15 +151,18 @@ export const POST = withRateLimit(async (request: NextRequest) =>
         422,
       );
     }
-    // KYC is required to onramp, so the name is present; if a lookup fails, fail closed rather than
-    // proxy an unvalidated refund destination.
-    const kyc = await getKycFullName(walletAddress);
-    if (!kyc.ok) {
+    // The customer KYC the aggregator requires on every on-ramp order, built from what Noblocks
+    // verified; anything the client sent as source.kyc is replaced. A lookup failure fails
+    // closed rather than proxying an order without it.
+    let profile: OnrampKycProfile;
+    try {
+      profile = await loadOnrampKycProfile(walletAddress);
+    } catch {
       trackApiError(
         request,
         "/api/v1/payment-orders",
         "POST",
-        new Error("KYC name lookup failed"),
+        new Error("KYC profile lookup failed"),
         503,
       );
       return paymentOrdersJson(
@@ -165,25 +174,30 @@ export const POST = withRateLimit(async (request: NextRequest) =>
         503,
       );
     }
-    // Fail closed: reject order if KYC name is missing (null/empty). Without a verified name on file,
-    // we cannot validate the refund account belongs to the user.
-    if (!kyc.fullName) {
+    const onrampKyc = buildOnrampKyc(profile, sourceCurrency);
+    if (!onrampKyc.ok) {
       trackApiError(
         request,
         "/api/v1/payment-orders",
         "POST",
-        new Error("KYC profile is missing verified full name"),
+        new Error(`On-ramp KYC incomplete: ${onrampKyc.missing.join(",")}`),
         422,
       );
       return paymentOrdersJson(
         span,
         {
           success: false,
-          error: "Your identity verification is incomplete. Please complete KYC with your full name.",
+          code: "onramp_kyc_incomplete",
+          error: onrampKycMessage(onrampKyc.missing, sourceCurrency),
+          missing: onrampKyc.missing,
+          quickVerify: canQuickVerify(onrampKyc.missing, sourceCurrency),
         },
         422,
       );
     }
+    const kyc = { fullName: onrampKyc.kyc.personDetails.fullName };
+    (body as { source: Record<string, unknown> }).source.kyc = onrampKyc.kyc;
+
     // Validate the refund account name matches the verified KYC name.
     if (!accountNameMatchesKyc(kyc.fullName, refundAccountName)) {
       trackApiError(

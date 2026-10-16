@@ -26,6 +26,7 @@ import { useNetwork, useTokens, useStarknet, useEmbed } from "../context";
 import config, { getDelegationContractAddress } from "../lib/config";
 import { appendAttributionSuffix } from "../lib/baseBuilderCode";
 import { mapReportAndAct } from "../lib/toastMappedError";
+import { onrampOrderErrorMessage } from "../lib/errorMessages";
 import type {
   Token,
   TransactionPreviewProps,
@@ -81,6 +82,12 @@ import { BiEdit } from "react-icons/bi";
 import { IoAdd } from "react-icons/io5";
 import { InformationSquareIcon } from "hugeicons-react";
 import { AddRefundAccountModal } from "../components/AddRefundAccountModal";
+import {
+  OnrampIdentityModal,
+  type OnrampIdentityPrompt,
+} from "../components/OnrampIdentityModal";
+import { AnimatedModal } from "../components/AnimatedComponents";
+import { KycModal } from "../components/KycModal";
 import { RefundAccountSuccessModal } from "../components/RefundAccountSuccessModal";
 import { PiCheckCircleFill } from "react-icons/pi";
 import { TbCircleDashed } from "react-icons/tb";
@@ -161,6 +168,9 @@ export const TransactionPreview = ({
   const [errorMessage, setErrorMessage] = useState<string>("");
   const [errorCount, setErrorCount] = useState(0); // Used to trigger toast
   const [isConfirming, setIsConfirming] = useState<boolean>(false);
+  // Set when an on-ramp order is refused for missing customer KYC (onramp_kyc_incomplete).
+  const [identityPrompt, setIdentityPrompt] = useState<OnrampIdentityPrompt | null>(null);
+  const [isKycModalOpen, setIsKycModalOpen] = useState(false);
   const [isPollingOrderId, setIsPollingOrderId] = useState<boolean>(false);
   const [isOrderCreatedLogsFetched, setIsOrderCreatedLogsFetched] =
     useState<boolean>(false);
@@ -976,9 +986,7 @@ export const TransactionPreview = ({
         );
         if (res.status !== "success" || !res.data) {
           const msg =
-            typeof res.message === "string"
-              ? res.message
-              : "Failed to create payment order";
+            onrampOrderErrorMessage(res) || "Failed to create payment order";
           throw new Error(msg);
         }
 
@@ -1013,8 +1021,20 @@ export const TransactionPreview = ({
       } catch (e) {
         let msg: string;
         if (axios.isAxiosError(e)) {
-          const data = e.response?.data as { message?: string } | undefined;
-          msg = data?.message || e.message;
+          const body = e.response?.data as
+            | { code?: unknown; error?: unknown; quickVerify?: unknown; missing?: unknown }
+            | undefined;
+          if (body?.code === "onramp_kyc_incomplete") {
+            // Not an error to toast: ask for what is missing, then retry the order.
+            setIdentityPrompt({
+              message: typeof body.error === "string" ? body.error : "Verify your identity to buy.",
+              quickVerify: body.quickVerify === true,
+              needsIdVerification:
+                Array.isArray(body.missing) && body.missing.includes("id_verification"),
+            });
+            return;
+          }
+          msg = onrampOrderErrorMessage(e.response?.data) || e.message;
         } else {
           const error = e as BaseError;
           msg = error.shortMessage || error.message;
@@ -1384,6 +1404,30 @@ export const TransactionPreview = ({
               </span>
             </button>
           </div>
+          <AnimatedModal isOpen={identityPrompt !== null} onClose={() => setIdentityPrompt(null)}>
+            {identityPrompt && (
+              <OnrampIdentityModal
+                prompt={identityPrompt}
+                onClose={() => setIdentityPrompt(null)}
+                onVerified={() => {
+                  setIdentityPrompt(null);
+                  toast.success("Identity confirmed");
+                  void handlePaymentConfirmation();
+                }}
+                onVerifyIdentity={() => {
+                  setIdentityPrompt(null);
+                  setIsKycModalOpen(true);
+                }}
+              />
+            )}
+          </AnimatedModal>
+          <AnimatedModal isOpen={isKycModalOpen} onClose={() => setIsKycModalOpen(false)}>
+            <KycModal
+              setIsKycModalOpen={setIsKycModalOpen}
+              setIsUserVerified={() => {}}
+              targetTier={2}
+            />
+          </AnimatedModal>
           <AddRefundAccountModal
             isOpen={refundAccountModalOpen}
             onClose={() => setRefundAccountModalOpen(false)}

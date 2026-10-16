@@ -2,7 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/app/lib/supabase";
 import { getKycTierLimit } from "@/app/lib/kyc-tier-limits";
 import { resolveIdentityScope } from "@/app/lib/kyc-identity";
-import { getLinkedEvmWalletsForPrivyUserId } from "@/app/lib/privy";
+import {
+  getLinkedEvmWalletsForPrivyUserId,
+  getSmartWalletAddressesForWallets,
+} from "@/app/lib/privy";
 
 export type SwapLimitRpcBody = {
   transactionType: string;
@@ -131,12 +134,6 @@ export async function executeSwapTransactionLimitCheck(
   } catch {
     return { kind: "kyc_db_error" };
   }
-  // The row is written under the body wallet, so it must count against the same
-  // pool. The RPC also unions p_wallet_address in; this keeps the count it echoes
-  // (pooledWalletCount) in step with the wallets it actually sums.
-  if (!scope.wallets.includes(normalizedBodyWalletAddress)) {
-    scope = { ...scope, wallets: [...scope.wallets, normalizedBodyWalletAddress] };
-  }
 
   const tierLimit = getKycTierLimit(scope.effectiveTier);
 
@@ -145,6 +142,24 @@ export async function executeSwapTransactionLimitCheck(
   if (!tierLimit.unlimited && tierLimit.monthly === 0) {
     return { kind: "kyc_required" };
   }
+
+  // Smart wallets hold no KYC profile, so the profile-based scope never contains
+  // them — yet sells from a not-yet-migrated SCW are recorded under the SCW. Pool
+  // every scope wallet's SCW (the caller's and siblings') plus the body wallet, or
+  // a later request from another wallet would leave that spend uncounted. A
+  // lookup failure fails closed, for the same reason as resolveIdentityScope.
+  let smartWallets: string[];
+  try {
+    smartWallets = await getSmartWalletAddressesForWallets(scope.wallets);
+  } catch {
+    return { kind: "kyc_db_error" };
+  }
+  scope = {
+    ...scope,
+    wallets: [
+      ...new Set([...scope.wallets, ...smartWallets, normalizedBodyWalletAddress]),
+    ],
+  };
 
   // Sent to the RPC and echoed back in success/limit_exceeded results.
   // null signals "no cap" to the RPC; 0 is only reachable for capped tiers above.

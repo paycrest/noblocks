@@ -535,37 +535,48 @@ describe("smart wallet KYC resolution", () => {
   });
 
   describe("executeSwapTransactionLimitCheck", () => {
-    it("lets a tier-3 user sell from their smart wallet, pooling its spend with the EOA", async () => {
+    it("lets a tier-3 user sell from their smart wallet, recording it under the EOA", async () => {
+      mockedLinkedWallets.mockResolvedValue({
+        addresses: [EOA, SCW],
+        smartWalletAddresses: [SCW],
+      });
       queueQueries(
         ok({ tier: 3, phone_number: PHONE, id_country: null, id_type: null, id_number: null }),
         ok([{ wallet_address: EOA, tier: 3 }]),
       );
-      mockedRpc.mockResolvedValue({ data: { ok: true }, error: null });
+      mockedRpc.mockResolvedValue({ data: { id: "tx" }, error: null });
+
+      // As the transactions route does: authorize the SCW body, then check and
+      // insert under the wallet the auth step names.
+      const walletAuth = await assertTransactionWalletAuthorized(
+        requestFor("did:privy:user"),
+        EOA,
+        SCW,
+      );
+      if (!walletAuth.ok) throw new Error("expected the SCW to be authorized");
+      const result = await executeSwapTransactionLimitCheck(
+        walletAuth.kycWalletAddress,
+        swapBody,
+        { dryRun: false, explorerLink: null, normalizedEmail: null },
+      );
+
+      expect(result).toMatchObject({ kind: "success", id: "tx" });
+      expect(eqCalls[0]).toEqual(["wallet_address", EOA]);
+      const [, params] = mockedRpc.mock.calls[0];
+      // Under the EOA, the row shows in history (read by the session EOA) and
+      // counts toward the same identity pool as every other EOA sell.
+      expect(params.p_wallet_address).toBe(EOA);
+      expect(params.p_scope_wallets).toEqual([EOA]);
+      expect(params.p_monthly_limit).not.toBe(0);
+    });
+
+    it("treats a wallet with no profile, such as a bare SCW, as unverified", async () => {
+      queueQueries(ok(null));
 
       const result = await executeSwapTransactionLimitCheck(SCW, swapBody, {
         dryRun: true,
         explorerLink: null,
         normalizedEmail: null,
-        kycWalletAddress: EOA,
-      });
-
-      expect(result).toMatchObject({ kind: "success", pooledWalletCount: 2 });
-      expect(eqCalls[0]).toEqual(["wallet_address", EOA]);
-      const [, params] = mockedRpc.mock.calls[0];
-      // The row is written under the SCW, and both wallets draw from one cap.
-      expect(params.p_wallet_address).toBe(SCW);
-      expect(params.p_scope_wallets).toEqual(expect.arrayContaining([EOA, SCW]));
-      expect(params.p_monthly_limit).not.toBe(0);
-    });
-
-    it("still requires KYC when the governing wallet has no profile", async () => {
-      queueQueries(ok(null));
-
-      const result = await executeSwapTransactionLimitCheck(EXTERNAL, swapBody, {
-        dryRun: true,
-        explorerLink: null,
-        normalizedEmail: null,
-        kycWalletAddress: EXTERNAL,
       });
 
       expect(result).toEqual({ kind: "kyc_required" });

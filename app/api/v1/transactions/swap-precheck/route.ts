@@ -144,7 +144,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
     const amountReceived = roundAmountForCurrency(parsedAmountReceived);
 
     const swapResult = await executeSwapTransactionLimitCheck(
-      normalizedBodyWalletAddress,
+      walletAuth.kycWalletAddress,
       {
         transactionType,
         fromCurrency: String(body.fromCurrency),
@@ -155,12 +155,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
         recipient,
         status: "pending",
       },
-      {
-        dryRun: true,
-        explorerLink: null,
-        normalizedEmail: null,
-        kycWalletAddress: walletAuth.kycWalletAddress,
-      },
+      { dryRun: true, explorerLink: null, normalizedEmail: null },
     );
 
     if (swapResult.kind === "kyc_db_error") {

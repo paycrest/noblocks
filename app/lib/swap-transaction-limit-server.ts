@@ -25,11 +25,13 @@ export type TransactionWalletAuthFailureReason =
   | "privy_lookup_failed";
 
 /**
- * Authorizes the body wallet against the session and names the wallet whose KYC
- * profile governs it. That is the body wallet itself, except for the user's own
- * smart wallet: verification is recorded against the embedded EOA that owns it
- * (the middleware wallet), so a sell sent from a not-yet-migrated SCW must be
- * judged by the EOA's tier, not by the SCW's absent profile.
+ * Authorizes the body wallet against the session and names the wallet the
+ * transaction belongs to: its KYC governs the limit check and the row is recorded
+ * under it. That is the body wallet itself, except for the user's own smart
+ * wallet: verification is recorded against the embedded EOA that owns it (the
+ * middleware wallet), and history is read by that EOA. A sell sent from a
+ * not-yet-migrated SCW is therefore judged by, and recorded under, the EOA — the
+ * SCW has no profile (tier 0) and its rows would never appear in history.
  */
 export async function assertTransactionWalletAuthorized(
   request: NextRequest,
@@ -115,11 +117,9 @@ export async function executeSwapTransactionLimitCheck(
     dryRun: boolean;
     explorerLink: string | null;
     normalizedEmail: string | null;
-    /** From assertTransactionWalletAuthorized; differs from the body wallet for an SCW. */
-    kycWalletAddress: string;
   },
 ): Promise<SwapLimitCheckResult> {
-  const { kycWalletAddress } = options;
+  const kycWalletAddress = normalizedBodyWalletAddress;
 
   // The limit belongs to the verified identity, not this wallet: every wallet sharing
   // the caller's phone/ID draws from one pool and inherits the group's best tier.
@@ -130,12 +130,6 @@ export async function executeSwapTransactionLimitCheck(
     scope = await resolveIdentityScope(kycWalletAddress);
   } catch {
     return { kind: "kyc_db_error" };
-  }
-  // The row is written under the body wallet, so it must count against the same
-  // pool. The RPC also unions p_wallet_address in; this keeps the count it echoes
-  // (pooledWalletCount) in step with the wallets it actually sums.
-  if (!scope.wallets.includes(normalizedBodyWalletAddress)) {
-    scope = { ...scope, wallets: [...scope.wallets, normalizedBodyWalletAddress] };
   }
 
   const tierLimit = getKycTierLimit(scope.effectiveTier);

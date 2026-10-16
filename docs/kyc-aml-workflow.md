@@ -406,6 +406,20 @@ export async function dojahCallback(request: Request) {
 }
 ```
 
+## On-ramp customer KYC
+
+Every on-ramp (Buy) order must carry the customer's KYC in the aggregator's `source.kyc`. `POST /api/v1/payment-orders` builds it on the server from the user's verified profile (`app/lib/onramp-kyc.ts`), across the wallets of the same identity, and replaces anything the client sent:
+
+- full name, date of birth (18 or over) and the verified identity document;
+- for NGN, the BVN or NIN as the identity document (the NIN first);
+- for KES, the user's Kenyan mobile number.
+
+When something is missing the route answers 422 `{ code: "onramp_kyc_incomplete", error, missing, quickVerify }` and the Buy screen opens `OnrampIdentityModal` instead of showing an error.
+
+### BVN/NIN check (`POST /api/kyc/identity-check`)
+
+For an ID-verified user buying with NGN who lacks only the BVN/NIN, date of birth or verified name, the modal asks for their BVN or NIN. Smile ID's ID-number lookup (Enhanced KYC, job type 5, no selfie) returns the record's name, date of birth and phone. The number is accepted only when the record is the user's: its phone matches their OTP-verified phone, or its name matches their verified name. It is refused when another account already holds it: in the `bvn` / `nin` columns at any tier (the check itself may store them on a tier-1 wallet of a verified identity), or as a verified (tier 2+) document. On success the number is stored in `user_kyc_profiles.bvn` / `nin`, beside the verified document, and the date of birth is filled when none is stored. The record's name (when written in Latin letters) replaces the stored name only when the two already match, so a record accepted on the phone alone never overwrites a verified name; it fills the name only when none is stored. Each write is conditional on the value read. A unique index cannot enforce one number per identity (sibling wallets of one person may share it), so the handler claims the number first, re-checks for another holder with the same rules and, on a concurrent claim, releases the number and refuses (409) before writing anything else. The release is best-effort: if it fails, the handler logs `[identity-check] could not release a contested number` and answers 503, and the number may remain stored on both accounts until it is cleared by hand. Then the order is retried.
+
 ## State Machine
 
 KYC status transitions:

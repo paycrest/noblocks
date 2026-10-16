@@ -213,3 +213,21 @@ export function mapToUserMessage(error: unknown): string {
 export function isSuppressed(message: string): boolean {
   return message === SUPPRESS;
 }
+
+/**
+ * The message to show for a failed on-ramp order creation. Noblocks' own routes answer
+ * `{ error }`; the aggregator answers `{ message, data: { field, message } }`, where the
+ * top-level message is generic ("Failed to validate payload") and the useful text is in
+ * `data.message`.
+ */
+export function onrampOrderErrorMessage(body: unknown): string | undefined {
+  if (!body || typeof body !== "object") return undefined;
+  const b = body as { error?: unknown; message?: unknown; data?: unknown };
+  if (typeof b.error === "string" && b.error.trim()) return b.error.trim();
+  const data = b.data as { message?: unknown } | undefined;
+  if (data && typeof data === "object" && typeof data.message === "string" && data.message.trim()) {
+    return data.message.trim();
+  }
+  if (typeof b.message === "string" && b.message.trim()) return b.message.trim();
+  return undefined;
+}

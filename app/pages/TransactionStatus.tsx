@@ -41,6 +41,7 @@ import {
 import {
   fetchOrderDetails,
   fetchV2SenderPaymentOrderById,
+  isOnrampUnderReview,
   resolveOnrampOrderStatusFromV2Response,
   updateTransactionDetails,
   unwrapV2SenderOrderEnvelope,
@@ -48,7 +49,7 @@ import {
   saveRecipient,
   deleteSavedRecipient,
 } from "../api/aggregator";
-import { isKnownAggregatorOrderStatus } from "../lib/order-status";
+import { isKnownAggregatorOrderStatus, onrampRefundExplanation } from "../lib/order-status";
 import { reindexSingleTransaction } from "../lib/reindex";
 import {
   STEPS,
@@ -1137,7 +1138,9 @@ export function TransactionStatus({
             (isOnramp && transactionStatus === "fulfilled")
               ? "processing"
               : isOnramp && transactionStatus === "pending"
-                ? "awaiting payment"
+                ? isOnrampUnderReview(orderDetails)
+                  ? "under review"
+                  : "awaiting payment"
                 : isOnramp &&
                     ["validated", "settling"].includes(transactionStatus)
                   ? "processing"
@@ -1341,7 +1344,8 @@ export function TransactionStatus({
           <br />
           <br />
           {isOnramp
-            ? "The fiat payment could not be processed."
+            ? onrampRefundExplanation(orderDetails?.refundReason) ??
+              "The fiat payment could not be processed."
             : "The stablecoin has been refunded to your account."}
         </>
       );
@@ -1361,6 +1365,19 @@ export function TransactionStatus({
       );
     }
 
+    // On-ramp: the payment arrived and is held for a compliance review. It does not expire.
+    if (isOnramp && transactionStatus === "pending" && isOnrampUnderReview(orderDetails)) {
+      return (
+        <>
+          We received your payment of{" "}
+          <span className="text-text-body dark:text-white">{amountDisplay}</span>{" "}
+          and are reviewing it. Your money is safe: we&apos;ll either complete your
+          order or send the money back to the account it came from. Don&apos;t pay
+          again.
+        </>
+      );
+    }
+
     // On-ramp: waiting for fiat — show with provider / VA details (not "processing" yet)
     if (isOnramp && transactionStatus === "pending") {
       return (
@@ -1374,6 +1391,9 @@ export function TransactionStatus({
     }
 
     // On-ramp: backend moved past pending (fulfilling, fulfilled, validated, settling, etc.)
+    const refundingNote = onrampRefundExplanation(orderDetails?.refundReason, {
+      inProgress: true,
+    });
     if (
       isOnramp &&
       !["validated", "settling", "settled", "refunded", "expired", "pending"].includes(
@@ -1386,7 +1406,9 @@ export function TransactionStatus({
           on-ramp payment of{" "}
           <span className="text-text-body dark:text-white">{amountDisplay}</span>
           {transactionStatus === "refunding"
-            ? "."
+            ? refundingNote
+              ? `. ${refundingNote}`
+              : "."
             : ". We're confirming your transfer and sending crypto to your wallet."}
         </>
       );
@@ -1561,7 +1583,9 @@ export function TransactionStatus({
                   ? "Processing payment..."
                   : "Transaction successful"
                 : transactionStatus === "pending"
-                  ? "Complete your payment"
+                  ? isOnrampUnderReview(orderDetails)
+                    ? "Payment under review"
+                    : "Complete your payment"
                   : transactionStatus === "settled" && isOnrampForwardingResolved
                     ? "Transaction successful"
                     : "Processing payment..."}

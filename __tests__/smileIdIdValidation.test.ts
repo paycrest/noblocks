@@ -1,3 +1,4 @@
+import { extractSmileIdIdentity, normalizeSmileIdDate } from "../app/lib/smileIdIdentity";
 import {
   getJobTypeForIdType,
   validateSmileIdIdInfo,
@@ -90,5 +91,74 @@ describe("validateSmileIdIdInfo", () => {
         id_number: "1234",
       }),
     ).toEqual({ ok: true });
+  });
+});
+
+describe("extractSmileIdIdentity", () => {
+  // The shape of a real job status response: personal data in `result`, PascalCase.
+  const jobStatus = {
+    code: "2302",
+    job_complete: true,
+    job_success: true,
+    result: {
+      ResultCode: "0810",
+      Actions: { Verify_Document: "Passed" },
+      FullName: "Ada  Obi",
+      FirstName: "Ada",
+      LastName: "Obi",
+      DOB: "1990-04-12",
+      IDNumber: "A00000001",
+      IDType: "PASSPORT",
+      Country: "NG",
+    },
+  };
+
+  it("reads the PascalCase fields in result", () => {
+    expect(extractSmileIdIdentity(jobStatus)).toEqual({
+      fullName: "Ada Obi",
+      dateOfBirth: "1990-04-12",
+      idNumber: "A00000001",
+      idType: "PASSPORT",
+      idCountry: "NG",
+    });
+  });
+
+  it("falls back to first and last name", () => {
+    const { FullName: _omit, ...rest } = jobStatus.result;
+    void _omit;
+    expect(extractSmileIdIdentity({ result: rest }).fullName).toBe("Ada Obi");
+  });
+
+  it("still reads the lowercase and v3 shapes", () => {
+    expect(extractSmileIdIdentity({ id_info: { dob: "1985-01-02", full_name: "B C" } }).dateOfBirth).toBe("1985-01-02");
+    expect(extractSmileIdIdentity({ id_fields: { date_of_birth: "1985-01-02", id_number: "X1" } })).toMatchObject({
+      dateOfBirth: "1985-01-02",
+      idNumber: "X1",
+    });
+  });
+
+  it("returns nulls for a response without personal data", () => {
+    const empty = { fullName: null, dateOfBirth: null, idNumber: null, idType: null, idCountry: null };
+    expect(extractSmileIdIdentity({ job_complete: true, result: { ResultCode: "1012", DOB: "Not Available" } })).toEqual(empty);
+    expect(extractSmileIdIdentity(undefined)).toEqual(empty);
+    expect(extractSmileIdIdentity({ result: { Country: "Nigeria" } }).idCountry).toBeNull();
+  });
+});
+
+describe("normalizeSmileIdDate", () => {
+  it("accepts ISO and day-first dates and rejects anything else", () => {
+    expect(normalizeSmileIdDate("1990-04-12")).toBe("1990-04-12");
+    expect(normalizeSmileIdDate("1990-04-12T00:00:00Z")).toBe("1990-04-12");
+    expect(normalizeSmileIdDate("12/04/1990")).toBe("1990-04-12");
+    expect(normalizeSmileIdDate("12-04-1990")).toBe("1990-04-12");
+    expect(normalizeSmileIdDate("1990-04-12 08:30:00+01:00")).toBe("1990-04-12");
+    expect(normalizeSmileIdDate("1990-04-12Tnot-a-time")).toBeNull();
+    expect(normalizeSmileIdDate("1990-04-12T25:00:00Z")).toBeNull();
+    expect(normalizeSmileIdDate("1990-02-30")).toBeNull();
+    expect(normalizeSmileIdDate("April 12 1990")).toBeNull();
+    expect(normalizeSmileIdDate("2999-01-01")).toBeNull();
+    expect(normalizeSmileIdDate(null)).toBeNull();
+    expect(normalizeSmileIdDate(19900412)).toBeNull();
+    expect(normalizeSmileIdDate({ year: 1990 })).toBeNull();
   });
 });

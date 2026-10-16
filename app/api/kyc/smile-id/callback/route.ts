@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/app/lib/supabase";
 import { getSmileIdJobStatus } from "@/app/lib/smileID";
+import { extractSmileIdIdentity, type SmileIdIdentity } from "@/app/lib/smileIdIdentity";
 import { notifyKycResultEmail } from "@/app/lib/activepieces-kyc-result";
 import { createKycReporter } from "@/app/lib/kyc-telemetry";
 
@@ -219,7 +220,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ status: "ok", action: "none" });
   }
 
-  let signedIdInfo: Record<string, any> = {};
+  let signedIdentity: SmileIdIdentity = {
+    fullName: null,
+    dateOfBirth: null,
+    idNumber: null,
+    idType: null,
+    idCountry: null,
+  };
   try {
     const jobStatus = await getSmileIdJobStatus(rawUserId, jobId);
     const statusActions = jobStatus?.result?.Actions ?? {};
@@ -251,8 +258,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ status: "ok", action: "none" });
     }
 
-    const statusResult = (jobStatus?.result ?? {}) as Record<string, any>;
-    signedIdInfo = statusResult.id_info ?? statusResult.ID_Info ?? {};
+    signedIdentity = extractSmileIdIdentity(jobStatus);
   } catch (e) {
     report.failed({
       walletAddress,
@@ -280,31 +286,30 @@ export async function POST(request: NextRequest) {
   const currentTier = Number(existing.tier) || 0;
   const newTier = currentTier >= 1 ? Math.max(currentTier, 2) : currentTier;
 
-  // Optionally enrich with personal info from the signed job_status response.
-  const smileIdInfo = signedIdInfo;
-  const derivedFullName =
-    smileIdInfo.full_name ||
-    (smileIdInfo.first_name && smileIdInfo.last_name
-      ? `${smileIdInfo.first_name} ${smileIdInfo.last_name}`
-      : null) ||
-    null;
+  // Enrich with the verified identity from the signed job_status response.
+  const derivedFullName = signedIdentity.fullName;
 
   // Raising tier to 2 can newly pull this row into uniq_user_kyc_profiles_verified_id
   // (the index covers tier >= 2 only), even though no id_number is written here. If
   // another non-injected wallet already holds this document, the promotion can never
   // succeed — so refuse it deliberately instead of letting a 23505 surface as a 500
   // that SmileID retries forever.
+  // The stored document, else the verified one Smile ID returned, which is written below. A
+  // profile promoted here without the synchronous response never had its document saved.
+  const idNumberForProfile: string | null = existing.id_number || signedIdentity.idNumber;
+  const idTypeForProfile: string | null = existing.id_type || signedIdentity.idType;
+  const idCountryForProfile: string | null = existing.id_country || signedIdentity.idCountry;
   if (
     newTier >= 2 &&
-    existing.id_number &&
+    idNumberForProfile &&
     existing.is_injected_wallet !== true
   ) {
     const { data: idOwner, error: idOwnerError } = await supabaseAdmin
       .from("user_kyc_profiles")
       .select("wallet_address")
-      .eq("id_country", existing.id_country)
-      .eq("id_type", existing.id_type)
-      .eq("id_number", existing.id_number)
+      .eq("id_country", idCountryForProfile)
+      .eq("id_type", idTypeForProfile)
+      .eq("id_number", idNumberForProfile)
       .gte("tier", 2)
       .eq("is_injected_wallet", false)
       .neq("wallet_address", walletAddress)
@@ -354,7 +359,11 @@ export async function POST(request: NextRequest) {
       verified_at: new Date().toISOString(),
       tier: newTier,
       ...(derivedFullName ? { full_name: derivedFullName } : {}),
-      ...(smileIdInfo.dob ? { date_of_birth: smileIdInfo.dob } : {}),
+      ...(signedIdentity.dateOfBirth ? { date_of_birth: signedIdentity.dateOfBirth } : {}),
+      // Never replace a stored number: it may be the one the user's document was checked against.
+      ...(!existing.id_number && signedIdentity.idNumber ? { id_number: signedIdentity.idNumber } : {}),
+      ...(!existing.id_type && signedIdentity.idType ? { id_type: signedIdentity.idType } : {}),
+      ...(!existing.id_country && signedIdentity.idCountry ? { id_country: signedIdentity.idCountry } : {}),
     })
     .eq("wallet_address", walletAddress);
 

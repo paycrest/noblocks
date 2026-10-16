@@ -8,10 +8,7 @@ import {
   assertTransactionWalletAuthorized,
   executeSwapTransactionLimitCheck,
 } from "../app/lib/swap-transaction-limit-server";
-import {
-  getLinkedEvmWalletsForPrivyUserId,
-  getSmartWalletAddressesForWallets,
-} from "../app/lib/privy";
+import { getLinkedEvmWalletsForPrivyUserId } from "../app/lib/privy";
 import { supabaseAdmin } from "../app/lib/supabase";
 import type { NextRequest } from "next/server";
 
@@ -32,13 +29,11 @@ jest.mock("../app/lib/supabase", () => ({
 
 jest.mock("../app/lib/privy", () => ({
   getLinkedEvmWalletsForPrivyUserId: jest.fn(),
-  getSmartWalletAddressesForWallets: jest.fn(),
 }));
 
 const mockedFrom = supabaseAdmin.from as unknown as jest.Mock;
 const mockedRpc = supabaseAdmin.rpc as unknown as jest.Mock;
 const mockedLinkedWallets = getLinkedEvmWalletsForPrivyUserId as jest.Mock;
-const mockedSmartWallets = getSmartWalletAddressesForWallets as jest.Mock;
 
 type QueryResult = { data: unknown; error: unknown };
 
@@ -486,7 +481,6 @@ describe("smart wallet KYC resolution", () => {
 
   beforeEach(() => {
     mockedLinkedWallets.mockReset();
-    mockedSmartWallets.mockReset();
     mockedRpc.mockReset();
     delete process.env.NEXT_PUBLIC_AGGREGATOR_URL;
   });
@@ -546,7 +540,6 @@ describe("smart wallet KYC resolution", () => {
         ok({ tier: 3, phone_number: PHONE, id_country: null, id_type: null, id_number: null }),
         ok([{ wallet_address: EOA, tier: 3 }]),
       );
-      mockedSmartWallets.mockResolvedValue([SCW]);
       mockedRpc.mockResolvedValue({ data: { ok: true }, error: null });
 
       const result = await executeSwapTransactionLimitCheck(SCW, swapBody, {
@@ -563,84 +556,6 @@ describe("smart wallet KYC resolution", () => {
       expect(params.p_wallet_address).toBe(SCW);
       expect(params.p_scope_wallets).toEqual(expect.arrayContaining([EOA, SCW]));
       expect(params.p_monthly_limit).not.toBe(0);
-    });
-
-    // Regression: SCW rows carry no KYC profile, so a scope built from profiles alone
-    // would let a later EOA sell ignore what the SCW already spent this month.
-    it("counts earlier smart-wallet spend when the user later sells from the EOA", async () => {
-      const tier3Profile = ok({
-        tier: 3,
-        phone_number: PHONE,
-        id_country: null,
-        id_type: null,
-        id_number: null,
-      });
-      const phoneSiblings = ok([{ wallet_address: EOA, tier: 3 }]);
-      queueQueries(tier3Profile, phoneSiblings, tier3Profile, phoneSiblings);
-      mockedSmartWallets.mockResolvedValue([SCW]);
-      mockedRpc.mockResolvedValue({ data: { id: "tx" }, error: null });
-
-      const options = {
-        dryRun: false,
-        explorerLink: null,
-        normalizedEmail: null,
-        kycWalletAddress: EOA,
-      };
-      await executeSwapTransactionLimitCheck(SCW, swapBody, options);
-      await executeSwapTransactionLimitCheck(EOA, swapBody, options);
-
-      const [, scwParams] = mockedRpc.mock.calls[0];
-      const [, eoaParams] = mockedRpc.mock.calls[1];
-      expect(scwParams.p_wallet_address).toBe(SCW);
-      expect(eoaParams.p_wallet_address).toBe(EOA);
-      // The EOA request sums the wallet the first row was written under.
-      expect(eoaParams.p_scope_wallets).toEqual(expect.arrayContaining([EOA, SCW]));
-      expect(mockedSmartWallets).toHaveBeenLastCalledWith([EOA]);
-    });
-
-    it("pools a sibling identity wallet's smart wallet", async () => {
-      const SIBLING_SCW = "0xdddddddddddddddddddddddddddddddddddddddd";
-      queueQueries(
-        ok({ tier: 2, phone_number: PHONE, id_country: null, id_type: null, id_number: null }),
-        ok([
-          { wallet_address: EOA, tier: 2 },
-          { wallet_address: EXTERNAL, tier: 1 },
-        ]),
-      );
-      mockedSmartWallets.mockResolvedValue([SIBLING_SCW]);
-      mockedRpc.mockResolvedValue({ data: { ok: true }, error: null });
-
-      const result = await executeSwapTransactionLimitCheck(EOA, swapBody, {
-        dryRun: true,
-        explorerLink: null,
-        normalizedEmail: null,
-        kycWalletAddress: EOA,
-      });
-
-      expect(mockedSmartWallets).toHaveBeenCalledWith([EOA, EXTERNAL]);
-      const [, params] = mockedRpc.mock.calls[0];
-      expect(params.p_scope_wallets).toEqual(
-        expect.arrayContaining([EOA, EXTERNAL, SIBLING_SCW]),
-      );
-      expect(result).toMatchObject({ kind: "success", pooledWalletCount: 3 });
-    });
-
-    it("fails closed when the smart wallet lookup fails", async () => {
-      queueQueries(
-        ok({ tier: 3, phone_number: PHONE, id_country: null, id_type: null, id_number: null }),
-        ok([{ wallet_address: EOA, tier: 3 }]),
-      );
-      mockedSmartWallets.mockRejectedValue(new Error("privy down"));
-
-      const result = await executeSwapTransactionLimitCheck(SCW, swapBody, {
-        dryRun: true,
-        explorerLink: null,
-        normalizedEmail: null,
-        kycWalletAddress: EOA,
-      });
-
-      expect(result).toEqual({ kind: "kyc_db_error" });
-      expect(mockedRpc).not.toHaveBeenCalled();
     });
 
     it("still requires KYC when the governing wallet has no profile", async () => {

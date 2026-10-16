@@ -102,21 +102,6 @@ jobs:
         with:
           version: 2.98.2
 
-      # db push refuses a database whose ledger records a version missing from the
-      # checkout, and each branch carries migrations the other lacks until they are
-      # synced. So the checkout gets every migration file from main and stable; a file
-      # already present (same name) is kept as checked out.
-      - name: Collect migrations from main and stable
-        run: |
-          git fetch --no-tags --depth=1 origin \
-            +refs/heads/main:refs/remotes/origin/main \
-            +refs/heads/stable:refs/remotes/origin/stable
-          for ref in origin/main origin/stable; do
-            git ls-tree --name-only "$ref" supabase/migrations/ | while read -r f; do
-              [ -e "$f" ] || git show "$ref:$f" > "$f"
-            done
-          done
-
       # Direct Postgres connection string. The SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY
       # secrets above are PostgREST credentials and cannot apply migrations.
       #

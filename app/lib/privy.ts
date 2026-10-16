@@ -210,9 +210,22 @@ const EVM_ADDRESS_LOWER = /^0x[a-f0-9]{40}$/;
 export async function collectLinkedEvmAddressesForPrivyUserId(
   userId: string,
 ): Promise<string[]> {
+  return (await getLinkedEvmWalletsForPrivyUserId(userId)).addresses;
+}
+
+/**
+ * Same lookup as collectLinkedEvmAddressesForPrivyUserId, also reporting which of
+ * those addresses are the user's smart wallets. A smart wallet never holds a KYC
+ * profile of its own — verification is recorded against the embedded EOA that owns
+ * it — so callers enforcing KYC need to tell the two apart.
+ */
+export async function getLinkedEvmWalletsForPrivyUserId(
+  userId: string,
+): Promise<{ addresses: string[]; smartWalletAddresses: string[] }> {
   const privy = getPrivyClient();
   const user = await privy.getUser(userId);
   const addresses = new Set<string>();
+  const smartWalletAddresses = new Set<string>();
   for (const account of user?.linkedAccounts ?? []) {
     const addrCandidate =
       account &&
@@ -223,7 +236,13 @@ export async function collectLinkedEvmAddressesForPrivyUserId(
         : null;
     if (addrCandidate && EVM_ADDRESS_LOWER.test(addrCandidate)) {
       addresses.add(addrCandidate);
+      if (account.type === "smart_wallet") {
+        smartWalletAddresses.add(addrCandidate);
+      }
     }
   }
-  return [...addresses];
+  return {
+    addresses: [...addresses],
+    smartWalletAddresses: [...smartWalletAddresses],
+  };
 }

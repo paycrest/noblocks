@@ -155,7 +155,12 @@ export const POST = withRateLimit(async (request: NextRequest) => {
         recipient,
         status: "pending",
       },
-      { dryRun: true, explorerLink: null, normalizedEmail: null },
+      {
+        dryRun: true,
+        explorerLink: null,
+        normalizedEmail: null,
+        kycWalletAddress: walletAuth.kycWalletAddress,
+      },
     );
 
     if (swapResult.kind === "kyc_db_error") {

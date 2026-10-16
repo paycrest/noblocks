@@ -323,6 +323,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
           dryRun: false,
           explorerLink: explorerLink || null,
           normalizedEmail,
+          kycWalletAddress: walletAuth.kycWalletAddress,
         },
       );
 

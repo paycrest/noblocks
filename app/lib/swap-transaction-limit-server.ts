@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/app/lib/supabase";
 import { getKycTierLimit } from "@/app/lib/kyc-tier-limits";
 import { resolveIdentityScope } from "@/app/lib/kyc-identity";
-import { collectLinkedEvmAddressesForPrivyUserId } from "@/app/lib/privy";
+import { getLinkedEvmWalletsForPrivyUserId } from "@/app/lib/privy";
 
 export type SwapLimitRpcBody = {
   transactionType: string;
@@ -24,12 +24,19 @@ export type TransactionWalletAuthFailureReason =
   | "wallet_mismatch"
   | "privy_lookup_failed";
 
+/**
+ * Authorizes the body wallet against the session and names the wallet whose KYC
+ * profile governs it. That is the body wallet itself, except for the user's own
+ * smart wallet: verification is recorded against the embedded EOA that owns it
+ * (the middleware wallet), so a sell sent from a not-yet-migrated SCW must be
+ * judged by the EOA's tier, not by the SCW's absent profile.
+ */
 export async function assertTransactionWalletAuthorized(
   request: NextRequest,
   headerWalletAddress: string,
   normalizedBodyWalletAddress: string,
 ): Promise<
-  | { ok: true }
+  | { ok: true; kycWalletAddress: string }
   | {
       ok: false;
       response: NextResponse;
@@ -49,8 +56,8 @@ export async function assertTransactionWalletAuthorized(
       };
     }
     try {
-      const linked = await collectLinkedEvmAddressesForPrivyUserId(privyUserId);
-      if (!linked.includes(normalizedBodyWalletAddress)) {
+      const linked = await getLinkedEvmWalletsForPrivyUserId(privyUserId);
+      if (!linked.addresses.includes(normalizedBodyWalletAddress)) {
         return {
           ok: false,
           reason: "wallet_mismatch",
@@ -62,6 +69,9 @@ export async function assertTransactionWalletAuthorized(
             { status: 403 },
           ),
         };
+      }
+      if (linked.smartWalletAddresses.includes(normalizedBodyWalletAddress)) {
+        return { ok: true, kycWalletAddress: headerWalletAddress };
       }
     } catch (e) {
       console.error(
@@ -82,7 +92,7 @@ export async function assertTransactionWalletAuthorized(
     }
   }
 
-  return { ok: true };
+  return { ok: true, kycWalletAddress: normalizedBodyWalletAddress };
 }
 
 export type SwapLimitCheckResult =
@@ -105,9 +115,11 @@ export async function executeSwapTransactionLimitCheck(
     dryRun: boolean;
     explorerLink: string | null;
     normalizedEmail: string | null;
+    /** From assertTransactionWalletAuthorized; differs from the body wallet for an SCW. */
+    kycWalletAddress: string;
   },
 ): Promise<SwapLimitCheckResult> {
-  const kycWalletAddress = normalizedBodyWalletAddress;
+  const { kycWalletAddress } = options;
 
   // The limit belongs to the verified identity, not this wallet: every wallet sharing
   // the caller's phone/ID draws from one pool and inherits the group's best tier.
@@ -118,6 +130,12 @@ export async function executeSwapTransactionLimitCheck(
     scope = await resolveIdentityScope(kycWalletAddress);
   } catch {
     return { kind: "kyc_db_error" };
+  }
+  // The row is written under the body wallet, so it must count against the same
+  // pool. The RPC also unions p_wallet_address in; this keeps the count it echoes
+  // (pooledWalletCount) in step with the wallets it actually sums.
+  if (!scope.wallets.includes(normalizedBodyWalletAddress)) {
+    scope = { ...scope, wallets: [...scope.wallets, normalizedBodyWalletAddress] };
   }
 
   const tierLimit = getKycTierLimit(scope.effectiveTier);

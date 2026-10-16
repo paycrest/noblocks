@@ -4,18 +4,36 @@ import {
   resolveIdentityScope,
   resolveOwnIdentityFingerprint,
 } from "../app/lib/kyc-identity";
+import {
+  assertTransactionWalletAuthorized,
+  executeSwapTransactionLimitCheck,
+} from "../app/lib/swap-transaction-limit-server";
+import { getLinkedEvmWalletsForPrivyUserId } from "../app/lib/privy";
 import { supabaseAdmin } from "../app/lib/supabase";
+import type { NextRequest } from "next/server";
 
 // Stub Supabase entirely: these tests are about which wallets end up sharing a spend
 // pool, not about PostgREST. `from` is queued per call so each query in
 // resolveIdentityScope (profile, then phone siblings, then ID siblings) can return its
 // own fixture. Relative specifier: the "@/" alias resolves for imports but not for
 // jest.mock, whose moduleNameMapper target ("<rootDir>/app/$1") does not exist.
+jest.mock("next/server", () => ({
+  NextResponse: {
+    json: (body: unknown, init?: { status?: number }) => ({ status: init?.status ?? 200, json: async () => body }),
+  },
+}));
+
 jest.mock("../app/lib/supabase", () => ({
-  supabaseAdmin: { from: jest.fn() },
+  supabaseAdmin: { from: jest.fn(), rpc: jest.fn() },
+}));
+
+jest.mock("../app/lib/privy", () => ({
+  getLinkedEvmWalletsForPrivyUserId: jest.fn(),
 }));
 
 const mockedFrom = supabaseAdmin.from as unknown as jest.Mock;
+const mockedRpc = supabaseAdmin.rpc as unknown as jest.Mock;
+const mockedLinkedWallets = getLinkedEvmWalletsForPrivyUserId as jest.Mock;
 
 type QueryResult = { data: unknown; error: unknown };
 
@@ -434,5 +452,124 @@ describe("buildIdentityIdKey", () => {
     expect(buildIdentityIdKey("NG", "BVN", "A123456")).not.toBe(
       buildIdentityIdKey("NG", "PASSPORT", "A123456"),
     );
+  });
+});
+
+// A user who has not migrated off their smart wallet still sells from it, but KYC was
+// recorded against the embedded EOA that owns it. The SCW has no profile of its own,
+// so looking it up directly reads as tier 0 and blocks a fully verified user.
+describe("smart wallet KYC resolution", () => {
+  const EOA = CALLER;
+  const SCW = SIBLING;
+  const EXTERNAL = "0xcccccccccccccccccccccccccccccccccccccccc";
+
+  const requestFor = (userId: string | null) =>
+    ({
+      headers: { get: (name: string) => (name === "x-user-id" ? userId : null) },
+    }) as unknown as NextRequest;
+
+  const swapBody = {
+    transactionType: "offramp",
+    fromCurrency: "USDT",
+    toCurrency: "NGN",
+    amountSent: 3,
+    amountReceived: 4063.65,
+    fee: 0,
+    recipient: {},
+    status: "pending",
+  };
+
+  beforeEach(() => {
+    mockedLinkedWallets.mockReset();
+    mockedRpc.mockReset();
+    delete process.env.NEXT_PUBLIC_AGGREGATOR_URL;
+  });
+
+  describe("assertTransactionWalletAuthorized", () => {
+    it("judges the user's smart wallet by the owning EOA's KYC", async () => {
+      mockedLinkedWallets.mockResolvedValue({
+        addresses: [EOA, SCW],
+        smartWalletAddresses: [SCW],
+      });
+
+      await expect(
+        assertTransactionWalletAuthorized(requestFor("did:privy:user"), EOA, SCW),
+      ).resolves.toEqual({ ok: true, kycWalletAddress: EOA });
+    });
+
+    it("keeps a linked non-smart wallet on its own KYC", async () => {
+      mockedLinkedWallets.mockResolvedValue({
+        addresses: [EOA, EXTERNAL],
+        smartWalletAddresses: [],
+      });
+
+      await expect(
+        assertTransactionWalletAuthorized(
+          requestFor("did:privy:user"),
+          EOA,
+          EXTERNAL,
+        ),
+      ).resolves.toEqual({ ok: true, kycWalletAddress: EXTERNAL });
+    });
+
+    it("uses the session wallet without a Privy lookup when the body matches", async () => {
+      await expect(
+        assertTransactionWalletAuthorized(requestFor(null), EOA, EOA),
+      ).resolves.toEqual({ ok: true, kycWalletAddress: EOA });
+      expect(mockedLinkedWallets).not.toHaveBeenCalled();
+    });
+
+    it("still rejects a smart wallet the user does not own", async () => {
+      mockedLinkedWallets.mockResolvedValue({
+        addresses: [EOA],
+        smartWalletAddresses: [],
+      });
+
+      const result = await assertTransactionWalletAuthorized(
+        requestFor("did:privy:user"),
+        EOA,
+        SCW,
+      );
+      expect(result).toMatchObject({ ok: false, reason: "wallet_mismatch" });
+    });
+  });
+
+  describe("executeSwapTransactionLimitCheck", () => {
+    it("lets a tier-3 user sell from their smart wallet, pooling its spend with the EOA", async () => {
+      queueQueries(
+        ok({ tier: 3, phone_number: PHONE, id_country: null, id_type: null, id_number: null }),
+        ok([{ wallet_address: EOA, tier: 3 }]),
+      );
+      mockedRpc.mockResolvedValue({ data: { ok: true }, error: null });
+
+      const result = await executeSwapTransactionLimitCheck(SCW, swapBody, {
+        dryRun: true,
+        explorerLink: null,
+        normalizedEmail: null,
+        kycWalletAddress: EOA,
+      });
+
+      expect(result).toMatchObject({ kind: "success", pooledWalletCount: 2 });
+      expect(eqCalls[0]).toEqual(["wallet_address", EOA]);
+      const [, params] = mockedRpc.mock.calls[0];
+      // The row is written under the SCW, and both wallets draw from one cap.
+      expect(params.p_wallet_address).toBe(SCW);
+      expect(params.p_scope_wallets).toEqual(expect.arrayContaining([EOA, SCW]));
+      expect(params.p_monthly_limit).not.toBe(0);
+    });
+
+    it("still requires KYC when the governing wallet has no profile", async () => {
+      queueQueries(ok(null));
+
+      const result = await executeSwapTransactionLimitCheck(EXTERNAL, swapBody, {
+        dryRun: true,
+        explorerLink: null,
+        normalizedEmail: null,
+        kycWalletAddress: EXTERNAL,
+      });
+
+      expect(result).toEqual({ kind: "kyc_required" });
+      expect(mockedRpc).not.toHaveBeenCalled();
+    });
   });
 });

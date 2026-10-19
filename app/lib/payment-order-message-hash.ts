@@ -194,18 +194,16 @@ export function generateRecipientNonce(): string {
 }
 
 /**
- * Builds the recipient exactly as the client used to, with the KES M-Pesa
- * rules from TransactionPreview: `channel` is included for Till/Paybill (never
- * "Mobile", the default), `businessNumber` only for Paybill, and both only when
- * the institution is M-Pesa. `memo` is always present (possibly "") to keep the
- * on-chain payload byte-compatible with the previous client build.
+ * KES M-Pesa metadata rules from TransactionPreview: `channel` is included for
+ * Till/Paybill (never "Mobile", the default), `businessNumber` only for
+ * Paybill, and both only when the institution is M-Pesa. Shared by the on-chain
+ * recipient below and the sender-API order body (payment-order-offramp.ts).
  */
-export function buildOfframpRecipient(
-  input: MessageHashInput,
-  apiKey: string,
-  nonce: string = generateRecipientNonce(),
-): OfframpRecipient {
-  const metadata: OfframpRecipient["metadata"] = { apiKey };
+export function kesRecipientMetadata(input: MessageHashInput): {
+  channel?: string;
+  businessNumber?: string;
+} {
+  const metadata: { channel?: string; businessNumber?: string } = {};
   if (input.institution === KES_MPESA_INSTITUTION_CODE && input.kesChannel) {
     if (input.kesChannel !== "Mobile") {
       metadata.channel = input.kesChannel;
@@ -214,6 +212,23 @@ export function buildOfframpRecipient(
       metadata.businessNumber = input.businessNumber;
     }
   }
+  return metadata;
+}
+
+/**
+ * Builds the recipient exactly as the client used to, applying the KES M-Pesa
+ * rules above. `memo` is always present (possibly "") to keep the on-chain
+ * payload byte-compatible with the previous client build.
+ */
+export function buildOfframpRecipient(
+  input: MessageHashInput,
+  apiKey: string,
+  nonce: string = generateRecipientNonce(),
+): OfframpRecipient {
+  const metadata: OfframpRecipient["metadata"] = {
+    apiKey,
+    ...kesRecipientMetadata(input),
+  };
 
   return {
     accountIdentifier: input.accountIdentifier,

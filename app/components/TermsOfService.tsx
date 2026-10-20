@@ -136,7 +136,7 @@ export const TermsOfService = () => {
         available in countries that are flagged by the United States for being
         prone to terrorism. These countries include, but are not limited to,
         those listed by the U.S. Department of State or the Office of Foreign
-        Assets Control (OFAC) including North Korea, Iran, Syria, Sudan,
+        Assets Control (OFAC) including North Korea, Iran, Sudan,
         Afghanistan, Iraq, Libya, Yemen. The list of restricted countries may be
         updated periodically in accordance with global sanctions and
         regulations. Please confirm that your country is not on the prohibited

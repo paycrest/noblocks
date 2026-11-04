@@ -1,14 +1,16 @@
 "use client";
 
-import {
-  CheckmarkCircle01Icon,
-  Loading03Icon,
-} from "hugeicons-react";
-
 import { classNames } from "@/app/utils";
 
 import { ActionSubmitButton } from "./ActionSubmitButton";
+import { drawerBorderLight } from "./drawerStyles";
+import { ProgressStepIcon } from "./ProgressStepIcon";
 import type { ActionProgressStep } from "./types";
+
+const DEFAULT_NOTE =
+  "You can leave this page. It stays in history as pending, and we will notify you when it lands";
+
+const DEFAULT_SECONDARY_LABEL = "I have sent the money";
 
 export type ActionProgressProps = {
   heading: string;
@@ -22,8 +24,8 @@ export function ActionProgress({
   heading,
   subheading,
   steps,
-  noteText,
-  secondaryActionLabel,
+  noteText = DEFAULT_NOTE,
+  secondaryActionLabel = DEFAULT_SECONDARY_LABEL,
 }: ActionProgressProps) {
   return (
     <div className="flex w-full flex-col gap-6">
@@ -32,78 +34,30 @@ export function ActionProgress({
         <p className="text-sm text-white/50">{subheading}</p>
       </div>
 
-      <div className="rounded-3xl bg-[#202020] p-5">
+      <div className={classNames("rounded-3xl bg-[#202020] p-5", drawerBorderLight)}>
         <p className="mb-4 text-sm text-white/50">Now</p>
         <ol className="flex flex-col">
           {steps.map((step, index) => (
-            <li key={step.id} className="flex gap-3">
+            <li key={step.id} className="flex gap-6">
               <div className="flex flex-col items-center">
-                <StepIcon state={step.state} />
+                <ProgressStepIcon state={step.state} />
                 {index < steps.length - 1 ? (
-                  <span className="my-1 w-0.5 flex-1 min-h-[28px] rounded-full bg-white/10" />
+                  <span className="my-0.5 w-1 min-h-[34px] rounded-full bg-white/10" />
                 ) : null}
               </div>
-              <p
-                className={classNames(
-                  "pb-6 text-sm",
-                  step.state === "pending"
-                    ? "text-white/50"
-                    : step.state === "failed"
-                      ? "text-[#f53d6b]"
-                      : "text-white/80",
-                )}
-              >
-                {step.label}
-              </p>
+              <p className="pb-6 text-sm text-white/50">{step.label}</p>
             </li>
           ))}
         </ol>
       </div>
 
-      {secondaryActionLabel ? (
-        <ActionSubmitButton
-          label={secondaryActionLabel}
-          disabled
-          onClick={() => {}}
-        />
-      ) : null}
+      <ActionSubmitButton
+        label={secondaryActionLabel}
+        disabled
+        onClick={() => {}}
+      />
 
-      {noteText ? (
-        <p className="text-center text-sm text-white/50">{noteText}</p>
-      ) : null}
+      <p className="text-center text-sm text-white/50">{noteText}</p>
     </div>
-  );
-}
-
-function StepIcon({ state }: { state: ActionProgressStep["state"] }) {
-  if (state === "done") {
-    return (
-      <CheckmarkCircle01Icon
-        className="size-5 shrink-0 text-[#39c65d]"
-        aria-hidden
-      />
-    );
-  }
-  if (state === "failed") {
-    return (
-      <span
-        className="size-5 shrink-0 rounded-full border-2 border-[#f53d6b]"
-        aria-hidden
-      />
-    );
-  }
-  if (state === "active") {
-    return (
-      <Loading03Icon
-        className="size-5 shrink-0 animate-spin text-[#39c65d]"
-        aria-hidden
-      />
-    );
-  }
-  return (
-    <span
-      className="size-5 shrink-0 rounded-full border-2 border-white/20"
-      aria-hidden
-    />
   );
 }

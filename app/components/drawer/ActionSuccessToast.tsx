@@ -11,7 +11,7 @@ export function showActionSuccessToast(title: string, description: string) {
     () => (
       <div
         role="status"
-        className="w-[min(100vw-2rem,20rem)] overflow-hidden rounded-xl border border-white/10 bg-[#202020] shadow-2xl"
+        className="w-[min(100vw-2rem,20rem)] overflow-hidden rounded-2xl border border-white/10 bg-[#202020] shadow-2xl"
       >
         <div className="flex items-center gap-2.5 px-3.5 py-2.5">
           <CheckmarkCircle01Icon className="size-4 shrink-0 text-[#39c65d]" />

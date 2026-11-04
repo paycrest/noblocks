@@ -6,6 +6,7 @@ import userEvent from "@testing-library/user-event";
 import { formatActionAmount } from "@/app/utils";
 import {
   ActionDrawer,
+  ActionProgress,
   ActionReceiptFailed,
   ActionReceiptSuccess,
   ActionSubmitButton,
@@ -324,22 +325,94 @@ describe("ActionReceipt variants", () => {
     expect(screen.getByRole("button", { name: "Earn" })).toBeInTheDocument();
   });
 
-  it("renders failed drawer receipt with Done", () => {
+  it("renders failed drawer receipt without Done", () => {
     render(
       <ActionReceiptFailed
         body="Your transfer failed."
         fundStatusLabel="Deposited"
         timeSpentLabel="4 seconds"
         networkName="Base"
-        onDone={jest.fn()}
         onRetry={jest.fn()}
       />,
     );
     expect(screen.getByText("Oops! Transaction failed")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Done" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Done" })).not.toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Retry transaction" }),
     ).toBeInTheDocument();
+  });
+
+  it("renders powered-by footer inside drawer body by default", () => {
+    render(
+      <ActionDrawer isOpen title="Buy" onRequestClose={jest.fn()}>
+        <p>Step content</p>
+      </ActionDrawer>,
+    );
+    expect(screen.getByText("Powered by")).toBeInTheDocument();
+  });
+
+  it("modal success receipt omits subtitle when not provided", () => {
+    render(
+      <ActionReceiptSuccess
+        variant="modal"
+        isOpen
+        onClose={jest.fn()}
+        title="Swap successful"
+        fundStatusLabel="Swapped"
+        timeSpentLabel="12 seconds"
+        networkName="Base"
+      />,
+    );
+    expect(screen.getByText("Swap successful")).toBeInTheDocument();
+    expect(
+      screen.queryByText("Your money is in your balance"),
+    ).not.toBeInTheDocument();
+  });
+});
+
+describe("ReceiptMetaRows modal tone", () => {
+  it("applies valueClassName over default secondary tone", () => {
+    render(
+      <ReceiptMetaRows
+        layout="modal"
+        networkName="Base"
+        txHash={null}
+        rows={[
+          {
+            kind: "default",
+            label: "Transaction status",
+            value: "Completed",
+            valueClassName: "text-[#39c65d]",
+          },
+        ]}
+      />,
+    );
+    const value = screen.getByText("Completed");
+    expect(value).toHaveClass("text-[#39c65d]");
+    expect(value).not.toHaveClass("text-white/80");
+  });
+});
+
+describe("ActionProgress defaults", () => {
+  it("shows disabled secondary button and note by default", () => {
+    render(
+      <ActionProgress
+        heading="Watching for your transfer"
+        subheading="Transfers usually arrive within a few minutes."
+        steps={[
+          { id: "1", label: "Waiting", state: "active" },
+          { id: "2", label: "Complete", state: "pending" },
+        ]}
+      />,
+    );
+    expect(
+      screen.getByRole("button", { name: "I have sent the money" }),
+    ).toBeDisabled();
+    expect(
+      screen.getByText(/You can leave this page/),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/when it lands$/)).toBeInTheDocument();
+    expect(screen.queryByText(/when it lands\./)).not.toBeInTheDocument();
   });
 });
 

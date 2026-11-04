@@ -7,6 +7,7 @@ import { AnimatedModal } from "@/app/components/AnimatedComponents";
 import { classNames } from "@/app/utils";
 
 import { ActionSubmitButton } from "./ActionSubmitButton";
+import { drawerBorderLight } from "./drawerStyles";
 import { ReviewSummaryRow } from "./ReviewShared";
 
 export type ReviewModalTokenPill = {
@@ -22,6 +23,7 @@ export type ReviewModalProps = {
   from: ReviewModalTokenPill;
   to: ReviewModalTokenPill;
   youPayLabel: string;
+  youPayIcon?: ReactNode;
   feesLabel: string;
   warningText: string;
   submitLabel?: string;
@@ -37,6 +39,7 @@ export function ReviewModal({
   from,
   to,
   youPayLabel,
+  youPayIcon,
   feesLabel,
   warningText,
   submitLabel = "Swap",
@@ -54,7 +57,7 @@ export function ReviewModal({
     >
       <div className="flex flex-col gap-7">
         <div className="flex items-start justify-between gap-3">
-          <p className="text-sm font-semibold text-white">{title}</p>
+          <p className="text-sm font-semibold text-white/80">{title}</p>
           <button
             type="button"
             aria-label="Close"
@@ -72,14 +75,23 @@ export function ReviewModal({
         </div>
 
         <div className="flex flex-col gap-4">
-          <ReviewSummaryRow label="You pay" value={youPayLabel} />
+          <ReviewSummaryRow
+            label="You pay"
+            value={youPayLabel}
+            valueIcon={youPayIcon}
+          />
           <ReviewSummaryRow label="Fees" value={feesLabel} />
         </div>
 
         <hr className="border-white/10" />
 
-        <div className="flex gap-3 rounded-xl bg-white/[0.05] p-3 text-sm text-white/50">
-          <InformationSquareIcon className="size-4 shrink-0 text-white/50" />
+        <div
+          className={classNames(
+            "flex gap-2.5 rounded-xl bg-white/[0.05] p-3 text-sm text-white/50",
+            drawerBorderLight,
+          )}
+        >
+          <InformationSquareIcon className="size-4 shrink-0 py-0.5 text-white/50" />
           <p>{warningText}</p>
         </div>
 
@@ -97,11 +109,7 @@ export function ReviewModal({
 
 function TokenPill({ symbol, amountLabel, icon }: ReviewModalTokenPill) {
   return (
-    <div
-      className={classNames(
-        "flex items-center gap-1 rounded-full bg-white/10 p-1.5 pr-2",
-      )}
-    >
+    <div className="flex items-center gap-1 rounded-full bg-white/10 p-1.5 pr-2.5">
       <span className="flex size-6 items-center justify-center overflow-hidden rounded-full bg-[#141414]">
         {icon ?? (
           <span className="text-[10px] font-semibold text-white/80">
@@ -109,7 +117,7 @@ function TokenPill({ symbol, amountLabel, icon }: ReviewModalTokenPill) {
           </span>
         )}
       </span>
-      <span className="text-sm font-medium text-white">{amountLabel}</span>
+      <span className="text-sm font-medium text-white/80">{amountLabel}</span>
     </div>
   );
 }

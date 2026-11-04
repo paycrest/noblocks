@@ -12,7 +12,7 @@ export type ReceiptMetaRowsProps = {
   networkName: string;
   txHash?: string | null;
   explorerLinkLabel?: string;
-  layout?: "drawer" | "modal";
+  layout?: "drawer" | "modal" | "failed";
 };
 
 type DisplayRow = {
@@ -70,17 +70,17 @@ export function ReceiptMetaRows({
 
   if (layout === "modal") {
     return (
-      <div className="flex w-full flex-col gap-4 text-sm text-white/50">
+      <div className="mx-auto flex w-[275px] max-w-full flex-col gap-[19px] text-sm">
         {visible.map((row) => (
           <div
             key={row.label}
             className="flex items-center justify-between gap-3"
           >
-            <span>{row.label}</span>
+            <span className="text-white/50">{row.label}</span>
             <span
               className={classNames(
-                "text-right text-white/80",
-                row.valueClassName,
+                "text-right",
+                row.valueClassName ?? "text-white/50",
               )}
             >
               {row.value}
@@ -91,18 +91,40 @@ export function ReceiptMetaRows({
     );
   }
 
+  if (layout === "failed") {
+    return (
+      <div className="mx-auto flex w-[270px] max-w-full gap-[30px] text-sm">
+        <div className="flex flex-col gap-4 text-white/50">
+          {visible.map((row) => (
+            <p key={row.label}>{row.label}</p>
+          ))}
+        </div>
+        <div className="flex flex-col gap-4 text-left">
+          {visible.map((row) => (
+            <div
+              key={row.label}
+              className={classNames(row.valueClassName ?? "text-white/50")}
+            >
+              {row.value}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex w-full gap-6 text-sm">
-      <div className="flex flex-col gap-4 text-white/50">
+    <div className="mx-auto flex w-[256px] max-w-full gap-6 text-sm">
+      <div className="flex flex-col gap-6 text-white/50">
         {visible.map((row) => (
           <p key={row.label}>{row.label}</p>
         ))}
       </div>
-      <div className="flex flex-1 flex-col items-end gap-4 text-right text-white/80">
+      <div className="flex flex-1 flex-col items-end gap-6 text-right">
         {visible.map((row) => (
           <div
             key={row.label}
-            className={classNames(row.valueClassName)}
+            className={classNames(row.valueClassName ?? "text-white/50")}
           >
             {row.value}
           </div>
@@ -112,8 +134,12 @@ export function ReceiptMetaRows({
   );
 }
 
-export function ReceiptDashedRule() {
-  return <hr className="w-full border-dashed border-white/10" />;
+export function ReceiptDashedRule({ className }: { className?: string }) {
+  return (
+    <hr
+      className={classNames("w-full border-dashed border-white/10", className)}
+    />
+  );
 }
 
 export function buildDefaultReceiptRows(input: {

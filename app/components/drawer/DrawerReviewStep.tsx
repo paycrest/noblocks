@@ -41,34 +41,25 @@ export function DrawerReviewStep({
   return (
     <div className="flex w-full flex-col gap-6">
       <div>
-        <p className="text-base font-medium text-white/80">{heading}</p>
-        <div className="text-sm text-white/50">{subheading}</div>
+        <p className="text-base font-medium leading-7 text-white/80">{heading}</p>
+        <div className="text-sm leading-5 text-white/50">{subheading}</div>
       </div>
 
-      <ReviewDetailCard rows={detailRows} />
-
-      {expiresInLabel ? (
-        <div className="flex items-center justify-between text-sm">
-          <span className="text-white/50">Expires in</span>
-          <span className="rounded-full bg-white/10 px-3 py-1 text-sm text-lavender-500">
-            {expiresInLabel}
-          </span>
-        </div>
-      ) : null}
+      <ReviewDetailCard rows={detailRows} expiresInLabel={expiresInLabel} />
 
       <Checkbox
         checked={confirmationChecked}
         onChange={onConfirmationChange}
-        className="group flex cursor-pointer items-start gap-3 text-left"
+        className="group flex cursor-pointer items-start gap-2 text-left"
       >
         <span
           className={classNames(
-            "mt-0.5 flex size-[18px] shrink-0 items-center justify-center rounded border-2 border-white/30",
+            "flex size-6 shrink-0 items-center justify-center rounded-md border-2 border-white/30",
             "group-data-[checked]:border-lavender-500 group-data-[checked]:bg-lavender-500",
           )}
         >
           <svg
-            className="size-3 text-white opacity-0 group-data-[checked]:opacity-100"
+            className="size-3.5 text-white opacity-0 group-data-[checked]:opacity-100"
             viewBox="0 0 12 10"
             fill="none"
             aria-hidden
@@ -81,7 +72,7 @@ export function DrawerReviewStep({
             />
           </svg>
         </span>
-        <span className="text-sm text-white/80">{confirmationLabel}</span>
+        <span className="text-sm text-white/50">{confirmationLabel}</span>
       </Checkbox>
 
       <ActionSubmitButton

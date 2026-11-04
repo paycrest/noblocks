@@ -86,7 +86,7 @@ beforeAll(() => {
   Object.defineProperty(window, "matchMedia", {
     writable: true,
     value: jest.fn().mockImplementation((query: string) => ({
-      matches: query.includes("max-width: 767px"),
+      matches: query.includes("not all and (min-width: 768px)"),
       media: query,
       addEventListener: jest.fn(),
       removeEventListener: jest.fn(),
@@ -105,7 +105,7 @@ beforeEach(() => {
     "noblocks-tx-protection": false,
   });
   (window.matchMedia as jest.Mock).mockImplementation((query: string) => ({
-    matches: query.includes("max-width: 767px"),
+    matches: query.includes("not all and (min-width: 768px)"),
     media: query,
     addEventListener: jest.fn(),
     removeEventListener: jest.fn(),
@@ -367,7 +367,7 @@ describe("mobile nav collapse (KAN-992)", () => {
 
   it("moves focus into the nav when opened and returns it to the toggle on close", async () => {
     (window.matchMedia as jest.Mock).mockImplementation((query: string) => ({
-      matches: query.includes("max-width: 767px"),
+      matches: query.includes("not all and (min-width: 768px)"),
       media: query,
       addEventListener: jest.fn(),
       removeEventListener: jest.fn(),

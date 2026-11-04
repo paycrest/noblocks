@@ -2,7 +2,14 @@
 
 import { render, act } from "@testing-library/react";
 import { hydrateRoot } from "react-dom/client";
-import { useIsBelowMd } from "../app/(wallet)/components/useIsBelowMd";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import defaultTheme from "tailwindcss/defaultTheme";
+import {
+  BELOW_MD_QUERY,
+  TAILWIND_MD_MIN_WIDTH,
+  useIsBelowMd,
+} from "../app/(wallet)/components/useIsBelowMd";
 
 function Probe() {
   return <span data-testid="probe">{useIsBelowMd() ? "mobile" : "desktop"}</span>;
@@ -53,15 +60,26 @@ describe("useIsBelowMd (CodeRabbit hydration fix)", () => {
     container.remove();
   });
 
-  it("uses the 767px query on the client and follows changes", () => {
+  it("uses the Tailwind max-md query on the client and follows changes", () => {
     const { getByTestId } = render(<Probe />);
-    expect(window.matchMedia).toHaveBeenCalledWith("(max-width: 767px)");
+    expect(window.matchMedia).toHaveBeenCalledWith("not all and (min-width: 768px)");
     expect(getByTestId("probe")).toHaveTextContent("mobile");
     act(() => {
       matches = false;
       listeners.forEach((cb) => cb());
     });
     expect(getByTestId("probe")).toHaveTextContent("desktop");
+  });
+
+  it("uses exactly the inverse of Tailwind's md query, as max-md does", () => {
+    // max-md in Tailwind v3 compiles to `@media not all and (min-width: <md>)`.
+    expect(TAILWIND_MD_MIN_WIDTH).toBe(defaultTheme.screens.md);
+    expect(BELOW_MD_QUERY).toBe(`not all and (min-width: ${defaultTheme.screens.md})`);
+    // The project only extends screens (xsm, xmd), so md stays the default.
+    const config = readFileSync(join(process.cwd(), "tailwind.config.ts"), "utf8");
+    expect(config).not.toMatch(/\bmd:\s*["']/);
+    // No fractional gap: 767.5px is below md for both the CSS and the hook.
+    expect(BELOW_MD_QUERY).not.toContain("max-width");
   });
 
   it("removes its change listener on unmount", () => {

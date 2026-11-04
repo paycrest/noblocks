@@ -1,6 +1,6 @@
 # Ticket / Spec template (Jira KAN)
 
-Fill **typed Jira fields** (not one markdown dump in Description). The ticket is the single source of truth — no spec, no build. Add a **flowchart in a Jira comment** when the change involves multi-step flows or navigation.
+Fill **typed Jira fields** (not one markdown dump in Description). The ticket is the single source of truth — no spec, no build. Resolve any open questions before the ticket is written. Add a **flowchart in a Jira comment** when the change involves multi-step flows or navigation.
 
 **Label:** `noblocks` (required)
 
@@ -28,7 +28,6 @@ Use for issue type **Task** only. Set fields via Atlassian MCP — `additional_f
 | Tech details | `customfield_10128` | yes |
 | Money-safety | `customfield_10129` (select: `{"value": "Yes"}` / `{"value": "No"}`) | yes |
 | Notes / assumptions | `customfield_10130` | no |
-| Open questions | `customfield_10131` | no |
 
 ### Description
 
@@ -69,15 +68,11 @@ Include at least one **failure-case** scenario, not only the happy path.
 
 - Assumptions that must stay true for this change to remain correct.
 
-### Open questions (`customfield_10131`)
-
-- …
-
 ---
 
 ## Bug
 
-Use for issue type **Bug** only. Do **not** set Task fields (no User story, Acceptance criteria, Tech details, Money-safety, Notes, or Open questions). Put money-safety notes under **Expected behaviour** when relevant.
+Use for issue type **Bug** only. Do **not** set Task fields (no User story, Acceptance criteria, Tech details, Money-safety, or Notes). Put money-safety notes under **Expected behaviour** when relevant.
 
 | Field | Jira field id | Required |
 |-------|---------------|----------|

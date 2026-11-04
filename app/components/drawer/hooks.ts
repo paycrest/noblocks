@@ -26,16 +26,28 @@ function isVisibleFocusable(el: HTMLElement): boolean {
   return true;
 }
 
+import { ACTION_DRAWER_PANEL_ATTR } from "./walletDrawerSlot";
+
 function getFocusables(container: HTMLElement) {
   return Array.from(
     container.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR),
   ).filter(isVisibleFocusable);
 }
 
-function hasOpenModalDialog() {
-  return (
-    document.querySelector('[role="dialog"][aria-modal="true"]') !== null
+function hasOpenCenteredModalDialog(drawerPanel: HTMLElement | null) {
+  const dialogs = document.querySelectorAll<HTMLElement>(
+    '[role="dialog"][aria-modal="true"]',
   );
+  for (const dialog of dialogs) {
+    if (dialog.hasAttribute(ACTION_DRAWER_PANEL_ATTR)) {
+      continue;
+    }
+    if (drawerPanel && drawerPanel === dialog) {
+      continue;
+    }
+    return true;
+  }
+  return false;
 }
 
 /** Move focus into the drawer on open; restore trigger on close. */
@@ -126,7 +138,7 @@ export function useDrawerEscape(
       if (event.defaultPrevented) {
         return;
       }
-      if (hasOpenModalDialog()) {
+      if (hasOpenCenteredModalDialog(container)) {
         return;
       }
 

@@ -1,0 +1,106 @@
+/** Shared drawer theming: Figma light defaults, Superdark via `dark:`. */
+
+export const drawerShellClasses =
+  "bg-white border-l border-border-light dark:bg-[#2b2b2b] dark:border-white/10";
+
+export const drawerCanvasClasses = "bg-white dark:bg-[#141414]";
+
+export const drawerOverlaySurfaceClasses =
+  "bg-white dark:bg-[#202020]";
+
+/** Progress step card on white drawer panel (light). */
+export const drawerProgressCardClasses =
+  "bg-background-neutral border border-border-light dark:bg-[#202020] dark:border-[0.5px] dark:border-white/10";
+
+export const drawerBorderLight =
+  "border border-border-light dark:border-[0.5px] dark:border-white/10";
+
+export const drawerBorderNeutral =
+  "border border-[#e3e3e9] dark:border-[0.5px] dark:border-white/50";
+
+/** Drawer header: Inter Semibold 18 / 36, text/primary */
+export const drawerHeaderTitleClasses =
+  "font-semibold text-lg leading-9 tracking-[-0.54px] text-black dark:text-white";
+
+/** Step headings: Inter Medium 16 / 28, text/body */
+export const drawerStepHeadingClasses =
+  "text-base font-medium leading-7 text-text-body dark:text-white/80";
+
+/** Review modal title: General Sans Semibold 14 / 28, text/primary */
+export const drawerModalTitleClasses =
+  "text-sm font-semibold leading-7 text-black dark:text-white";
+
+/** Receipt titles: Medium 20 / 28, text/body */
+export const drawerReceiptTitleClasses =
+  "text-xl font-medium leading-7 text-text-body dark:text-white/80";
+
+export const drawerSecondaryText =
+  "font-normal text-sm leading-5 text-text-secondary dark:text-white/50";
+
+export const drawerBodyText =
+  "text-sm leading-5 text-text-body dark:text-white/80";
+
+export const drawerBodyMediumText =
+  "text-sm font-medium leading-5 text-text-body dark:text-white/80";
+
+/** Scrim for drawer-owned modals only (pure black, not theme `black` #121217). */
+export const drawerModalScrimClasses =
+  "fixed inset-0 bg-[#000]/50 backdrop-blur-[2px]";
+
+/** Emphasised inline amounts: primary text in light, white in dark. */
+export const drawerEmphasisText =
+  "font-medium text-black dark:text-white";
+
+export const drawerDetailCardInnerClasses =
+  "overflow-hidden rounded-xl bg-white border border-border-light dark:bg-[#141414] dark:border-[0.5px] dark:border-white/10";
+
+export const drawerTokenPillClasses =
+  "flex items-center gap-1 rounded-full border border-border-light bg-gray-50 p-1.5 pr-2.5 dark:border-0 dark:bg-white/10";
+
+export const drawerTokenPillIconClasses =
+  "flex size-6 items-center justify-center overflow-hidden rounded-full border border-border-light bg-white dark:border-0 dark:bg-[#141414]";
+
+export const drawerPrimaryButtonClasses =
+  "flex min-h-11 w-full items-center justify-center rounded-xl px-4 py-2.5 text-sm font-medium text-white transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-lavender-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-[#2b2b2b] bg-lavender-500 hover:bg-lavender-600 disabled:cursor-not-allowed disabled:bg-border-input disabled:text-white dark:disabled:bg-[#2e2e2e] dark:disabled:text-white/50 disabled:hover:bg-border-input dark:disabled:hover:bg-[#2e2e2e]";
+
+export const drawerSecondaryButtonClasses =
+  "flex min-h-11 w-full items-center justify-center rounded-xl border border-border-light bg-gray-50 px-4 py-2.5 text-sm font-medium text-black transition-colors hover:bg-gray-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-lavender-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:border-0 dark:bg-white/10 dark:text-white dark:hover:bg-white/15 disabled:cursor-not-allowed disabled:bg-border-input disabled:text-white dark:disabled:bg-[#2e2e2e] dark:disabled:text-white/50";
+
+export const drawerPillPrimaryButtonClasses =
+  "inline-flex min-h-11 items-center justify-center rounded-xl bg-lavender-500 px-3 py-2.5 text-sm font-medium text-white transition-colors hover:bg-lavender-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-lavender-500 disabled:cursor-not-allowed disabled:bg-border-input disabled:text-white dark:disabled:bg-[#2e2e2e] dark:disabled:text-white/50 [&>span]:inline-flex [&>span]:h-8 [&>span]:items-center";
+
+export const drawerModalShellClasses =
+  "!rounded-t-[30px] sm:!rounded-[32px] !border !border-border-light !bg-white !p-5 !shadow-2xl dark:!border-white/10 dark:!bg-[#2b2b2b]";
+
+export const drawerDividerClasses =
+  "border-border-light dark:border-white/10";
+
+export const drawerDashedDividerClasses =
+  "border-dashed border-border-light dark:border-white/10";
+
+export const drawerNeutralCardClasses =
+  "bg-background-neutral border border-border-light dark:border-0 dark:bg-white/[0.05]";
+
+export const drawerIconMutedClasses =
+  "text-icon-outline-secondary hover:text-lavender-500 dark:text-white/50 dark:hover:text-lavender-500";
+
+export const drawerCloseButtonClasses =
+  "relative inline-flex items-center justify-center text-icon-outline-secondary transition-colors hover:text-text-body outline-none focus:outline-none focus:ring-0 focus-visible:ring-2 focus-visible:ring-lavender-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:text-white/50 dark:hover:text-white dark:focus-visible:ring-offset-[#2b2b2b] before:absolute before:inset-0 before:-m-[10px] before:min-h-11 before:min-w-11";
+
+export const drawerCopyButtonClasses =
+  "relative mt-1 inline-flex shrink-0 items-center justify-center transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-lavender-500 before:absolute before:inset-0 before:-m-[14px] before:min-h-11 before:min-w-11";
+
+export const drawerSuccessIconClasses =
+  "text-[#227738] dark:text-[#39c65d]";
+
+export const drawerFailedStatusClasses =
+  "text-text-accent-red dark:text-[#F53D6B]";
+
+export const drawerProgressConnectorClasses =
+  "my-0.5 w-[3px] min-h-[33px] rounded-full bg-border-input dark:bg-white/20";
+
+export const drawerCheckboxControlClasses =
+  "flex size-4 shrink-0 items-center justify-center rounded border-[1.5px] border-border-input dark:border-white/30 group-data-[checked]:border-lavender-500 group-data-[checked]:bg-lavender-500";
+
+export const drawerProgressTrackStrokeClasses =
+  "stroke-[#D1D1DB] dark:stroke-white/20";

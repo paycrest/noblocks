@@ -518,6 +518,15 @@ describe("wallet shell dividers (Figma Home 2640:180143)", () => {
     expect(aside).not.toBeNull();
     expect(aside).toHaveClass("border-r", "md:border-r-0");
   });
+
+  it("puts the light sidebar on the white header canvas (dark stays surface-canvas)", () => {
+    const { container } = render(
+      <LeftNav mobileOpen={false} onMobileOpenChange={jest.fn()} />,
+    );
+    const aside = container.querySelector(`#${WALLET_MOBILE_NAV_ID}`);
+    expect(aside).toHaveClass("bg-white", "dark:bg-surface-canvas");
+    expect(aside).not.toHaveClass("bg-background-neutral");
+  });
 });
 
 describe("wallet shell hit targets (aedda35 follow-up)", () => {

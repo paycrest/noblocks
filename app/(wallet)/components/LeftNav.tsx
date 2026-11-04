@@ -76,7 +76,7 @@ export function LeftNav({ mobileOpen, onMobileOpenChange }: LeftNavProps) {
         ref={setAsideEl}
         id={WALLET_MOBILE_NAV_ID}
         className={classNames(
-          "fixed inset-y-0 left-0 z-40 flex h-dvh w-[214px] shrink-0 flex-col justify-between overflow-y-auto border-r border-border-light md:border-r-0 bg-background-neutral pb-7 pl-5 pt-1 dark:border-white/10 dark:bg-surface-canvas md:static md:z-auto md:translate-x-0",
+          "fixed inset-y-0 left-0 z-40 flex h-dvh w-[214px] shrink-0 flex-col justify-between overflow-y-auto border-r border-border-light md:border-r-0 bg-white pb-7 pl-5 pt-1 dark:border-white/10 dark:bg-surface-canvas md:static md:z-auto md:translate-x-0",
           "max-md:transition-[transform,visibility] max-md:duration-200 max-md:motion-reduce:transition-none",
           mobileOpen
             ? "translate-x-0 max-md:visible max-md:pointer-events-auto max-md:[transition:transform_200ms_ease,visibility_0s_0ms] max-md:motion-reduce:[transition:none]"

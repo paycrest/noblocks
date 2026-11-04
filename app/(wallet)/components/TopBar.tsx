@@ -3,17 +3,30 @@
 import { Fragment, useMemo } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { Popover, PopoverButton, PopoverPanel } from "@headlessui/react";
 import {
   ArrowLeft01Icon,
   ArrowRight01Icon,
   HelpSquareIcon,
   Notification02Icon,
+  SidebarLeftIcon,
 } from "hugeicons-react";
 import { buildWalletBreadcrumbs } from "@/app/lib/breadcrumbs";
+import { NOBLOCKS_HELP_URL } from "@/app/lib/customer-support";
 import { resolveWalletTokenMeta } from "@/app/lib/wallet-token-allowlist";
 import { classNames } from "@/app/utils";
+import { ShellIconButton } from "./NavMenuItem";
+import {
+  shellFocusRingClasses,
+  shellMinHitTargetClasses,
+} from "./shellFocusStyles";
 
-export function TopBar() {
+type TopBarProps = {
+  mobileNavOpen: boolean;
+  onMobileNavToggle: () => void;
+};
+
+export function TopBar({ mobileNavOpen, onMobileNavToggle }: TopBarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const tokenDisplayName = useMemo(() => {
@@ -28,17 +41,30 @@ export function TopBar() {
     [pathname, tokenDisplayName],
   );
 
-  const isHome = crumbs.length === 1 && crumbs[0]?.label === "Home";
+  const isHomeOnly = crumbs.length === 1 && crumbs[0]?.label === "Home";
 
   return (
-    <header className="flex h-14 shrink-0 items-center justify-between border-b border-border-light px-6 dark:border-white/10">
-      <div className="flex min-w-0 items-center gap-3">
+    <header className="flex h-14 shrink-0 items-center justify-between border-b border-border-light px-4 md:px-6 dark:border-white/10">
+      <div className="flex min-w-0 items-center gap-2 md:gap-3">
+        <ShellIconButton
+          label={mobileNavOpen ? "Close navigation" : "Open navigation"}
+          className="md:hidden"
+          aria-expanded={mobileNavOpen}
+          onClick={onMobileNavToggle}
+        >
+          <SidebarLeftIcon className="size-5" />
+        </ShellIconButton>
+
         <div className="flex items-center gap-1.5">
           <button
             type="button"
             aria-label="Go back"
             onClick={() => router.back()}
-            className="flex size-8 items-center justify-center rounded-lg bg-accent-gray text-icon-outline-secondary transition hover:bg-border-light dark:bg-white/10 dark:text-white/60 dark:hover:bg-white/15"
+            className={classNames(
+              "relative inline-flex size-11 items-center justify-center rounded-lg bg-accent-gray text-icon-outline-secondary transition hover:bg-border-light dark:bg-white/10 dark:text-white/60 dark:hover:bg-white/15",
+              shellFocusRingClasses,
+              shellMinHitTargetClasses,
+            )}
           >
             <ArrowLeft01Icon className="size-[19px]" />
           </button>
@@ -46,7 +72,11 @@ export function TopBar() {
             type="button"
             aria-label="Go forward"
             onClick={() => router.forward()}
-            className="flex size-8 items-center justify-center rounded-lg bg-accent-gray text-icon-outline-secondary transition hover:bg-border-light dark:bg-white/10 dark:text-white/60 dark:hover:bg-white/15"
+            className={classNames(
+              "relative inline-flex size-11 items-center justify-center rounded-lg bg-accent-gray text-icon-outline-secondary transition hover:bg-border-light dark:bg-white/10 dark:text-white/60 dark:hover:bg-white/15",
+              shellFocusRingClasses,
+              shellMinHitTargetClasses,
+            )}
           >
             <ArrowRight01Icon className="size-[19px]" />
           </button>
@@ -56,9 +86,12 @@ export function TopBar() {
           aria-label="Breadcrumb"
           className="flex min-w-0 items-center gap-0.5 text-sm font-medium tracking-[-0.01em]"
         >
-          {isHome ? (
-            <span className="text-text-secondary dark:text-white/60">
-              Home /
+          {isHomeOnly ? (
+            <span
+              className="text-text-secondary dark:text-white/60"
+              aria-current="page"
+            >
+              Home
             </span>
           ) : (
             crumbs.map((crumb, index) => {
@@ -68,7 +101,11 @@ export function TopBar() {
                   {crumb.href && !isLast ? (
                     <Link
                       href={crumb.href}
-                      className="truncate text-text-secondary hover:text-text-body dark:text-white/60 dark:hover:text-white"
+                      className={classNames(
+                        "truncate text-text-secondary hover:text-text-body dark:text-white/60 dark:hover:text-white",
+                        shellFocusRingClasses,
+                        "rounded-sm",
+                      )}
                     >
                       {crumb.label}
                     </Link>
@@ -80,6 +117,7 @@ export function TopBar() {
                           ? "text-text-body dark:text-white"
                           : "text-text-secondary dark:text-white/60",
                       )}
+                      {...(isLast ? { "aria-current": "page" as const } : {})}
                     >
                       {crumb.label}
                     </span>
@@ -97,31 +135,41 @@ export function TopBar() {
       </div>
 
       <div className="flex items-center gap-2">
-        <TopBarIconButton label="Help">
+        <a
+          href={NOBLOCKS_HELP_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label="Help"
+          className={classNames(
+            "inline-flex size-11 items-center justify-center rounded-xl bg-accent-gray text-icon-outline-secondary transition hover:bg-border-light dark:bg-white/10 dark:text-white/60 dark:hover:bg-white/15",
+            shellFocusRingClasses,
+            shellMinHitTargetClasses,
+          )}
+        >
           <HelpSquareIcon className="size-5" />
-        </TopBarIconButton>
-        <TopBarIconButton label="Notifications">
-          <Notification02Icon className="size-5" />
-        </TopBarIconButton>
+        </a>
+
+        <Popover className="relative">
+          <PopoverButton
+            aria-label="Notifications"
+            className={classNames(
+              "inline-flex size-11 items-center justify-center rounded-xl bg-accent-gray text-icon-outline-secondary transition hover:bg-border-light data-[open]:bg-border-light dark:bg-white/10 dark:text-white/60 dark:hover:bg-white/15 dark:data-[open]:bg-white/15",
+              shellFocusRingClasses,
+              shellMinHitTargetClasses,
+            )}
+          >
+            <Notification02Icon className="size-5" />
+          </PopoverButton>
+          <PopoverPanel
+            anchor="bottom end"
+            className="z-50 mt-2 w-64 rounded-xl border border-border-light bg-white p-4 shadow-lg outline-none dark:border-white/10 dark:bg-neutral-900"
+          >
+            <p className="text-sm text-text-secondary dark:text-white/60">
+              No notifications yet
+            </p>
+          </PopoverPanel>
+        </Popover>
       </div>
     </header>
-  );
-}
-
-function TopBarIconButton({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      aria-label={label}
-      className="flex size-9 items-center justify-center rounded-xl bg-accent-gray text-icon-outline-secondary transition hover:bg-border-light dark:bg-white/10 dark:text-white/60 dark:hover:bg-white/15"
-    >
-      {children}
-    </button>
   );
 }

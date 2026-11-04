@@ -1,29 +1,36 @@
 "use client";
 
-import { useRef, useState } from "react";
+import Image from "next/image";
+import { Menu, MenuButton, MenuItem, MenuItems } from "@headlessui/react";
 import { useRouter } from "next/navigation";
+import { ArrowUp01Icon } from "hugeicons-react";
 import { useNoblocksLogout } from "@/app/hooks/useNoblocksLogout";
 import { useWalletAddress } from "@/app/hooks/useWalletAddress";
-import { useOutsideClick } from "@/app/hooks";
-import { copyToClipboard } from "@/app/utils";
+import {
+  copyToClipboard,
+  classNames,
+  shortenAddress,
+  getAvatarImageFromAddress,
+} from "@/app/utils";
+import { usePrivy } from "@privy-io/react-auth";
+import { shellFocusRingClasses } from "./shellFocusStyles";
 
-export function WalletAccountMenu({ trigger }: { trigger: React.ReactNode }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  useOutsideClick({ ref, handler: () => setOpen(false) });
+const menuItemClasses =
+  "block w-full px-3 py-2 text-left text-sm font-medium text-text-body data-[focus]:bg-accent-gray dark:text-white dark:data-[focus]:bg-white/10";
 
-  return (
-    <div ref={ref} className="relative">
-      <div onClick={() => setOpen((v) => !v)}>{trigger}</div>
-      {open && <AccountMenuPanel onClose={() => setOpen(false)} />}
-    </div>
-  );
-}
-
-function AccountMenuPanel({ onClose }: { onClose: () => void }) {
+export function WalletAccountMenu() {
   const router = useRouter();
   const walletAddress = useWalletAddress();
+  const { authenticated } = usePrivy();
   const { signOut, isLoggingOut } = useNoblocksLogout();
+
+  const addressLine =
+    authenticated && walletAddress ? shortenAddress(walletAddress, 6) : "—";
+
+  const avatarSrc =
+    authenticated && walletAddress
+      ? getAvatarImageFromAddress(walletAddress)
+      : "/images/avatar/Avatar.png";
 
   const items = [
     { label: "Profile", href: "/profile" },
@@ -32,43 +39,95 @@ function AccountMenuPanel({ onClose }: { onClose: () => void }) {
   ];
 
   return (
-    <div className="absolute bottom-full left-0 z-50 mb-2 w-full min-w-[190px] rounded-xl border border-border-light bg-white py-1 shadow-lg dark:border-white/10 dark:bg-neutral-900">
-      {items.map((item) => (
-        <button
-          key={item.href}
-          type="button"
-          className="block w-full px-3 py-2 text-left text-sm font-medium text-text-body hover:bg-accent-gray dark:text-white dark:hover:bg-white/10"
-          onClick={() => {
-            onClose();
-            router.push(item.href);
-          }}
-        >
-          {item.label}
-        </button>
-      ))}
-      <button
-        type="button"
-        className="block w-full px-3 py-2 text-left text-sm font-medium text-text-body hover:bg-accent-gray dark:text-white dark:hover:bg-white/10"
-        onClick={() => {
-          onClose();
-          if (walletAddress) {
-            void copyToClipboard(walletAddress, "Address");
-          }
-        }}
-      >
-        My wallet address
-      </button>
-      <button
-        type="button"
-        disabled={isLoggingOut}
-        className="block w-full px-3 py-2 text-left text-sm font-medium text-accent-red hover:bg-background-accent-red dark:text-red-400"
-        onClick={() => {
-          onClose();
-          void signOut();
-        }}
-      >
-        Sign out
-      </button>
-    </div>
+    <Menu as="div" className="relative w-full">
+      {({ open }) => (
+        <>
+          <MenuButton
+            aria-label="Your account"
+            className={classNames(
+              "flex w-full min-h-11 items-center gap-1.5 rounded-xl border border-[0.5px] border-border-light bg-background-neutral py-2 pl-2 pr-[11px] text-left transition-colors hover:bg-accent-gray dark:border-white/10 dark:bg-surface-overlay dark:hover:bg-white/10",
+              shellFocusRingClasses,
+            )}
+          >
+            <span className="relative size-[25px] shrink-0 overflow-hidden rounded-full bg-accent-gray dark:bg-white/10">
+              <Image
+                src={avatarSrc}
+                alt=""
+                width={25}
+                height={25}
+                className="size-[25px] object-cover"
+              />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-medium leading-5 text-lavender-500">
+                Your account
+              </span>
+              <span
+                className={classNames(
+                  "block truncate text-sm font-normal leading-5 tracking-[-0.01em] text-text-body dark:text-white/80",
+                  authenticated && !walletAddress ? "animate-pulse" : "",
+                )}
+              >
+                {addressLine}
+              </span>
+            </span>
+            <ArrowUp01Icon
+              className={classNames(
+                "size-4 shrink-0 text-icon-outline-secondary transition-transform dark:text-white/50",
+                open ? "rotate-180" : "",
+              )}
+              aria-hidden
+            />
+          </MenuButton>
+
+          <MenuItems
+            anchor="top start"
+            modal={false}
+            className="z-50 mb-2 w-[var(--button-width)] min-w-[190px] rounded-xl border border-border-light bg-white py-1 shadow-lg outline-none dark:border-white/10 dark:bg-neutral-900"
+          >
+            {items.map((item) => (
+              <MenuItem key={item.href}>
+                <button
+                  type="button"
+                  className={classNames(menuItemClasses, shellFocusRingClasses)}
+                  onClick={() => router.push(item.href)}
+                >
+                  {item.label}
+                </button>
+              </MenuItem>
+            ))}
+            <MenuItem>
+              <button
+                type="button"
+                className={classNames(menuItemClasses, shellFocusRingClasses)}
+                onClick={() => {
+                  if (walletAddress) {
+                    void copyToClipboard(walletAddress, "Address");
+                  }
+                }}
+              >
+                My wallet address
+              </button>
+            </MenuItem>
+            <MenuItem>
+              <button
+                type="button"
+                disabled={isLoggingOut}
+                className={classNames(
+                  menuItemClasses,
+                  "text-accent-red dark:text-[#f53d6b]",
+                  shellFocusRingClasses,
+                )}
+                onClick={() => {
+                  void signOut();
+                }}
+              >
+                Sign out
+              </button>
+            </MenuItem>
+          </MenuItems>
+        </>
+      )}
+    </Menu>
   );
 }

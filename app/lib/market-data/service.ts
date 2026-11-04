@@ -272,6 +272,7 @@ export async function getTokenHistory(
         partial: true,
         unavailable: true,
       };
+      setCachedHistoryResponse(id, range, empty);
       return empty;
     }
 

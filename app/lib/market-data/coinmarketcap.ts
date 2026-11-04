@@ -13,7 +13,12 @@ import {
   setNegativeCache,
   withSingleFlight,
 } from "./cache";
-import { cmcNumberToString, multiplyDecimalStrings, redactErrorMessage } from "./validate";
+import { logMarketDataWarning } from "./log";
+import {
+  cmcNumberToString,
+  multiplyDecimalStrings,
+  redactErrorMessage,
+} from "./validate";
 import type { TokenStatsBlock } from "./types";
 import type { StatsProvider } from "./provider";
 
@@ -22,22 +27,75 @@ const CMC_URL =
 
 const CMC_DAILY_CODES = new Set([1009, 1010]);
 
-function mapQuoteToStats(
-  quote: Record<string, unknown>,
+function pickUsdQuote(
+  quoteField: unknown,
+): Record<string, unknown> | null {
+  if (!quoteField) return null;
+  if (Array.isArray(quoteField)) {
+    const usd = quoteField.find(
+      (q) =>
+        q &&
+        typeof q === "object" &&
+        String((q as Record<string, unknown>).symbol).toUpperCase() === "USD",
+    );
+    return (usd as Record<string, unknown>) ?? null;
+  }
+  if (typeof quoteField === "object") {
+    const obj = quoteField as Record<string, unknown>;
+    if (obj.USD && typeof obj.USD === "object") {
+      return obj.USD as Record<string, unknown>;
+    }
+  }
+  return null;
+}
+
+function normalizeCmcEntries(data: unknown): Record<string, unknown>[] {
+  if (!data || typeof data !== "object") return [];
+  const root = data as Record<string, unknown>;
+  const payload = root.data;
+  if (Array.isArray(payload)) {
+    return payload.filter((e) => e && typeof e === "object") as Record<
+      string,
+      unknown
+    >[];
+  }
+  if (payload && typeof payload === "object") {
+    return Object.values(payload as Record<string, unknown>).filter(
+      (e) => e && typeof e === "object",
+    ) as Record<string, unknown>[];
+  }
+  return [];
+}
+
+function findEntryByCmcId(
+  entries: Record<string, unknown>[],
+  cmcId: number,
+): Record<string, unknown> | null {
+  const idStr = String(cmcId);
+  for (const entry of entries) {
+    if (String(entry.id) === idStr) return entry;
+  }
+  return null;
+}
+
+export function mapCmcEntryToStats(
+  entry: Record<string, unknown>,
   marketCapMode: "reported" | "totalSupply",
-): TokenStatsBlock {
-  const usd = (quote.usd ?? quote) as Record<string, unknown>;
+): TokenStatsBlock | null {
+  const usd = pickUsdQuote(entry.quote);
+  if (!usd) return null;
+
   const volume24h = cmcNumberToString(usd.volume_24h);
   let marketCap = cmcNumberToString(usd.market_cap);
-  const circulatingSupply = cmcNumberToString(usd.circulating_supply);
-  const totalSupply = cmcNumberToString(usd.total_supply);
+  const circulatingSupply = cmcNumberToString(entry.circulating_supply);
+  const totalSupply = cmcNumberToString(entry.total_supply);
   const price = cmcNumberToString(usd.price);
 
   if (marketCapMode === "totalSupply" && totalSupply && price) {
     marketCap = multiplyDecimalStrings(totalSupply, price);
   }
 
-  const asOfRaw = usd.last_updated ?? quote.last_updated;
+  const asOfRaw = usd.last_updated ?? entry.last_updated;
   const asOf =
     typeof asOfRaw === "string"
       ? asOfRaw
@@ -65,9 +123,11 @@ function extractCmcErrorCode(data: unknown): number | undefined {
   return typeof code === "number" ? code : undefined;
 }
 
-function parseCmcResponse(data: unknown): Record<number, TokenStatsBlock> | null {
+/** Parses CMC quotes/latest. Returns null when zero registry ids matched. */
+export function parseCmcResponse(
+  data: unknown,
+): Record<number, TokenStatsBlock> | null {
   if (!data || typeof data !== "object") return null;
-  const root = data as Record<string, unknown>;
   const errorCode = extractCmcErrorCode(data);
   if (errorCode && errorCode !== 0) {
     if (errorCode === 1008) {
@@ -77,21 +137,21 @@ function parseCmcResponse(data: unknown): Record<number, TokenStatsBlock> | null
     }
     return null;
   }
-  const payload = root.data as Record<string, unknown> | undefined;
-  if (!payload) return null;
 
+  const entries = normalizeCmcEntries(data);
   const byId: Record<number, TokenStatsBlock> = {};
-  for (const entry of allRegistryEntries()) {
-    const raw = payload[String(entry.cmcId)] as Record<string, unknown> | undefined;
+
+  for (const registryEntry of allRegistryEntries()) {
+    const raw = findEntryByCmcId(entries, registryEntry.cmcId);
     if (!raw) continue;
-    const quotes = raw.quote as Record<string, unknown> | undefined;
-    const usd = quotes?.USD as Record<string, unknown> | undefined;
-    if (!usd) continue;
-    byId[entry.cmcId] = mapQuoteToStats(
-      { ...usd, last_updated: raw.last_updated },
-      entry.marketCapMode ?? "reported",
+    const stats = mapCmcEntryToStats(
+      raw,
+      registryEntry.marketCapMode ?? "reported",
     );
+    if (stats) byId[registryEntry.cmcId] = stats;
   }
+
+  if (Object.keys(byId).length === 0) return null;
   return byId;
 }
 
@@ -117,17 +177,38 @@ async function fetchCmcQuotes(): Promise<Record<number, TokenStatsBlock> | null>
     const errorCode = extractCmcErrorCode(data);
     if (status === 429 || (errorCode && errorCode !== 0)) {
       applyCmcRateLimitBackoff(status, errorCode);
+      logMarketDataWarning("cmc_fetch_error", {
+        httpStatus: status,
+        errorCode: errorCode ?? -1,
+        matchedIds: 0,
+      });
       return null;
     }
-    if (status < 200 || status >= 300) return null;
+    if (status < 200 || status >= 300) {
+      logMarketDataWarning("cmc_fetch_error", {
+        httpStatus: status,
+        errorCode: errorCode ?? -1,
+        matchedIds: 0,
+      });
+      return null;
+    }
 
     const parsed = parseCmcResponse(data);
+    const matchedIds = parsed ? Object.keys(parsed).length : 0;
+    logMarketDataWarning("cmc_fetch_result", {
+      httpStatus: status,
+      errorCode: errorCode ?? 0,
+      matchedIds,
+    });
+
     if (!parsed) return null;
 
     recordCmcCall();
     return parsed;
   } catch (err) {
-    console.warn("[market-data] CMC fetch failed:", redactErrorMessage(err));
+    logMarketDataWarning("cmc_fetch_failed", {
+      message: redactErrorMessage(err),
+    });
     return null;
   }
 }

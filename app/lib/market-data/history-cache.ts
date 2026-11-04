@@ -7,7 +7,9 @@ import type { HistoryRange, TokenHistoryResponse } from "./types";
 const CLOSED_BUCKET_TTL_MS = 7 * 24 * 60 * 60_000;
 /** Open (current) bucket follows price freshness. */
 const OPEN_BUCKET_TTL_MS = 60_000;
-const HISTORY_RESPONSE_TTL_MS = 60_000;
+const HISTORY_OK_RESPONSE_TTL_MS = 60_000;
+const HISTORY_PARTIAL_RESPONSE_TTL_MS = 30_000;
+const HISTORY_UNAVAILABLE_RESPONSE_TTL_MS = 15_000;
 
 export interface HistoryBucketPoint {
   t: number;
@@ -23,6 +25,7 @@ interface CachedBucket {
 interface CachedHistoryResponse {
   value: TokenHistoryResponse;
   fetchedAt: number;
+  ttlMs: number;
 }
 
 const bucketCache = new LRUCache<string, CachedBucket>({ max: 4096 });
@@ -76,13 +79,19 @@ export function setHistoryBucket(
   });
 }
 
+export function historyResponseTtlMs(response: TokenHistoryResponse): number {
+  if (response.unavailable) return HISTORY_UNAVAILABLE_RESPONSE_TTL_MS;
+  if (response.partial) return HISTORY_PARTIAL_RESPONSE_TTL_MS;
+  return HISTORY_OK_RESPONSE_TTL_MS;
+}
+
 export function getCachedHistoryResponse(
   id: string,
   range: HistoryRange,
 ): TokenHistoryResponse | null {
   const hit = responseCache.get(historyResponseKey(id, range));
   if (!hit) return null;
-  if (Date.now() - hit.fetchedAt >= HISTORY_RESPONSE_TTL_MS) return null;
+  if (Date.now() - hit.fetchedAt >= hit.ttlMs) return null;
   return hit.value;
 }
 
@@ -94,7 +103,11 @@ export function setCachedHistoryResponse(
   responseCache.set(historyResponseKey(id, range), {
     value: response,
     fetchedAt: Date.now(),
+    ttlMs: historyResponseTtlMs(response),
   });
 }
 
-export const HISTORY_RESPONSE_TTL = HISTORY_RESPONSE_TTL_MS;
+export const HISTORY_RESPONSE_TTL = HISTORY_OK_RESPONSE_TTL_MS;
+export const HISTORY_PARTIAL_RESPONSE_TTL = HISTORY_PARTIAL_RESPONSE_TTL_MS;
+export const HISTORY_UNAVAILABLE_RESPONSE_TTL =
+  HISTORY_UNAVAILABLE_RESPONSE_TTL_MS;

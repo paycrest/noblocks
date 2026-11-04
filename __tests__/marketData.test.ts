@@ -288,22 +288,23 @@ describe("history budget helpers", () => {
   it("crosses phases when range start predates current phase rounds", async () => {
     const budget = createHistoryBudget(8000);
     const latest = encodeRoundId(2, BigInt(100));
-    const fetch = async (roundId: bigint) => {
-      const { phaseId, aggregatorRoundId } = decodeRoundId(roundId);
-      if (phaseId === 2 && aggregatorRoundId === BigInt(100)) {
-        return { roundId, updatedAt: 1_000, answer: 1n, ok: true };
-      }
-      if (phaseId === 2 && aggregatorRoundId === BigInt(50)) {
-        return { roundId, updatedAt: 500, answer: 1n, ok: true };
-      }
-      if (phaseId === 1 && aggregatorRoundId === BigInt(200)) {
-        return { roundId, updatedAt: 400, answer: 1n, ok: true };
-      }
-      if (phaseId === 1 && aggregatorRoundId === BigInt(1)) {
-        return { roundId, updatedAt: 100, answer: 1n, ok: true };
-      }
-      return { roundId, updatedAt: 0, answer: BigInt(0), ok: false };
-    };
+    const fetch = async (roundIds: bigint[]) =>
+      roundIds.map((roundId) => {
+        const { phaseId, aggregatorRoundId } = decodeRoundId(roundId);
+        if (phaseId === 2 && aggregatorRoundId === BigInt(100)) {
+          return { roundId, updatedAt: 1_000, answer: 1n, ok: true };
+        }
+        if (phaseId === 2 && aggregatorRoundId === BigInt(50)) {
+          return { roundId, updatedAt: 500, answer: 1n, ok: true };
+        }
+        if (phaseId === 1 && aggregatorRoundId === BigInt(200)) {
+          return { roundId, updatedAt: 400, answer: 1n, ok: true };
+        }
+        if (phaseId === 1 && aggregatorRoundId === BigInt(1)) {
+          return { roundId, updatedAt: 100, answer: 1n, ok: true };
+        }
+        return { roundId, updatedAt: 0, answer: BigInt(0), ok: false };
+      });
     const start = await findRangeStartRoundId(fetch, budget, latest, 200);
     expect(decodeRoundId(start).phaseId).toBe(1);
   });

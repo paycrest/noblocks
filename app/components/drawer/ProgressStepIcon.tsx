@@ -22,7 +22,7 @@ export function ProgressStepIcon({ state }: { state: ActionProgressStepState }) 
   if (state === "failed") {
     return (
       <span
-        className="size-5 shrink-0 rounded-full border-2 border-accent-red dark:border-[#f76489]"
+        className="size-5 shrink-0 rounded-full border-2 border-[#AF0932] dark:border-[#F53D6B]"
         aria-hidden
       />
     );

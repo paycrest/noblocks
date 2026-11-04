@@ -7,7 +7,7 @@ import { classNames } from "@/app/utils";
 
 import { ActionSubmitButton } from "./ActionSubmitButton";
 import {
-  drawerBorderNeutral,
+  drawerCheckboxControlClasses,
   drawerSecondaryText,
   drawerStepHeadingClasses,
 } from "./drawerStyles";
@@ -60,11 +60,7 @@ export function DrawerReviewStep({
         className="group flex cursor-pointer items-start gap-2 rounded-md text-left outline-none focus:outline-none data-[focus]:outline-none data-[focus-visible]:ring-2 data-[focus-visible]:ring-lavender-500 data-[focus-visible]:ring-offset-2 data-[focus-visible]:ring-offset-white dark:data-[focus-visible]:ring-offset-[#2b2b2b]"
       >
         <span
-          className={classNames(
-            "flex size-6 shrink-0 items-center justify-center rounded-md border-2",
-            drawerBorderNeutral,
-            "group-data-[checked]:border-lavender-500 group-data-[checked]:bg-lavender-500",
-          )}
+          className={classNames(drawerCheckboxControlClasses)}
         >
           <svg
             className="size-3.5 text-white opacity-0 group-data-[checked]:opacity-100"

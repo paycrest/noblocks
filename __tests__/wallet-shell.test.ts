@@ -133,4 +133,14 @@ describe("wallet shell layout scroll", () => {
     expect(layoutSource).toContain("h-dvh");
     expect(layoutSource).toContain("overflow-y-auto");
   });
+
+  it("wraps main and drawer slot in a clipped 20px content card", () => {
+    const layoutSource = readFileSync(
+      join(process.cwd(), "app/(wallet)/layout.tsx"),
+      "utf8",
+    );
+    expect(layoutSource).toContain("rounded-[20px]");
+    expect(layoutSource).toContain("mb-2.5 mr-2.5");
+    expect(layoutSource).toContain("dark:bg-surface-canvas");
+  });
 });

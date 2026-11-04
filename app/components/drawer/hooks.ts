@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef } from "react";
 
 const FOCUSABLE_SELECTOR =
   'a[href], button, textarea, input, select, [tabindex]:not([tabindex="-1"])';
@@ -32,7 +32,7 @@ export function useDrawerFocusTrap(
 ) {
   const previouslyFocused = useRef<HTMLElement | null>(null);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!isActive) {
       return;
     }
@@ -53,7 +53,7 @@ export function useDrawerFocusTrap(
     };
 
     const first = focusables()[0];
-    first?.focus();
+    first?.focus({ focusVisible: false } as FocusOptions);
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Tab") {
@@ -68,16 +68,16 @@ export function useDrawerFocusTrap(
       const lastNode = nodes[nodes.length - 1];
       if (event.shiftKey && document.activeElement === firstNode) {
         event.preventDefault();
-        lastNode.focus();
+        lastNode.focus({ focusVisible: false } as FocusOptions);
       } else if (!event.shiftKey && document.activeElement === lastNode) {
         event.preventDefault();
-        firstNode.focus();
+        firstNode.focus({ focusVisible: false } as FocusOptions);
       }
     };
 
-    container?.addEventListener("keydown", onKeyDown);
+    container?.addEventListener("keydown", onKeyDown, true);
     return () => {
-      container?.removeEventListener("keydown", onKeyDown);
+      container?.removeEventListener("keydown", onKeyDown, true);
       previouslyFocused.current?.focus?.();
     };
   }, [containerRef, isActive]);
@@ -88,7 +88,7 @@ export function useDrawerEscape(
   onClose: () => void,
   isActive: boolean,
 ) {
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!isActive) {
       return;
     }

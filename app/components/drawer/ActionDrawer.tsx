@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useId, useRef, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { Cancel01Icon } from "hugeicons-react";
 
@@ -9,6 +10,10 @@ import { classNames } from "@/app/utils";
 
 import { useDrawerEscape, useDrawerFocusTrap } from "./hooks";
 import type { ActionDrawerTitle } from "./types";
+
+/** Above Navbar (`z-50`) and nav portaled menus (`z-[60]`), below centred modals (`z-[70]`). */
+const DRAWER_BACKDROP_Z = "z-[68]";
+const DRAWER_PANEL_Z = "z-[68]";
 
 export type ActionDrawerProps = {
   isOpen: boolean;
@@ -30,9 +35,14 @@ export function ActionDrawer({
 }: ActionDrawerProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
+  const [portalReady, setPortalReady] = useState(false);
 
-  useDrawerFocusTrap(panelRef, isOpen);
-  useDrawerEscape(panelRef, onRequestClose, isOpen);
+  useEffect(() => {
+    setPortalReady(true);
+  }, []);
+
+  useDrawerFocusTrap(panelRef, isOpen && portalReady);
+  useDrawerEscape(panelRef, onRequestClose, isOpen && portalReady);
 
   useEffect(() => {
     if (!isOpen) {
@@ -44,14 +54,16 @@ export function ActionDrawer({
     };
   }, [isOpen]);
 
-  return (
+  const overlay = (
     <AnimatePresence>
       {isOpen ? (
         <>
-          <motion.button
-            type="button"
-            aria-label="Close drawer backdrop"
-            className="fixed inset-0 z-[60] bg-black/70"
+          <motion.div
+            aria-hidden
+            className={classNames(
+              "fixed inset-0 bg-black/70",
+              DRAWER_BACKDROP_Z,
+            )}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -63,8 +75,9 @@ export function ActionDrawer({
             aria-modal="true"
             aria-labelledby={titleId}
             className={classNames(
-              "fixed inset-y-0 right-0 z-[61] flex w-full max-w-[379px] flex-col",
-              "border-l border-white/10 bg-white/[0.05] py-3",
+              "fixed inset-y-0 right-0 flex w-full max-w-[379px] flex-col",
+              "border-l border-white/10 bg-[#202020] py-3",
+              DRAWER_PANEL_Z,
             )}
             initial={{ x: "100%" }}
             animate={{ x: 0 }}
@@ -81,7 +94,7 @@ export function ActionDrawer({
               <button
                 type="button"
                 aria-label="Close"
-                className="rounded-md text-white/50 transition-colors hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-lavender-500"
+                className="rounded-md text-white/50 transition-colors hover:text-white outline-none focus:outline-none focus:ring-0 focus-visible:ring-2 focus-visible:ring-lavender-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#202020]"
                 onClick={onRequestClose}
               >
                 <Cancel01Icon className="size-5" />
@@ -104,4 +117,10 @@ export function ActionDrawer({
       ) : null}
     </AnimatePresence>
   );
+
+  if (!portalReady) {
+    return null;
+  }
+
+  return createPortal(overlay, document.body);
 }

@@ -506,6 +506,25 @@ describe("wallet shell hit targets (aedda35 follow-up)", () => {
     expect(shellMinHitTargetClasses).not.toContain("pointer-events-none");
   });
 
+  it("keeps Help's new-tab label screen-reader-only above the hit area", () => {
+    // Child stacking rules must skip .sr-only so it stays position: absolute.
+    expect(shellMinHitTargetClasses).not.toMatch(/\[&>\*\]:/);
+    expect(shellMinHitTargetClasses).toContain("[&>*:not(.sr-only)]:relative");
+    expect(shellMinHitTargetClasses).toContain("[&>*:not(.sr-only)]:z-[1]");
+
+    render(
+      <TopBar mobileNavOpen={false} onMobileNavToggle={jest.fn()} />,
+    );
+    const help = screen.getByRole("link", { name: "Help" });
+    const label = within(help).getByText("(opens in new tab)");
+    expect(label).toHaveClass("sr-only");
+    expect(label).not.toHaveClass("relative");
+    expect(label.matches(":not(.sr-only)")).toBe(false);
+    const icon = help.querySelector("svg");
+    expect(icon).not.toBeNull();
+    expect(icon!.matches(":not(.sr-only)")).toBe(true);
+  });
+
   it("applies hit-target classes to top-bar icon controls", () => {
     render(
       <TopBar mobileNavOpen={false} onMobileNavToggle={jest.fn()} />,

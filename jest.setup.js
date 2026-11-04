@@ -51,6 +51,13 @@ if (typeof globalThis.crypto?.subtle === 'undefined') {
 // Mock fetch for tests
 global.fetch = jest.fn()
 
+class ResizeObserverMock {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
+global.ResizeObserver = ResizeObserverMock
+
 // Mock window.ethereum for wallet tests
 Object.defineProperty(window, 'ethereum', {
   writable: true,

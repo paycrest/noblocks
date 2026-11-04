@@ -3,7 +3,7 @@ import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 
-const ARTIFACT_ROOT = process.env.KAN954_ARTIFACT_ROOT ?? "/opt/cursor/artifacts/kan954-r2";
+const ARTIFACT_ROOT = process.env.KAN954_ARTIFACT_ROOT ?? "/opt/cursor/artifacts/kan954-r3";
 const BASE = process.env.KAN954_BASE_URL ?? "http://127.0.0.1:3002";
 
 const drawerScenes = [

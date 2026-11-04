@@ -48,11 +48,18 @@ export function ActionProgress({
   heading,
   subheading,
   steps,
-  noteText = DEFAULT_NOTE,
-  secondaryActionLabel = DEFAULT_SECONDARY_LABEL,
+  noteText,
+  secondaryActionLabel,
 }: ActionProgressProps) {
   const liveRef = useRef<HTMLDivElement>(null);
   const announcement = useMemo(() => stepAnnouncement(steps), [steps]);
+  const hasFailedStep = steps.some((step) => step.state === "failed");
+  const showSecondaryButton =
+    !hasFailedStep || secondaryActionLabel !== undefined;
+  const showNote = !hasFailedStep || noteText !== undefined;
+  const resolvedSecondaryLabel =
+    secondaryActionLabel ?? DEFAULT_SECONDARY_LABEL;
+  const resolvedNote = noteText ?? DEFAULT_NOTE;
 
   useEffect(() => {
     if (!announcement || !liveRef.current) {
@@ -104,15 +111,19 @@ export function ActionProgress({
         </ol>
       </div>
 
-      <ActionSubmitButton
-        label={secondaryActionLabel}
-        disabled
-        onClick={() => {}}
-      />
+      {showSecondaryButton ? (
+        <ActionSubmitButton
+          label={resolvedSecondaryLabel}
+          disabled
+          onClick={() => {}}
+        />
+      ) : null}
 
-      <p className={classNames("text-center", drawerSecondaryText)}>
-        {noteText}
-      </p>
+      {showNote ? (
+        <p className={classNames("text-center", drawerSecondaryText)}>
+          {resolvedNote}
+        </p>
+      ) : null}
     </div>
   );
 }

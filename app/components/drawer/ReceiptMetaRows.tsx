@@ -105,23 +105,37 @@ export function ReceiptMetaRows({
 
   if (layout === "failed") {
     return (
-      <div className="mx-auto flex w-[270px] max-w-full gap-[30px] text-sm">
-        <div className={classNames("flex flex-col gap-4", drawerSecondaryText)}>
-          {visible.map((row) => (
-            <p key={row.label}>{row.label}</p>
-          ))}
-        </div>
-        <div className="flex flex-col gap-4 text-left">
-          {visible.map((row) => (
-            <div
-              key={row.label}
-              className={classNames(row.valueClassName ?? valueFallbackClass)}
+      <dl className="mx-auto flex w-full max-w-[320px] flex-col gap-4 text-sm">
+        {visible.map((row) => (
+          <div
+            key={row.label}
+            className="grid grid-cols-[max-content_minmax(0,1fr)] items-start gap-x-4"
+          >
+            <dt
+              className={classNames(
+                drawerSecondaryText,
+                "whitespace-nowrap",
+              )}
             >
-              {row.value}
-            </div>
-          ))}
-        </div>
-      </div>
+              {row.label}
+            </dt>
+            <dd
+              className={classNames(
+                "min-w-0 text-left",
+                row.valueClassName ?? valueFallbackClass,
+              )}
+            >
+              {row.label === "Onchain receipt" ? (
+                <span className="inline-flex max-w-full flex-nowrap items-center gap-1 whitespace-nowrap">
+                  {row.value}
+                </span>
+              ) : (
+                row.value
+              )}
+            </dd>
+          </div>
+        ))}
+      </dl>
     );
   }
 

@@ -19,6 +19,10 @@ export { ActionSubmitButton } from "./ActionSubmitButton";
 
 export { showActionSuccessToast } from "./ActionSuccessToast";
 
+export {
+  drawerEmphasisText,
+} from "./drawerStyles";
+
 export { formatExpiryCountdown } from "./formatExpiryCountdown";
 
 export { DrawerReviewStep } from "./DrawerReviewStep";
@@ -46,9 +50,7 @@ export {
 
 export {
   useDrawerEscape,
-  useDrawerFocusTrap,
   useDrawerOpenFocus,
-  useModalFocusTrap,
   usePendingActionClose,
 } from "./hooks";
 

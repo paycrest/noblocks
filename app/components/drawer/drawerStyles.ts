@@ -39,6 +39,13 @@ export const drawerBodyText =
 export const drawerBodyMediumText =
   "text-sm font-medium leading-5 text-text-body dark:text-white/80";
 
+/** Emphasised inline amounts: primary text in light, white in dark. */
+export const drawerEmphasisText =
+  "font-medium text-neutral-900 dark:text-white";
+
+export const drawerDetailCardInnerClasses =
+  "overflow-hidden rounded-xl bg-white border-[0.5px] border-border-light dark:bg-[#141414] dark:border-white/10";
+
 export const drawerPrimaryButtonClasses =
   "flex min-h-11 w-full items-center justify-center rounded-xl px-4 py-2.5 text-sm font-medium text-white transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-lavender-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-[#2b2b2b] bg-lavender-500 hover:bg-lavender-600 disabled:cursor-not-allowed disabled:bg-border-input disabled:text-white dark:disabled:bg-[#2e2e2e] dark:disabled:text-white/50 disabled:hover:bg-border-input dark:disabled:hover:bg-[#2e2e2e]";
 
@@ -77,6 +84,3 @@ export const drawerFailedStatusClasses =
 
 export const drawerProgressConnectorClasses =
   "my-0.5 w-[3px] min-h-[33px] rounded-full bg-[#e3e3e9] dark:bg-white/50";
-
-/** @deprecated use drawerHeaderTitleClasses */
-export const drawerHeadingText = drawerHeaderTitleClasses;

@@ -97,7 +97,7 @@ export const ShellIconButton = forwardRef<
       type="button"
       aria-label={label}
       className={classNames(
-        "inline-flex size-11 items-center justify-center rounded-xl bg-accent-gray text-icon-outline-secondary transition hover:bg-border-light dark:bg-white/10 dark:text-white/50 dark:hover:bg-white/15",
+        "inline-flex items-center justify-center rounded-xl bg-accent-gray text-icon-outline-secondary transition hover:bg-border-light dark:bg-white/10 dark:text-white/50 dark:hover:bg-white/15",
         shellFocusRingClasses,
         shellMinHitTargetClasses,
         className,

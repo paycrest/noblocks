@@ -152,7 +152,6 @@ export function TopBar({
           href={NOBLOCKS_HELP_URL}
           target="_blank"
           rel="noopener noreferrer"
-          aria-label="Help"
           className={classNames(
             topBarIconButtonBase,
             "size-9 rounded-xl",
@@ -161,7 +160,7 @@ export function TopBar({
           )}
         >
           <HelpSquareIcon className="size-5" />
-          <span className="sr-only">(opens in new tab)</span>
+          <span className="sr-only">Help (opens in new tab)</span>
         </a>
 
         <Popover className="relative">

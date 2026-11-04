@@ -187,7 +187,7 @@ describe("wallet shell top bar actions", () => {
     render(
       <TopBar mobileNavOpen={false} onMobileNavToggle={jest.fn()} />,
     );
-    const help = screen.getByRole("link", { name: "Help" });
+    const help = screen.getByRole("link", { name: "Help (opens in new tab)" });
     expect(help).toHaveAttribute("href", NOBLOCKS_HELP_URL);
     expect(help).toHaveAttribute("target", "_blank");
     expect(help).toHaveAttribute("rel", "noopener noreferrer");
@@ -477,8 +477,8 @@ describe("wallet shell design QA (PR #737)", () => {
     render(
       <TopBar mobileNavOpen={false} onMobileNavToggle={jest.fn()} />,
     );
-    const help = screen.getByRole("link", { name: "Help" });
-    expect(within(help).getByText("(opens in new tab)")).toHaveClass("sr-only");
+    const help = screen.getByRole("link", { name: "Help (opens in new tab)" });
+    expect(within(help).getByText("Help (opens in new tab)")).toHaveClass("sr-only");
   });
 
   it("respects reduced motion on the mobile nav panel (N4)", () => {
@@ -544,8 +544,8 @@ describe("wallet shell hit targets (aedda35 follow-up)", () => {
     render(
       <TopBar mobileNavOpen={false} onMobileNavToggle={jest.fn()} />,
     );
-    const help = screen.getByRole("link", { name: "Help" });
-    const label = within(help).getByText("(opens in new tab)");
+    const help = screen.getByRole("link", { name: "Help (opens in new tab)" });
+    const label = within(help).getByText("Help (opens in new tab)");
     expect(label).toHaveClass("sr-only");
     expect(label).not.toHaveClass("relative");
     expect(label.matches(":not(.sr-only)")).toBe(false);
@@ -558,7 +558,7 @@ describe("wallet shell hit targets (aedda35 follow-up)", () => {
     render(
       <TopBar mobileNavOpen={false} onMobileNavToggle={jest.fn()} />,
     );
-    const help = screen.getByRole("link", { name: "Help" });
+    const help = screen.getByRole("link", { name: "Help (opens in new tab)" });
     for (const token of ["before:size-11", "before:-translate-x-1/2"]) {
       expect(help.className).toContain(token);
     }
@@ -569,7 +569,7 @@ describe("wallet shell hit targets (aedda35 follow-up)", () => {
     render(
       <TopBar mobileNavOpen={false} onMobileNavToggle={jest.fn()} />,
     );
-    const help = screen.getByRole("link", { name: "Help" });
+    const help = screen.getByRole("link", { name: "Help (opens in new tab)" });
     const rect = help.getBoundingClientRect();
     if (typeof document.elementFromPoint !== "function") {
       return;
@@ -587,6 +587,38 @@ describe("wallet shell hit targets (aedda35 follow-up)", () => {
     const className = mobileAside()?.className ?? "";
     expect(className).toMatch(/visibility_0s_200ms/);
     expect(className).toMatch(/max-md:transition-\[transform,visibility\]/);
+  });
+
+  it("names Help via its sr-only text, not an aria-label (CodeRabbit)", () => {
+    render(
+      <TopBar mobileNavOpen={false} onMobileNavToggle={jest.fn()} />,
+    );
+    const help = screen.getByRole("link", { name: "Help (opens in new tab)" });
+    expect(help).not.toHaveAttribute("aria-label");
+  });
+
+  it("gives Sign out only the red text classes, not the body colours (CodeRabbit)", async () => {
+    const user = userEvent.setup();
+    render(<WalletAccountMenu />);
+    await user.click(
+      screen.getByRole("button", { name: /Your account, 0x1234\.\.\.567890/i }),
+    );
+    const signOut = screen.getByRole("menuitem", { name: "Sign out" });
+    expect(signOut).toHaveClass("text-text-accent-red", "dark:text-accent-red");
+    expect(signOut).not.toHaveClass("text-text-body");
+    expect(signOut).not.toHaveClass("dark:text-white");
+    const profile = screen.getByRole("menuitem", { name: "Profile" });
+    expect(profile).toHaveClass("text-text-body", "dark:text-white");
+  });
+
+  it("sizes each ShellIconButton at the call site (CodeRabbit)", () => {
+    const navSource = readFileSync(
+      join(process.cwd(), "app/(wallet)/components/NavMenuItem.tsx"),
+      "utf8",
+    );
+    expect(navSource).not.toMatch(/"inline-flex size-11 items-center/);
+    render(<LeftNav mobileOpen onMobileOpenChange={jest.fn()} />);
+    expect(screen.getByRole("button", { name: "Close navigation" })).toHaveClass("size-11");
   });
 
   it("styles Sign out with light failed red and dark accent red", () => {

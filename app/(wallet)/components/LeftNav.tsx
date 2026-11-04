@@ -105,7 +105,7 @@ export function LeftNav({ mobileOpen, onMobileOpenChange }: LeftNavProps) {
             </Link>
             <ShellIconButton
               label="Close navigation"
-              className="md:hidden"
+              className="size-11 md:hidden"
               onClick={() => onMobileOpenChange(false)}
             >
               <SidebarLeftIcon className="size-5" />

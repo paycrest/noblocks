@@ -15,8 +15,12 @@ import {
 import { usePrivy } from "@privy-io/react-auth";
 import { shellFocusRingClasses } from "./shellFocusStyles";
 
-const menuItemClasses =
-  "flex min-h-11 w-full items-center px-3 py-3 text-left text-sm font-medium text-text-body data-[focus]:bg-accent-gray dark:text-white dark:data-[focus]:bg-white/10";
+const menuItemLayoutClasses =
+  "flex min-h-11 w-full items-center px-3 py-3 text-left text-sm font-medium data-[focus]:bg-accent-gray dark:data-[focus]:bg-white/10";
+
+const menuItemColorClasses = "text-text-body dark:text-white";
+
+const menuItemClasses = classNames(menuItemLayoutClasses, menuItemColorClasses);
 
 export function WalletAccountMenu() {
   const router = useRouter();
@@ -111,12 +115,11 @@ export function WalletAccountMenu() {
                 My wallet address
               </button>
             </MenuItem>
-            <MenuItem>
+            <MenuItem disabled={isLoggingOut}>
               <button
                 type="button"
-                disabled={isLoggingOut}
                 className={classNames(
-                  menuItemClasses,
+                  menuItemLayoutClasses,
                   "text-text-accent-red dark:text-accent-red",
                   shellFocusRingClasses,
                 )}

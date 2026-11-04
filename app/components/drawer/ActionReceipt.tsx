@@ -91,7 +91,7 @@ export function ActionReceiptSuccess({
       <ReceiptMetaRows
         rows={rows}
         networkName={networkName}
-        txHash={txHash}
+        txHash={variant === "modal" ? null : txHash}
         layout={variant === "modal" ? "modal" : "drawer"}
       />
       <ReceiptDashedRule />

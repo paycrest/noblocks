@@ -25,6 +25,7 @@ import {
 } from "./hooks";
 import type { ActionDrawerTitle } from "./types";
 import {
+  ACTION_DRAWER_PANEL_ATTR,
   DRAWER_COLUMN_WIDTH_PX,
   WALLET_DRAWER_SLOT_ID,
 } from "./walletDrawerSlot";
@@ -68,9 +69,10 @@ function DrawerPanel({
       role="dialog"
       aria-modal={isModalSheet ? "true" : "false"}
       aria-labelledby={titleId}
+      {...{ [ACTION_DRAWER_PANEL_ATTR]: "" }}
       className={classNames(
         "flex w-[379px] max-w-full shrink-0 flex-col outline-none",
-        isModalSheet ? "h-full" : "sticky top-0 max-h-full",
+        isModalSheet ? "h-full" : "h-full max-h-full",
         drawerShellClasses,
         className,
       )}
@@ -128,6 +130,21 @@ function resolveDocked() {
   };
 }
 
+function resolvePortalTarget(docked: boolean, slot: HTMLElement | null) {
+  if (!docked) {
+    return document.body;
+  }
+  return slot ?? document.body;
+}
+
+function buildPlacement(): DrawerPlacement {
+  const { slot, docked } = resolveDocked();
+  return {
+    target: resolvePortalTarget(docked, slot),
+    docked,
+  };
+}
+
 export function ActionDrawer({
   isOpen,
   title,
@@ -159,11 +176,11 @@ export function ActionDrawer({
     }
 
     setPlacement((prev) => {
-      const { slot, docked } = resolveDocked();
-      if (prev) {
-        return { target: prev.target, docked };
+      const next = buildPlacement();
+      if (prev && prev.target === next.target && prev.docked === next.docked) {
+        return prev;
       }
-      return { target: slot ?? document.body, docked };
+      return next;
     });
   }, [portalReady, isOpen]);
 
@@ -177,8 +194,11 @@ export function ActionDrawer({
         if (!prev) {
           return prev;
         }
-        const { docked } = resolveDocked();
-        return { ...prev, docked };
+        const next = buildPlacement();
+        if (prev.target === next.target && prev.docked === next.docked) {
+          return prev;
+        }
+        return next;
       });
     };
 
@@ -245,7 +265,7 @@ export function ActionDrawer({
       <motion.div
         className={classNames(
           dockedInShell
-            ? "sticky top-0 flex h-full max-h-full shrink-0 self-start overflow-hidden"
+            ? "flex h-full max-h-full shrink-0 overflow-hidden"
             : "fixed inset-y-0 right-0 z-[68] flex max-w-[379px] w-full",
         )}
         initial={false}

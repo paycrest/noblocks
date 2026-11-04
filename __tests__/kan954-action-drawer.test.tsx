@@ -284,6 +284,62 @@ describe("ActionDrawer focus and Escape", () => {
   });
 });
 
+describe("ActionDrawer mobile sheet", () => {
+  beforeEach(() => {
+    (window.matchMedia as jest.Mock).mockImplementation((query: string) => ({
+      matches: false,
+      media: query,
+      addEventListener: jest.fn(),
+      removeEventListener: jest.fn(),
+    }));
+  });
+
+  it("closes on Escape when the sheet has focus", async () => {
+    const user = userEvent.setup();
+    const onRequestClose = jest.fn();
+
+    renderWithDrawerSlot(
+      <ActionDrawer isOpen title="Buy" onRequestClose={onRequestClose}>
+        <button type="button">Inside</button>
+      </ActionDrawer>,
+    );
+
+    expect(screen.getByRole("dialog")).toHaveAttribute("aria-modal", "true");
+
+    await user.click(screen.getByRole("button", { name: "Inside" }));
+    await user.keyboard("{Escape}");
+    expect(onRequestClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not close the sheet when Escape closes a stacked centred modal", () => {
+    const onDrawerClose = jest.fn();
+    const onModalClose = jest.fn();
+
+    renderWithDrawerSlot(
+      <>
+        <ActionDrawer isOpen title="Swap" onRequestClose={onDrawerClose}>
+          <p>Drawer body</p>
+        </ActionDrawer>
+        <ReviewModal
+          isOpen
+          onClose={onModalClose}
+          from={{ symbol: "USDC", amountLabel: "1" }}
+          to={{ symbol: "USDT", amountLabel: "1" }}
+          youPayLabel="1 USDC"
+          feesLabel="0"
+          warningText="Cannot reverse"
+          onSubmit={() => {}}
+        />
+      </>,
+    );
+
+    const modal = screen.getByRole("dialog", { name: "Review modal" });
+    fireEvent.keyDown(modal, { key: "Escape" });
+    expect(onModalClose).toHaveBeenCalledTimes(1);
+    expect(onDrawerClose).not.toHaveBeenCalled();
+  });
+});
+
 describe("ActionSubmitButton / useActionSubmit", () => {
   it("disables while in flight and prevents double submit", async () => {
     const user = userEvent.setup();

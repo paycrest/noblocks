@@ -18,6 +18,8 @@ import {
   resolveWalletRouteId,
   walletRouteRequiresFeature,
 } from "../app/lib/wallet-routes";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 
 describe("wallet shell breadcrumbs", () => {
   it("returns Home only on root", () => {
@@ -119,5 +121,16 @@ describe("wallet route ids", () => {
   it("resolves route ids", () => {
     expect(resolveWalletRouteId("/tokens/USDC")).toBe("tokens");
     expect(resolveWalletRouteId("/profile")).toBe("profile");
+  });
+});
+
+describe("wallet shell layout scroll", () => {
+  it("fixes shell height with h-dvh so main owns vertical scroll", () => {
+    const layoutSource = readFileSync(
+      join(process.cwd(), "app/(wallet)/layout.tsx"),
+      "utf8",
+    );
+    expect(layoutSource).toContain("h-dvh");
+    expect(layoutSource).toContain("overflow-y-auto");
   });
 });

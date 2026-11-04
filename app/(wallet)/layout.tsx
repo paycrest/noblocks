@@ -13,18 +13,19 @@ export default function WalletShellLayout({
 }) {
   return (
     <FeatureFlagRouteGuard>
-      <div className="flex min-h-dvh w-full bg-white dark:bg-neutral-900">
+      <div className="flex h-dvh w-full bg-white dark:bg-neutral-900">
         <LeftNav />
-        <div className="flex min-h-dvh min-w-0 flex-1 flex-col">
+        <div className="flex h-dvh min-w-0 flex-1 flex-col">
           <TopBar />
           <WalletRouteGuard>
             <div className="relative flex min-h-0 flex-1 overflow-hidden">
+              {/* Vertical page scroll is owned by <main> (overflow-y-auto), not the document. */}
               <main className="min-w-0 flex-1 overflow-y-auto px-6 py-6">
                 {children}
               </main>
               <div
                 id={WALLET_DRAWER_SLOT_ID}
-                className="sticky top-0 flex h-full max-h-full shrink-0 self-start overflow-hidden"
+                className="flex h-full shrink-0 overflow-hidden"
               />
             </div>
           </WalletRouteGuard>

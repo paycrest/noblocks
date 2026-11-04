@@ -22,6 +22,7 @@ import { NavMenuItem, NavSectionLabel, ShellIconButton } from "./NavMenuItem";
 import { WalletAccountMenu } from "./WalletAccountMenu";
 import { classNames } from "@/app/utils";
 import { shellFocusRingClasses } from "./shellFocusStyles";
+import { WALLET_MOBILE_NAV_ID } from "./walletShellIds";
 import { useIsBelowMd } from "./useIsBelowMd";
 
 type NavLinkDef = {
@@ -73,11 +74,19 @@ export function LeftNav({ mobileOpen, onMobileOpenChange }: LeftNavProps) {
 
       <aside
         ref={setAsideEl}
+        id={WALLET_MOBILE_NAV_ID}
         className={classNames(
-          "fixed inset-y-0 left-0 z-40 flex h-dvh w-[214px] shrink-0 flex-col justify-between overflow-y-auto border-r border-border-light bg-background-neutral pb-7 pl-5 pt-1 transition-transform duration-200 dark:border-white/10 dark:bg-surface-canvas md:static md:z-auto md:translate-x-0",
-          mobileOpen ? "translate-x-0" : "-translate-x-full",
+          "fixed inset-y-0 left-0 z-40 flex h-dvh w-[214px] shrink-0 flex-col justify-between overflow-y-auto border-r border-border-light bg-background-neutral pb-7 pl-5 pt-1 transition-transform duration-200 motion-reduce:transition-none dark:border-white/10 dark:bg-surface-canvas md:static md:z-auto md:translate-x-0",
+          mobileOpen ? "translate-x-0" : "-translate-x-full max-md:invisible max-md:pointer-events-none",
         )}
         data-mobile-nav-open={mobileOpen ? "true" : "false"}
+        {...(mobileDrawerActive
+          ? ({
+              role: "dialog",
+              "aria-modal": true,
+              "aria-label": "Main navigation",
+            } as const)
+          : {})}
         {...(mobileAsideInert
           ? ({ inert: true, "aria-hidden": true } as const)
           : {})}

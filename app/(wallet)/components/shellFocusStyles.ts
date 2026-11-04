@@ -2,6 +2,6 @@
 export const shellFocusRingClasses =
   "outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-lavender-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-surface-canvas";
 
-/** Expands a visually smaller control to a 44×44px hit target (WCAG 2.5.5). */
+/** Expands a visually smaller control to a centred 44×44px hit target (WCAG 2.5.5). */
 export const shellMinHitTargetClasses =
-  "relative before:absolute before:inset-0 before:-m-[6px] before:min-h-11 before:min-w-11";
+  "relative before:pointer-events-none before:absolute before:left-1/2 before:top-1/2 before:size-11 before:-translate-x-1/2 before:-translate-y-1/2 before:content-['']";

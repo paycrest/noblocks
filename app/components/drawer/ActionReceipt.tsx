@@ -10,7 +10,14 @@ import { AnimatedModal } from "@/app/components/AnimatedComponents";
 import { classNames } from "@/app/utils";
 
 import { ActionSubmitButton } from "./ActionSubmitButton";
-import { drawerBorderLight } from "./drawerStyles";
+import {
+  drawerBodyMediumText,
+  drawerBorderLight,
+  drawerHeadingText,
+  drawerModalShellClasses,
+  drawerNeutralCardClasses,
+  drawerSecondaryText,
+} from "./drawerStyles";
 import {
   buildDefaultReceiptRows,
   ReceiptDashedRule,
@@ -81,9 +88,11 @@ export function ActionReceiptSuccess({
         )}
       />
       <div className="w-full space-y-1 text-center">
-        <p className="text-xl font-medium text-white/80">{title}</p>
+        <p className={classNames("text-xl font-medium", drawerHeadingText)}>
+          {title}
+        </p>
         {subtitle ? (
-          <p className="text-sm text-white/50">{subtitle}</p>
+          <p className={classNames("text-sm", drawerSecondaryText)}>{subtitle}</p>
         ) : null}
       </div>
       {tokenPair ? (
@@ -98,7 +107,7 @@ export function ActionReceiptSuccess({
         isOpen={isOpen}
         onClose={() => onClose?.()}
         maxWidth="24.625rem"
-        contentClassName="!rounded-[32px] !border !border-white/10 !bg-[#2b2b2b] !p-5 dark:!bg-[#2b2b2b]"
+        contentClassName={drawerModalShellClasses}
       >
         <div className="flex flex-col items-center gap-5 pt-[34px]">
           {titleBlock}
@@ -207,21 +216,28 @@ export function ActionReceiptFailed({
     <div className="mx-auto flex w-full max-w-[320px] flex-col items-center gap-4 pt-6">
       <CancelCircleIcon className="size-10 text-[#f53d6b]" />
       <div className="w-full space-y-2 text-center">
-        <p className="text-xl font-medium text-white/80">{title}</p>
-        <div className="text-sm text-white/50">{body}</div>
+        <p className={classNames("text-xl font-medium", drawerHeadingText)}>
+          {title}
+        </p>
+        <div className={classNames("text-sm", drawerSecondaryText)}>{body}</div>
         <div className="h-5" aria-hidden />
-        <p className="text-sm text-white/50">{refundNote}</p>
+        <p className={classNames("text-sm", drawerSecondaryText)}>{refundNote}</p>
       </div>
 
       {failureReasonBody ? (
         <div
           className={classNames(
-            "w-full rounded-xl bg-white/[0.05] px-4 pb-4 pt-3 text-left",
+            "w-full rounded-xl px-4 pb-4 pt-3 text-left",
+            drawerNeutralCardClasses,
             drawerBorderLight,
           )}
         >
-          <p className="text-sm font-medium text-white/80">{failureReasonTitle}</p>
-          <p className="mt-2 text-sm text-white/50">{failureReasonBody}</p>
+          <p className={classNames("text-sm font-medium", drawerHeadingText)}>
+            {failureReasonTitle}
+          </p>
+          <p className={classNames("mt-2 text-sm", drawerSecondaryText)}>
+            {failureReasonBody}
+          </p>
         </div>
       ) : null}
 

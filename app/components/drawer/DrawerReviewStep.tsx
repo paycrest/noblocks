@@ -6,6 +6,11 @@ import type { ReactNode } from "react";
 import { classNames } from "@/app/utils";
 
 import { ActionSubmitButton } from "./ActionSubmitButton";
+import {
+  drawerBodyMediumText,
+  drawerHeadingText,
+  drawerSecondaryText,
+} from "./drawerStyles";
 import { ReviewDetailCard } from "./ReviewShared";
 import type { ReviewDetailRow } from "./types";
 
@@ -41,8 +46,12 @@ export function DrawerReviewStep({
   return (
     <div className="flex w-full flex-col gap-6">
       <div>
-        <p className="text-base font-medium leading-7 text-white/80">{heading}</p>
-        <div className="text-sm leading-5 text-white/50">{subheading}</div>
+        <p className={classNames("text-base font-medium leading-7", drawerHeadingText)}>
+          {heading}
+        </p>
+        <div className={classNames("text-sm leading-5", drawerSecondaryText)}>
+          {subheading}
+        </div>
       </div>
 
       <ReviewDetailCard rows={detailRows} expiresInSeconds={expiresInSeconds} />
@@ -54,8 +63,9 @@ export function DrawerReviewStep({
       >
         <span
           className={classNames(
-            "flex size-6 shrink-0 items-center justify-center rounded-md border-2 border-white/30",
+            "flex size-6 shrink-0 items-center justify-center rounded-md border-2 border-border-input",
             "group-data-[checked]:border-lavender-500 group-data-[checked]:bg-lavender-500",
+            "dark:border-white/30",
           )}
         >
           <svg
@@ -72,7 +82,9 @@ export function DrawerReviewStep({
             />
           </svg>
         </span>
-        <span className="text-sm text-white/50">{confirmationLabel}</span>
+        <span className={classNames("text-sm", drawerSecondaryText)}>
+          {confirmationLabel}
+        </span>
       </Checkbox>
 
       <ActionSubmitButton

@@ -1,13 +1,21 @@
 "use client";
 
-import type { ReactNode } from "react";
 import { ArrowDown02Icon, Cancel01Icon, InformationSquareIcon } from "hugeicons-react";
+import type { ReactNode } from "react";
 
 import { AnimatedModal } from "@/app/components/AnimatedComponents";
 import { classNames } from "@/app/utils";
 
 import { ActionSubmitButton } from "./ActionSubmitButton";
-import { drawerBorderLight } from "./drawerStyles";
+import {
+  drawerBorderLight,
+  drawerCanvasClasses,
+  drawerCloseButtonClasses,
+  drawerHeadingText,
+  drawerModalShellClasses,
+  drawerNeutralCardClasses,
+  drawerSecondaryText,
+} from "./drawerStyles";
 import { ReviewSummaryRow } from "./ReviewShared";
 
 export type ReviewModalTokenPill = {
@@ -53,15 +61,17 @@ export function ReviewModal({
       onClose={onClose}
       maxWidth="24.125rem"
       dialogPanelClassName="!bg-transparent !shadow-none"
-      contentClassName="!rounded-[32px] !border !border-white/10 !bg-[#2b2b2b] !p-5 !shadow-2xl dark:!bg-[#2b2b2b]"
+      contentClassName={drawerModalShellClasses}
     >
       <div className="flex flex-col gap-7">
         <div className="flex items-start justify-between gap-3">
-          <p className="text-sm font-semibold text-white/80">{title}</p>
+          <p className={classNames("text-sm font-semibold", drawerHeadingText)}>
+            {title}
+          </p>
           <button
             type="button"
             aria-label="Close"
-            className="text-white/50 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-lavender-500"
+            className={drawerCloseButtonClasses}
             onClick={onClose}
           >
             <Cancel01Icon className="size-5" />
@@ -70,7 +80,7 @@ export function ReviewModal({
 
         <div className="flex items-center justify-center gap-2.5">
           <TokenPill {...from} />
-          <ArrowDown02Icon className="size-4 -rotate-90 text-white/50" />
+          <ArrowDown02Icon className={classNames("size-4 -rotate-90", drawerSecondaryText)} />
           <TokenPill {...to} />
         </div>
 
@@ -83,15 +93,19 @@ export function ReviewModal({
           <ReviewSummaryRow label="Fees" value={feesLabel} />
         </div>
 
-        <hr className="border-white/10" />
+        <hr className="border-border-light dark:border-white/10" />
 
         <div
           className={classNames(
-            "flex gap-2.5 rounded-xl bg-white/[0.05] p-3 text-sm text-white/50",
+            "flex gap-2.5 rounded-xl p-3 text-sm",
+            drawerNeutralCardClasses,
             drawerBorderLight,
+            drawerSecondaryText,
           )}
         >
-          <InformationSquareIcon className="size-4 shrink-0 py-0.5 text-white/50" />
+          <InformationSquareIcon
+            className={classNames("size-4 shrink-0 py-0.5", drawerSecondaryText)}
+          />
           <p>{warningText}</p>
         </div>
 
@@ -109,15 +123,22 @@ export function ReviewModal({
 
 function TokenPill({ symbol, amountLabel, icon }: ReviewModalTokenPill) {
   return (
-    <div className="flex items-center gap-1 rounded-full bg-white/10 p-1.5 pr-2.5">
-      <span className="flex size-6 items-center justify-center overflow-hidden rounded-full bg-[#141414]">
+    <div className="flex items-center gap-1 rounded-full bg-accent-gray p-1.5 pr-2.5 dark:bg-white/10">
+      <span
+        className={classNames(
+          "flex size-6 items-center justify-center overflow-hidden rounded-full",
+          drawerCanvasClasses,
+        )}
+      >
         {icon ?? (
-          <span className="text-[10px] font-semibold text-white/80">
+          <span className={classNames("text-[10px] font-semibold", drawerHeadingText)}>
             {symbol.slice(0, 1)}
           </span>
         )}
       </span>
-      <span className="text-sm font-medium text-white/80">{amountLabel}</span>
+      <span className={classNames("text-sm font-medium", drawerHeadingText)}>
+        {amountLabel}
+      </span>
     </div>
   );
 }

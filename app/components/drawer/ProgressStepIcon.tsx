@@ -1,8 +1,17 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { CheckmarkCircle01Icon } from "hugeicons-react";
 
 import type { ActionProgressStepState } from "./types";
+
+function SpinnerTrack({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="relative size-5 shrink-0 text-border-light dark:text-white/20">
+      {children}
+    </span>
+  );
+}
 
 export function ProgressStepIcon({ state }: { state: ActionProgressStepState }) {
   if (state === "done") {
@@ -23,17 +32,18 @@ export function ProgressStepIcon({ state }: { state: ActionProgressStepState }) 
   }
   if (state === "active") {
     return (
-      <span
-        className="relative size-5 shrink-0 animate-spin"
-        aria-hidden
-      >
-        <svg viewBox="0 0 20 20" className="size-5">
+      <SpinnerTrack>
+        <svg
+          viewBox="0 0 20 20"
+          className="size-5 animate-spin"
+          aria-hidden
+        >
           <circle
             cx="10"
             cy="10"
             r="8"
             fill="none"
-            stroke="rgba(255,255,255,0.2)"
+            stroke="currentColor"
             strokeWidth="2"
           />
           <circle
@@ -47,12 +57,12 @@ export function ProgressStepIcon({ state }: { state: ActionProgressStepState }) 
             strokeDasharray="14 36"
           />
         </svg>
-      </span>
+      </SpinnerTrack>
     );
   }
   return (
     <span
-      className="size-5 shrink-0 rounded-full border-2 border-white/20"
+      className="size-5 shrink-0 rounded-full border-2 border-border-light dark:border-white/20"
       aria-hidden
     />
   );

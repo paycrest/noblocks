@@ -5,6 +5,7 @@ import { ImSpinner } from "react-icons/im";
 import { classNames } from "@/app/utils";
 
 import {
+  drawerPillPrimaryButtonClasses,
   drawerPrimaryButtonClasses,
   drawerSecondaryButtonClasses,
 } from "./drawerStyles";
@@ -30,7 +31,7 @@ export function ActionSubmitButton({
 
   const base =
     variant === "pill"
-      ? "inline-flex h-8 items-center justify-center rounded-xl bg-lavender-500 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-lavender-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-lavender-500 disabled:cursor-not-allowed disabled:bg-[#2e2e2e] disabled:text-white/50"
+      ? drawerPillPrimaryButtonClasses
       : variant === "secondary"
         ? drawerSecondaryButtonClasses
         : drawerPrimaryButtonClasses;

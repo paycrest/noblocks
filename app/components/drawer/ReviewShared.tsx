@@ -6,7 +6,15 @@ import { toast } from "sonner";
 
 import { classNames } from "@/app/utils";
 
-import { drawerBorderLight } from "./drawerStyles";
+import {
+  drawerBodyMediumText,
+  drawerBorderLight,
+  drawerCanvasClasses,
+  drawerDividerClasses,
+  drawerIconMutedClasses,
+  drawerNeutralCardClasses,
+  drawerSecondaryText,
+} from "./drawerStyles";
 import { formatExpiryCountdown } from "./formatExpiryCountdown";
 import type { ReviewDetailRow } from "./types";
 
@@ -33,32 +41,41 @@ export function ReviewDetailCard({
   return (
     <div
       className={classNames(
-        "flex w-full flex-col gap-3 rounded-2xl bg-white/[0.05] py-3",
+        "flex w-full flex-col gap-3 rounded-2xl py-3",
+        drawerNeutralCardClasses,
         className,
       )}
     >
       <div className="px-2">
         <div
           className={classNames(
-            "overflow-hidden rounded-xl bg-[#141414]",
+            "overflow-hidden rounded-xl",
+            drawerCanvasClasses,
             drawerBorderLight,
           )}
         >
           {rows.map((row, index) => (
             <div key={row.label}>
               {index > 0 ? (
-                <hr className={classNames("border-white/10", drawerBorderLight)} />
+                <hr className={classNames(drawerDividerClasses, drawerBorderLight)} />
               ) : null}
               <div className="flex items-start gap-3 p-4">
                 <div className="flex min-w-0 flex-1 flex-col gap-2">
-                  <p className="text-sm text-white/50">{row.label}</p>
-                  <p className="text-sm font-medium text-white/80">{row.value}</p>
+                  <p className={classNames("text-sm", drawerSecondaryText)}>
+                    {row.label}
+                  </p>
+                  <p className={classNames("text-sm", drawerBodyMediumText)}>
+                    {row.value}
+                  </p>
                 </div>
                 {row.copyValue ? (
                   <button
                     type="button"
                     aria-label={`Copy ${row.label}`}
-                    className="mt-1 shrink-0 text-white/50 transition-colors hover:text-lavender-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-lavender-500"
+                    className={classNames(
+                      "mt-1 shrink-0 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-lavender-500",
+                      drawerIconMutedClasses,
+                    )}
                     onClick={() => copy(row.copyValue!)}
                   >
                     <Copy01Icon className="size-4" />
@@ -71,10 +88,11 @@ export function ReviewDetailCard({
       </div>
       {expiresInSeconds != null ? (
         <div className="flex items-center justify-between px-4 py-1 text-sm">
-          <span className="text-white/50">Expires in</span>
+          <span className={drawerSecondaryText}>Expires in</span>
           <span
             className={classNames(
-              "rounded-full bg-[#141414] px-2 py-0.5 text-sm font-medium text-lavender-500",
+              "rounded-full px-2 py-0.5 text-sm font-medium text-lavender-500",
+              drawerCanvasClasses,
               drawerBorderLight,
             )}
           >
@@ -101,8 +119,13 @@ export function ReviewSummaryRow({
 }: ReviewSummaryRowProps) {
   return (
     <div className="flex w-full items-center justify-between gap-3 text-sm">
-      <span className="text-white/50">{label}</span>
-      <span className="flex items-center gap-2 font-medium text-white/80">
+      <span className={drawerSecondaryText}>{label}</span>
+      <span
+        className={classNames(
+          "flex items-center gap-2 font-medium",
+          drawerBodyMediumText,
+        )}
+      >
         {valueIcon ? (
           <span className="flex size-3.5 shrink-0 items-center justify-center overflow-hidden rounded-full">
             {valueIcon}

@@ -4,11 +4,14 @@ import Image from "next/image";
 
 import { classNames } from "@/app/utils";
 
+import { drawerSecondaryText } from "./drawerStyles";
+
 export function DrawerPoweredByFooter({ className = "" }: { className?: string }) {
   return (
     <div
       className={classNames(
-        "flex w-full items-center justify-center gap-[2.77px] text-[8.6px] font-medium leading-[14.33px] tracking-[-0.086px] text-white/50",
+        "flex w-full items-center justify-center gap-[2.77px] text-[8.6px] font-medium leading-[14.33px] tracking-[-0.086px]",
+        drawerSecondaryText,
         className,
       )}
     >
@@ -18,7 +21,7 @@ export function DrawerPoweredByFooter({ className = "" }: { className?: string }
         alt="paycrest"
         width={53}
         height={11}
-        className="h-[11.093px] w-[53.156px] shrink-0"
+        className="h-[11.093px] w-[53.156px] shrink-0 dark:brightness-100"
       />
     </div>
   );

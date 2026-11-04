@@ -9,7 +9,12 @@ import { acquireBodyScrollLock, releaseBodyScrollLock } from "@/app/components/A
 import { classNames } from "@/app/utils";
 
 import { DrawerPoweredByFooter } from "./DrawerPoweredByFooter";
-import { DRAWER_SURFACE } from "./drawerStyles";
+import {
+  drawerCloseButtonClasses,
+  drawerDividerClasses,
+  drawerHeadingText,
+  drawerShellClasses,
+} from "./drawerStyles";
 import { useDrawerEscape, useDrawerFocusTrap } from "./hooks";
 import type { ActionDrawerTitle } from "./types";
 
@@ -71,10 +76,11 @@ export function ActionDrawer({
           className={classNames(
             "fixed flex flex-col outline-none",
             "top-[58px] right-[10px] bottom-[10px] w-[379px] max-w-[calc(100vw-20px)]",
-            "rounded-tr-xl rounded-br-xl border-l border-white/10 bg-[#2b2b2b]",
+            "rounded-tr-xl rounded-br-xl border-l",
+            drawerDividerClasses,
+            drawerShellClasses,
             DRAWER_PANEL_Z,
           )}
-          style={{ backgroundColor: DRAWER_SURFACE }}
           initial={{ x: "100%" }}
           animate={{ x: 0 }}
           exit={{ x: "100%" }}
@@ -84,21 +90,24 @@ export function ActionDrawer({
             <div className="flex items-center justify-between">
               <h2
                 id={titleId}
-                className="font-semibold text-lg leading-9 tracking-[-0.54px] text-white/80"
+                className={classNames(
+                  "font-semibold text-lg leading-9 tracking-[-0.54px]",
+                  drawerHeadingText,
+                )}
               >
                 {title}
               </h2>
               <button
                 type="button"
                 aria-label="Close"
-                className="text-white/50 transition-colors hover:text-white outline-none focus:outline-none focus:ring-0 focus-visible:ring-2 focus-visible:ring-lavender-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#2b2b2b]"
+                className={drawerCloseButtonClasses}
                 onClick={onRequestClose}
               >
                 <Cancel01Icon className="size-5" />
               </button>
             </div>
           </header>
-          <hr className="mx-0 mt-4 border-white/10" />
+          <hr className={classNames("mx-0 mt-4", drawerDividerClasses)} />
           <div
             className={classNames(
               "flex min-h-0 flex-1 flex-col overflow-y-auto px-[18px] pt-4",

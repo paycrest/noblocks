@@ -3,7 +3,12 @@
 import { classNames } from "@/app/utils";
 
 import { ActionSubmitButton } from "./ActionSubmitButton";
-import { drawerBorderLight } from "./drawerStyles";
+import {
+  drawerBorderLight,
+  drawerHeadingText,
+  drawerOverlaySurfaceClasses,
+  drawerSecondaryText,
+} from "./drawerStyles";
 import { ProgressStepIcon } from "./ProgressStepIcon";
 import type { ActionProgressStep } from "./types";
 
@@ -30,22 +35,32 @@ export function ActionProgress({
   return (
     <div className="flex w-full flex-col gap-6">
       <div>
-        <p className="text-base font-medium text-white/80">{heading}</p>
-        <p className="text-sm text-white/50">{subheading}</p>
+        <p className={classNames("text-base font-medium", drawerHeadingText)}>
+          {heading}
+        </p>
+        <p className={classNames("text-sm", drawerSecondaryText)}>{subheading}</p>
       </div>
 
-      <div className={classNames("rounded-3xl bg-[#202020] p-5", drawerBorderLight)}>
-        <p className="mb-4 text-sm text-white/50">Now</p>
+      <div
+        className={classNames(
+          "rounded-3xl p-5",
+          drawerOverlaySurfaceClasses,
+          drawerBorderLight,
+        )}
+      >
+        <p className={classNames("mb-4 text-sm", drawerSecondaryText)}>Now</p>
         <ol className="flex flex-col">
           {steps.map((step, index) => (
             <li key={step.id} className="flex gap-6">
               <div className="flex flex-col items-center">
                 <ProgressStepIcon state={step.state} />
                 {index < steps.length - 1 ? (
-                  <span className="my-0.5 w-1 min-h-[34px] rounded-full bg-white/10" />
+                  <span className="my-0.5 w-1 min-h-[34px] rounded-full bg-border-light dark:bg-white/10" />
                 ) : null}
               </div>
-              <p className="pb-6 text-sm text-white/50">{step.label}</p>
+              <p className={classNames("pb-6 text-sm", drawerSecondaryText)}>
+                {step.label}
+              </p>
             </li>
           ))}
         </ol>
@@ -57,7 +72,9 @@ export function ActionProgress({
         onClick={() => {}}
       />
 
-      <p className="text-center text-sm text-white/50">{noteText}</p>
+      <p className={classNames("text-center text-sm", drawerSecondaryText)}>
+        {noteText}
+      </p>
     </div>
   );
 }

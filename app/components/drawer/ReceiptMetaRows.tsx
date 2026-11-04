@@ -4,6 +4,10 @@ import type { ReactNode } from "react";
 
 import { classNames } from "@/app/utils";
 
+import {
+  drawerDashedDividerClasses,
+  drawerSecondaryText,
+} from "./drawerStyles";
 import { getAllowlistedExplorerUrl } from "./explorer";
 import type { ReceiptRow } from "./types";
 
@@ -21,6 +25,8 @@ type DisplayRow = {
   valueClassName?: string;
   hidden?: boolean;
 };
+
+const valueFallbackClass = drawerSecondaryText;
 
 export function ReceiptMetaRows({
   rows,
@@ -76,11 +82,11 @@ export function ReceiptMetaRows({
             key={row.label}
             className="flex items-center justify-between gap-3"
           >
-            <span className="text-white/50">{row.label}</span>
+            <span className={drawerSecondaryText}>{row.label}</span>
             <span
               className={classNames(
                 "text-right",
-                row.valueClassName ?? "text-white/50",
+                row.valueClassName ?? valueFallbackClass,
               )}
             >
               {row.value}
@@ -94,7 +100,7 @@ export function ReceiptMetaRows({
   if (layout === "failed") {
     return (
       <div className="mx-auto flex w-[270px] max-w-full gap-[30px] text-sm">
-        <div className="flex flex-col gap-4 text-white/50">
+        <div className={classNames("flex flex-col gap-4", drawerSecondaryText)}>
           {visible.map((row) => (
             <p key={row.label}>{row.label}</p>
           ))}
@@ -103,7 +109,7 @@ export function ReceiptMetaRows({
           {visible.map((row) => (
             <div
               key={row.label}
-              className={classNames(row.valueClassName ?? "text-white/50")}
+              className={classNames(row.valueClassName ?? valueFallbackClass)}
             >
               {row.value}
             </div>
@@ -115,7 +121,7 @@ export function ReceiptMetaRows({
 
   return (
     <div className="mx-auto flex w-[256px] max-w-full gap-6 text-sm">
-      <div className="flex flex-col gap-6 text-white/50">
+      <div className={classNames("flex flex-col gap-6", drawerSecondaryText)}>
         {visible.map((row) => (
           <p key={row.label}>{row.label}</p>
         ))}
@@ -124,7 +130,7 @@ export function ReceiptMetaRows({
         {visible.map((row) => (
           <div
             key={row.label}
-            className={classNames(row.valueClassName ?? "text-white/50")}
+            className={classNames(row.valueClassName ?? valueFallbackClass)}
           >
             {row.value}
           </div>
@@ -136,9 +142,7 @@ export function ReceiptMetaRows({
 
 export function ReceiptDashedRule({ className }: { className?: string }) {
   return (
-    <hr
-      className={classNames("w-full border-dashed border-white/10", className)}
-    />
+    <hr className={classNames("w-full", drawerDashedDividerClasses, className)} />
   );
 }
 
@@ -153,7 +157,7 @@ export function buildDefaultReceiptRows(input: {
       ? "text-[#39c65d]"
       : input.transactionStatusTone === "failed"
         ? "text-[#f53d6b]"
-        : "text-white/80";
+        : "text-text-body dark:text-white/80";
 
   return [
     {
@@ -166,13 +170,13 @@ export function buildDefaultReceiptRows(input: {
       kind: "default",
       label: "Fund status",
       value: input.fundStatusLabel,
-      valueClassName: "text-white/50",
+      valueClassName: valueFallbackClass,
     },
     {
       kind: "default",
       label: "Time spent",
       value: input.timeSpentLabel,
-      valueClassName: "text-white/50",
+      valueClassName: valueFallbackClass,
     },
     {
       kind: "explorer",

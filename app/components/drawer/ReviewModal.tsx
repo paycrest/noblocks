@@ -11,12 +11,13 @@ import { ActionSubmitButton } from "./ActionSubmitButton";
 import {
   drawerBodyText,
   drawerBorderLight,
-  drawerCanvasClasses,
   drawerCloseButtonClasses,
   drawerModalShellClasses,
   drawerModalTitleClasses,
   drawerNeutralCardClasses,
   drawerSecondaryText,
+  drawerTokenPillClasses,
+  drawerTokenPillIconClasses,
 } from "./drawerStyles";
 import { ReviewSummaryRow } from "./ReviewShared";
 
@@ -128,13 +129,8 @@ export function ReviewModal({
 
 function TokenPill({ symbol, amountLabel, icon }: ReviewModalTokenPill) {
   return (
-    <div className="flex items-center gap-1 rounded-full bg-accent-gray p-1.5 pr-2.5 dark:bg-white/10">
-      <span
-        className={classNames(
-          "flex size-6 items-center justify-center overflow-hidden rounded-full",
-          drawerCanvasClasses,
-        )}
-      >
+    <div className={drawerTokenPillClasses}>
+      <span className={drawerTokenPillIconClasses}>
         {icon ?? (
           <span className={classNames("text-[10px] font-semibold", drawerModalTitleClasses)}>
             {symbol.slice(0, 1)}

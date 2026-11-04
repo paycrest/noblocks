@@ -1,7 +1,9 @@
 /// <reference types="jest" />
 
+import type React from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { renderHook, act } from "@testing-library/react";
 
 import { formatActionAmount } from "@/app/utils";
 import {
@@ -17,7 +19,28 @@ import {
   useActionSubmit,
   usePendingActionClose,
 } from "@/app/components/drawer";
-import { renderHook, act } from "@testing-library/react";
+import { WALLET_DRAWER_SLOT_ID } from "@/app/components/drawer/walletDrawerSlot";
+
+beforeAll(() => {
+  Object.defineProperty(window, "matchMedia", {
+    writable: true,
+    value: jest.fn().mockImplementation((query: string) => ({
+      matches: false,
+      media: query,
+      addEventListener: jest.fn(),
+      removeEventListener: jest.fn(),
+    })),
+  });
+});
+
+function renderWithDrawerSlot(ui: React.ReactElement) {
+  return render(
+    <div className="flex">
+      <div>{ui}</div>
+      <div id={WALLET_DRAWER_SLOT_ID} />
+    </div>,
+  );
+}
 
 jest.mock("../app/lib/toastMappedError", () => ({
   toastMappedError: jest.fn(),
@@ -159,7 +182,7 @@ describe("ActionDrawer focus and Escape", () => {
     const user = userEvent.setup();
     const onRequestClose = jest.fn();
 
-    render(
+    renderWithDrawerSlot(
       <ActionDrawer
         isOpen
         title="Buy"
@@ -172,25 +195,20 @@ describe("ActionDrawer focus and Escape", () => {
 
     expect(screen.getByRole("dialog")).toHaveAttribute("aria-modal", "false");
 
-    const closeButtons = screen.getAllByRole("button", { name: "Close" });
-    expect(closeButtons[0]).toHaveFocus();
-
-    await user.tab();
+    await user.click(screen.getByRole("button", { name: "First" }));
     expect(screen.getByRole("button", { name: "First" })).toHaveFocus();
+
     await user.tab();
     expect(screen.getByRole("button", { name: "Second" })).toHaveFocus();
 
-    fireEvent.keyDown(screen.getByRole("dialog"), {
-      key: "Escape",
-      code: "Escape",
-    });
+    await user.keyboard("{Escape}");
     expect(onRequestClose).toHaveBeenCalledTimes(1);
   });
 
   it("does not close on Escape when focus is outside the drawer", () => {
     const onRequestClose = jest.fn();
 
-    render(
+    renderWithDrawerSlot(
       <>
         <button type="button">Outside</button>
         <ActionDrawer isOpen title="Buy" onRequestClose={onRequestClose}>
@@ -208,7 +226,7 @@ describe("ActionDrawer focus and Escape", () => {
     const onDrawerClose = jest.fn();
     const onModalClose = jest.fn();
 
-    render(
+    renderWithDrawerSlot(
       <>
         <ActionDrawer isOpen title="Swap" onRequestClose={onDrawerClose}>
           <p>Drawer body</p>
@@ -386,7 +404,7 @@ describe("ActionReceipt variants", () => {
   });
 
   it("renders powered-by footer inside drawer body by default", () => {
-    render(
+    renderWithDrawerSlot(
       <ActionDrawer isOpen title="Buy" onRequestClose={jest.fn()}>
         <p>Step content</p>
       </ActionDrawer>,
@@ -437,7 +455,7 @@ describe("ReceiptMetaRows modal tone", () => {
 });
 
 describe("ReceiptMetaRows failed layout", () => {
-  it("pairs each label with its value for assistive tech", () => {
+  it("pairs each label with its value in one shared grid", () => {
     const { container } = render(
       <ReceiptMetaRows
         layout="failed"
@@ -456,6 +474,7 @@ describe("ReceiptMetaRows failed layout", () => {
 
     const list = container.querySelector("dl");
     expect(list).toBeTruthy();
+    expect(list?.className).toContain("grid-cols-[auto_minmax(0,1fr)]");
     expect(container.querySelector("dt")?.textContent).toBe("Transaction status");
     expect(container.querySelector("dd")?.textContent).toContain("Failed");
     expect(

@@ -1,18 +1,22 @@
 /** Shared drawer theming: Figma light defaults, Superdark via `dark:`. */
 
 export const drawerShellClasses =
-  "bg-background-neutral dark:bg-[#2b2b2b]";
+  "bg-white border-l border-border-light dark:bg-[#2b2b2b] dark:border-white/10";
 
 export const drawerCanvasClasses = "bg-white dark:bg-[#141414]";
 
 export const drawerOverlaySurfaceClasses =
   "bg-white dark:bg-[#202020]";
 
+/** Progress step card on white drawer panel (light). */
+export const drawerProgressCardClasses =
+  "bg-background-neutral border border-border-light dark:bg-[#202020] dark:border-[0.5px] dark:border-white/10";
+
 export const drawerBorderLight =
-  "border-[0.5px] border-border-light dark:border-white/10";
+  "border border-border-light dark:border-[0.5px] dark:border-white/10";
 
 export const drawerBorderNeutral =
-  "border-[0.5px] border-[#e3e3e9] dark:border-white/50";
+  "border border-[#e3e3e9] dark:border-[0.5px] dark:border-white/50";
 
 /** Drawer header: Inter Semibold 18 / 36, text/primary */
 export const drawerHeaderTitleClasses =
@@ -44,13 +48,19 @@ export const drawerEmphasisText =
   "font-medium text-neutral-900 dark:text-white";
 
 export const drawerDetailCardInnerClasses =
-  "overflow-hidden rounded-xl bg-white border-[0.5px] border-border-light dark:bg-[#141414] dark:border-white/10";
+  "overflow-hidden rounded-xl bg-white border border-border-light dark:bg-[#141414] dark:border-[0.5px] dark:border-white/10";
+
+export const drawerTokenPillClasses =
+  "flex items-center gap-1 rounded-full border border-border-light bg-gray-50 p-1.5 pr-2.5 dark:border-transparent dark:bg-white/10";
+
+export const drawerTokenPillIconClasses =
+  "flex size-6 items-center justify-center overflow-hidden rounded-full border border-border-light bg-white dark:border-transparent dark:bg-[#141414]";
 
 export const drawerPrimaryButtonClasses =
   "flex min-h-11 w-full items-center justify-center rounded-xl px-4 py-2.5 text-sm font-medium text-white transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-lavender-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-[#2b2b2b] bg-lavender-500 hover:bg-lavender-600 disabled:cursor-not-allowed disabled:bg-border-input disabled:text-white dark:disabled:bg-[#2e2e2e] dark:disabled:text-white/50 disabled:hover:bg-border-input dark:disabled:hover:bg-[#2e2e2e]";
 
 export const drawerSecondaryButtonClasses =
-  "flex min-h-11 w-full items-center justify-center rounded-xl px-4 py-2.5 text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-lavender-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-[#2b2b2b] bg-accent-gray text-neutral-900 hover:bg-gray-100 dark:bg-white/10 dark:text-white dark:hover:bg-white/15 disabled:cursor-not-allowed disabled:bg-border-input disabled:text-white dark:disabled:bg-[#2e2e2e] dark:disabled:text-white/50";
+  "flex min-h-11 w-full items-center justify-center rounded-xl border border-border-light bg-gray-50 px-4 py-2.5 text-sm font-medium text-neutral-900 transition-colors hover:bg-gray-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-lavender-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:border-transparent dark:bg-white/10 dark:text-white dark:hover:bg-white/15 disabled:cursor-not-allowed disabled:bg-border-input disabled:text-white dark:disabled:bg-[#2e2e2e] dark:disabled:text-white/50";
 
 export const drawerPillPrimaryButtonClasses =
   "inline-flex min-h-11 items-center justify-center rounded-xl bg-lavender-500 px-3 py-2.5 text-sm font-medium text-white transition-colors hover:bg-lavender-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-lavender-500 disabled:cursor-not-allowed disabled:bg-border-input disabled:text-white dark:disabled:bg-[#2e2e2e] dark:disabled:text-white/50 [&>span]:inline-flex [&>span]:h-8 [&>span]:items-center";
@@ -65,7 +75,7 @@ export const drawerDashedDividerClasses =
   "border-dashed border-border-light dark:border-white/10";
 
 export const drawerNeutralCardClasses =
-  "bg-background-neutral dark:bg-white/[0.05]";
+  "bg-background-neutral border border-border-light dark:border-transparent dark:bg-white/[0.05]";
 
 export const drawerIconMutedClasses =
   "text-icon-outline-secondary hover:text-lavender-500 dark:text-white/50 dark:hover:text-lavender-500";
@@ -80,7 +90,10 @@ export const drawerSuccessIconClasses =
   "text-[#227738] dark:text-[#39c65d]";
 
 export const drawerFailedStatusClasses =
-  "text-accent-red dark:text-[#f76489]";
+  "text-red-600 dark:text-[#f76489]";
 
 export const drawerProgressConnectorClasses =
-  "my-0.5 w-[3px] min-h-[33px] rounded-full bg-[#e3e3e9] dark:bg-white/50";
+  "my-0.5 w-[3px] min-h-[33px] rounded-full bg-border-input dark:bg-white/50";
+
+export const drawerProgressTrackStrokeClasses =
+  "stroke-[#D1D1DB] dark:stroke-white/20";

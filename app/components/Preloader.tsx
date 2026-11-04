@@ -75,8 +75,34 @@ const ScrollIndicatorSkeleton = () => (
   </div>
 );
 
-export const Preloader = ({ isLoading }: { isLoading: boolean }) => {
+export const Preloader = ({
+  isLoading,
+  variant = "default",
+}: {
+  isLoading: boolean;
+  /** Wallet shell: content-area spinner only (does not cover left nav). */
+  variant?: "default" | "wallet-content";
+}) => {
   const isWidget = isEmbedPath(usePathname());
+
+  if (variant === "wallet-content") {
+    return (
+      <AnimatePresence>
+        {isLoading && (
+          <motion.div
+            initial={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.5 }}
+            className="flex min-h-[50vh] flex-1 items-center justify-center"
+            aria-busy
+            aria-label="Loading"
+          >
+            <div className="loader" />
+          </motion.div>
+        )}
+      </AnimatePresence>
+    );
+  }
 
   if (isWidget) {
     return (

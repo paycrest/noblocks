@@ -4,6 +4,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { LeftNav } from "./components/LeftNav";
 import { TopBar } from "./components/TopBar";
+import { useIsBelowMd } from "./components/useIsBelowMd";
 import { WalletRouteGuard } from "./components/WalletRouteGuard";
 import { FeatureFlagRouteGuard } from "./components/FeatureFlagRouteGuard";
 import { WALLET_DRAWER_SLOT_ID } from "@/app/components/drawer/walletDrawerSlot";
@@ -15,6 +16,8 @@ export default function WalletShellLayout({
 }) {
   const pathname = usePathname();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const isBelowMd = useIsBelowMd();
+  const mobileMainInert = isBelowMd && mobileNavOpen;
   const mobileNavToggleRef = useRef<HTMLButtonElement>(null);
   const wasMobileNavOpenRef = useRef(false);
 
@@ -47,7 +50,10 @@ export default function WalletShellLayout({
           mobileOpen={mobileNavOpen}
           onMobileOpenChange={setMobileNavOpen}
         />
-        <div className="flex h-dvh min-w-0 flex-1 flex-col">
+        <div
+          className="flex h-dvh min-w-0 flex-1 flex-col"
+          {...(mobileMainInert ? ({ inert: true } as const) : {})}
+        >
           <TopBar
             mobileNavOpen={mobileNavOpen}
             onMobileNavToggle={() => setMobileNavOpen((open) => !open)}

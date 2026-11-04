@@ -20,12 +20,16 @@ import {
   shellFocusRingClasses,
   shellMinHitTargetClasses,
 } from "./shellFocusStyles";
+import { WALLET_MOBILE_NAV_ID } from "./walletShellIds";
 
 type TopBarProps = {
   mobileNavOpen: boolean;
   onMobileNavToggle: () => void;
   mobileNavToggleRef?: React.Ref<HTMLButtonElement>;
 };
+
+const topBarIconButtonBase =
+  "relative inline-flex items-center justify-center bg-accent-gray text-icon-outline-secondary transition hover:bg-border-light dark:bg-white/10 dark:text-white/50 dark:hover:bg-white/15";
 
 export function TopBar({
   mobileNavOpen,
@@ -54,20 +58,22 @@ export function TopBar({
         <ShellIconButton
           ref={mobileNavToggleRef}
           label={mobileNavOpen ? "Close navigation" : "Open navigation"}
-          className="md:hidden"
+          className="size-9 rounded-xl md:hidden"
           aria-expanded={mobileNavOpen}
+          aria-controls={WALLET_MOBILE_NAV_ID}
           onClick={onMobileNavToggle}
         >
           <SidebarLeftIcon className="size-5" />
         </ShellIconButton>
 
-        <div className="flex items-center gap-1.5">
+        <div className="hidden items-center gap-1.5 md:flex">
           <button
             type="button"
             aria-label="Go back"
             onClick={() => router.back()}
             className={classNames(
-              "relative inline-flex size-11 items-center justify-center rounded-lg bg-accent-gray text-icon-outline-secondary transition hover:bg-border-light dark:bg-white/10 dark:text-white/60 dark:hover:bg-white/15",
+              topBarIconButtonBase,
+              "size-8 rounded-lg",
               shellFocusRingClasses,
               shellMinHitTargetClasses,
             )}
@@ -79,7 +85,8 @@ export function TopBar({
             aria-label="Go forward"
             onClick={() => router.forward()}
             className={classNames(
-              "relative inline-flex size-11 items-center justify-center rounded-lg bg-accent-gray text-icon-outline-secondary transition hover:bg-border-light dark:bg-white/10 dark:text-white/60 dark:hover:bg-white/15",
+              topBarIconButtonBase,
+              "size-8 rounded-lg",
               shellFocusRingClasses,
               shellMinHitTargetClasses,
             )}
@@ -94,7 +101,7 @@ export function TopBar({
         >
           {isHomeOnly ? (
             <span
-              className="text-text-secondary dark:text-white/60"
+              className="text-text-secondary dark:text-white/50"
               aria-current="page"
             >
               Home
@@ -108,7 +115,7 @@ export function TopBar({
                     <Link
                       href={crumb.href}
                       className={classNames(
-                        "truncate text-text-secondary hover:text-text-body dark:text-white/60 dark:hover:text-white",
+                        "truncate text-text-secondary hover:text-text-body dark:text-white/50 dark:hover:text-white",
                         shellFocusRingClasses,
                         "rounded-sm",
                       )}
@@ -121,7 +128,7 @@ export function TopBar({
                         "truncate",
                         isLast
                           ? "text-text-body dark:text-white"
-                          : "text-text-secondary dark:text-white/60",
+                          : "text-text-secondary dark:text-white/50",
                       )}
                       {...(isLast ? { "aria-current": "page" as const } : {})}
                     >
@@ -129,7 +136,7 @@ export function TopBar({
                     </span>
                   )}
                   {!isLast && (
-                    <span className="text-text-secondary dark:text-white/60">
+                    <span className="text-text-secondary dark:text-white/50">
                       /
                     </span>
                   )}
@@ -147,19 +154,22 @@ export function TopBar({
           rel="noopener noreferrer"
           aria-label="Help"
           className={classNames(
-            "inline-flex size-11 items-center justify-center rounded-xl bg-accent-gray text-icon-outline-secondary transition hover:bg-border-light dark:bg-white/10 dark:text-white/60 dark:hover:bg-white/15",
+            topBarIconButtonBase,
+            "size-9 rounded-xl",
             shellFocusRingClasses,
             shellMinHitTargetClasses,
           )}
         >
           <HelpSquareIcon className="size-5" />
+          <span className="sr-only">(opens in new tab)</span>
         </a>
 
         <Popover className="relative">
           <PopoverButton
             aria-label="Notifications"
             className={classNames(
-              "inline-flex size-11 items-center justify-center rounded-xl bg-accent-gray text-icon-outline-secondary transition hover:bg-border-light data-[open]:bg-border-light dark:bg-white/10 dark:text-white/60 dark:hover:bg-white/15 dark:data-[open]:bg-white/15",
+              topBarIconButtonBase,
+              "size-9 rounded-xl data-[open]:bg-border-light dark:data-[open]:bg-white/15",
               shellFocusRingClasses,
               shellMinHitTargetClasses,
             )}
@@ -168,9 +178,9 @@ export function TopBar({
           </PopoverButton>
           <PopoverPanel
             anchor="bottom end"
-            className="z-50 mt-2 w-64 rounded-xl border border-border-light bg-white p-4 shadow-lg outline-none dark:border-white/10 dark:bg-neutral-900"
+            className="z-50 mt-2 w-64 rounded-xl border border-border-light bg-white p-4 shadow-lg outline-none dark:border-white/10 dark:bg-surface-overlay"
           >
-            <p className="text-sm text-text-secondary dark:text-white/60">
+            <p className="text-sm text-text-secondary dark:text-white/50">
               No notifications yet
             </p>
           </PopoverPanel>

@@ -16,7 +16,7 @@ import { usePrivy } from "@privy-io/react-auth";
 import { shellFocusRingClasses } from "./shellFocusStyles";
 
 const menuItemClasses =
-  "block w-full px-3 py-2 text-left text-sm font-medium text-text-body data-[focus]:bg-accent-gray dark:text-white dark:data-[focus]:bg-white/10";
+  "flex min-h-11 w-full items-center px-3 py-3 text-left text-sm font-medium text-text-body data-[focus]:bg-accent-gray dark:text-white dark:data-[focus]:bg-white/10";
 
 export function WalletAccountMenu() {
   const router = useRouter();
@@ -61,7 +61,7 @@ export function WalletAccountMenu() {
               />
             </span>
             <span className="min-w-0 flex-1">
-              <span className="block text-sm font-medium leading-5 text-lavender-500">
+              <span className="block text-sm font-medium leading-5 text-lavender-700 dark:text-lavender-500">
                 Your account
               </span>
               <span
@@ -85,7 +85,7 @@ export function WalletAccountMenu() {
           <MenuItems
             anchor="top start"
             modal={false}
-            className="z-50 w-[var(--button-width)] min-w-[190px] rounded-xl border border-border-light bg-white py-1 shadow-lg outline-none [--anchor-gap:theme(spacing.2)] dark:border-white/10 dark:bg-neutral-900"
+            className="z-50 w-[var(--button-width)] min-w-[190px] rounded-xl border border-border-light bg-white py-1 shadow-lg outline-none [--anchor-gap:theme(spacing.2)] dark:border-white/10 dark:bg-surface-overlay"
           >
             {items.map((item) => (
               <MenuItem key={item.href}>
@@ -117,7 +117,7 @@ export function WalletAccountMenu() {
                 disabled={isLoggingOut}
                 className={classNames(
                   menuItemClasses,
-                  "text-accent-red dark:text-[#f53d6b]",
+                  "text-accent-red",
                   shellFocusRingClasses,
                 )}
                 onClick={() => {

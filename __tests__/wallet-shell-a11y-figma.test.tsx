@@ -1,5 +1,7 @@
 /// <reference types="jest" />
 
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { getFeatureFlags } from "../app/lib/flags";
@@ -11,6 +13,7 @@ import { buildWalletBreadcrumbs } from "../app/lib/breadcrumbs";
 import { NOBLOCKS_HELP_URL } from "../app/lib/customer-support";
 import { TopBar } from "../app/(wallet)/components/TopBar";
 import { LeftNav } from "../app/(wallet)/components/LeftNav";
+import { WALLET_MOBILE_NAV_ID } from "../app/(wallet)/components/walletShellIds";
 import { WalletAccountMenu } from "../app/(wallet)/components/WalletAccountMenu";
 import WalletShellLayout from "../app/(wallet)/layout";
 
@@ -74,6 +77,9 @@ jest.mock("../app/lib/flags", () => ({
 const mockedGetFeatureFlags = getFeatureFlags as jest.MockedFunction<
   typeof getFeatureFlags
 >;
+
+const mobileAside = () =>
+  document.querySelector("aside[data-mobile-nav-open]");
 
 beforeAll(() => {
   Object.defineProperty(window, "matchMedia", {
@@ -286,9 +292,6 @@ describe("wallet account menu keyboard (KAN-992)", () => {
 });
 
 describe("mobile nav collapse (KAN-992)", () => {
-  const mobileAside = () =>
-    document.querySelector("aside[data-mobile-nav-open]");
-
   it("toggles the off-canvas nav open state", () => {
     const onToggle = jest.fn();
     const { rerender } = render(
@@ -341,6 +344,9 @@ describe("mobile nav collapse (KAN-992)", () => {
     const aside = mobileAside();
     expect(aside).not.toHaveAttribute("inert");
     expect(aside).not.toHaveAttribute("aria-hidden");
+    expect(aside).toHaveAttribute("role", "dialog");
+    expect(aside).toHaveAttribute("aria-modal", "true");
+    expect(aside).toHaveAttribute("aria-label", "Main navigation");
   });
 
   it("does not inert the aside on md+ viewports when closed", () => {
@@ -421,5 +427,74 @@ describe("mobile nav collapse (KAN-992)", () => {
       await user.tab();
       expect(aside.contains(document.activeElement)).toBe(true);
     }
+  });
+});
+
+describe("wallet shell design QA (PR #737)", () => {
+  it("uses CSS max-md:invisible on the closed mobile aside (N11)", () => {
+    render(
+      <LeftNav mobileOpen={false} onMobileOpenChange={jest.fn()} />,
+    );
+    expect(mobileAside()?.className).toMatch(/max-md:invisible/);
+  });
+
+  it("exposes dialog semantics and main-column inert when mobile nav is open (N3)", async () => {
+    const user = userEvent.setup();
+    const { container } = render(
+      <WalletShellLayout>
+        <div>Wallet page</div>
+      </WalletShellLayout>,
+    );
+    await user.click(screen.getByRole("button", { name: "Open navigation" }));
+    expect(document.getElementById(WALLET_MOBILE_NAV_ID)).toHaveAttribute(
+      "role",
+      "dialog",
+    );
+    const mainColumn = container.querySelector(
+      ".flex.h-dvh.min-w-0.flex-1.flex-col[inert]",
+    );
+    expect(mainColumn).toBeTruthy();
+    const toggle = document.querySelector(
+      `button[aria-controls="${WALLET_MOBILE_NAV_ID}"]`,
+    );
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+  });
+
+  it("hides back and forward below md in markup (N2)", () => {
+    const topBarSource = readFileSync(
+      join(process.cwd(), "app/(wallet)/components/TopBar.tsx"),
+      "utf8",
+    );
+    expect(topBarSource).toMatch(
+      /hidden items-center gap-1\.5 md:flex[\s\S]*Go back/,
+    );
+    expect(topBarSource).toContain("size-8 rounded-lg");
+    expect(topBarSource).toContain("size-9 rounded-xl");
+  });
+
+  it("announces Help opens in a new tab (N10)", () => {
+    render(
+      <TopBar mobileNavOpen={false} onMobileNavToggle={jest.fn()} />,
+    );
+    const help = screen.getByRole("link", { name: "Help" });
+    expect(within(help).getByText("(opens in new tab)")).toHaveClass("sr-only");
+  });
+
+  it("respects reduced motion on the mobile nav panel (N4)", () => {
+    render(<LeftNav mobileOpen onMobileOpenChange={jest.fn()} />);
+    expect(mobileAside()?.className).toMatch(/motion-reduce:transition-none/);
+  });
+
+  it("uses 44px-tall account menu items (N5)", async () => {
+    const user = userEvent.setup();
+    render(<WalletAccountMenu />);
+    await user.click(
+      screen.getByRole("button", {
+        name: /Your account, 0x1234\.\.\.567890/i,
+      }),
+    );
+    expect(screen.getByRole("menuitem", { name: "Profile" })).toHaveClass(
+      "min-h-11",
+    );
   });
 });

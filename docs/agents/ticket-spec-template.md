@@ -19,6 +19,8 @@ Fill **typed Jira fields** (not one markdown dump in Description). The ticket is
 
 Use for issue type **Task** only. Set fields via Atlassian MCP — `additional_fields` on create, `fields` on edit — with `contentFormat: "adf"` for every rich-text value.
 
+Any open questions have to be resolved before the ticket is created; put the answers in Acceptance criteria, Tech details, or Notes.
+
 | Field | Jira field id | Required |
 |-------|---------------|----------|
 | Summary (title) | `summary` | yes |
@@ -28,7 +30,6 @@ Use for issue type **Task** only. Set fields via Atlassian MCP — `additional_f
 | Tech details | `customfield_10128` | yes |
 | Money-safety | `customfield_10129` (select: `{"value": "Yes"}` / `{"value": "No"}`) | yes |
 | Notes / assumptions | `customfield_10130` | no |
-| Open questions | `customfield_10131` | no |
 
 ### Description
 
@@ -69,15 +70,11 @@ Include at least one **failure-case** scenario, not only the happy path.
 
 - Assumptions that must stay true for this change to remain correct.
 
-### Open questions (`customfield_10131`)
-
-- …
-
 ---
 
 ## Bug
 
-Use for issue type **Bug** only. Do **not** set Task fields (no User story, Acceptance criteria, Tech details, Money-safety, Notes, or Open questions). Put money-safety notes under **Expected behaviour** when relevant.
+Use for issue type **Bug** only. Do **not** set Task fields (no User story, Acceptance criteria, Tech details, Money-safety, or Notes). Put money-safety notes under **Expected behaviour** when relevant.
 
 | Field | Jira field id | Required |
 |-------|---------------|----------|

@@ -35,7 +35,7 @@ Skills (`qa`, `triage`, `to-issues`): read this file before filing issues for no
 2. Set **labels:** `noblocks` (required).
 3. Title (`summary`): clear, actionable.
 4. Fill **typed fields** from [ticket-spec-template.md](ticket-spec-template.md):
-   - **Task:** short `description` + `customfield_10126` (User story), `10127` (Acceptance criteria), `10128` (Tech details), `10129` (Money-safety Yes/No), optional `10130` / `10131`.
+   - **Task:** short `description` + `customfield_10126` (User story), `10127` (Acceptance criteria), `10128` (Tech details), `10129` (Money-safety Yes/No), optional `10130` (Notes / assumptions).
    - **Bug:** `description` (describe the bug) + `customfield_10123` (To reproduce), `10124` (Expected behaviour), `environment`, optional `10125` (Additional context). **No** acceptance criteria on Bugs.
 5. Put custom fields in the tool's field bag: `additional_fields` on `createJiraIssue`, `fields` on `editJiraIssue`.
 6. **Format the values** — see [Field formats (ADF)](#field-formats-adf). Rich text must be an ADF document, not Markdown; Money-safety must be an option object.

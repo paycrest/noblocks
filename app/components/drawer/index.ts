@@ -47,6 +47,8 @@ export {
 export {
   useDrawerEscape,
   useDrawerFocusTrap,
+  useDrawerOpenFocus,
+  useModalFocusTrap,
   usePendingActionClose,
 } from "./hooks";
 

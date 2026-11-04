@@ -1,18 +1,20 @@
 "use client";
 
-import { ArrowDown02Icon, Cancel01Icon, InformationSquareIcon } from "hugeicons-react";
 import type { ReactNode } from "react";
+import { useId } from "react";
+import { ArrowDown02Icon, Cancel01Icon, InformationSquareIcon } from "hugeicons-react";
 
 import { AnimatedModal } from "@/app/components/AnimatedComponents";
 import { classNames } from "@/app/utils";
 
 import { ActionSubmitButton } from "./ActionSubmitButton";
 import {
+  drawerBodyText,
   drawerBorderLight,
   drawerCanvasClasses,
   drawerCloseButtonClasses,
-  drawerHeadingText,
   drawerModalShellClasses,
+  drawerModalTitleClasses,
   drawerNeutralCardClasses,
   drawerSecondaryText,
 } from "./drawerStyles";
@@ -55,6 +57,8 @@ export function ReviewModal({
   isSubmitting,
   onSubmit,
 }: ReviewModalProps) {
+  const titleId = useId();
+
   return (
     <AnimatedModal
       isOpen={isOpen}
@@ -62,10 +66,11 @@ export function ReviewModal({
       maxWidth="24.125rem"
       dialogPanelClassName="!bg-transparent !shadow-none"
       contentClassName={drawerModalShellClasses}
+      ariaLabelledBy={titleId}
     >
       <div className="flex flex-col gap-7">
         <div className="flex items-start justify-between gap-3">
-          <p className={classNames("text-sm font-semibold", drawerHeadingText)}>
+          <p id={titleId} className={drawerModalTitleClasses}>
             {title}
           </p>
           <button
@@ -100,7 +105,7 @@ export function ReviewModal({
             "flex gap-2.5 rounded-xl p-3 text-sm",
             drawerNeutralCardClasses,
             drawerBorderLight,
-            drawerSecondaryText,
+            drawerBodyText,
           )}
         >
           <InformationSquareIcon
@@ -114,7 +119,6 @@ export function ReviewModal({
           disabled={submitDisabled}
           isSubmitting={isSubmitting}
           onClick={onSubmit}
-          className="!h-10"
         />
       </div>
     </AnimatedModal>
@@ -131,12 +135,12 @@ function TokenPill({ symbol, amountLabel, icon }: ReviewModalTokenPill) {
         )}
       >
         {icon ?? (
-          <span className={classNames("text-[10px] font-semibold", drawerHeadingText)}>
+          <span className={classNames("text-[10px] font-semibold", drawerModalTitleClasses)}>
             {symbol.slice(0, 1)}
           </span>
         )}
       </span>
-      <span className={classNames("text-sm font-medium", drawerHeadingText)}>
+          <span className={classNames("text-sm font-medium", drawerModalTitleClasses)}>
         {amountLabel}
       </span>
     </div>

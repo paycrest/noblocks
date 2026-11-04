@@ -27,6 +27,7 @@ jest.mock("framer-motion", () => {
   const React = require("react");
   return {
     AnimatePresence: ({ children }: { children: React.ReactNode }) => children,
+    useReducedMotion: () => false,
     motion: {
       aside: React.forwardRef(
         (
@@ -56,12 +57,17 @@ jest.mock("../app/components/AnimatedComponents", () => {
       children: React.ReactNode;
     }) =>
       isOpen ? (
-        <div role="dialog" aria-label="Review modal" onKeyDown={(e) => {
-          if (e.key === "Escape") {
-            e.preventDefault();
-            onClose();
-          }
-        }}>
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Review modal"
+          onKeyDown={(e) => {
+            if (e.key === "Escape") {
+              e.preventDefault();
+              onClose();
+            }
+          }}
+        >
           {children}
         </div>
       ) : null,
@@ -148,8 +154,8 @@ describe("getAllowlistedExplorerUrl", () => {
   });
 });
 
-describe("ActionDrawer focus trap and Escape", () => {
-  it("traps tab focus and closes on Escape", async () => {
+describe("ActionDrawer focus and Escape", () => {
+  it("moves focus into the drawer without trapping tab and closes on Escape", async () => {
     const user = userEvent.setup();
     const onRequestClose = jest.fn();
 
@@ -164,15 +170,17 @@ describe("ActionDrawer focus trap and Escape", () => {
       </ActionDrawer>,
     );
 
-    const dialog = screen.getByRole("dialog");
+    expect(screen.getByRole("dialog")).toHaveAttribute("aria-modal", "false");
+
     const closeButtons = screen.getAllByRole("button", { name: "Close" });
-    closeButtons[0].focus();
+    expect(closeButtons[0]).toHaveFocus();
+
     await user.tab();
     expect(screen.getByRole("button", { name: "First" })).toHaveFocus();
     await user.tab();
     expect(screen.getByRole("button", { name: "Second" })).toHaveFocus();
 
-    fireEvent.keyDown(dialog, { key: "Escape", code: "Escape" });
+    fireEvent.keyDown(document, { key: "Escape", code: "Escape" });
     expect(onRequestClose).toHaveBeenCalledTimes(1);
   });
 
@@ -238,7 +246,7 @@ describe("ActionSubmitButton / useActionSubmit", () => {
     expect(handler).toHaveBeenCalledTimes(1);
     expect(handler).toHaveBeenCalledWith("key-1");
     expect(
-      screen.getByRole("button", { name: "Buy loading" }),
+      screen.getByRole("button", { name: "Buy" }),
     ).toBeDisabled();
 
     await act(async () => {
@@ -333,7 +341,7 @@ describe("ActionReceipt variants", () => {
       />,
     );
     expect(screen.getByText("USDT 14.3 added")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "View in explorer" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: /View in explorer/i })).toHaveAttribute(
       "rel",
       "noopener noreferrer",
     );

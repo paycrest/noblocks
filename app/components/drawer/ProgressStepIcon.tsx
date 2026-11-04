@@ -1,23 +1,20 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useReducedMotion } from "framer-motion";
 import { CheckmarkCircle01Icon } from "hugeicons-react";
 
+import { classNames } from "@/app/utils";
+
+import { drawerSuccessIconClasses } from "./drawerStyles";
 import type { ActionProgressStepState } from "./types";
 
-function SpinnerTrack({ children }: { children: React.ReactNode }) {
-  return (
-    <span className="relative size-5 shrink-0 text-border-light dark:text-white/20">
-      {children}
-    </span>
-  );
-}
-
 export function ProgressStepIcon({ state }: { state: ActionProgressStepState }) {
+  const reduceMotion = useReducedMotion();
+
   if (state === "done") {
     return (
       <CheckmarkCircle01Icon
-        className="size-5 shrink-0 text-[#39c65d]"
+        className={classNames("size-5 shrink-0", drawerSuccessIconClasses)}
         aria-hidden
       />
     );
@@ -25,25 +22,30 @@ export function ProgressStepIcon({ state }: { state: ActionProgressStepState }) 
   if (state === "failed") {
     return (
       <span
-        className="size-5 shrink-0 rounded-full border-2 border-[#f53d6b]"
+        className="size-5 shrink-0 rounded-full border-2 border-accent-red dark:border-[#f76489]"
         aria-hidden
       />
     );
   }
   if (state === "active") {
     return (
-      <SpinnerTrack>
-        <svg
-          viewBox="0 0 20 20"
-          className="size-5 animate-spin"
-          aria-hidden
-        >
+      <span
+        className={classNames(
+          "relative size-5 shrink-0",
+          !reduceMotion && "animate-spin",
+          "motion-reduce:animate-none",
+        )}
+        role="img"
+        aria-label="In progress"
+      >
+        <svg viewBox="0 0 20 20" className="size-5">
           <circle
             cx="10"
             cy="10"
             r="8"
             fill="none"
-            stroke="currentColor"
+            stroke="#ebebef"
+            className="dark:stroke-white/20"
             strokeWidth="2"
           />
           <circle
@@ -51,19 +53,29 @@ export function ProgressStepIcon({ state }: { state: ActionProgressStepState }) 
             cy="10"
             r="8"
             fill="none"
-            stroke="#39c65d"
+            stroke="#227738"
+            className="dark:stroke-[#39c65d]"
             strokeWidth="2"
             strokeLinecap="round"
             strokeDasharray="14 36"
           />
         </svg>
-      </SpinnerTrack>
+      </span>
     );
   }
   return (
-    <span
-      className="size-5 shrink-0 rounded-full border-2 border-border-light dark:border-white/20"
-      aria-hidden
-    />
+    <span className="size-5 shrink-0" aria-hidden>
+      <svg viewBox="0 0 20 20" className="size-5">
+        <circle
+          cx="10"
+          cy="10"
+          r="8"
+          fill="none"
+          stroke="#ebebef"
+          className="dark:stroke-white/20"
+          strokeWidth="2"
+        />
+      </svg>
+    </span>
   );
 }

@@ -7,9 +7,9 @@ import { classNames } from "@/app/utils";
 
 import { ActionSubmitButton } from "./ActionSubmitButton";
 import {
-  drawerBodyMediumText,
-  drawerHeadingText,
+  drawerBorderNeutral,
   drawerSecondaryText,
+  drawerStepHeadingClasses,
 } from "./drawerStyles";
 import { ReviewDetailCard } from "./ReviewShared";
 import type { ReviewDetailRow } from "./types";
@@ -46,9 +46,7 @@ export function DrawerReviewStep({
   return (
     <div className="flex w-full flex-col gap-6">
       <div>
-        <p className={classNames("text-base font-medium leading-7", drawerHeadingText)}>
-          {heading}
-        </p>
+        <p className={drawerStepHeadingClasses}>{heading}</p>
         <div className={classNames("text-sm leading-5", drawerSecondaryText)}>
           {subheading}
         </div>
@@ -59,13 +57,13 @@ export function DrawerReviewStep({
       <Checkbox
         checked={confirmationChecked}
         onChange={onConfirmationChange}
-        className="group flex cursor-pointer items-start gap-2 text-left"
+        className="group flex cursor-pointer items-start gap-2 rounded-md text-left outline-none focus:outline-none data-[focus]:outline-none data-[focus-visible]:ring-2 data-[focus-visible]:ring-lavender-500 data-[focus-visible]:ring-offset-2 data-[focus-visible]:ring-offset-white dark:data-[focus-visible]:ring-offset-[#2b2b2b]"
       >
         <span
           className={classNames(
-            "flex size-6 shrink-0 items-center justify-center rounded-md border-2 border-border-input",
+            "flex size-6 shrink-0 items-center justify-center rounded-md border-2",
+            drawerBorderNeutral,
             "group-data-[checked]:border-lavender-500 group-data-[checked]:bg-lavender-500",
-            "dark:border-white/30",
           )}
         >
           <svg

@@ -6,9 +6,10 @@ import { CheckmarkCircle01Icon } from "hugeicons-react";
 import { classNames } from "@/app/utils";
 
 import {
-  drawerDividerClasses,
-  drawerHeadingText,
-  drawerSecondaryText,
+  drawerBorderLight,
+  drawerBodyText,
+  drawerOverlaySurfaceClasses,
+  drawerSuccessIconClasses,
 } from "./drawerStyles";
 
 /**
@@ -20,20 +21,25 @@ export function showActionSuccessToast(title: string, description: string) {
       <div
         role="status"
         className={classNames(
-          "w-[min(100vw-2rem,20rem)] overflow-hidden rounded-2xl border border-border-light bg-white shadow-2xl",
-          "dark:border-white/10 dark:bg-[#202020]",
+          "w-[min(100vw-2rem,20rem)] overflow-hidden rounded-2xl shadow-2xl",
+          drawerOverlaySurfaceClasses,
+          drawerBorderLight,
         )}
       >
         <div className="flex items-center gap-2.5 px-3.5 py-2.5">
-          <CheckmarkCircle01Icon className="size-4 shrink-0 text-[#39c65d]" />
-          <p className="text-sm font-medium text-[#39c65d]">{title}</p>
+          <CheckmarkCircle01Icon
+            className={classNames("size-4 shrink-0", drawerSuccessIconClasses)}
+          />
+          <p className="text-sm font-medium leading-5 text-[#227738] dark:text-[#39c65d]">
+            {title}
+          </p>
         </div>
-        <hr className={drawerDividerClasses} />
-        <p className={classNames("px-3.5 py-2.5 text-sm", drawerHeadingText)}>
+        <hr className="border-border-light dark:border-white/10" />
+        <p className={classNames("px-3.5 py-2.5 text-sm leading-5", drawerBodyText)}>
           {description}
         </p>
       </div>
     ),
-    { duration: 5000 },
+    { duration: 5000, position: "top-center", style: { top: "20px" } },
   );
 }

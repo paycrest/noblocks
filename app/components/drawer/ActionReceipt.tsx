@@ -1,28 +1,29 @@
 "use client";
 
 import type { ReactNode } from "react";
-import {
-  CancelCircleIcon,
-  CheckmarkCircle01Icon,
-} from "hugeicons-react";
+import { useId } from "react";
+import { CancelCircleIcon, LinkSquare02Icon } from "hugeicons-react";
 
 import { AnimatedModal } from "@/app/components/AnimatedComponents";
 import { classNames } from "@/app/utils";
 
 import { ActionSubmitButton } from "./ActionSubmitButton";
 import {
-  drawerBodyMediumText,
+  drawerBodyText,
   drawerBorderLight,
-  drawerHeadingText,
+  drawerFailedStatusClasses,
   drawerModalShellClasses,
   drawerNeutralCardClasses,
+  drawerReceiptTitleClasses,
   drawerSecondaryText,
+  drawerStepHeadingClasses,
 } from "./drawerStyles";
 import {
   buildDefaultReceiptRows,
   ReceiptDashedRule,
   ReceiptMetaRows,
 } from "./ReceiptMetaRows";
+import { SuccessCheckmark } from "./SuccessCheckmark";
 import { getAllowlistedExplorerUrl } from "./explorer";
 
 export type ActionReceiptSuccessProps = {
@@ -72,6 +73,7 @@ export function ActionReceiptSuccess({
   onSecondaryAction,
   tokenPair,
 }: ActionReceiptSuccessProps) {
+  const modalTitleId = useId();
   const rows = buildDefaultReceiptRows({
     transactionStatusLabel: "Completed",
     transactionStatusTone: "success",
@@ -81,14 +83,15 @@ export function ActionReceiptSuccess({
 
   const titleBlock = (
     <>
-      <CheckmarkCircle01Icon
-        className={classNames(
-          variant === "drawer" ? "size-[54px]" : "size-10",
-          "text-[#39c65d]",
-        )}
+      <SuccessCheckmark
+        size={variant === "drawer" ? 54 : 40}
+        strokeWidth={variant === "drawer" ? 2.7 : 2}
       />
       <div className="w-full space-y-1 text-center">
-        <p className={classNames("text-xl font-medium", drawerHeadingText)}>
+        <p
+          id={variant === "modal" ? modalTitleId : undefined}
+          className={drawerReceiptTitleClasses}
+        >
           {title}
         </p>
         {subtitle ? (
@@ -108,6 +111,7 @@ export function ActionReceiptSuccess({
         onClose={() => onClose?.()}
         maxWidth="24.625rem"
         contentClassName={drawerModalShellClasses}
+        ariaLabelledBy={modalTitleId}
       >
         <div className="flex flex-col items-center gap-5 pt-[34px]">
           {titleBlock}
@@ -147,13 +151,13 @@ export function ActionReceiptSuccess({
           label={secondaryActionLabel}
           variant="secondary"
           onClick={() => onSecondaryAction?.()}
-          className="h-[42px] flex-1"
+          className="!min-h-[42px] flex-1"
         />
         {primaryActionLabel ? (
           <ActionSubmitButton
             label={primaryActionLabel}
             onClick={() => onPrimaryAction?.()}
-            className="h-[42px] flex-1"
+            className="!min-h-[42px] flex-1"
           />
         ) : null}
       </div>
@@ -178,16 +182,18 @@ function ModalSuccessFooter({
           href={explorerUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="text-sm text-lavender-500 hover:underline"
+          className="inline-flex items-center gap-1.5 text-sm text-lavender-500 hover:underline"
         >
           View in explorer
+          <LinkSquare02Icon className="size-4 shrink-0" aria-hidden />
+          <span className="sr-only">(opens in new tab)</span>
         </a>
       ) : null}
       <ActionSubmitButton
         label="Close"
         variant="secondary"
         onClick={() => onClose?.()}
-        className="!h-[42px]"
+        className="!min-h-[42px]"
       />
     </div>
   );
@@ -214,14 +220,12 @@ export function ActionReceiptFailed({
 
   return (
     <div className="mx-auto flex w-full max-w-[320px] flex-col items-center gap-4 pt-6">
-      <CancelCircleIcon className="size-10 text-[#f53d6b]" />
+      <CancelCircleIcon className={classNames("size-10", drawerFailedStatusClasses)} />
       <div className="w-full space-y-2 text-center">
-        <p className={classNames("text-xl font-medium", drawerHeadingText)}>
-          {title}
-        </p>
-        <div className={classNames("text-sm", drawerSecondaryText)}>{body}</div>
+        <p className={drawerReceiptTitleClasses}>{title}</p>
+        <div className={classNames("text-sm", drawerBodyText)}>{body}</div>
         <div className="h-5" aria-hidden />
-        <p className={classNames("text-sm", drawerSecondaryText)}>{refundNote}</p>
+        <p className={classNames("text-sm", drawerBodyText)}>{refundNote}</p>
       </div>
 
       {failureReasonBody ? (
@@ -232,10 +236,8 @@ export function ActionReceiptFailed({
             drawerBorderLight,
           )}
         >
-          <p className={classNames("text-sm font-medium", drawerHeadingText)}>
-            {failureReasonTitle}
-          </p>
-          <p className={classNames("mt-2 text-sm", drawerSecondaryText)}>
+          <p className={drawerStepHeadingClasses}>{failureReasonTitle}</p>
+          <p className={classNames("mt-2 text-sm", drawerBodyText)}>
             {failureReasonBody}
           </p>
         </div>

@@ -11,6 +11,7 @@ import {
   drawerBorderLight,
   drawerCanvasClasses,
   drawerDividerClasses,
+  drawerCopyButtonClasses,
   drawerIconMutedClasses,
   drawerNeutralCardClasses,
   drawerSecondaryText,
@@ -73,12 +74,12 @@ export function ReviewDetailCard({
                     type="button"
                     aria-label={`Copy ${row.label}`}
                     className={classNames(
-                      "mt-1 shrink-0 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-lavender-500",
+                      drawerCopyButtonClasses,
                       drawerIconMutedClasses,
                     )}
                     onClick={() => copy(row.copyValue!)}
                   >
-                    <Copy01Icon className="size-4" />
+                    <Copy01Icon className="size-6" aria-hidden />
                   </button>
                 ) : null}
               </div>
@@ -127,7 +128,7 @@ export function ReviewSummaryRow({
         )}
       >
         {valueIcon ? (
-          <span className="flex size-3.5 shrink-0 items-center justify-center overflow-hidden rounded-full">
+          <span className="flex size-3.5 shrink-0 items-center justify-center overflow-hidden rounded-full [&_img]:size-3.5 [&_svg]:size-3.5">
             {valueIcon}
           </span>
         ) : null}

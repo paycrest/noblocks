@@ -1,9 +1,8 @@
 "use client";
 
-import Image from "next/image";
-
 import { classNames } from "@/app/utils";
 
+import { PaycrestWordmark } from "./PaycrestWordmark";
 import { drawerSecondaryText } from "./drawerStyles";
 
 export function DrawerPoweredByFooter({ className = "" }: { className?: string }) {
@@ -16,13 +15,8 @@ export function DrawerPoweredByFooter({ className = "" }: { className?: string }
       )}
     >
       <span>Powered by</span>
-      <Image
-        src="/images/paycrest-wordmark.svg"
-        alt="paycrest"
-        width={53}
-        height={11}
-        className="h-[11.093px] w-[53.156px] shrink-0 dark:brightness-100"
-      />
+      <PaycrestWordmark className="h-[11.093px] w-[53.156px] text-black dark:text-white" />
+      <span className="sr-only">paycrest</span>
     </div>
   );
 }

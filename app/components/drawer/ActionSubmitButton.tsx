@@ -42,11 +42,16 @@ export function ActionSubmitButton({
       disabled={isDisabled}
       onClick={onClick}
       aria-busy={isSubmitting || undefined}
-      aria-label={isSubmitting ? `${label} loading` : label}
+      aria-label={label}
       className={classNames(base, className)}
     >
       {isSubmitting ? (
-        <ImSpinner className="size-5 animate-spin" aria-hidden />
+        <span role="img" aria-label={`${label} loading`}>
+          <ImSpinner
+            className="size-5 motion-reduce:animate-none animate-spin"
+            aria-hidden
+          />
+        </span>
       ) : (
         label
       )}

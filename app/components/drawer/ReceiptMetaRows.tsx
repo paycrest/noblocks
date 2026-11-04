@@ -1,12 +1,16 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { LinkSquare02Icon } from "hugeicons-react";
 
 import { classNames } from "@/app/utils";
 
 import {
+  drawerBodyText,
   drawerDashedDividerClasses,
+  drawerFailedStatusClasses,
   drawerSecondaryText,
+  drawerSuccessIconClasses,
 } from "./drawerStyles";
 import { getAllowlistedExplorerUrl } from "./explorer";
 import type { ReceiptRow } from "./types";
@@ -63,9 +67,11 @@ export function ReceiptMetaRows({
           href={explorerUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="text-lavender-500 hover:underline"
+          className="inline-flex items-center gap-1 text-lavender-500 hover:underline"
         >
           {explorerLinkLabel}
+          <LinkSquare02Icon className="size-4 shrink-0" aria-hidden />
+          <span className="sr-only">(opens in new tab)</span>
         </a>
       ),
       valueClassName: row.valueClassName,
@@ -154,10 +160,10 @@ export function buildDefaultReceiptRows(input: {
 }): ReceiptRow[] {
   const statusClass =
     input.transactionStatusTone === "success"
-      ? "text-[#39c65d]"
+      ? drawerSuccessIconClasses
       : input.transactionStatusTone === "failed"
-        ? "text-[#f53d6b]"
-        : "text-text-body dark:text-white/80";
+        ? drawerFailedStatusClasses
+        : drawerBodyText;
 
   return [
     {

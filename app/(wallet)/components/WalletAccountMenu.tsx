@@ -117,7 +117,7 @@ export function WalletAccountMenu() {
                 disabled={isLoggingOut}
                 className={classNames(
                   menuItemClasses,
-                  "text-accent-red",
+                  "text-text-accent-red dark:text-accent-red",
                   shellFocusRingClasses,
                 )}
                 onClick={() => {

@@ -66,7 +66,7 @@ export function TopBar({
           <SidebarLeftIcon className="size-5" />
         </ShellIconButton>
 
-        <div className="hidden items-center gap-1.5 md:flex">
+        <div className="hidden items-center gap-3 md:flex">
           <button
             type="button"
             aria-label="Go back"

@@ -13,6 +13,7 @@ import { buildWalletBreadcrumbs } from "../app/lib/breadcrumbs";
 import { NOBLOCKS_HELP_URL } from "../app/lib/customer-support";
 import { TopBar } from "../app/(wallet)/components/TopBar";
 import { LeftNav } from "../app/(wallet)/components/LeftNav";
+import { shellMinHitTargetClasses } from "../app/(wallet)/components/shellFocusStyles";
 import { WALLET_MOBILE_NAV_ID } from "../app/(wallet)/components/walletShellIds";
 import { WalletAccountMenu } from "../app/(wallet)/components/WalletAccountMenu";
 import WalletShellLayout from "../app/(wallet)/layout";
@@ -466,7 +467,7 @@ describe("wallet shell design QA (PR #737)", () => {
       "utf8",
     );
     expect(topBarSource).toMatch(
-      /hidden items-center gap-1\.5 md:flex[\s\S]*Go back/,
+      /hidden items-center gap-3 md:flex[\s\S]*Go back/,
     );
     expect(topBarSource).toContain("size-8 rounded-lg");
     expect(topBarSource).toContain("size-9 rounded-xl");
@@ -496,5 +497,56 @@ describe("wallet shell design QA (PR #737)", () => {
     expect(screen.getByRole("menuitem", { name: "Profile" })).toHaveClass(
       "min-h-11",
     );
+  });
+});
+
+describe("wallet shell hit targets (aedda35 follow-up)", () => {
+  it("defines a centred 44px ::before hit area without blocking pointer events", () => {
+    expect(shellMinHitTargetClasses).toContain("before:size-11");
+    expect(shellMinHitTargetClasses).not.toContain("pointer-events-none");
+  });
+
+  it("applies hit-target classes to top-bar icon controls", () => {
+    render(
+      <TopBar mobileNavOpen={false} onMobileNavToggle={jest.fn()} />,
+    );
+    const help = screen.getByRole("link", { name: "Help" });
+    for (const token of ["before:size-11", "before:-translate-x-1/2"]) {
+      expect(help.className).toContain(token);
+    }
+    expect(help.className).not.toContain("pointer-events-none");
+  });
+
+  it("registers taps slightly outside the visible Help control box", () => {
+    render(
+      <TopBar mobileNavOpen={false} onMobileNavToggle={jest.fn()} />,
+    );
+    const help = screen.getByRole("link", { name: "Help" });
+    const rect = help.getBoundingClientRect();
+    if (typeof document.elementFromPoint !== "function") {
+      return;
+    }
+    const probeX = rect.right + 2;
+    const probeY = rect.top + rect.height / 2;
+    const hit = document.elementFromPoint(probeX, probeY);
+    expect(hit === help || help.contains(hit)).toBe(true);
+  });
+
+  it("delays max-md visibility until after the slide transition when closed", () => {
+    render(
+      <LeftNav mobileOpen={false} onMobileOpenChange={jest.fn()} />,
+    );
+    const className = mobileAside()?.className ?? "";
+    expect(className).toMatch(/visibility_0s_200ms/);
+    expect(className).toMatch(/max-md:transition-\[transform,visibility\]/);
+  });
+
+  it("styles Sign out with light failed red and dark accent red", () => {
+    render(<WalletAccountMenu />);
+    const source = readFileSync(
+      join(process.cwd(), "app/(wallet)/components/WalletAccountMenu.tsx"),
+      "utf8",
+    );
+    expect(source).toContain("text-text-accent-red dark:text-accent-red");
   });
 });

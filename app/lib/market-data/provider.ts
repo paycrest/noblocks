@@ -10,6 +10,14 @@ export interface LatestPriceResult {
 export interface HistoryReadOptions {
   deadlineMs?: number;
   stepSec?: number;
+  rangeFromSec?: number;
+  /** When true (All range), anchor sampling at phase-1 round 1. */
+  useFeedInception?: boolean;
+}
+
+export interface HistoryReadResult {
+  samples: Array<{ t: number; answer: bigint; decimals: number }>;
+  partial: boolean;
 }
 
 export interface PriceProvider {
@@ -19,7 +27,7 @@ export interface PriceProvider {
     entry: AssetRegistryEntry,
     timestampsSec: number[],
     options?: HistoryReadOptions,
-  ): Promise<Array<{ t: number; answer: bigint; decimals: number }>>;
+  ): Promise<HistoryReadResult>;
 }
 
 export interface StatsProvider {

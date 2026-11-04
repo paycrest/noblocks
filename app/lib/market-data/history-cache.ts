@@ -1,12 +1,13 @@
 import "server-only";
 
 import { LRUCache } from "lru-cache";
-import type { HistoryRange } from "./types";
+import type { HistoryRange, TokenHistoryResponse } from "./types";
 
 /** Closed buckets are immutable — cache for 7 days. */
 const CLOSED_BUCKET_TTL_MS = 7 * 24 * 60 * 60_000;
 /** Open (current) bucket follows price freshness. */
 const OPEN_BUCKET_TTL_MS = 60_000;
+const HISTORY_RESPONSE_TTL_MS = 60_000;
 
 export interface HistoryBucketPoint {
   t: number;
@@ -19,10 +20,17 @@ interface CachedBucket {
   closed: boolean;
 }
 
+interface CachedHistoryResponse {
+  value: TokenHistoryResponse;
+  fetchedAt: number;
+}
+
 const bucketCache = new LRUCache<string, CachedBucket>({ max: 4096 });
+const responseCache = new LRUCache<string, CachedHistoryResponse>({ max: 64 });
 
 export function resetHistoryBucketCacheForTests(): void {
   bucketCache.clear();
+  responseCache.clear();
 }
 
 export function historyBucketKey(
@@ -31,6 +39,10 @@ export function historyBucketKey(
   bucketStartSec: number,
 ): string {
   return `hist:${id}:${range}:${bucketStartSec}`;
+}
+
+export function historyResponseKey(id: string, range: HistoryRange): string {
+  return `response:${id}:${range}`;
 }
 
 export function isBucketClosed(
@@ -63,3 +75,26 @@ export function setHistoryBucket(
     closed,
   });
 }
+
+export function getCachedHistoryResponse(
+  id: string,
+  range: HistoryRange,
+): TokenHistoryResponse | null {
+  const hit = responseCache.get(historyResponseKey(id, range));
+  if (!hit) return null;
+  if (Date.now() - hit.fetchedAt >= HISTORY_RESPONSE_TTL_MS) return null;
+  return hit.value;
+}
+
+export function setCachedHistoryResponse(
+  id: string,
+  range: HistoryRange,
+  response: TokenHistoryResponse,
+): void {
+  responseCache.set(historyResponseKey(id, range), {
+    value: response,
+    fetchedAt: Date.now(),
+  });
+}
+
+export const HISTORY_RESPONSE_TTL = HISTORY_RESPONSE_TTL_MS;

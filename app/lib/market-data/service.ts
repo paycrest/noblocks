@@ -22,9 +22,11 @@ import {
 import { coinMarketCapStatsProvider } from "./coinmarketcap";
 import { computeCngnBadge } from "./cngn";
 import {
+  getCachedHistoryResponse,
   getHistoryBucket,
   historyBucketKey,
   isBucketClosed,
+  setCachedHistoryResponse,
   setHistoryBucket,
 } from "./history-cache";
 import {
@@ -193,6 +195,9 @@ export async function getTokenHistory(
   const entry = getRegistryEntry(id);
   if (!entry) throw new PriceUnavailableError();
 
+  const cachedResponse = getCachedHistoryResponse(id, range);
+  if (cachedResponse) return cachedResponse;
+
   const nowSec = Math.floor(Date.now() / 1000);
   const inception = entry.price.inceptionUnix;
   const spec = bucketSpecForRange(range);
@@ -201,9 +206,11 @@ export async function getTokenHistory(
   const flightKey = `history:${id}:${range}`;
 
   return withSingleFlight(flightKey, async () => {
+    const hit = getCachedHistoryResponse(id, range);
+    if (hit) return hit;
+
     const merged: RawPoint[] = [];
     const toFetch: number[] = [];
-    let fetchedCount = 0;
 
     for (const t of timestamps) {
       const closed = isBucketClosed(t, spec.stepSec, nowSec);
@@ -216,14 +223,19 @@ export async function getTokenHistory(
       toFetch.push(t);
     }
 
+    let partial = false;
+
     if (toFetch.length > 0) {
-      const reads = await chainlinkPriceProvider.readHistoryAtTimestamps(
-        entry,
-        toFetch,
-        { deadlineMs: HISTORY_DEADLINE_MS, stepSec: spec.stepSec },
-      );
-      fetchedCount = reads.length;
-      for (const r of reads) {
+      const { samples, partial: upstreamPartial } =
+        await chainlinkPriceProvider.readHistoryAtTimestamps(entry, timestamps, {
+          deadlineMs: HISTORY_DEADLINE_MS,
+          stepSec: spec.stepSec,
+          rangeFromSec: from,
+          useFeedInception: range === "ALL",
+        });
+      partial = upstreamPartial;
+
+      for (const r of samples) {
         const p = roundToPriceString({
           answer: r.answer,
           updatedAt: r.t,
@@ -236,7 +248,7 @@ export async function getTokenHistory(
         const closed = isBucketClosed(r.t, spec.stepSec, nowSec);
         const point = { t: r.t, p };
         setHistoryBucket(historyBucketKey(id, range, r.t), point, closed);
-        merged.push(point);
+        if (!merged.some((m) => m.t === r.t)) merged.push(point);
       }
     }
 
@@ -250,25 +262,34 @@ export async function getTokenHistory(
     const filtered = applySpikeFilter(merged, { stableOrNgn });
 
     if (filtered.length === 0) {
-      return {
+      const empty: TokenHistoryResponse = {
         id,
         range,
         points: [],
         from,
         asOf: new Date().toISOString(),
-        stale: true,
+        stale: false,
+        partial: true,
         unavailable: true,
       };
+      return empty;
     }
 
-    const partial = toFetch.length > 0 && fetchedCount < toFetch.length;
-    return {
+    if (filtered.length < timestamps.length) {
+      partial = true;
+    }
+
+    const response: TokenHistoryResponse = {
       id,
       range,
       points: filtered.map((p) => [p.t, p.p]),
       from,
       asOf: new Date().toISOString(),
-      stale: partial,
+      stale: false,
+      partial,
     };
+
+    setCachedHistoryResponse(id, range, response);
+    return response;
   });
 }

@@ -21,18 +21,26 @@ import {
 } from "./validate";
 import { logMarketDataWarning } from "./log";
 import {
+  assignSamplesToBucketTimes,
+  budgetExpired,
+  consumeBudget,
+  createHistoryBudget,
   HISTORY_DEADLINE_MS,
-  HISTORY_MAX_ROUND_STEPS,
-  HISTORY_ROUND_MULTICALL_CHUNK,
-  historyDeadlineExceeded,
-  mapBucketsToRounds,
-  minBucketTimestamp,
-  previousRoundId,
+  HISTORY_MULTICALL_CHUNK,
+  isHistoryPartial,
+  planSampleRoundIds,
+  type FetchRoundData,
+  type HistoryFetchBudget,
   type RoundSample,
 } from "./round-history";
 import { evaluateSequencerStatus } from "./sequencer";
 import type { AssetRegistryEntry, ChainlinkFeedConfig, ChainlinkRound, MarketChain } from "./types";
-import type { HistoryReadOptions, LatestPriceResult, PriceProvider } from "./provider";
+import type {
+  HistoryReadOptions,
+  HistoryReadResult,
+  LatestPriceResult,
+  PriceProvider,
+} from "./provider";
 
 const aggregatorAbi = parseAbi([
   "function latestRoundData() view returns (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound)",
@@ -276,48 +284,61 @@ export async function blockNumberForTimestamp(
   }
 }
 
-async function collectRoundSamples(
+async function fetchRoundRow(
   feed: ChainlinkFeedConfig,
-  minUpdatedAtSec: number,
-  deadlineAtMs: number,
-): Promise<RoundSample[]> {
-  const client = getPublicClient(feed.chain);
-  const latest = await client.readContract({
-    address: feed.proxy,
-    abi: aggregatorAbi,
-    functionName: "latestRoundData",
-  });
-  let cursor = latest[0] as bigint;
-  const samples: RoundSample[] = [];
-  let oldestCollected = Number(latest[3]);
-
-  const pushSample = (updatedAt: number, answer: bigint) => {
-    if (!validatePositiveAnswer(answer)) return;
+  budget: HistoryFetchBudget,
+  roundId: bigint,
+): Promise<RoundSample | null> {
+  if (budgetExpired(budget)) return null;
+  if (!consumeBudget(budget, 1)) return null;
+  try {
+    const client = getPublicClient(feed.chain);
+    const row = await client.readContract({
+      address: feed.proxy,
+      abi: aggregatorAbi,
+      functionName: "getRoundData",
+      args: [roundId],
+    });
+    const answer = row[1] as bigint;
+    const updatedAt = Number(row[3]);
+    if (!validatePositiveAnswer(answer) || updatedAt <= 0) return null;
     const priceStr = answerToDecimalString(answer, feed.decimals);
-    if (!isStablecoinBandOk(feed, priceStr)) return;
-    if (samples.some((s) => s.updatedAt === updatedAt)) return;
-    samples.push({ updatedAt, answer });
-    oldestCollected = Math.min(oldestCollected, updatedAt);
+    if (!isStablecoinBandOk(feed, priceStr)) return null;
+    return { roundId, updatedAt, answer };
+  } catch {
+    return null;
+  }
+}
+
+function makeFetchRoundData(
+  feed: ChainlinkFeedConfig,
+  budget: HistoryFetchBudget,
+): FetchRoundData {
+  return async (roundId) => {
+    const sample = await fetchRoundRow(feed, budget, roundId);
+    if (!sample) return { roundId, updatedAt: 0, answer: BigInt(0), ok: false };
+    return { ...sample, ok: true };
   };
+}
 
-  pushSample(Number(latest[3]), latest[1] as bigint);
+async function batchFetchRoundSamples(
+  feed: ChainlinkFeedConfig,
+  budget: HistoryFetchBudget,
+  roundIds: bigint[],
+): Promise<RoundSample[]> {
+  if (roundIds.length === 0) return [];
+  const client = getPublicClient(feed.chain);
+  const unique = [...new Set(roundIds.map((id) => id.toString()))].map((s) =>
+    BigInt(s),
+  );
+  const out: RoundSample[] = [];
 
-  while (
-    !historyDeadlineExceeded(deadlineAtMs) &&
-    samples.length < HISTORY_MAX_ROUND_STEPS
-  ) {
-    if (oldestCollected <= minUpdatedAtSec) break;
-
-    const roundIds: bigint[] = [];
-    let nextId = previousRoundId(cursor);
-    for (let i = 0; i < HISTORY_ROUND_MULTICALL_CHUNK && nextId; i++) {
-      roundIds.push(nextId);
-      nextId = previousRoundId(nextId);
-    }
-    if (roundIds.length === 0) break;
-
+  for (let i = 0; i < unique.length; i += HISTORY_MULTICALL_CHUNK) {
+    if (budgetExpired(budget)) break;
+    if (!consumeBudget(budget, 1)) break;
+    const chunk = unique.slice(i, i + HISTORY_MULTICALL_CHUNK);
     const results = await client.multicall({
-      contracts: roundIds.map((roundId) => ({
+      contracts: chunk.map((roundId) => ({
         address: feed.proxy,
         abi: aggregatorAbi,
         functionName: "getRoundData",
@@ -326,9 +347,8 @@ async function collectRoundSamples(
       allowFailure: true,
     });
 
-    let progressed = false;
-    for (let i = 0; i < roundIds.length; i++) {
-      const row = results[i];
+    for (let j = 0; j < chunk.length; j++) {
+      const row = results[j];
       if (row.status !== "success") continue;
       const [, answer, , updatedAt] = row.result as readonly [
         bigint,
@@ -337,56 +357,93 @@ async function collectRoundSamples(
         bigint,
         bigint,
       ];
-      pushSample(Number(updatedAt), answer);
-      progressed = true;
+      if (!validatePositiveAnswer(answer) || Number(updatedAt) <= 0) continue;
+      const priceStr = answerToDecimalString(answer, feed.decimals);
+      if (!isStablecoinBandOk(feed, priceStr)) continue;
+      out.push({
+        roundId: chunk[j],
+        updatedAt: Number(updatedAt),
+        answer,
+      });
     }
-
-    cursor = roundIds[roundIds.length - 1];
-    if (!progressed) break;
   }
 
-  samples.sort((a, b) => a.updatedAt - b.updatedAt);
-  return samples;
+  return out;
 }
 
 async function readHistoryViaRounds(
   feed: ChainlinkFeedConfig,
   timestampsSec: number[],
   options?: HistoryReadOptions,
-): Promise<Array<{ t: number; answer: bigint; decimals: number }>> {
-  if (timestampsSec.length === 0) return [];
+): Promise<HistoryReadResult> {
+  if (timestampsSec.length === 0) {
+    return { samples: [], partial: false };
+  }
   const ok = await bootCheckFeed(feed);
-  if (!ok) return [];
+  if (!ok) return { samples: [], partial: true };
 
-  const deadlineAtMs = Date.now() + (options?.deadlineMs ?? HISTORY_DEADLINE_MS);
+  const budget = createHistoryBudget(options?.deadlineMs ?? HISTORY_DEADLINE_MS);
   const stepSec = options?.stepSec ?? 3600;
-  const minTs = minBucketTimestamp(timestampsSec) - stepSec;
+  const rangeFromSec = options?.rangeFromSec ?? timestampsSec[0] ?? 0;
 
   try {
-    const rounds = await collectRoundSamples(feed, minTs, deadlineAtMs);
-    if (rounds.length === 0) {
-      logMarketDataWarning("history_no_rounds", {
+    if (!consumeBudget(budget, 1)) {
+      return { samples: [], partial: true };
+    }
+    const client = getPublicClient(feed.chain);
+    const latest = await client.readContract({
+      address: feed.proxy,
+      abi: aggregatorAbi,
+      functionName: "latestRoundData",
+    });
+    const latestRoundId = latest[0] as bigint;
+    const fetch = makeFetchRoundData(feed, budget);
+
+    const plannedIds = await planSampleRoundIds(
+      fetch,
+      budget,
+      latestRoundId,
+      timestampsSec,
+      rangeFromSec,
+      Boolean(options?.useFeedInception),
+    );
+
+    const rounds = await batchFetchRoundSamples(feed, budget, plannedIds);
+    const mapped = assignSamplesToBucketTimes(
+      timestampsSec,
+      stepSec,
+      rounds,
+    ).map((row) => ({
+      t: row.t,
+      answer: row.answer,
+      decimals: feed.decimals,
+    }));
+
+    const partial = isHistoryPartial(
+      timestampsSec,
+      mapped.length,
+      rangeFromSec,
+      mapped[0]?.t,
+    );
+
+    if (partial) {
+      logMarketDataWarning("history_partial_coverage", {
         chain: feed.chain,
         pair: feed.pairSlug,
-      });
-      return [];
-    }
-    if (historyDeadlineExceeded(deadlineAtMs)) {
-      logMarketDataWarning("history_deadline_exceeded", {
-        chain: feed.chain,
-        pair: feed.pairSlug,
-        bucketsRequested: timestampsSec.length,
-        roundsCollected: rounds.length,
+        buckets: timestampsSec.length,
+        filled: mapped.length,
+        callsLeft: budget.callsLeft,
       });
     }
-    return mapBucketsToRounds(feed, rounds, timestampsSec, stepSec);
+
+    return { samples: mapped, partial };
   } catch (err) {
-    logMarketDataWarning("history_round_walk_failed", {
+    logMarketDataWarning("history_sample_failed", {
       chain: feed.chain,
       pair: feed.pairSlug,
       message: redactErrorMessage(err),
     });
-    return [];
+    return { samples: [], partial: true };
   }
 }
 

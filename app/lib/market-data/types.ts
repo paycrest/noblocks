@@ -68,6 +68,7 @@ export interface TokenHistoryResponse {
   from: number;
   asOf: string;
   stale: boolean;
+  partial?: boolean;
   unavailable?: boolean;
 }
 

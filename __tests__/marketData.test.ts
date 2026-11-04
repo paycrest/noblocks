@@ -53,10 +53,22 @@ import {
 import { resetHistoryBucketCacheForTests } from "../app/lib/market-data/history-cache";
 import { computeCngnBadge } from "../app/lib/market-data/cngn";
 import {
+  assignSamplesToBucketTimes,
+  budgetExpired,
+  createHistoryBudget,
+  estimateHistoryRpcCalls,
+  findRangeStartRoundId,
   HISTORY_DEADLINE_MS,
-  historyDeadlineExceeded,
-  pickRoundForBucket,
 } from "../app/lib/market-data/round-history";
+import {
+  decodeRoundId,
+  encodeRoundId,
+  spaceSampleRoundIds,
+} from "../app/lib/market-data/round-id";
+import {
+  getCachedHistoryResponse,
+  setCachedHistoryResponse,
+} from "../app/lib/market-data/history-cache";
 import {
   evaluateSequencerStatus,
   isSequencerOperational,
@@ -226,22 +238,91 @@ describe("price unavailable cache", () => {
   });
 });
 
-describe("history deadline helpers", () => {
-  it("detects deadline expiry", () => {
-    expect(historyDeadlineExceeded(Date.now() - 1)).toBe(true);
-    expect(historyDeadlineExceeded(Date.now() + HISTORY_DEADLINE_MS)).toBe(
-      false,
-    );
+describe("round id encoding", () => {
+  it("uses high 16 bits for phase and low 64 for aggregator round", () => {
+    const id = encodeRoundId(3, BigInt(42));
+    expect(decodeRoundId(id)).toEqual({
+      phaseId: 3,
+      aggregatorRoundId: BigInt(42),
+    });
   });
 
-  it("maps bucket to latest round before bucket end", () => {
-    const rounds = [
-      { updatedAt: 100, answer: 100n },
-      { updatedAt: 200, answer: 200n },
-      { updatedAt: 300, answer: 300n },
-    ];
-    const pick = pickRoundForBucket(rounds, 150, 250);
-    expect(pick?.updatedAt).toBe(200);
+  it("spaces N sample roundIds between start and end", () => {
+    const start = encodeRoundId(1, BigInt(100));
+    const end = encodeRoundId(1, BigInt(200));
+    const ids = spaceSampleRoundIds(start, end, 5);
+    expect(ids.length).toBe(5);
+    expect(ids[0]).toBe(start);
+    expect(ids[ids.length - 1]).toBe(end);
+  });
+});
+
+describe("history budget helpers", () => {
+  it("detects deadline expiry", () => {
+    const expired = createHistoryBudget(0);
+    expect(budgetExpired(expired)).toBe(true);
+    const fresh = createHistoryBudget(HISTORY_DEADLINE_MS);
+    expect(budgetExpired(fresh)).toBe(false);
+  });
+
+  it("assigns bucket times from round samples", () => {
+    const mapped = assignSamplesToBucketTimes(
+      [100, 300],
+      100,
+      [
+        { roundId: BigInt(1), updatedAt: 90, answer: 1n },
+        { roundId: BigInt(2), updatedAt: 150, answer: 2n },
+        { roundId: BigInt(3), updatedAt: 250, answer: 3n },
+      ],
+    );
+    expect(mapped.length).toBe(2);
+    expect(mapped[0].answer).toBe(2n);
+    expect(mapped[1].answer).toBe(3n);
+  });
+
+  it("estimates bounded RPC calls per range", () => {
+    expect(estimateHistoryRpcCalls(96)).toBeLessThanOrEqual(64);
+    expect(estimateHistoryRpcCalls(365)).toBeLessThanOrEqual(64);
+  });
+
+  it("crosses phases when range start predates current phase rounds", async () => {
+    const budget = createHistoryBudget(8000);
+    const latest = encodeRoundId(2, BigInt(100));
+    const fetch = async (roundId: bigint) => {
+      const { phaseId, aggregatorRoundId } = decodeRoundId(roundId);
+      if (phaseId === 2 && aggregatorRoundId === BigInt(100)) {
+        return { roundId, updatedAt: 1_000, answer: 1n, ok: true };
+      }
+      if (phaseId === 2 && aggregatorRoundId === BigInt(50)) {
+        return { roundId, updatedAt: 500, answer: 1n, ok: true };
+      }
+      if (phaseId === 1 && aggregatorRoundId === BigInt(200)) {
+        return { roundId, updatedAt: 400, answer: 1n, ok: true };
+      }
+      if (phaseId === 1 && aggregatorRoundId === BigInt(1)) {
+        return { roundId, updatedAt: 100, answer: 1n, ok: true };
+      }
+      return { roundId, updatedAt: 0, answer: BigInt(0), ok: false };
+    };
+    const start = await findRangeStartRoundId(fetch, budget, latest, 200);
+    expect(decodeRoundId(start).phaseId).toBe(1);
+  });
+});
+
+describe("history response cache", () => {
+  it("returns cached response on second lookup", () => {
+    resetHistoryBucketCacheForTests();
+    const payload = {
+      id: "usdc",
+      range: "1D" as const,
+      points: [[1, "1"]] as Array<[number, string]>,
+      from: 0,
+      asOf: new Date().toISOString(),
+      stale: false,
+      partial: false,
+    };
+    setCachedHistoryResponse("usdc", "1D", payload);
+    expect(getCachedHistoryResponse("usdc", "1D")?.points.length).toBe(1);
   });
 });
 
@@ -294,24 +375,22 @@ describe("CMC backoff", () => {
 });
 
 describe("history bucket cache", () => {
-  it("fetches only missing buckets on a second request", async () => {
-    mockedHistory.mockImplementation(
-      async (_entry: unknown, timestamps: number[]) => {
-        return timestamps.map((t: number) => ({
-          t,
-          answer: 99983000n,
-          decimals: 8,
-        }));
-      },
-    );
+  it("uses response cache so second call skips upstream", async () => {
+    mockedHistory.mockResolvedValue({
+      samples: Array.from({ length: 96 }, (_, i) => ({
+        t: 1_700_000_000 + i * 900,
+        answer: 99983000n,
+        decimals: 8,
+      })),
+      partial: false,
+    });
 
     await getTokenHistory("usdc", "1D");
-    const firstCalls = mockedHistory.mock.calls.length;
-    expect(firstCalls).toBeGreaterThan(0);
+    expect(mockedHistory.mock.calls.length).toBe(1);
 
     mockedHistory.mockClear();
     await getTokenHistory("usdc", "1D");
-    expect(mockedHistory.mock.calls.length).toBeLessThan(firstCalls);
+    expect(mockedHistory.mock.calls.length).toBe(0);
   });
 });
 
@@ -352,10 +431,11 @@ describe("service integration (mocked upstream)", () => {
   });
 
   it("marks history unavailable without zeros on failure", async () => {
-    mockedHistory.mockResolvedValue([]);
+    mockedHistory.mockResolvedValue({ samples: [], partial: true });
     const hist = await getTokenHistory("usdc", "1D");
     expect(hist.unavailable).toBe(true);
     expect(hist.points).toEqual([]);
+    expect(hist.partial).toBe(true);
   });
 });
 

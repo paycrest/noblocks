@@ -76,8 +76,11 @@ export function LeftNav({ mobileOpen, onMobileOpenChange }: LeftNavProps) {
         ref={setAsideEl}
         id={WALLET_MOBILE_NAV_ID}
         className={classNames(
-          "fixed inset-y-0 left-0 z-40 flex h-dvh w-[214px] shrink-0 flex-col justify-between overflow-y-auto border-r border-border-light bg-background-neutral pb-7 pl-5 pt-1 transition-transform duration-200 motion-reduce:transition-none dark:border-white/10 dark:bg-surface-canvas md:static md:z-auto md:translate-x-0",
-          mobileOpen ? "translate-x-0" : "-translate-x-full max-md:invisible max-md:pointer-events-none",
+          "fixed inset-y-0 left-0 z-40 flex h-dvh w-[214px] shrink-0 flex-col justify-between overflow-y-auto border-r border-border-light bg-background-neutral pb-7 pl-5 pt-1 dark:border-white/10 dark:bg-surface-canvas md:static md:z-auto md:translate-x-0",
+          "max-md:transition-[transform,visibility] max-md:duration-200 max-md:motion-reduce:transition-none",
+          mobileOpen
+            ? "translate-x-0 max-md:visible max-md:pointer-events-auto max-md:[transition:transform_200ms_ease,visibility_0s_0ms] max-md:motion-reduce:[transition:none]"
+            : "-translate-x-full max-md:invisible max-md:pointer-events-none max-md:[transition:transform_200ms_ease,visibility_0s_200ms] max-md:motion-reduce:[transition:none]",
         )}
         data-mobile-nav-open={mobileOpen ? "true" : "false"}
         {...(mobileDrawerActive

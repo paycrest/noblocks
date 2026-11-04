@@ -4,4 +4,4 @@ export const shellFocusRingClasses =
 
 /** Expands a visually smaller control to a centred 44×44px hit target (WCAG 2.5.5). */
 export const shellMinHitTargetClasses =
-  "relative before:pointer-events-none before:absolute before:left-1/2 before:top-1/2 before:size-11 before:-translate-x-1/2 before:-translate-y-1/2 before:content-['']";
+  "relative before:absolute before:left-1/2 before:top-1/2 before:z-0 before:size-11 before:-translate-x-1/2 before:-translate-y-1/2 before:content-[''] [&>*]:relative [&>*]:z-[1]";

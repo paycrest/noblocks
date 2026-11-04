@@ -3,6 +3,7 @@ import React, { useEffect } from "react";
 import Script from "next/script";
 import { usePathname } from "next/navigation";
 import config from "../lib/config";
+import { isWalletAppPath } from "../lib/wallet-routes";
 
 import Providers from "../providers";
 import MainContent from "../mainContent";
@@ -74,7 +75,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   // chrome-less shell like Play — WidgetShell renders its own card chrome.
   const isWidgetExperience =
     pathname === "/widget" || pathname.startsWith("/widget/");
-  const isBareExperience = isPlayExperience || isWidgetExperience;
+  const isWalletShellExperience = isWalletAppPath(pathname);
+  const isBareExperience =
+    isPlayExperience || isWidgetExperience || isWalletShellExperience;
   const isHomepage = pathname === "/";
   const playPromoBannerVisible = usePlayPromoBannerVisible();
   const showPlayPromo =
@@ -105,7 +108,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 ? // Transparent backdrop: the embedding page shows through the
                   // iframe around the floating WidgetShell card (per Figma).
                   "bg-transparent"
-                : "bg-white dark:bg-neutral-900"
+                : isWalletShellExperience
+                  ? "bg-white dark:bg-neutral-900"
+                  : "bg-white dark:bg-neutral-900"
             }`}
           >
             {children}

@@ -48,16 +48,18 @@ jest.mock("../app/lib/toastMappedError", () => ({
 
 jest.mock("framer-motion", () => {
   const React = require("react");
+  function MockMotionAside(
+    props: React.HTMLAttributes<HTMLElement> & { children?: React.ReactNode },
+    ref: React.Ref<HTMLElement>,
+  ) {
+    return <aside ref={ref as React.Ref<HTMLDivElement>} {...props} />;
+  }
+  MockMotionAside.displayName = "MockMotionAside";
   return {
     AnimatePresence: ({ children }: { children: React.ReactNode }) => children,
     useReducedMotion: () => false,
     motion: {
-      aside: React.forwardRef(
-        (
-          props: React.HTMLAttributes<HTMLElement> & { children?: React.ReactNode },
-          ref: React.Ref<HTMLElement>,
-        ) => <aside ref={ref as React.Ref<HTMLDivElement>} {...props} />,
-      ),
+      aside: React.forwardRef(MockMotionAside),
       div: (
         props: React.HTMLAttributes<HTMLDivElement> & {
           children?: React.ReactNode;
@@ -132,6 +134,12 @@ describe("formatActionAmount", () => {
     expect(formatActionAmount("1e10", 2)).toBe("—");
     expect(formatActionAmount("not-a-number", 2)).toBe("—");
     expect(formatActionAmount("", 2)).toBe("—");
+  });
+
+  it("normalises negative values that round to zero", () => {
+    expect(formatActionAmount("-0.001", 2)).toBe("0");
+    expect(formatActionAmount("-0.0000001", 6)).toBe("0");
+    expect(formatActionAmount("-1.239", 2)).toBe("-1.23");
   });
 
   it("normalises negative zero to zero", () => {

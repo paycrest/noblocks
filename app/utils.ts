@@ -320,7 +320,10 @@ export function formatActionAmount(amount: string, decimals: number): string {
   }
 
   const safeDecimals = Math.max(0, Math.min(Math.trunc(decimals), 36));
-  const fixed = value.toFixed(safeDecimals, Decimal.ROUND_DOWN);
+  let fixed = value.toFixed(safeDecimals, Decimal.ROUND_DOWN);
+  if (new Decimal(fixed).isZero()) {
+    fixed = new Decimal(0).toFixed(safeDecimals, Decimal.ROUND_DOWN);
+  }
   const [intPart, fracPart] = fixed.split(".");
   const formattedInt = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
   if (!fracPart || /^0+$/.test(fracPart)) {

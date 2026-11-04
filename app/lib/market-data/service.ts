@@ -36,7 +36,7 @@ import {
   rangeStartUnix,
   type RawPoint,
 } from "./series";
-import { HISTORY_DEADLINE_MS } from "./round-history";
+import { HISTORY_DEADLINE_MS } from "./history-resolver";
 import Decimal from "decimal.js";
 import { absChangeDecimal, pctChangeDecimal } from "./validate";
 import type { TokenHistoryResponse, TokenMarketSnapshot, TokenStatsBlock } from "./types";
@@ -231,11 +231,10 @@ export async function getTokenHistory(
         samples,
         partial: upstreamPartial,
         historyStartSec: upstreamHistoryStart,
-      } = await chainlinkPriceProvider.readHistoryAtTimestamps(entry, timestamps, {
+      } = await chainlinkPriceProvider.readHistoryAtTimestamps(entry, toFetch, {
         deadlineMs: HISTORY_DEADLINE_MS,
         stepSec: spec.stepSec,
         rangeFromSec: from,
-        useFeedInception: range === "ALL",
       });
       partial = upstreamPartial;
       historyStartSec = upstreamHistoryStart;
@@ -285,9 +284,6 @@ export async function getTokenHistory(
       return empty;
     }
 
-    if (filtered.length < timestamps.length) {
-      partial = true;
-    }
     if (historyStartSec !== undefined && from + 60 < historyStartSec) {
       partial = true;
     }

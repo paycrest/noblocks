@@ -148,7 +148,24 @@ export function parseCmcResponse(
       raw,
       registryEntry.marketCapMode ?? "reported",
     );
-    if (stats) byId[registryEntry.cmcId] = stats;
+    if (stats) {
+      byId[registryEntry.cmcId] = stats;
+      if (
+        registryEntry.id === "cngn" &&
+        stats.volume24h === null &&
+        raw.quote
+      ) {
+        const usd = pickUsdQuote(raw.quote);
+        const rawVol = usd?.volume_24h;
+        const reason =
+          rawVol === null || rawVol === undefined
+            ? "missing"
+            : Number(rawVol) === 0
+              ? "cmc_zero"
+              : "invalid";
+        logMarketDataInfo("cngn_volume24h_null", { reason });
+      }
+    }
   }
 
   if (Object.keys(byId).length === 0) return null;

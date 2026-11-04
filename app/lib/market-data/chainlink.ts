@@ -22,15 +22,10 @@ import {
 } from "./validate";
 import { logMarketDataWarning } from "./log";
 import {
-  buildHistorySamples,
-  budgetExpired,
-  consumeBudget,
-  createHistoryBudget,
   HISTORY_DEADLINE_MS,
-  type BatchFetchRoundData,
-  type HistoryFetchBudget,
-  type RoundDataResult,
-} from "./round-history";
+  resolveHistoryPoints,
+  resetPhaseTableCacheForTests,
+} from "./history-resolver";
 import { evaluateSequencerStatus } from "./sequencer";
 import type { AssetRegistryEntry, ChainlinkFeedConfig, ChainlinkRound, MarketChain } from "./types";
 import type {
@@ -86,6 +81,7 @@ export function getPublicClient(chain: MarketChain) {
 export function resetChainlinkClientsForTests(): void {
   clientCache.clear();
   bootVerified.clear();
+  resetPhaseTableCacheForTests();
 }
 
 async function bootCheckFeed(feed: ChainlinkFeedConfig): Promise<boolean> {
@@ -282,87 +278,6 @@ export async function blockNumberForTimestamp(
   }
 }
 
-function failedRoundRows(roundIds: bigint[]): RoundDataResult[] {
-  return roundIds.map((roundId) => ({
-    roundId,
-    updatedAt: 0,
-    answer: BigInt(0),
-    ok: false,
-  }));
-}
-
-async function batchFetchRoundRows(
-  feed: ChainlinkFeedConfig,
-  budget: HistoryFetchBudget,
-  roundIds: bigint[],
-): Promise<RoundDataResult[]> {
-  if (roundIds.length === 0) return [];
-  if (budgetExpired(budget)) return failedRoundRows(roundIds);
-  if (!consumeBudget(budget, 1)) return failedRoundRows(roundIds);
-
-  try {
-    const client = getPublicClient(feed.chain);
-    const results = await client.multicall({
-      contracts: roundIds.map((roundId) => ({
-        address: feed.proxy,
-        abi: aggregatorAbi,
-        functionName: "getRoundData",
-        args: [roundId],
-      })),
-      allowFailure: true,
-    });
-
-    const out: RoundDataResult[] = [];
-    for (let j = 0; j < roundIds.length; j++) {
-      const row = results[j];
-      if (row.status !== "success") {
-        out.push({
-          roundId: roundIds[j],
-          updatedAt: 0,
-          answer: BigInt(0),
-          ok: false,
-        });
-        continue;
-      }
-      const [, answer, , updatedAt] = row.result as readonly [
-        bigint,
-        bigint,
-        bigint,
-        bigint,
-        bigint,
-      ];
-      if (!validatePositiveAnswer(answer) || Number(updatedAt) <= 0) {
-        out.push({
-          roundId: roundIds[j],
-          updatedAt: 0,
-          answer: BigInt(0),
-          ok: false,
-        });
-        continue;
-      }
-      const priceStr = answerToDecimalString(answer, feed.decimals);
-      if (!isStablecoinBandOk(feed, priceStr)) {
-        out.push({
-          roundId: roundIds[j],
-          updatedAt: 0,
-          answer: BigInt(0),
-          ok: false,
-        });
-        continue;
-      }
-      out.push({
-        roundId: roundIds[j],
-        updatedAt: Number(updatedAt),
-        answer,
-        ok: true,
-      });
-    }
-    return out;
-  } catch {
-    return failedRoundRows(roundIds);
-  }
-}
-
 async function readHistoryViaRounds(
   feed: ChainlinkFeedConfig,
   timestampsSec: number[],
@@ -374,34 +289,20 @@ async function readHistoryViaRounds(
   const ok = await bootCheckFeed(feed);
   if (!ok) return { samples: [], partial: true };
 
-  const budget = createHistoryBudget(options?.deadlineMs ?? HISTORY_DEADLINE_MS);
   const stepSec = options?.stepSec ?? 3600;
   const rangeFromSec = options?.rangeFromSec ?? timestampsSec[0] ?? 0;
+  const deadlineMs = options?.deadlineMs ?? HISTORY_DEADLINE_MS;
 
   try {
-    if (!consumeBudget(budget, 1)) {
-      return { samples: [], partial: true };
-    }
     const client = getPublicClient(feed.chain);
-    const latest = await client.readContract({
-      address: feed.proxy,
-      abi: aggregatorAbi,
-      functionName: "latestRoundData",
-    });
-    const latestRoundId = latest[0] as bigint;
-
-    const batchFetch: BatchFetchRoundData = (roundIds) =>
-      batchFetchRoundRows(feed, budget, roundIds);
-
     const { samples: rows, partial, historyStartSec } =
-      await buildHistorySamples(
-        batchFetch,
-        budget,
-        latestRoundId,
+      await resolveHistoryPoints(
+        client,
+        feed,
         timestampsSec,
         stepSec,
         rangeFromSec,
-        Boolean(options?.useFeedInception),
+        deadlineMs,
       );
 
     const mapped = rows.map((row) => ({
@@ -417,7 +318,6 @@ async function readHistoryViaRounds(
         pair: feed.pairSlug,
         buckets: timestampsSec.length,
         filled: mapped.length,
-        callsLeft: budget.callsLeft,
         historyStartSec,
       });
     }

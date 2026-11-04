@@ -1,7 +1,9 @@
 import {
-  buildHistorySamples,
-  createHistoryBudget,
-  HISTORY_DEADLINE_MS,
+  batchFetchToProbes,
+  resolveHistoryWithBatchMock,
+  singlePhaseRow,
+} from "./historyResolverHarness";
+import {
   type BatchFetchRoundData,
   type RoundDataResult,
 } from "../app/lib/market-data/round-history";
@@ -11,6 +13,7 @@ import {
   rangeStartUnix,
 } from "../app/lib/market-data/series";
 import { decodeRoundId, encodeRoundId } from "../app/lib/market-data/round-id";
+import { resolveHistoryWithFetcher } from "../app/lib/market-data/history-resolver";
 
 const NOW = 1_762_000_000;
 const PHASE = 1;
@@ -37,19 +40,20 @@ function ethMock(maxAgg: number): BatchFetchRoundData {
 describe("history point timestamps", () => {
   it("labels points at bucket end (not bucket start)", async () => {
     const maxAgg = 120;
-    const latestRoundId = encodeRoundId(PHASE, BigInt(maxAgg));
     const buckets = bucketTimestamps("1D", NOW);
     const spec = bucketSpecForRange("1D");
-    const budget = createHistoryBudget(HISTORY_DEADLINE_MS);
+    const historyStartSec = NOW - (maxAgg - 1) * HEARTBEAT;
+    const phases = [
+      singlePhaseRow(PHASE, historyStartSec, NOW, maxAgg),
+    ];
 
-    const { samples } = await buildHistorySamples(
+    const { samples } = await resolveHistoryWithBatchMock(
       ethMock(maxAgg),
-      budget,
-      latestRoundId,
+      phases,
+      historyStartSec,
       buckets,
       spec.stepSec,
       rangeStartUnix("1D", NOW),
-      false,
     );
 
     expect(samples[0].t).toBe(buckets[0] + spec.stepSec);
@@ -58,36 +62,38 @@ describe("history point timestamps", () => {
 
   it("1D and 1W agree on price for overlapping bucket-end times", async () => {
     const maxAgg = 500;
-    const latestRoundId = encodeRoundId(PHASE, BigInt(maxAgg));
     const mock = ethMock(maxAgg);
-    const budget1 = createHistoryBudget(HISTORY_DEADLINE_MS);
+    const historyStartSec = NOW - (maxAgg - 1) * HEARTBEAT;
+    const phases = [
+      singlePhaseRow(PHASE, historyStartSec, NOW, maxAgg),
+    ];
+    const fetchProbes = batchFetchToProbes(mock);
     const spec1d = bucketSpecForRange("1D");
     const buckets1d = bucketTimestamps("1D", NOW);
     const from1d = rangeStartUnix("1D", NOW);
 
-    const day = await buildHistorySamples(
-      mock,
-      budget1,
-      latestRoundId,
+    const day = await resolveHistoryWithFetcher(
+      fetchProbes,
+      phases,
+      historyStartSec,
       buckets1d,
       spec1d.stepSec,
       from1d,
-      false,
+      8_000,
     );
 
-    const budget2 = createHistoryBudget(HISTORY_DEADLINE_MS);
     const spec1w = bucketSpecForRange("1W");
     const buckets1w = bucketTimestamps("1W", NOW);
     const from1w = rangeStartUnix("1W", NOW);
 
-    const week = await buildHistorySamples(
-      mock,
-      budget2,
-      latestRoundId,
+    const week = await resolveHistoryWithFetcher(
+      fetchProbes,
+      phases,
+      historyStartSec,
       buckets1w,
       spec1w.stepSec,
       from1w,
-      false,
+      8_000,
     );
 
     const weekByEnd = new Map(week.samples.map((s) => [s.t, s.answer]));

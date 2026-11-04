@@ -1,10 +1,11 @@
+import {
+  fillableBucketCount,
+  resolveHistoryWithBatchMock,
+  singlePhaseRow,
+} from "./historyResolverHarness";
 import { ASSET_REGISTRY, historyFeedFor } from "../app/lib/market-data/assets";
 import {
   assignSamplesToBucketTimes,
-  buildHistorySamples,
-  createHistoryBudget,
-  fillableBucketCount,
-  HISTORY_DEADLINE_MS,
   type BatchFetchRoundData,
   type RoundDataResult,
 } from "../app/lib/market-data/round-history";
@@ -15,7 +16,6 @@ import {
 } from "../app/lib/market-data/series";
 import { decodeRoundId, encodeRoundId } from "../app/lib/market-data/round-id";
 
-/** Dense ETH-like updates (~20 min) with long round span. */
 function denseEthMock(
   phase: number,
   maxAgg: number,
@@ -38,7 +38,6 @@ function denseEthMock(
     });
 }
 
-/** Sparse USDC-like updates: new round only every `intervalSec`. */
 function sparseStableMock(
   phase: number,
   maxAgg: number,
@@ -61,7 +60,7 @@ function sparseStableMock(
     });
 }
 
-describe("bucket carry-forward semantics", () => {
+describe("bucket carry-forward semantics (legacy helper)", () => {
   it("fills every bucket after historyStart with latest round at or before bucket end", () => {
     const historyStart = 1_000;
     const step = 100;
@@ -85,23 +84,23 @@ describe("long-range history with irregular feeds", () => {
   it("fills ETH 1Y from feed inception through now", async () => {
     const maxAgg = 30_000;
     const heartbeat = 1200;
-    const latestRoundId = encodeRoundId(phase, BigInt(maxAgg));
     const range = "1Y" as const;
     const spec = bucketSpecForRange(range);
     const buckets = bucketTimestamps(range, nowSec);
     const from = rangeStartUnix(range, nowSec);
     const historyStartSec = nowSec - (maxAgg - 1) * heartbeat;
-    const budget = createHistoryBudget(HISTORY_DEADLINE_MS);
+    const phases = [
+      singlePhaseRow(phase, historyStartSec, nowSec, maxAgg),
+    ];
 
     const { samples, partial, historyStartSec: resolvedStart } =
-      await buildHistorySamples(
+      await resolveHistoryWithBatchMock(
         denseEthMock(phase, maxAgg, heartbeat, nowSec),
-        budget,
-        latestRoundId,
+        phases,
+        historyStartSec,
         buckets,
         spec.stepSec,
         from,
-        false,
       );
 
     expect(resolvedStart).toBe(historyStartSec);
@@ -114,21 +113,21 @@ describe("long-range history with irregular feeds", () => {
     const maxAgg = 400;
     const intervalSec = 86400;
     const historyStartSec = nowSec - (maxAgg - 1) * intervalSec;
-    const latestRoundId = encodeRoundId(phase, BigInt(maxAgg));
     const range = "1Y" as const;
     const spec = bucketSpecForRange(range);
     const buckets = bucketTimestamps(range, nowSec);
     const from = rangeStartUnix(range, nowSec);
-    const budget = createHistoryBudget(HISTORY_DEADLINE_MS);
+    const phases = [
+      singlePhaseRow(phase, historyStartSec, nowSec, maxAgg),
+    ];
 
-    const { samples } = await buildHistorySamples(
+    const { samples } = await resolveHistoryWithBatchMock(
       sparseStableMock(phase, maxAgg, intervalSec, historyStartSec),
-      budget,
-      latestRoundId,
+      phases,
+      historyStartSec,
       buckets,
       spec.stepSec,
       from,
-      false,
     );
 
     const fillable = fillableBucketCount(buckets, spec.stepSec, historyStartSec);
@@ -138,22 +137,22 @@ describe("long-range history with irregular feeds", () => {
   it("ALL weekly buckets cover through the latest round (no gap before now)", async () => {
     const maxAgg = 2_000;
     const heartbeat = 3600;
-    const latestRoundId = encodeRoundId(phase, BigInt(maxAgg));
     const range = "ALL" as const;
     const spec = bucketSpecForRange(range);
     const historyStartSec = nowSec - (maxAgg - 1) * heartbeat;
     const buckets = bucketTimestamps(range, nowSec, historyStartSec);
     const from = rangeStartUnix(range, nowSec, historyStartSec);
-    const budget = createHistoryBudget(HISTORY_DEADLINE_MS);
+    const phases = [
+      singlePhaseRow(phase, historyStartSec, nowSec, maxAgg),
+    ];
 
-    const { samples } = await buildHistorySamples(
+    const { samples } = await resolveHistoryWithBatchMock(
       denseEthMock(phase, maxAgg, heartbeat, nowSec),
-      budget,
-      latestRoundId,
+      phases,
+      historyStartSec,
       buckets,
       spec.stepSec,
       from,
-      true,
     );
 
     expect(samples.length).toBeGreaterThanOrEqual(buckets.length - 1);

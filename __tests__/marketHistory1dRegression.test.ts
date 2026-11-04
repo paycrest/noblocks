@@ -1,7 +1,8 @@
 import {
-  buildHistorySamples,
-  createHistoryBudget,
-  HISTORY_DEADLINE_MS,
+  resolveHistoryWithBatchMock,
+  singlePhaseRow,
+} from "./historyResolverHarness";
+import {
   type BatchFetchRoundData,
   type RoundDataResult,
 } from "../app/lib/market-data/round-history";
@@ -33,24 +34,23 @@ function eth1dMock(maxAgg: number): BatchFetchRoundData {
     });
 }
 
-describe("1D history regression (window-scoped timeline)", () => {
+describe("1D history regression (k-ary resolver)", () => {
   it("reflects a mid-window price change in every 15m bucket", async () => {
     const maxAgg = 120;
-    const latestRoundId = encodeRoundId(PHASE, BigInt(maxAgg));
     const range = "1D" as const;
     const spec = bucketSpecForRange(range);
     const buckets = bucketTimestamps(range, NOW_SEC);
     const from = rangeStartUnix(range, NOW_SEC);
-    const budget = createHistoryBudget(HISTORY_DEADLINE_MS);
+    const historyStartSec = NOW_SEC - (maxAgg - 1) * HEARTBEAT_SEC;
+    const phases = [singlePhaseRow(PHASE, historyStartSec, NOW_SEC, maxAgg)];
 
-    const { samples, partial } = await buildHistorySamples(
+    const { samples, partial } = await resolveHistoryWithBatchMock(
       eth1dMock(maxAgg),
-      budget,
-      latestRoundId,
+      phases,
+      historyStartSec,
       buckets,
       spec.stepSec,
       from,
-      false,
     );
 
     expect(samples.length).toBe(buckets.length);

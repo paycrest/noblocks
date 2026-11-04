@@ -1,7 +1,8 @@
 import {
-  buildHistorySamples,
-  createHistoryBudget,
-  HISTORY_DEADLINE_MS,
+  resolveHistoryWithBatchMock,
+  singlePhaseRow,
+} from "./historyResolverHarness";
+import {
   type BatchFetchRoundData,
   type RoundDataResult,
 } from "../app/lib/market-data/round-history";
@@ -16,7 +17,7 @@ const NOW = 1_762_000_000;
 const PHASE1_START = NOW - 400 * 86400;
 const PHASE2_START = NOW - 100 * 86400;
 
-function twoPhaseCngnMock(latestRoundId: bigint): BatchFetchRoundData {
+function twoPhaseCngnMock(): BatchFetchRoundData {
   return async (roundIds) =>
     roundIds.map((roundId): RoundDataResult => {
       const { phaseId, aggregatorRoundId } = decodeRoundId(roundId);
@@ -47,27 +48,29 @@ function twoPhaseCngnMock(latestRoundId: bigint): BatchFetchRoundData {
     });
 }
 
-describe("multi-phase timeline sampling", () => {
+describe("multi-phase k-ary history resolver", () => {
   it("samples both phases with varying prices across a 1Y window", async () => {
-    const latestRoundId = encodeRoundId(2, BigInt(120));
     const range = "1Y" as const;
     const spec = bucketSpecForRange(range);
     const buckets = bucketTimestamps(range, NOW);
     const from = rangeStartUnix(range, NOW);
-    const budget = createHistoryBudget(HISTORY_DEADLINE_MS);
+    const phases = [
+      singlePhaseRow(1, PHASE1_START + 86400, PHASE2_START - 1, 200),
+      singlePhaseRow(2, PHASE2_START + 86400, NOW, 120),
+    ];
+    const historyStartSec = PHASE1_START + 86400;
 
-    const { samples, partial } = await buildHistorySamples(
-      twoPhaseCngnMock(latestRoundId),
-      budget,
-      latestRoundId,
+    const { samples, partial } = await resolveHistoryWithBatchMock(
+      twoPhaseCngnMock(),
+      phases,
+      historyStartSec,
       buckets,
       spec.stepSec,
       from,
-      false,
     );
 
     expect(samples.length).toBe(
-      buckets.filter((t) => t + spec.stepSec > PHASE1_START).length,
+      buckets.filter((t) => t + spec.stepSec > historyStartSec).length,
     );
     const phase1Samples = samples.filter((s) => s.t < PHASE2_START);
     const uniquePhase1 = new Set(phase1Samples.map((s) => s.answer.toString()));

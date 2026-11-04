@@ -3,11 +3,13 @@ import "server-only";
 import { getRegistryEntry } from "./assets";
 import type { HistoryRange } from "./types";
 import {
+  blockPriceFetchBriefly,
   getCachedChange,
   getCachedPrice,
   getCachedStats,
   getStalePrice,
   getStaleStats,
+  isPriceFetchBlocked,
   setCachedChange,
   setCachedPrice,
   withSingleFlight,
@@ -32,6 +34,7 @@ import {
   rangeStartUnix,
   type RawPoint,
 } from "./series";
+import { HISTORY_DEADLINE_MS } from "./round-history";
 import Decimal from "decimal.js";
 import { absChangeDecimal, pctChangeDecimal } from "./validate";
 import type { TokenHistoryResponse, TokenMarketSnapshot, TokenStatsBlock } from "./types";
@@ -54,6 +57,9 @@ interface PricePayload {
 
 async function loadLatestPrice(id: string): Promise<PricePayload> {
   const cacheKey = `price:${id}`;
+  if (isPriceFetchBlocked(id)) {
+    throw new PriceUnavailableError();
+  }
   const cached = getCachedPrice<PricePayload>(cacheKey);
   if (cached) return cached;
 
@@ -61,6 +67,7 @@ async function loadLatestPrice(id: string): Promise<PricePayload> {
   if (!entry) throw new PriceUnavailableError();
 
   const result = await withSingleFlight(`fetch:${cacheKey}`, async () => {
+    if (isPriceFetchBlocked(id)) return null;
     const hit = getCachedPrice<PricePayload>(cacheKey);
     if (hit) return hit;
 
@@ -81,6 +88,7 @@ async function loadLatestPrice(id: string): Promise<PricePayload> {
     const stale = getStalePrice<PricePayload>(cacheKey);
     if (stale) return { ...stale, stale: true };
 
+    blockPriceFetchBriefly(id);
     return null;
   });
 
@@ -195,6 +203,7 @@ export async function getTokenHistory(
   return withSingleFlight(flightKey, async () => {
     const merged: RawPoint[] = [];
     const toFetch: number[] = [];
+    let fetchedCount = 0;
 
     for (const t of timestamps) {
       const closed = isBucketClosed(t, spec.stepSec, nowSec);
@@ -211,7 +220,9 @@ export async function getTokenHistory(
       const reads = await chainlinkPriceProvider.readHistoryAtTimestamps(
         entry,
         toFetch,
+        { deadlineMs: HISTORY_DEADLINE_MS, stepSec: spec.stepSec },
       );
+      fetchedCount = reads.length;
       for (const r of reads) {
         const p = roundToPriceString({
           answer: r.answer,
@@ -250,13 +261,14 @@ export async function getTokenHistory(
       };
     }
 
+    const partial = toFetch.length > 0 && fetchedCount < toFetch.length;
     return {
       id,
       range,
       points: filtered.map((p) => [p.t, p.p]),
       from,
       asOf: new Date().toISOString(),
-      stale: false,
+      stale: partial,
     };
   });
 }

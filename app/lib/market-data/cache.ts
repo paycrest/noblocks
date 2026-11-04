@@ -12,6 +12,7 @@ const CHANGE_TTL_MS = 5 * 60_000;
 const STATS_TTL_MS = 10 * 60_000;
 const STALE_MAX_MS = 7 * 24 * 60 * 60_000;
 const NEGATIVE_TTL_MS = 30_000;
+const PRICE_UNAVAILABLE_TTL_MS = 15_000;
 
 export interface CachedValue<T> {
   value: T;
@@ -32,6 +33,7 @@ const priceStaleStore = new LRUCache<string, CachedValue<unknown>>({
   max: 32,
 });
 const negativeCache = new LRUCache<string, number>({ max: 64 });
+const priceUnavailableUntil = new LRUCache<string, number>({ max: 32 });
 const inFlight: InFlightMap = new Map();
 
 let cmcCallsToday = 0;
@@ -57,6 +59,7 @@ export function resetMarketDataCachesForTests(): void {
   staleStatsStore.clear();
   priceStaleStore.clear();
   negativeCache.clear();
+  priceUnavailableUntil.clear();
   inFlight.clear();
   cmcCallsToday = 0;
   cmcBudgetDayKey = utcDayKey();
@@ -236,8 +239,23 @@ export function setNegativeCache(key: string): void {
   negativeCache.set(key, Date.now() + NEGATIVE_TTL_MS);
 }
 
+export function isPriceFetchBlocked(id: string): boolean {
+  const until = priceUnavailableUntil.get(id);
+  if (!until) return false;
+  if (Date.now() > until) {
+    priceUnavailableUntil.delete(id);
+    return false;
+  }
+  return true;
+}
+
+export function blockPriceFetchBriefly(id: string): void {
+  priceUnavailableUntil.set(id, Date.now() + PRICE_UNAVAILABLE_TTL_MS);
+}
+
 export const CACHE_TTLS = {
   priceMs: PRICE_TTL_MS,
   statsMs: STATS_TTL_MS,
   changeMs: CHANGE_TTL_MS,
+  priceUnavailableMs: PRICE_UNAVAILABLE_TTL_MS,
 };

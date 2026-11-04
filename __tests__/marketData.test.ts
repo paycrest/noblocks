@@ -39,10 +39,12 @@ import {
 import {
   CACHE_TTLS,
   applyCmcRateLimitBackoff,
+  blockPriceFetchBriefly,
   canSpendCmcCredit,
   getCmcBackoffUntilForTests,
   getCmcCallsTodayForTests,
   isCmcInBackoff,
+  isPriceFetchBlocked,
   maxCmcCallsPerDayPerInstance,
   recordCmcCall,
   resetMarketDataCachesForTests,
@@ -50,6 +52,16 @@ import {
 } from "../app/lib/market-data/cache";
 import { resetHistoryBucketCacheForTests } from "../app/lib/market-data/history-cache";
 import { computeCngnBadge } from "../app/lib/market-data/cngn";
+import {
+  HISTORY_DEADLINE_MS,
+  historyDeadlineExceeded,
+  pickRoundForBucket,
+} from "../app/lib/market-data/round-history";
+import {
+  evaluateSequencerStatus,
+  isSequencerOperational,
+  SEQUENCER_GRACE_PERIOD_SEC,
+} from "../app/lib/market-data/sequencer";
 import { applySpikeFilter } from "../app/lib/market-data/series";
 import {
   answerToDecimalString,
@@ -168,6 +180,79 @@ describe("spike filter", () => {
     ];
     const filtered = applySpikeFilter(points, { stableOrNgn: true });
     expect(filtered.some((p) => p.p === "1.20")).toBe(false);
+  });
+});
+
+describe("sequencer uptime", () => {
+  const now = 1_700_000_000;
+
+  it("treats answer 0 as up after grace period", () => {
+    expect(
+      evaluateSequencerStatus(
+        BigInt(0),
+        now - SEQUENCER_GRACE_PERIOD_SEC - 10,
+        now,
+      ),
+    ).toBe("up");
+    expect(
+      isSequencerOperational(
+        BigInt(0),
+        now - SEQUENCER_GRACE_PERIOD_SEC - 10,
+        now,
+      ),
+    ).toBe(true);
+  });
+
+  it("treats answer 1 as down", () => {
+    expect(evaluateSequencerStatus(BigInt(1), now - 100, now)).toBe("down");
+  });
+
+  it("treats answer 0 within grace as not operational", () => {
+    expect(
+      evaluateSequencerStatus(BigInt(0), now - 100, now),
+    ).toBe("grace");
+    expect(
+      isSequencerOperational(BigInt(0), now - 100, now),
+    ).toBe(false);
+  });
+});
+
+describe("price unavailable cache", () => {
+  it("blocks repeat fetches briefly after failure", () => {
+    resetMarketDataCachesForTests();
+    blockPriceFetchBriefly("usdc");
+    expect(isPriceFetchBlocked("usdc")).toBe(true);
+    expect(CACHE_TTLS.priceUnavailableMs).toBe(15_000);
+  });
+});
+
+describe("history deadline helpers", () => {
+  it("detects deadline expiry", () => {
+    expect(historyDeadlineExceeded(Date.now() - 1)).toBe(true);
+    expect(historyDeadlineExceeded(Date.now() + HISTORY_DEADLINE_MS)).toBe(
+      false,
+    );
+  });
+
+  it("maps bucket to latest round before bucket end", () => {
+    const rounds = [
+      { updatedAt: 100, answer: 100n },
+      { updatedAt: 200, answer: 200n },
+      { updatedAt: 300, answer: 300n },
+    ];
+    const pick = pickRoundForBucket(rounds, 150, 250);
+    expect(pick?.updatedAt).toBe(200);
+  });
+});
+
+describe("503 price path", () => {
+  it("throws when fetch blocked", async () => {
+    resetMarketDataCachesForTests();
+    blockPriceFetchBriefly("usdc");
+    await expect(getTokenMarketSnapshot("usdc")).rejects.toThrow(
+      "Price data unavailable",
+    );
+    expect(mockedReadLatest).not.toHaveBeenCalled();
   });
 });
 

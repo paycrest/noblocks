@@ -19,8 +19,20 @@ import {
   redactErrorMessage,
   validatePositiveAnswer,
 } from "./validate";
+import { logMarketDataWarning } from "./log";
+import {
+  HISTORY_DEADLINE_MS,
+  HISTORY_MAX_ROUND_STEPS,
+  HISTORY_ROUND_MULTICALL_CHUNK,
+  historyDeadlineExceeded,
+  mapBucketsToRounds,
+  minBucketTimestamp,
+  previousRoundId,
+  type RoundSample,
+} from "./round-history";
+import { evaluateSequencerStatus } from "./sequencer";
 import type { AssetRegistryEntry, ChainlinkFeedConfig, ChainlinkRound, MarketChain } from "./types";
-import type { LatestPriceResult, PriceProvider } from "./provider";
+import type { HistoryReadOptions, LatestPriceResult, PriceProvider } from "./provider";
 
 const aggregatorAbi = parseAbi([
   "function latestRoundData() view returns (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound)",
@@ -91,7 +103,12 @@ async function bootCheckFeed(feed: ChainlinkFeedConfig): Promise<boolean> {
     if (Number(dec) !== feed.decimals) return false;
     bootVerified.add(key);
     return true;
-  } catch {
+  } catch (err) {
+    logMarketDataWarning("feed_boot_check_failed", {
+      chain: feed.chain,
+      pair: feed.pairSlug,
+      message: redactErrorMessage(err),
+    });
     return false;
   }
 }
@@ -99,15 +116,33 @@ async function bootCheckFeed(feed: ChainlinkFeedConfig): Promise<boolean> {
 async function sequencerUp(chain: "base" | "arbitrum"): Promise<boolean> {
   try {
     const client = getPublicClient(chain);
-    const [, answer, , updatedAt] = await client.readContract({
-      address: SEQUENCER_FEEDS[chain],
-      abi: aggregatorAbi,
-      functionName: "latestRoundData",
+    const [block, round] = await Promise.all([
+      client.getBlock({ blockTag: "latest" }),
+      client.readContract({
+        address: SEQUENCER_FEEDS[chain],
+        abi: aggregatorAbi,
+        functionName: "latestRoundData",
+      }),
+    ]);
+    const [, answer, startedAt] = round;
+    const status = evaluateSequencerStatus(
+      answer,
+      Number(startedAt),
+      Number(block.timestamp),
+    );
+    if (status !== "up") {
+      logMarketDataWarning("sequencer_not_operational", {
+        chain,
+        status,
+      });
+      return false;
+    }
+    return true;
+  } catch (err) {
+    logMarketDataWarning("sequencer_read_failed", {
+      chain,
+      message: redactErrorMessage(err),
     });
-    const now = Math.floor(Date.now() / 1000);
-    if (answer === BigInt(0)) return false;
-    return now - Number(updatedAt) <= 3600;
-  } catch {
     return false;
   }
 }
@@ -120,7 +155,9 @@ async function readFeedRound(
 
   if (feed.chain === "base" || feed.chain === "arbitrum") {
     const up = await sequencerUp(feed.chain);
-    if (!up) return null;
+    if (!up) {
+      return null;
+    }
   }
 
   try {
@@ -130,9 +167,21 @@ async function readFeedRound(
       abi: aggregatorAbi,
       functionName: "latestRoundData",
     });
-    if (!validatePositiveAnswer(answer)) return null;
+    if (!validatePositiveAnswer(answer)) {
+      logMarketDataWarning("feed_non_positive_answer", {
+        chain: feed.chain,
+        pair: feed.pairSlug,
+      });
+      return null;
+    }
     const priceStr = answerToDecimalString(answer, feed.decimals);
-    if (!isStablecoinBandOk(feed, priceStr)) return null;
+    if (!isStablecoinBandOk(feed, priceStr)) {
+      logMarketDataWarning("feed_stablecoin_band_reject", {
+        chain: feed.chain,
+        pair: feed.pairSlug,
+      });
+      return null;
+    }
     const nowSec = Math.floor(Date.now() / 1000);
     const { stale, marketClosed } = isFeedAnswerStale(
       feed,
@@ -149,10 +198,11 @@ async function readFeedRound(
       marketClosed,
     };
   } catch (err) {
-    console.warn(
-      "[market-data] Chainlink read failed:",
-      redactErrorMessage(err),
-    );
+    logMarketDataWarning("chainlink_latest_read_failed", {
+      chain: feed.chain,
+      pair: feed.pairSlug,
+      message: redactErrorMessage(err),
+    });
     return null;
   }
 }
@@ -226,66 +276,118 @@ export async function blockNumberForTimestamp(
   }
 }
 
-const HISTORY_MULTICALL_CHUNK = 100;
-
-async function blockNumbersForTimestamps(
-  chain: MarketChain,
-  timestampsSec: number[],
-): Promise<Map<number, bigint>> {
-  const unique = [...new Set(timestampsSec)].sort((a, b) => a - b);
-  const map = new Map<number, bigint>();
-  for (const ts of unique) {
-    const block = await blockNumberForTimestamp(chain, ts);
-    if (block !== null) map.set(ts, block);
-  }
-  return map;
-}
-
-async function batchLatestRoundDataAtBlocks(
+async function collectRoundSamples(
   feed: ChainlinkFeedConfig,
-  samples: Array<{ t: number; blockNumber: bigint }>,
-): Promise<Array<{ t: number; answer: bigint; decimals: number }>> {
-  if (samples.length === 0) return [];
-  const ok = await bootCheckFeed(feed);
-  if (!ok) return [];
-
+  minUpdatedAtSec: number,
+  deadlineAtMs: number,
+): Promise<RoundSample[]> {
   const client = getPublicClient(feed.chain);
-  const out: Array<{ t: number; answer: bigint; decimals: number }> = [];
+  const latest = await client.readContract({
+    address: feed.proxy,
+    abi: aggregatorAbi,
+    functionName: "latestRoundData",
+  });
+  let cursor = latest[0] as bigint;
+  const samples: RoundSample[] = [];
+  let oldestCollected = Number(latest[3]);
 
-  for (let i = 0; i < samples.length; i += HISTORY_MULTICALL_CHUNK) {
-    const chunk = samples.slice(i, i + HISTORY_MULTICALL_CHUNK);
+  const pushSample = (updatedAt: number, answer: bigint) => {
+    if (!validatePositiveAnswer(answer)) return;
+    const priceStr = answerToDecimalString(answer, feed.decimals);
+    if (!isStablecoinBandOk(feed, priceStr)) return;
+    if (samples.some((s) => s.updatedAt === updatedAt)) return;
+    samples.push({ updatedAt, answer });
+    oldestCollected = Math.min(oldestCollected, updatedAt);
+  };
+
+  pushSample(Number(latest[3]), latest[1] as bigint);
+
+  while (
+    !historyDeadlineExceeded(deadlineAtMs) &&
+    samples.length < HISTORY_MAX_ROUND_STEPS
+  ) {
+    if (oldestCollected <= minUpdatedAtSec) break;
+
+    const roundIds: bigint[] = [];
+    let nextId = previousRoundId(cursor);
+    for (let i = 0; i < HISTORY_ROUND_MULTICALL_CHUNK && nextId; i++) {
+      roundIds.push(nextId);
+      nextId = previousRoundId(nextId);
+    }
+    if (roundIds.length === 0) break;
+
     const results = await client.multicall({
-      contracts: chunk.map(({ blockNumber }) => ({
+      contracts: roundIds.map((roundId) => ({
         address: feed.proxy,
         abi: aggregatorAbi,
-        functionName: "latestRoundData",
-        blockNumber,
+        functionName: "getRoundData",
+        args: [roundId],
       })),
       allowFailure: true,
     });
 
-    for (let j = 0; j < chunk.length; j++) {
-      const row = results[j];
+    let progressed = false;
+    for (let i = 0; i < roundIds.length; i++) {
+      const row = results[i];
       if (row.status !== "success") continue;
-      const [, answer] = row.result as readonly [
+      const [, answer, , updatedAt] = row.result as readonly [
         bigint,
         bigint,
         bigint,
         bigint,
         bigint,
       ];
-      if (!validatePositiveAnswer(answer)) continue;
-      const priceStr = answerToDecimalString(answer, feed.decimals);
-      if (!isStablecoinBandOk(feed, priceStr)) continue;
-      out.push({
-        t: chunk[j].t,
-        answer,
-        decimals: feed.decimals,
-      });
+      pushSample(Number(updatedAt), answer);
+      progressed = true;
     }
+
+    cursor = roundIds[roundIds.length - 1];
+    if (!progressed) break;
   }
 
-  return out;
+  samples.sort((a, b) => a.updatedAt - b.updatedAt);
+  return samples;
+}
+
+async function readHistoryViaRounds(
+  feed: ChainlinkFeedConfig,
+  timestampsSec: number[],
+  options?: HistoryReadOptions,
+): Promise<Array<{ t: number; answer: bigint; decimals: number }>> {
+  if (timestampsSec.length === 0) return [];
+  const ok = await bootCheckFeed(feed);
+  if (!ok) return [];
+
+  const deadlineAtMs = Date.now() + (options?.deadlineMs ?? HISTORY_DEADLINE_MS);
+  const stepSec = options?.stepSec ?? 3600;
+  const minTs = minBucketTimestamp(timestampsSec) - stepSec;
+
+  try {
+    const rounds = await collectRoundSamples(feed, minTs, deadlineAtMs);
+    if (rounds.length === 0) {
+      logMarketDataWarning("history_no_rounds", {
+        chain: feed.chain,
+        pair: feed.pairSlug,
+      });
+      return [];
+    }
+    if (historyDeadlineExceeded(deadlineAtMs)) {
+      logMarketDataWarning("history_deadline_exceeded", {
+        chain: feed.chain,
+        pair: feed.pairSlug,
+        bucketsRequested: timestampsSec.length,
+        roundsCollected: rounds.length,
+      });
+    }
+    return mapBucketsToRounds(feed, rounds, timestampsSec, stepSec);
+  } catch (err) {
+    logMarketDataWarning("history_round_walk_failed", {
+      chain: feed.chain,
+      pair: feed.pairSlug,
+      message: redactErrorMessage(err),
+    });
+    return [];
+  }
 }
 
 function feedForAsset(entry: AssetRegistryEntry): ChainlinkFeedConfig {
@@ -326,16 +428,9 @@ export const chainlinkPriceProvider: PriceProvider = {
     return null;
   },
 
-  async readHistoryAtTimestamps(entry, timestampsSec) {
-    if (timestampsSec.length === 0) return [];
+  async readHistoryAtTimestamps(entry, timestampsSec, options) {
     const feed = entry.price;
-    const blockByTs = await blockNumbersForTimestamps(feed.chain, timestampsSec);
-    const samples: Array<{ t: number; blockNumber: bigint }> = [];
-    for (const t of timestampsSec) {
-      const blockNumber = blockByTs.get(t);
-      if (blockNumber !== undefined) samples.push({ t, blockNumber });
-    }
-    return batchLatestRoundDataAtBlocks(feed, samples);
+    return readHistoryViaRounds(feed, timestampsSec, options);
   },
 };
 

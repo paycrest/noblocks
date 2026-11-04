@@ -7,17 +7,18 @@ import { toast } from "sonner";
 import { classNames } from "@/app/utils";
 
 import { drawerBorderLight } from "./drawerStyles";
+import { formatExpiryCountdown } from "./formatExpiryCountdown";
 import type { ReviewDetailRow } from "./types";
 
 type ReviewDetailCardProps = {
   rows: ReviewDetailRow[];
-  expiresInLabel?: string;
+  expiresInSeconds?: number;
   className?: string;
 };
 
 export function ReviewDetailCard({
   rows,
-  expiresInLabel,
+  expiresInSeconds,
   className,
 }: ReviewDetailCardProps) {
   const copy = async (value: string) => {
@@ -68,7 +69,7 @@ export function ReviewDetailCard({
           ))}
         </div>
       </div>
-      {expiresInLabel ? (
+      {expiresInSeconds != null ? (
         <div className="flex items-center justify-between px-4 py-1 text-sm">
           <span className="text-white/50">Expires in</span>
           <span
@@ -77,7 +78,7 @@ export function ReviewDetailCard({
               drawerBorderLight,
             )}
           >
-            {expiresInLabel}
+            {formatExpiryCountdown(expiresInSeconds)}
           </span>
         </div>
       ) : null}

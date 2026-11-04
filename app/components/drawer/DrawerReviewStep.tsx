@@ -13,7 +13,7 @@ export type DrawerReviewStepProps = {
   heading: string;
   subheading: ReactNode;
   detailRows: ReviewDetailRow[];
-  expiresInLabel?: string;
+  expiresInSeconds?: number;
   confirmationLabel: string;
   confirmationChecked: boolean;
   onConfirmationChange: (checked: boolean) => void;
@@ -27,7 +27,7 @@ export function DrawerReviewStep({
   heading,
   subheading,
   detailRows,
-  expiresInLabel,
+  expiresInSeconds,
   confirmationLabel,
   confirmationChecked,
   onConfirmationChange,
@@ -45,7 +45,7 @@ export function DrawerReviewStep({
         <div className="text-sm leading-5 text-white/50">{subheading}</div>
       </div>
 
-      <ReviewDetailCard rows={detailRows} expiresInLabel={expiresInLabel} />
+      <ReviewDetailCard rows={detailRows} expiresInSeconds={expiresInSeconds} />
 
       <Checkbox
         checked={confirmationChecked}

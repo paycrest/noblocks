@@ -10,6 +10,7 @@ import {
   ActionReceiptFailed,
   ActionReceiptSuccess,
   ActionSubmitButton,
+  formatExpiryCountdown,
   ReceiptMetaRows,
   ReviewModal,
   getAllowlistedExplorerUrl,
@@ -73,6 +74,20 @@ const { toastMappedError } = jest.requireMock("../app/lib/toastMappedError");
 
 const VALID_EVM_HASH =
   "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef";
+
+describe("formatExpiryCountdown", () => {
+  it("formats mm:ss with zero padding and seconds capped at 59", () => {
+    expect(formatExpiryCountdown(0)).toBe("00:00");
+    expect(formatExpiryCountdown(59)).toBe("00:59");
+    expect(formatExpiryCountdown(60)).toBe("01:00");
+    expect(formatExpiryCountdown(1783)).toBe("29:43");
+    expect(formatExpiryCountdown(1799)).toBe("29:59");
+  });
+
+  it("clamps negative values to 00:00", () => {
+    expect(formatExpiryCountdown(-30)).toBe("00:00");
+  });
+});
 
 describe("formatActionAmount", () => {
   it("formats to token decimals without float math", () => {

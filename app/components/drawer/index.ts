@@ -19,6 +19,8 @@ export { ActionSubmitButton } from "./ActionSubmitButton";
 
 export { showActionSuccessToast } from "./ActionSuccessToast";
 
+export { formatExpiryCountdown } from "./formatExpiryCountdown";
+
 export { DrawerReviewStep } from "./DrawerReviewStep";
 export type { DrawerReviewStepProps } from "./DrawerReviewStep";
 

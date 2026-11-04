@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ArrowDown01Icon } from "hugeicons-react";
 import { classNames } from "@/app/utils";
-import type { ReactNode } from "react";
+import { forwardRef, type ReactNode } from "react";
 import {
   shellFocusRingClasses,
   shellMinHitTargetClasses,
@@ -105,17 +105,19 @@ export function NavSectionLabel({ children }: { children: ReactNode }) {
   );
 }
 
-export function ShellIconButton({
-  label,
-  className,
-  children,
-  ...props
-}: React.ButtonHTMLAttributes<HTMLButtonElement> & {
-  label: string;
-  children: ReactNode;
-}) {
+export const ShellIconButton = forwardRef<
+  HTMLButtonElement,
+  React.ButtonHTMLAttributes<HTMLButtonElement> & {
+    label: string;
+    children: ReactNode;
+  }
+>(function ShellIconButton(
+  { label, className, children, ...props },
+  ref,
+) {
   return (
     <button
+      ref={ref}
       type="button"
       aria-label={label}
       className={classNames(
@@ -129,4 +131,4 @@ export function ShellIconButton({
       {children}
     </button>
   );
-}
+});

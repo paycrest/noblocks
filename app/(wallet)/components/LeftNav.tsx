@@ -2,7 +2,11 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
+import {
+  useDrawerFocusTrap,
+  useDrawerOpenFocus,
+} from "@/app/components/drawer/hooks";
 import {
   Home04Icon,
   Coins01Icon,
@@ -18,6 +22,7 @@ import { NavMenuItem, NavSectionLabel, ShellIconButton } from "./NavMenuItem";
 import { WalletAccountMenu } from "./WalletAccountMenu";
 import { classNames } from "@/app/utils";
 import { shellFocusRingClasses } from "./shellFocusStyles";
+import { useIsBelowMd } from "./useIsBelowMd";
 
 type NavLinkDef = {
   label: string;
@@ -37,6 +42,14 @@ type LeftNavProps = {
 };
 
 export function LeftNav({ mobileOpen, onMobileOpenChange }: LeftNavProps) {
+  const isBelowMd = useIsBelowMd();
+  const [asideEl, setAsideEl] = useState<HTMLElement | null>(null);
+  const mobileDrawerActive = isBelowMd && mobileOpen;
+  const mobileAsideInert = isBelowMd && !mobileOpen;
+
+  useDrawerOpenFocus(asideEl, mobileDrawerActive);
+  useDrawerFocusTrap(asideEl, mobileDrawerActive);
+
   const flags = useMemo(() => getFeatureFlags(), []);
   const visibleAssets = getVisibleWalletShellAssetNavLinks(flags);
 
@@ -59,11 +72,15 @@ export function LeftNav({ mobileOpen, onMobileOpenChange }: LeftNavProps) {
       )}
 
       <aside
+        ref={setAsideEl}
         className={classNames(
           "fixed inset-y-0 left-0 z-40 flex h-dvh w-[214px] shrink-0 flex-col justify-between overflow-y-auto border-r border-border-light bg-background-neutral pb-7 pl-5 pt-1 transition-transform duration-200 dark:border-white/10 dark:bg-surface-canvas md:static md:z-auto md:translate-x-0",
           mobileOpen ? "translate-x-0" : "-translate-x-full",
         )}
         data-mobile-nav-open={mobileOpen ? "true" : "false"}
+        {...(mobileAsideInert
+          ? ({ inert: true, "aria-hidden": true } as const)
+          : {})}
       >
         <div className="flex flex-col gap-9 pr-3 pt-2">
           <div className="flex items-center justify-between pr-1">

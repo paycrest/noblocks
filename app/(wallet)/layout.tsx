@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { LeftNav } from "./components/LeftNav";
 import { TopBar } from "./components/TopBar";
@@ -15,6 +15,15 @@ export default function WalletShellLayout({
 }) {
   const pathname = usePathname();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const mobileNavToggleRef = useRef<HTMLButtonElement>(null);
+  const wasMobileNavOpenRef = useRef(false);
+
+  useLayoutEffect(() => {
+    if (wasMobileNavOpenRef.current && !mobileNavOpen) {
+      mobileNavToggleRef.current?.focus({ focusVisible: false } as FocusOptions);
+    }
+    wasMobileNavOpenRef.current = mobileNavOpen;
+  }, [mobileNavOpen]);
 
   useEffect(() => {
     setMobileNavOpen(false);
@@ -42,6 +51,7 @@ export default function WalletShellLayout({
           <TopBar
             mobileNavOpen={mobileNavOpen}
             onMobileNavToggle={() => setMobileNavOpen((open) => !open)}
+            mobileNavToggleRef={mobileNavToggleRef}
           />
           <WalletRouteGuard>
             <div className="relative mb-2.5 mr-2.5 flex min-h-0 flex-1 overflow-hidden rounded-[20px] bg-background-neutral shadow-[0_0_2px_1px_rgba(18,18,23,0.02)] ring-1 ring-border-light dark:bg-white/5 dark:ring-white/10">

@@ -38,14 +38,16 @@ export function WalletAccountMenu() {
     { label: "Beneficiaries", href: "/beneficiaries" },
   ];
 
+  const menuAriaLabel = `Your account, ${addressLine}`;
+
   return (
     <Menu as="div" className="relative w-full">
       {({ open }) => (
         <>
           <MenuButton
-            aria-label="Your account"
+            aria-label={menuAriaLabel}
             className={classNames(
-              "flex w-full min-h-11 items-center gap-1.5 rounded-xl border border-[0.5px] border-border-light bg-background-neutral py-2 pl-2 pr-[11px] text-left transition-colors hover:bg-accent-gray dark:border-white/10 dark:bg-surface-overlay dark:hover:bg-white/10",
+              "flex w-full min-h-11 items-center gap-1.5 rounded-xl border-[0.5px] border-border-light bg-background-neutral py-2 pl-2 pr-[11px] text-left transition-colors hover:bg-accent-gray dark:border-white/10 dark:bg-surface-overlay dark:hover:bg-white/10",
               shellFocusRingClasses,
             )}
           >
@@ -83,7 +85,7 @@ export function WalletAccountMenu() {
           <MenuItems
             anchor="top start"
             modal={false}
-            className="z-50 mb-2 w-[var(--button-width)] min-w-[190px] rounded-xl border border-border-light bg-white py-1 shadow-lg outline-none dark:border-white/10 dark:bg-neutral-900"
+            className="z-50 w-[var(--button-width)] min-w-[190px] rounded-xl border border-border-light bg-white py-1 shadow-lg outline-none [--anchor-gap:theme(spacing.2)] dark:border-white/10 dark:bg-neutral-900"
           >
             {items.map((item) => (
               <MenuItem key={item.href}>

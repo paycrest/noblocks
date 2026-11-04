@@ -79,7 +79,7 @@ beforeAll(() => {
   Object.defineProperty(window, "matchMedia", {
     writable: true,
     value: jest.fn().mockImplementation((query: string) => ({
-      matches: query.includes("min-width: 768px") ? false : false,
+      matches: query.includes("max-width: 767px"),
       media: query,
       addEventListener: jest.fn(),
       removeEventListener: jest.fn(),
@@ -97,6 +97,12 @@ beforeEach(() => {
     "noblocks-kyb": false,
     "noblocks-tx-protection": false,
   });
+  (window.matchMedia as jest.Mock).mockImplementation((query: string) => ({
+    matches: query.includes("max-width: 767px"),
+    media: query,
+    addEventListener: jest.fn(),
+    removeEventListener: jest.fn(),
+  }));
 });
 
 describe("wallet shell nav structure (KAN-993)", () => {
@@ -115,7 +121,7 @@ describe("wallet shell nav structure (KAN-993)", () => {
       "noblocks-tx-protection": false,
     });
     render(
-      <LeftNav mobileOpen={false} onMobileOpenChange={jest.fn()} />,
+      <LeftNav mobileOpen onMobileOpenChange={jest.fn()} />,
     );
     expect(screen.getByRole("navigation", { name: "Main" })).toHaveTextContent(
       "Assets",
@@ -131,7 +137,7 @@ describe("wallet shell nav structure (KAN-993)", () => {
 
   it("renders static Assets label without a collapsible Assets link", () => {
     render(
-      <LeftNav mobileOpen={false} onMobileOpenChange={jest.fn()} />,
+      <LeftNav mobileOpen onMobileOpenChange={jest.fn()} />,
     );
     expect(screen.queryByRole("button", { name: /Assets/i })).toBeNull();
     expect(screen.getByText("Assets")).toBeInTheDocument();
@@ -192,7 +198,14 @@ describe("wallet shell top bar actions", () => {
 
 describe("wallet account menu keyboard (KAN-992)", () => {
   const menuTrigger = () =>
-    screen.getByRole("button", { name: "Your account" });
+    screen.getByRole("button", {
+      name: /Your account, 0x1234\.\.\.567890/i,
+    });
+
+  it("exposes the shortened wallet address in the accessible name", () => {
+    render(<WalletAccountMenu />);
+    expect(menuTrigger()).toHaveAccessibleName("Your account, 0x1234...567890");
+  });
 
   it("opens with Enter and moves focus into the menu", async () => {
     const user = userEvent.setup();
@@ -273,6 +286,9 @@ describe("wallet account menu keyboard (KAN-992)", () => {
 });
 
 describe("mobile nav collapse (KAN-992)", () => {
+  const mobileAside = () =>
+    document.querySelector("aside[data-mobile-nav-open]");
+
   it("toggles the off-canvas nav open state", () => {
     const onToggle = jest.fn();
     const { rerender } = render(
@@ -309,5 +325,101 @@ describe("mobile nav collapse (KAN-992)", () => {
     expect(
       document.querySelector('[data-mobile-nav-open="false"]'),
     ).toBeTruthy();
+  });
+
+  it("marks the closed mobile aside inert and hidden from assistive tech", () => {
+    render(
+      <LeftNav mobileOpen={false} onMobileOpenChange={jest.fn()} />,
+    );
+    const aside = mobileAside();
+    expect(aside).toHaveAttribute("inert");
+    expect(aside).toHaveAttribute("aria-hidden", "true");
+  });
+
+  it("removes inert when the mobile nav is open", () => {
+    render(<LeftNav mobileOpen onMobileOpenChange={jest.fn()} />);
+    const aside = mobileAside();
+    expect(aside).not.toHaveAttribute("inert");
+    expect(aside).not.toHaveAttribute("aria-hidden");
+  });
+
+  it("does not inert the aside on md+ viewports when closed", () => {
+    (window.matchMedia as jest.Mock).mockImplementation((query: string) => ({
+      matches: false,
+      media: query,
+      addEventListener: jest.fn(),
+      removeEventListener: jest.fn(),
+    }));
+    render(
+      <LeftNav mobileOpen={false} onMobileOpenChange={jest.fn()} />,
+    );
+    const aside = mobileAside();
+    expect(aside).not.toHaveAttribute("inert");
+    expect(aside).not.toHaveAttribute("aria-hidden");
+  });
+
+  it("moves focus into the nav when opened and returns it to the toggle on close", async () => {
+    (window.matchMedia as jest.Mock).mockImplementation((query: string) => ({
+      matches: query.includes("max-width: 767px"),
+      media: query,
+      addEventListener: jest.fn(),
+      removeEventListener: jest.fn(),
+    }));
+
+    render(
+      <WalletShellLayout>
+        <div>Wallet page</div>
+      </WalletShellLayout>,
+    );
+    const toggle = screen.getByRole("button", { name: "Open navigation" });
+    await userEvent.setup().click(toggle);
+
+    const aside = mobileAside();
+    expect(aside).toBeTruthy();
+    expect(aside?.contains(document.activeElement)).toBe(true);
+
+    await userEvent.setup().keyboard("{Escape}");
+    expect(toggle).toHaveFocus();
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("returns focus to the toggle when the backdrop closes the nav", async () => {
+    const user = userEvent.setup();
+    render(
+      <WalletShellLayout>
+        <div>Wallet page</div>
+      </WalletShellLayout>,
+    );
+    const toggle = screen.getByRole("button", { name: "Open navigation" });
+    await user.click(toggle);
+
+    const backdrop = document.querySelector(".fixed.inset-0.z-30");
+    expect(backdrop).toBeTruthy();
+    await user.click(backdrop as Element);
+
+    expect(toggle).toHaveFocus();
+    expect(mobileAside()).toHaveAttribute("data-mobile-nav-open", "false");
+  });
+
+  it("traps Tab focus within the open mobile nav", async () => {
+    const user = userEvent.setup();
+    render(<LeftNav mobileOpen onMobileOpenChange={jest.fn()} />);
+    const aside = mobileAside() as HTMLElement;
+    const homeLink = within(aside).getByRole("link", { name: /Noblocks home/i });
+    homeLink.focus();
+
+    await user.tab();
+    expect(aside.contains(document.activeElement)).toBe(true);
+
+    const focusables = Array.from(
+      aside.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      ),
+    ).filter((el) => !el.hasAttribute("inert"));
+
+    for (let i = 0; i < focusables.length + 2; i += 1) {
+      await user.tab();
+      expect(aside.contains(document.activeElement)).toBe(true);
+    }
   });
 });

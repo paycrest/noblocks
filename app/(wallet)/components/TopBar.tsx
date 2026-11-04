@@ -24,9 +24,14 @@ import {
 type TopBarProps = {
   mobileNavOpen: boolean;
   onMobileNavToggle: () => void;
+  mobileNavToggleRef?: React.Ref<HTMLButtonElement>;
 };
 
-export function TopBar({ mobileNavOpen, onMobileNavToggle }: TopBarProps) {
+export function TopBar({
+  mobileNavOpen,
+  onMobileNavToggle,
+  mobileNavToggleRef,
+}: TopBarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const tokenDisplayName = useMemo(() => {
@@ -47,6 +52,7 @@ export function TopBar({ mobileNavOpen, onMobileNavToggle }: TopBarProps) {
     <header className="flex h-14 shrink-0 items-center justify-between border-b border-border-light px-4 md:px-6 dark:border-white/10">
       <div className="flex min-w-0 items-center gap-2 md:gap-3">
         <ShellIconButton
+          ref={mobileNavToggleRef}
           label={mobileNavOpen ? "Close navigation" : "Open navigation"}
           className="md:hidden"
           aria-expanded={mobileNavOpen}

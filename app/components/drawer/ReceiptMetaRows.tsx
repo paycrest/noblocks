@@ -1,5 +1,7 @@
 "use client";
 
+import type { ReactNode } from "react";
+
 import { classNames } from "@/app/utils";
 
 import { getAllowlistedExplorerUrl } from "./explorer";
@@ -13,6 +15,13 @@ export type ReceiptMetaRowsProps = {
   layout?: "drawer" | "modal";
 };
 
+type DisplayRow = {
+  label: string;
+  value: ReactNode;
+  valueClassName?: string;
+  hidden?: boolean;
+};
+
 export function ReceiptMetaRows({
   rows,
   networkName,
@@ -22,15 +31,27 @@ export function ReceiptMetaRows({
 }: ReceiptMetaRowsProps) {
   const explorerUrl = getAllowlistedExplorerUrl(networkName, txHash);
 
-  const mergedRows = rows.map((row) => {
-    if (row.label !== "Onchain receipt") {
-      return row;
+  const mergedRows: DisplayRow[] = [];
+
+  for (const row of rows) {
+    if (row.kind !== "explorer") {
+      mergedRows.push({
+        label: row.label,
+        value: row.value,
+        valueClassName: row.valueClassName,
+      });
+      continue;
     }
     if (!explorerUrl) {
-      return { ...row, value: null, hidden: true };
+      mergedRows.push({
+        label: row.label,
+        value: null,
+        hidden: true,
+      });
+      continue;
     }
-    return {
-      ...row,
+    mergedRows.push({
+      label: row.label,
       value: (
         <a
           href={explorerUrl}
@@ -41,12 +62,11 @@ export function ReceiptMetaRows({
           {explorerLinkLabel}
         </a>
       ),
-    };
-  });
+      valueClassName: row.valueClassName,
+    });
+  }
 
-  const visible = mergedRows.filter(
-    (row) => !(row as ReceiptRow & { hidden?: boolean }).hidden,
-  );
+  const visible = mergedRows.filter((row) => !row.hidden);
 
   if (layout === "modal") {
     return (
@@ -111,23 +131,26 @@ export function buildDefaultReceiptRows(input: {
 
   return [
     {
+      kind: "default",
       label: "Transaction status",
       value: input.transactionStatusLabel,
       valueClassName: statusClass,
     },
     {
+      kind: "default",
       label: "Fund status",
       value: input.fundStatusLabel,
       valueClassName: "text-white/50",
     },
     {
+      kind: "default",
       label: "Time spent",
       value: input.timeSpentLabel,
       valueClassName: "text-white/50",
     },
     {
+      kind: "explorer",
       label: "Onchain receipt",
-      value: null,
     },
   ];
 }

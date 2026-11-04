@@ -22,8 +22,8 @@ export function ActionProgress({
   heading,
   subheading,
   steps,
-  noteText = "You can leave this page. It stays in history as pending, and we will notify you when it lands.",
-  secondaryActionLabel = "I have sent the money",
+  noteText,
+  secondaryActionLabel,
 }: ActionProgressProps) {
   return (
     <div className="flex w-full flex-col gap-6">
@@ -60,13 +60,17 @@ export function ActionProgress({
         </ol>
       </div>
 
-      <ActionSubmitButton
-        label={secondaryActionLabel}
-        disabled
-        onClick={() => {}}
-      />
+      {secondaryActionLabel ? (
+        <ActionSubmitButton
+          label={secondaryActionLabel}
+          disabled
+          onClick={() => {}}
+        />
+      ) : null}
 
-      <p className="text-center text-sm text-white/50">{noteText}</p>
+      {noteText ? (
+        <p className="text-center text-sm text-white/50">{noteText}</p>
+      ) : null}
     </div>
   );
 }

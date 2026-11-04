@@ -4,7 +4,7 @@ import { useCallback, useRef, useState } from "react";
 
 import { toastMappedError } from "@/app/lib/toastMappedError";
 
-import type { ActionSubmitHandler } from "./types";
+import type { ActionSubmitHandler, ActionSubmitResult } from "./types";
 
 type UseActionSubmitOptions = {
   feature: string;
@@ -17,31 +17,33 @@ type UseActionSubmitOptions = {
  */
 export function useActionSubmit(options: UseActionSubmitOptions) {
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const activeKeyRef = useRef<string | null>(null);
+  const inFlightRef = useRef(false);
 
   const submit = useCallback(
-    async (idempotencyKey: string, handler: ActionSubmitHandler) => {
-      if (isSubmitting) {
-        return;
+    async (
+      idempotencyKey: string,
+      handler: ActionSubmitHandler,
+    ): Promise<ActionSubmitResult> => {
+      if (inFlightRef.current) {
+        return { ok: false, error: new Error("submit_in_flight") };
       }
-      if (activeKeyRef.current === idempotencyKey) {
-        return;
-      }
-      activeKeyRef.current = idempotencyKey;
+      inFlightRef.current = true;
       setIsSubmitting(true);
       try {
-        await handler();
+        await handler(idempotencyKey);
+        return { ok: true };
       } catch (error) {
         toastMappedError(error, {
           feature: options.feature,
           title: options.errorTitle,
         });
+        return { ok: false, error };
       } finally {
+        inFlightRef.current = false;
         setIsSubmitting(false);
-        activeKeyRef.current = null;
       }
     },
-    [isSubmitting, options.errorTitle, options.feature],
+    [options.errorTitle, options.feature],
   );
 
   return { isSubmitting, submit };

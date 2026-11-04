@@ -59,7 +59,7 @@ export function ActionReceiptSuccess({
   timeSpentLabel,
   networkName,
   txHash,
-  primaryActionLabel = "Earn",
+  primaryActionLabel,
   secondaryActionLabel = "Done",
   onPrimaryAction,
   onSecondaryAction,
@@ -109,11 +109,13 @@ export function ActionReceiptSuccess({
             onClick={() => onSecondaryAction?.()}
             className="flex-1"
           />
-          <ActionSubmitButton
-            label={primaryActionLabel}
-            onClick={() => onPrimaryAction?.()}
-            className="flex-1"
-          />
+          {primaryActionLabel ? (
+            <ActionSubmitButton
+              label={primaryActionLabel}
+              onClick={() => onPrimaryAction?.()}
+              className="flex-1"
+            />
+          ) : null}
         </div>
       )}
     </>

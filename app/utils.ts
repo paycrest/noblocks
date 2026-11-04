@@ -303,17 +303,20 @@ export function formatNumberWithCommas(num: string | number): string {
  */
 export function formatActionAmount(amount: string, decimals: number): string {
   const trimmed = amount.trim();
-  if (!trimmed) {
-    return "0";
+  if (!trimmed || !/^-?\d+(\.\d+)?$/.test(trimmed)) {
+    return "—";
   }
   let value: Decimal;
   try {
     value = new Decimal(trimmed);
   } catch {
-    return "0";
+    return "—";
   }
   if (!value.isFinite()) {
-    return "0";
+    return "—";
+  }
+  if (value.isZero()) {
+    value = new Decimal(0);
   }
 
   const safeDecimals = Math.max(0, Math.min(Math.trunc(decimals), 36));

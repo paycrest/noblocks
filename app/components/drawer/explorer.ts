@@ -10,9 +10,9 @@ function isValidTxHashForNetwork(hash: string, networkName: string): boolean {
     return /^[a-fA-F0-9]{64}$/.test(hash);
   }
   if (networkName === "Starknet") {
-    return /^0x[a-fA-F0-9]+$/.test(hash);
+    return /^0x[a-fA-F0-9]{1,64}$/.test(hash);
   }
-  return /^0x[a-fA-F0-9]+$/.test(hash);
+  return /^0x[a-fA-F0-9]{64}$/.test(hash);
 }
 
 /**

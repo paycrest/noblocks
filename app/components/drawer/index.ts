@@ -55,6 +55,7 @@ export type {
   ActionProgressStep,
   ActionProgressStepState,
   ActionSubmitHandler,
+  ActionSubmitResult,
   PendingActionCloseHandlers,
   ReceiptRow,
   ReviewDetailRow,

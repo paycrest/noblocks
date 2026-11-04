@@ -4,11 +4,18 @@ import type { ReactNode } from "react";
 
 export type ActionDrawerTitle = "Buy" | "Sell" | "Swap" | string;
 
-export type ReceiptRow = {
-  label: string;
-  value: ReactNode;
-  valueClassName?: string;
-};
+export type ReceiptRow =
+  | {
+      kind?: "default";
+      label: string;
+      value: ReactNode;
+      valueClassName?: string;
+    }
+  | {
+      kind: "explorer";
+      label: string;
+      valueClassName?: string;
+    };
 
 export type ReviewDetailRow = {
   label: string;
@@ -30,4 +37,8 @@ export type PendingActionCloseHandlers = {
   onDrawerClosed: () => void;
 };
 
-export type ActionSubmitHandler = () => Promise<void>;
+export type ActionSubmitHandler = (idempotencyKey: string) => Promise<void>;
+
+export type ActionSubmitResult =
+  | { ok: true }
+  | { ok: false; error: unknown };

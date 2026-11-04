@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useId, useRef, type ReactNode } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Cancel01Icon } from "hugeicons-react";
 
@@ -29,9 +29,10 @@ export function ActionDrawer({
   bodyClassName,
 }: ActionDrawerProps) {
   const panelRef = useRef<HTMLDivElement>(null);
+  const titleId = useId();
 
   useDrawerFocusTrap(panelRef, isOpen);
-  useDrawerEscape(onRequestClose, isOpen);
+  useDrawerEscape(panelRef, onRequestClose, isOpen);
 
   useEffect(() => {
     if (!isOpen) {
@@ -60,7 +61,7 @@ export function ActionDrawer({
             ref={panelRef}
             role="dialog"
             aria-modal="true"
-            aria-labelledby="action-drawer-title"
+            aria-labelledby={titleId}
             className={classNames(
               "fixed inset-y-0 right-0 z-[61] flex w-full max-w-[379px] flex-col",
               "border-l border-white/10 bg-white/[0.05] py-3",
@@ -72,7 +73,7 @@ export function ActionDrawer({
           >
             <header className="flex shrink-0 items-center justify-between px-[18px]">
               <h2
-                id="action-drawer-title"
+                id={titleId}
                 className="text-lg font-semibold tracking-[-0.54px] text-white"
               >
                 {title}

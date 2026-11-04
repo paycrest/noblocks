@@ -2,8 +2,29 @@
 
 import { useCallback, useEffect, useRef } from "react";
 
-const FOCUSABLE =
-  'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])';
+const FOCUSABLE_SELECTOR =
+  'a[href], button, textarea, input, select, [tabindex]:not([tabindex="-1"])';
+
+function isVisibleFocusable(el: HTMLElement): boolean {
+  if (el.hasAttribute("disabled")) {
+    return false;
+  }
+  if (el.getAttribute("aria-hidden") === "true") {
+    return false;
+  }
+  if (el.hidden) {
+    return false;
+  }
+  const tabIndex = el.tabIndex;
+  if (tabIndex < 0) {
+    return false;
+  }
+  const style = window.getComputedStyle(el);
+  if (style.visibility === "hidden" || style.display === "none") {
+    return false;
+  }
+  return true;
+}
 
 export function useDrawerFocusTrap(
   containerRef: React.RefObject<HTMLElement | null>,
@@ -21,14 +42,15 @@ export function useDrawerFocusTrap(
         : null;
 
     const container = containerRef.current;
-    if (!container) {
-      return;
-    }
 
-    const focusables = () =>
-      Array.from(container.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(
-        (el) => !el.hasAttribute("disabled") && el.tabIndex !== -1,
-      );
+    const focusables = () => {
+      if (!container) {
+        return [];
+      }
+      return Array.from(
+        container.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR),
+      ).filter(isVisibleFocusable);
+    };
 
     const first = focusables()[0];
     first?.focus();
@@ -53,28 +75,43 @@ export function useDrawerFocusTrap(
       }
     };
 
-    container.addEventListener("keydown", onKeyDown);
+    container?.addEventListener("keydown", onKeyDown);
     return () => {
-      container.removeEventListener("keydown", onKeyDown);
+      container?.removeEventListener("keydown", onKeyDown);
       previouslyFocused.current?.focus?.();
     };
   }, [containerRef, isActive]);
 }
 
-export function useDrawerEscape(onClose: () => void, isActive: boolean) {
+export function useDrawerEscape(
+  containerRef: React.RefObject<HTMLElement | null>,
+  onClose: () => void,
+  isActive: boolean,
+) {
   useEffect(() => {
     if (!isActive) {
       return;
     }
+    const container = containerRef.current;
+    if (!container) {
+      return;
+    }
+
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        onClose();
+      if (event.key !== "Escape") {
+        return;
       }
+      if (event.defaultPrevented) {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      onClose();
     };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [isActive, onClose]);
+
+    container.addEventListener("keydown", onKeyDown);
+    return () => container.removeEventListener("keydown", onKeyDown);
+  }, [containerRef, isActive, onClose]);
 }
 
 export function usePendingActionClose({

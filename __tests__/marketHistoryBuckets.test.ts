@@ -165,12 +165,10 @@ describe("long-range history with irregular feeds", () => {
 });
 
 describe("feed history start expectations", () => {
-  it("documents registry inception vs SVR history feed for ETH", () => {
-    expect(ASSET_REGISTRY.eth.historyFeed?.proxy).toBe(
-      "0x71041dddad3595F9CEd3DcCFBe3D1F4b0a16Bb70",
-    );
+  it("uses SVR proxy for ETH latest and history with multi-phase rounds", () => {
     expect(ASSET_REGISTRY.eth.price.proxy).toBe(
       "0x50015f8b17fb2C290Dde41fDc246ed0dcEE93a8b",
     );
+    expect(ASSET_REGISTRY.eth.historyFeed).toBeUndefined();
   });
 });

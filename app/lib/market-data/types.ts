@@ -27,8 +27,6 @@ export interface AssetRegistryEntry {
   cmcId: number;
   price: ChainlinkFeedConfig;
   fallback?: ChainlinkFeedConfig;
-  /** Optional longer-history feed for chart backfill (latest price stays on `price`). */
-  historyFeed?: ChainlinkFeedConfig;
   marketCapMode?: MarketCapMode;
 }
 

@@ -83,16 +83,6 @@ export const ASSET_REGISTRY: Record<string, AssetRegistryEntry> = {
       decimals: 8,
       inceptionUnix: 1691020800,
     },
-    /** Standard Base ETH/USD proxy (data.chain.link); longer round history before SVR cutover. */
-    historyFeed: {
-      chain: "base",
-      proxy: "0x71041dddad3595F9CEd3DcCFBe3D1F4b0a16Bb70",
-      pairSlug: "eth-usd",
-      heartbeatS: 1200,
-      description: "ETH / USD",
-      decimals: 8,
-      inceptionUnix: 1691020800,
-    },
     fallback: {
       chain: "arbitrum",
       proxy: "0x639Fe6ab55C921f74e7fac1ee960C0B6293ba612",

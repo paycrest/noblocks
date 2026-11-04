@@ -11,7 +11,7 @@ import {
 
 export type NavMenuItemState = "default" | "hover" | "active" | "active-hover";
 
-const shellActiveLavenderClasses = "text-lavender-700 dark:text-lavender-500";
+const shellActiveLavenderClasses = "text-lavender-800 dark:text-lavender-500";
 
 type NavMenuItemProps = {
   href: string;
@@ -59,7 +59,7 @@ export function NavMenuItem({
     shellFocusRingClasses,
     active
       ? classNames(
-          "bg-white shadow-[0px_0px_2px_1px_rgba(18,18,23,0.02)] dark:bg-[#2c2c2c]",
+          "bg-border-light shadow-[0px_0px_2px_1px_rgba(18,18,23,0.02)] dark:bg-[#2c2c2c]",
           shellActiveLavenderClasses,
         )
       : "text-text-body hover:bg-accent-gray dark:text-white dark:hover:bg-white/10",

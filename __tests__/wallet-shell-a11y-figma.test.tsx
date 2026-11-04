@@ -501,6 +501,24 @@ describe("wallet shell design QA (PR #737)", () => {
 });
 
 describe("wallet shell dividers (Figma Home 2640:180143)", () => {
+  it("shows the light active nav item as a border-light pill with lavender-800 text", () => {
+    mockPathname = "/tokens";
+    render(<LeftNav mobileOpen={false} onMobileOpenChange={jest.fn()} />);
+    const active = screen.getByRole("link", { name: "Tokens", hidden: true });
+    expect(active).toHaveAttribute("aria-current", "page");
+    expect(active).toHaveClass(
+      "bg-border-light",
+      "text-lavender-800",
+      "dark:bg-[#2c2c2c]",
+      "dark:text-lavender-500",
+    );
+    expect(active).not.toHaveClass("bg-white");
+    expect(active).not.toHaveClass("text-lavender-700");
+    const inactive = screen.getByRole("link", { name: "Home", hidden: true });
+    expect(inactive).toHaveClass("hover:bg-accent-gray");
+    expect(inactive).not.toHaveClass("bg-border-light");
+  });
+
   it("renders the top bar header without a bottom divider", () => {
     render(
       <TopBar mobileNavOpen={false} onMobileNavToggle={jest.fn()} />,

@@ -38,12 +38,14 @@ function hasOpenModalDialog() {
   );
 }
 
-/** Move focus into the drawer on open; restore trigger on close (non-modal drawer). */
+/** Move focus into the drawer on open; restore trigger on close. */
 export function useDrawerOpenFocus(
   container: HTMLElement | null,
   isActive: boolean,
+  options?: { restoreFocusOnClose?: boolean },
 ) {
   const previouslyFocused = useRef<HTMLElement | null>(null);
+  const restoreFocusOnClose = options?.restoreFocusOnClose ?? true;
 
   useLayoutEffect(() => {
     if (!isActive || !container) {
@@ -59,8 +61,51 @@ export function useDrawerOpenFocus(
     first?.focus({ focusVisible: false } as FocusOptions);
 
     return () => {
-      previouslyFocused.current?.focus?.({ focusVisible: false } as FocusOptions);
+      if (restoreFocusOnClose) {
+        previouslyFocused.current?.focus?.({ focusVisible: false } as FocusOptions);
+      }
     };
+  }, [container, isActive, restoreFocusOnClose]);
+}
+
+/** Keep Tab focus inside the drawer (mobile modal sheet). */
+export function useDrawerFocusTrap(
+  container: HTMLElement | null,
+  isActive: boolean,
+) {
+  useEffect(() => {
+    if (!isActive || !container) {
+      return;
+    }
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Tab") {
+        return;
+      }
+      const focusables = getFocusables(container);
+      if (focusables.length === 0) {
+        return;
+      }
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      const active = document.activeElement;
+
+      if (event.shiftKey) {
+        if (active === first || !container.contains(active)) {
+          event.preventDefault();
+          last.focus();
+        }
+        return;
+      }
+
+      if (active === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    container.addEventListener("keydown", onKeyDown);
+    return () => container.removeEventListener("keydown", onKeyDown);
   }, [container, isActive]);
 }
 
@@ -69,20 +114,10 @@ export function useDrawerEscape(
   onClose: () => void,
   isActive: boolean,
 ) {
-  const lastInteractionInsideRef = useRef(false);
-
   useLayoutEffect(() => {
     if (!isActive || !container) {
-      lastInteractionInsideRef.current = false;
       return;
     }
-
-    const markInteractionInside = (event: Event) => {
-      const target = event.target;
-      if (target instanceof Node && container.contains(target)) {
-        lastInteractionInsideRef.current = true;
-      }
-    };
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Escape") {
@@ -99,7 +134,7 @@ export function useDrawerEscape(
         document.activeElement instanceof HTMLElement &&
         container.contains(document.activeElement);
 
-      if (!focusInside && !lastInteractionInsideRef.current) {
+      if (!focusInside) {
         return;
       }
 
@@ -107,15 +142,8 @@ export function useDrawerEscape(
       onClose();
     };
 
-    container.addEventListener("pointerdown", markInteractionInside);
-    container.addEventListener("focusin", markInteractionInside);
-    document.addEventListener("keydown", onKeyDown);
-
-    return () => {
-      container.removeEventListener("pointerdown", markInteractionInside);
-      container.removeEventListener("focusin", markInteractionInside);
-      document.removeEventListener("keydown", onKeyDown);
-    };
+    container.addEventListener("keydown", onKeyDown);
+    return () => container.removeEventListener("keydown", onKeyDown);
   }, [container, isActive, onClose]);
 }
 

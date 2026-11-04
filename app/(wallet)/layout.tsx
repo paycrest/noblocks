@@ -1,7 +1,5 @@
 "use client";
 
-import { usePathname } from "next/navigation";
-
 import { LeftNav } from "./components/LeftNav";
 import { TopBar } from "./components/TopBar";
 import { WalletRouteGuard } from "./components/WalletRouteGuard";
@@ -14,7 +12,7 @@ function WalletContentArea({ children }: { children: React.ReactNode }) {
       <main className="min-w-0 flex-1 overflow-y-auto px-6 py-6">{children}</main>
       <div
         id={WALLET_DRAWER_SLOT_ID}
-        className="flex h-full shrink-0 self-stretch"
+        className="sticky top-0 flex h-full max-h-full shrink-0 self-start overflow-hidden"
       />
     </div>
   );
@@ -25,24 +23,15 @@ export default function WalletShellLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const pathname = usePathname();
-  const isKan954Harness =
-    process.env.NODE_ENV === "development" &&
-    pathname?.startsWith("/kan954-harness");
-
   return (
     <FeatureFlagRouteGuard>
       <div className="flex min-h-dvh w-full bg-white dark:bg-neutral-900">
         <LeftNav />
         <div className="flex min-h-dvh min-w-0 flex-1 flex-col">
           <TopBar />
-          {isKan954Harness ? (
+          <WalletRouteGuard>
             <WalletContentArea>{children}</WalletContentArea>
-          ) : (
-            <WalletRouteGuard>
-              <WalletContentArea>{children}</WalletContentArea>
-            </WalletRouteGuard>
-          )}
+          </WalletRouteGuard>
         </div>
       </div>
     </FeatureFlagRouteGuard>

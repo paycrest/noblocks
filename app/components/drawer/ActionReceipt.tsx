@@ -112,6 +112,7 @@ export function ActionReceiptSuccess({
         maxWidth="24.625rem"
         contentClassName={drawerModalShellClasses}
         ariaLabelledBy={modalTitleId}
+        scrimClassName="fixed inset-0 bg-black/50"
       >
         <div className="flex flex-col items-center gap-5 pt-[34px]">
           {titleBlock}

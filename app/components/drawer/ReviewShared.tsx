@@ -10,8 +10,9 @@ import {
   drawerBodyMediumText,
   drawerBorderLight,
   drawerCanvasClasses,
-  drawerDividerClasses,
   drawerCopyButtonClasses,
+  drawerDetailCardInnerClasses,
+  drawerDividerClasses,
   drawerIconMutedClasses,
   drawerNeutralCardClasses,
   drawerSecondaryText,
@@ -50,9 +51,7 @@ export function ReviewDetailCard({
       <div className="px-2">
         <div
           className={classNames(
-            "overflow-hidden rounded-xl",
-            drawerCanvasClasses,
-            drawerBorderLight,
+            drawerDetailCardInnerClasses,
           )}
         >
           {rows.map((row, index) => (

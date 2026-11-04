@@ -26,8 +26,6 @@ export type ActionDrawerProps = {
   title: ActionDrawerTitle;
   onRequestClose: () => void;
   children: ReactNode;
-  /** @deprecated Use in-body content; powered-by renders inside the body stack by default. */
-  footer?: ReactNode;
   bodyClassName?: string;
   bodyAlign?: "center" | "start";
   showPoweredByFooter?: boolean;
@@ -38,7 +36,6 @@ export function ActionDrawer({
   title,
   onRequestClose,
   children,
-  footer,
   bodyClassName,
   bodyAlign = "center",
   showPoweredByFooter = true,
@@ -53,7 +50,7 @@ export function ActionDrawer({
   }, []);
 
   useDrawerOpenFocus(panelRef, isOpen && portalReady);
-  useDrawerEscape(onRequestClose, isOpen && portalReady);
+  useDrawerEscape(panelRef, onRequestClose, isOpen && portalReady);
 
   useEffect(() => {
     if (!isOpen) {
@@ -128,9 +125,6 @@ export function ActionDrawer({
               ) : null}
             </div>
           </div>
-          {footer ? (
-            <footer className="mt-4 shrink-0 px-[18px] pb-2">{footer}</footer>
-          ) : null}
         </motion.aside>
       ) : null}
     </AnimatePresence>

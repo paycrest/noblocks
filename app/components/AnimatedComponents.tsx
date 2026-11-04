@@ -6,7 +6,6 @@ import { Dialog, DialogPanel } from "@headlessui/react";
 import type { AnimatedComponentProps } from "../types";
 import { classNames } from "../utils";
 import { Cancel01Icon } from "hugeicons-react";
-import { useModalFocusTrap } from "./drawer/hooks";
 
 // Animation variants and transition
 const pageVariants = {
@@ -312,7 +311,12 @@ type AnimatedModalProps = {
   lockBodyScroll?: boolean;
   /** Id of the visible title node inside the modal (accessible name). */
   ariaLabelledBy?: string;
+  /** Override scrim backdrop; defaults to legacy 30% + blur for existing modals. */
+  scrimClassName?: string;
 };
+
+export const DEFAULT_ANIMATED_MODAL_SCRIM_CLASS =
+  "fixed inset-0 bg-black/30 backdrop-blur-sm";
 
 // Module-level refcount: overlapping locked modals share one body pin, and only
 // the final release restores the scroll offset (window.scrollY reads 0 while
@@ -413,12 +417,10 @@ export const AnimatedModal = ({
   backgroundImagePath,
   lockBodyScroll = true,
   ariaLabelledBy,
+  scrimClassName = DEFAULT_ANIMATED_MODAL_SCRIM_CLASS,
 }: AnimatedModalProps) => {
   const holdsLockRef = useRef(false);
-  const panelRef = useRef<HTMLDivElement>(null);
   const reduceMotion = useReducedMotion();
-
-  useModalFocusTrap(panelRef, isOpen);
 
   const releaseHeldLock = () => {
     if (holdsLockRef.current) {
@@ -463,7 +465,7 @@ export const AnimatedModal = ({
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: reduceMotion ? 0 : 0.3 }}
-          className="fixed inset-0 bg-black/50"
+          className={scrimClassName}
         />
 
         <div className="fixed inset-0 flex w-screen items-end sm:items-center sm:justify-center sm:p-4">
@@ -471,7 +473,6 @@ export const AnimatedModal = ({
               same node as overflow-y-auto breaks touch scrolling on notch-era
               iOS Safari (e.g. iPhone 12 Pro) inside partner iframes. */}
           <div
-            ref={panelRef}
             className={classNames(
               "animated-modal-panel w-full max-h-[90dvh] overflow-y-auto overscroll-contain touch-pan-y",
               "[-webkit-overflow-scrolling:touch]",

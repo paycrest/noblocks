@@ -180,8 +180,28 @@ describe("ActionDrawer focus and Escape", () => {
     await user.tab();
     expect(screen.getByRole("button", { name: "Second" })).toHaveFocus();
 
-    fireEvent.keyDown(document, { key: "Escape", code: "Escape" });
+    fireEvent.keyDown(screen.getByRole("dialog"), {
+      key: "Escape",
+      code: "Escape",
+    });
     expect(onRequestClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not close on Escape when focus is outside the drawer", () => {
+    const onRequestClose = jest.fn();
+
+    render(
+      <>
+        <button type="button">Outside</button>
+        <ActionDrawer isOpen title="Buy" onRequestClose={onRequestClose}>
+          <button type="button">Inside</button>
+        </ActionDrawer>
+      </>,
+    );
+
+    screen.getByRole("button", { name: "Outside" }).focus();
+    fireEvent.keyDown(document, { key: "Escape", code: "Escape" });
+    expect(onRequestClose).not.toHaveBeenCalled();
   });
 
   it("does not close the drawer when Escape was handled by a stacked modal", () => {
@@ -413,6 +433,34 @@ describe("ReceiptMetaRows modal tone", () => {
     const value = screen.getByText("Completed");
     expect(value).toHaveClass("text-[#39c65d]");
     expect(value).not.toHaveClass("text-white/80");
+  });
+});
+
+describe("ReceiptMetaRows failed layout", () => {
+  it("pairs each label with its value for assistive tech", () => {
+    const { container } = render(
+      <ReceiptMetaRows
+        layout="failed"
+        networkName="Base"
+        txHash={VALID_EVM_HASH}
+        rows={[
+          {
+            kind: "default",
+            label: "Transaction status",
+            value: "Failed",
+          },
+          { kind: "explorer", label: "Onchain receipt" },
+        ]}
+      />,
+    );
+
+    const list = container.querySelector("dl");
+    expect(list).toBeTruthy();
+    expect(container.querySelector("dt")?.textContent).toBe("Transaction status");
+    expect(container.querySelector("dd")?.textContent).toContain("Failed");
+    expect(
+      screen.getByRole("link", { name: /View in explorer/i }),
+    ).toBeInTheDocument();
   });
 });
 

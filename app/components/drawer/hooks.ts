@@ -52,8 +52,6 @@ export function useDrawerFocusTrap(
       ).filter(isVisibleFocusable);
     };
 
-    container?.focus({ focusVisible: false } as FocusOptions);
-
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Tab") {
         return;

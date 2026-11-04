@@ -69,7 +69,7 @@ export function ActionDrawer({
           aria-labelledby={titleId}
           tabIndex={-1}
           className={classNames(
-            "fixed flex flex-col outline-none focus:outline-none",
+            "fixed flex flex-col outline-none",
             "top-[58px] right-[10px] bottom-[10px] w-[379px] max-w-[calc(100vw-20px)]",
             "rounded-tr-xl rounded-br-xl border-l border-white/10 bg-[#2b2b2b]",
             DRAWER_PANEL_Z,

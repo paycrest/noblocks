@@ -226,7 +226,6 @@ function SceneContent({ scene }: { scene: string }) {
       <PageChrome>
         <DrawerHarness title="Sell" bodyAlign="start">
           <ActionReceiptFailed
-            variant="drawer"
             body={
               <>
                 Your transfer of{" "}

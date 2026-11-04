@@ -44,7 +44,6 @@ export type ActionReceiptSuccessProps = {
 };
 
 export type ActionReceiptFailedProps = {
-  variant: "drawer";
   title?: string;
   body: ReactNode;
   refundNote?: string;

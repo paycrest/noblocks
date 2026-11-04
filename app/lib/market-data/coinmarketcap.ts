@@ -13,7 +13,7 @@ import {
   setNegativeCache,
   withSingleFlight,
 } from "./cache";
-import { logMarketDataWarning } from "./log";
+import { logMarketDataInfo, logMarketDataWarning } from "./log";
 import {
   cmcNumberToString,
   multiplyDecimalStrings,
@@ -195,13 +195,20 @@ async function fetchCmcQuotes(): Promise<Record<number, TokenStatsBlock> | null>
 
     const parsed = parseCmcResponse(data);
     const matchedIds = parsed ? Object.keys(parsed).length : 0;
-    logMarketDataWarning("cmc_fetch_result", {
+    if (!parsed) {
+      logMarketDataWarning("cmc_fetch_result", {
+        httpStatus: status,
+        errorCode: errorCode ?? 0,
+        matchedIds,
+      });
+      return null;
+    }
+
+    logMarketDataInfo("cmc_fetch_result", {
       httpStatus: status,
       errorCode: errorCode ?? 0,
       matchedIds,
     });
-
-    if (!parsed) return null;
 
     recordCmcCall();
     return parsed;

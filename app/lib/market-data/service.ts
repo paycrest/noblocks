@@ -224,16 +224,21 @@ export async function getTokenHistory(
     }
 
     let partial = false;
+    let historyStartSec: number | undefined;
 
     if (toFetch.length > 0) {
-      const { samples, partial: upstreamPartial } =
-        await chainlinkPriceProvider.readHistoryAtTimestamps(entry, timestamps, {
-          deadlineMs: HISTORY_DEADLINE_MS,
-          stepSec: spec.stepSec,
-          rangeFromSec: from,
-          useFeedInception: range === "ALL",
-        });
+      const {
+        samples,
+        partial: upstreamPartial,
+        historyStartSec: upstreamHistoryStart,
+      } = await chainlinkPriceProvider.readHistoryAtTimestamps(entry, timestamps, {
+        deadlineMs: HISTORY_DEADLINE_MS,
+        stepSec: spec.stepSec,
+        rangeFromSec: from,
+        useFeedInception: range === "ALL",
+      });
       partial = upstreamPartial;
+      historyStartSec = upstreamHistoryStart;
 
       for (const r of samples) {
         const p = roundToPriceString({
@@ -279,6 +284,9 @@ export async function getTokenHistory(
     if (filtered.length < timestamps.length) {
       partial = true;
     }
+    if (historyStartSec !== undefined && from + 60 < historyStartSec) {
+      partial = true;
+    }
 
     const response: TokenHistoryResponse = {
       id,
@@ -288,6 +296,7 @@ export async function getTokenHistory(
       asOf: new Date().toISOString(),
       stale: false,
       partial,
+      ...(historyStartSec !== undefined ? { historyStart: historyStartSec } : {}),
     };
 
     setCachedHistoryResponse(id, range, response);

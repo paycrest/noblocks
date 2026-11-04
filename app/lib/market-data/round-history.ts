@@ -11,6 +11,9 @@ export const HISTORY_MULTICALL_CHUNK = 32;
 export const HISTORY_SAMPLE_MULTICALL_CHUNK = 64;
 export const HISTORY_SEARCH_DEADLINE_RATIO = 0.5;
 export const HISTORY_MAX_SEARCH_ITERATIONS = 8;
+/** RoundId probes spanning first→latest for time-based bucket assignment. */
+export const HISTORY_TIMELINE_PROBE_COUNT = 160;
+export const HISTORY_MAX_BUCKET_REFINEMENTS = 12;
 
 export interface RoundSample {
   roundId: bigint;
@@ -262,7 +265,176 @@ export async function findRangeStartRoundId(
     if (aggregatorRoundId <= BigInt(0)) break;
   }
 
-  return encodeRoundId(0, BigInt(1));
+  return encodeRoundId(
+    Math.max(0, decodeRoundId(latestRoundId).phaseId),
+    BigInt(1),
+  );
+}
+
+export function firstRoundIdForLatest(latestRoundId: bigint): bigint {
+  const { phaseId } = decodeRoundId(latestRoundId);
+  return encodeRoundId(phaseId, BigInt(1));
+}
+
+export async function resolveFeedHistoryStart(
+  batchFetch: BatchFetchRoundData,
+  budget: HistoryFetchBudget,
+  latestRoundId: bigint,
+): Promise<{ firstRoundId: bigint; historyStartSec: number } | null> {
+  const firstRoundId = firstRoundIdForLatest(latestRoundId);
+  if (!consumeBudget(budget, 1)) return null;
+  const row = (await batchFetch([firstRoundId]))[0];
+  if (!row?.ok || row.updatedAt <= 0) return null;
+  return { firstRoundId, historyStartSec: row.updatedAt };
+}
+
+export function pickRoundAtOrBeforeTime(
+  timeline: RoundSample[],
+  targetSec: number,
+): RoundSample | null {
+  if (timeline.length === 0) return null;
+  let lo = 0;
+  let hi = timeline.length - 1;
+  let best: RoundSample | null = null;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    if (timeline[mid].updatedAt <= targetSec) {
+      best = timeline[mid];
+      lo = mid + 1;
+    } else {
+      hi = mid - 1;
+    }
+  }
+  return best;
+}
+
+export function timelineProbeCount(bucketCount: number): number {
+  return Math.min(
+    Math.max(bucketCount, 64),
+    HISTORY_TIMELINE_PROBE_COUNT,
+  );
+}
+
+export async function fetchTimelineSamples(
+  batchFetch: BatchFetchRoundData,
+  budget: HistoryFetchBudget,
+  firstRoundId: bigint,
+  latestRoundId: bigint,
+  bucketCount: number,
+): Promise<RoundSample[]> {
+  const probeCount = timelineProbeCount(bucketCount);
+  const planned = spaceSampleRoundIds(firstRoundId, latestRoundId, probeCount);
+  const seen = new Set(planned.map((id) => id.toString()));
+  if (!seen.has(latestRoundId.toString())) {
+    planned.push(latestRoundId);
+  }
+  if (!seen.has(firstRoundId.toString())) {
+    planned.unshift(firstRoundId);
+  }
+
+  const rounds: RoundSample[] = [];
+  for (let i = 0; i < planned.length; i += HISTORY_SAMPLE_MULTICALL_CHUNK) {
+    if (budgetExpired(budget)) break;
+    if (!consumeBudget(budget, 1)) break;
+    const chunk = planned.slice(i, i + HISTORY_SAMPLE_MULTICALL_CHUNK);
+    const rows = await batchFetch(chunk);
+    for (const row of rows) {
+      if (!row.ok || row.updatedAt <= 0) continue;
+      rounds.push({
+        roundId: row.roundId,
+        updatedAt: row.updatedAt,
+        answer: row.answer,
+      });
+    }
+  }
+
+  return rounds.sort((a, b) => a.updatedAt - b.updatedAt);
+}
+
+function bucketEndsNeedingRefinement(
+  bucketStarts: number[],
+  stepSec: number,
+  historyStartSec: number,
+  timeline: RoundSample[],
+): number[] {
+  if (timeline.length < 2) return [];
+  const out: number[] = [];
+  for (const bucketStart of bucketStarts) {
+    const bucketEnd = bucketStart + stepSec;
+    if (bucketEnd <= historyStartSec) continue;
+    const pick = pickRoundAtOrBeforeTime(timeline, bucketEnd);
+    if (!pick) {
+      out.push(bucketEnd);
+      continue;
+    }
+    const pickIdx = timeline.findIndex(
+      (r) => r.roundId === pick.roundId && r.updatedAt === pick.updatedAt,
+    );
+    const next = pickIdx >= 0 ? timeline[pickIdx + 1] : undefined;
+    if (
+      next &&
+      bucketEnd > pick.updatedAt &&
+      bucketEnd < next.updatedAt &&
+      next.updatedAt - pick.updatedAt > stepSec
+    ) {
+      out.push(bucketEnd);
+    }
+  }
+  return [...new Set(out)];
+}
+
+export async function refineTimelineForBucketEnds(
+  batchFetch: BatchFetchRoundData,
+  budget: HistoryFetchBudget,
+  latestRoundId: bigint,
+  timeline: RoundSample[],
+  bucketEnds: number[],
+): Promise<RoundSample[]> {
+  const { phaseId, aggregatorRoundId: latestAgg } =
+    decodeRoundId(latestRoundId);
+  const extra: RoundSample[] = [];
+  let refined = 0;
+
+  for (const bucketEnd of bucketEnds) {
+    if (refined >= HISTORY_MAX_BUCKET_REFINEMENTS) break;
+    if (searchPhaseExpired(budget)) break;
+
+    const before = pickRoundAtOrBeforeTime(timeline, bucketEnd);
+    const afterIdx =
+      before === null
+        ? 0
+        : timeline.findIndex((r) => r.roundId === before.roundId) + 1;
+    const after = timeline[afterIdx];
+    const lo = before
+      ? decodeRoundId(before.roundId).aggregatorRoundId
+      : BigInt(1);
+    const hi = after
+      ? decodeRoundId(after.roundId).aggregatorRoundId
+      : latestAgg;
+
+    const roundId = await findRoundAtOrBefore(
+      batchFetch,
+      budget,
+      phaseId,
+      hi,
+      bucketEnd,
+    );
+    if (!roundId) continue;
+    if (before && roundId === before.roundId) continue;
+
+    if (!consumeBudget(budget, 1)) break;
+    const row = (await batchFetch([roundId]))[0];
+    if (!row?.ok || row.updatedAt <= 0) continue;
+    extra.push({
+      roundId: row.roundId,
+      updatedAt: row.updatedAt,
+      answer: row.answer,
+    });
+    refined += 1;
+    if (lo >= hi) continue;
+  }
+
+  return extra;
 }
 
 export async function findEarliestRoundId(
@@ -295,34 +467,59 @@ export function assignSamplesToBucketTimes(
   bucketStarts: number[],
   stepSec: number,
   rounds: RoundSample[],
+  historyStartSec?: number,
 ): Array<{ t: number; answer: bigint }> {
   if (bucketStarts.length === 0) return [];
   const sorted = [...rounds].sort((a, b) => a.updatedAt - b.updatedAt);
   const out: Array<{ t: number; answer: bigint }> = [];
+  let carry: RoundSample | null = null;
 
   for (const bucketStart of bucketStarts) {
     const bucketEnd = bucketStart + stepSec;
-    let best: RoundSample | null = null;
-    for (const r of sorted) {
-      if (r.updatedAt <= bucketEnd) best = r;
-      else break;
+    if (historyStartSec !== undefined && bucketEnd <= historyStartSec) {
+      continue;
     }
-    if (best) {
-      out.push({ t: bucketStart, answer: best.answer });
+    const pick = pickRoundAtOrBeforeTime(sorted, bucketEnd);
+    if (pick) {
+      carry = pick;
+      out.push({ t: bucketStart, answer: pick.answer });
+    } else if (carry) {
+      out.push({ t: bucketStart, answer: carry.answer });
+    } else if (sorted.length > 0) {
+      carry = sorted[0];
+      out.push({ t: bucketStart, answer: sorted[0].answer });
     }
   }
   return out;
 }
 
+export function fillableBucketCount(
+  bucketStarts: number[],
+  stepSec: number,
+  historyStartSec: number,
+): number {
+  return bucketStarts.filter((t) => t + stepSec > historyStartSec).length;
+}
+
 export function isHistoryPartial(
   bucketStarts: number[],
+  stepSec: number,
   filledCount: number,
   rangeFromSec: number,
-  firstBucketSec: number | undefined,
+  historyStartSec: number | undefined,
 ): boolean {
-  if (filledCount < bucketStarts.length) return true;
-  if (firstBucketSec === undefined) return true;
-  return firstBucketSec > rangeFromSec + 60;
+  if (historyStartSec !== undefined && rangeFromSec + 60 < historyStartSec) {
+    return true;
+  }
+  if (historyStartSec === undefined) {
+    return filledCount < bucketStarts.length;
+  }
+  const fillable = fillableBucketCount(
+    bucketStarts,
+    stepSec,
+    historyStartSec,
+  );
+  return filledCount < fillable;
 }
 
 export async function planSampleRoundIds(
@@ -351,10 +548,12 @@ export async function planSampleRoundIds(
 }
 
 export function estimateHistoryRpcCalls(sampleCount: number): number {
+  const probes = timelineProbeCount(sampleCount);
   return (
     1 +
-    3 +
-    Math.ceil(sampleCount / HISTORY_SAMPLE_MULTICALL_CHUNK)
+    1 +
+    Math.ceil(probes / HISTORY_SAMPLE_MULTICALL_CHUNK) +
+    3
   );
 }
 
@@ -365,49 +564,72 @@ export async function buildHistorySamples(
   bucketStarts: number[],
   stepSec: number,
   rangeFromSec: number,
-  useEarliestForAll: boolean,
+  _useEarliestForAll: boolean,
+  knownFeedStart?: { firstRoundId: bigint; historyStartSec: number },
 ): Promise<{
   samples: Array<{ t: number; answer: bigint }>;
   partial: boolean;
+  historyStartSec?: number;
   rpcCalls: number;
 }> {
   const initialCalls = budget.callsLeft;
-  const planned = await planSampleRoundIds(
+
+  const feedStart =
+    knownFeedStart ??
+    (await resolveFeedHistoryStart(batchFetch, budget, latestRoundId));
+  if (!feedStart) {
+    return { samples: [], partial: true, rpcCalls: rpcCallsUsed(budget, initialCalls) };
+  }
+
+  const { firstRoundId, historyStartSec } = feedStart;
+
+  let timeline = await fetchTimelineSamples(
     batchFetch,
     budget,
+    firstRoundId,
     latestRoundId,
-    bucketStarts,
-    rangeFromSec,
-    useEarliestForAll,
+    bucketStarts.length,
   );
 
-  const rounds: RoundSample[] = [];
-  for (let i = 0; i < planned.length; i += HISTORY_SAMPLE_MULTICALL_CHUNK) {
-    if (budgetExpired(budget)) break;
-    if (!consumeBudget(budget, 1)) break;
-    const chunk = planned.slice(i, i + HISTORY_SAMPLE_MULTICALL_CHUNK);
-    const rows = await batchFetch(chunk);
-    for (const row of rows) {
-      if (!row.ok || row.updatedAt <= 0) continue;
-      rounds.push({
-        roundId: row.roundId,
-        updatedAt: row.updatedAt,
-        answer: row.answer,
-      });
+  const refineEnds = bucketEndsNeedingRefinement(
+    bucketStarts,
+    stepSec,
+    historyStartSec,
+    timeline,
+  );
+  if (refineEnds.length > 0) {
+    const extra = await refineTimelineForBucketEnds(
+      batchFetch,
+      budget,
+      latestRoundId,
+      timeline,
+      refineEnds,
+    );
+    if (extra.length > 0) {
+      timeline = [...timeline, ...extra].sort(
+        (a, b) => a.updatedAt - b.updatedAt,
+      );
     }
   }
 
-  const mapped = assignSamplesToBucketTimes(bucketStarts, stepSec, rounds);
+  const mapped = assignSamplesToBucketTimes(
+    bucketStarts,
+    stepSec,
+    timeline,
+    historyStartSec,
+  );
   const partial = isHistoryPartial(
     bucketStarts,
+    stepSec,
     mapped.length,
     rangeFromSec,
-    mapped[0]?.t,
+    historyStartSec,
   );
 
   return {
     samples: mapped,
     partial,
+    historyStartSec,
     rpcCalls: rpcCallsUsed(budget, initialCalls),
   };
 }

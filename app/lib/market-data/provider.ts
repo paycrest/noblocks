@@ -18,6 +18,7 @@ export interface HistoryReadOptions {
 export interface HistoryReadResult {
   samples: Array<{ t: number; answer: bigint; decimals: number }>;
   partial: boolean;
+  historyStartSec?: number;
 }
 
 export interface PriceProvider {

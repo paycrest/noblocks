@@ -27,6 +27,8 @@ export interface AssetRegistryEntry {
   cmcId: number;
   price: ChainlinkFeedConfig;
   fallback?: ChainlinkFeedConfig;
+  /** Optional longer-history feed for chart backfill (latest price stays on `price`). */
+  historyFeed?: ChainlinkFeedConfig;
   marketCapMode?: MarketCapMode;
 }
 
@@ -70,6 +72,8 @@ export interface TokenHistoryResponse {
   stale: boolean;
   partial?: boolean;
   unavailable?: boolean;
+  /** First on-chain round timestamp available for this chart (unix seconds). */
+  historyStart?: number;
 }
 
 export interface ChainlinkRound {

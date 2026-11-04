@@ -26,6 +26,7 @@ import {
   consumeBudget,
   createHistoryBudget,
   HISTORY_DEADLINE_MS,
+  resolveFeedHistoryStart,
   type BatchFetchRoundData,
   type HistoryFetchBudget,
   type RoundDataResult,
@@ -366,6 +367,10 @@ async function readHistoryViaRounds(
   feed: ChainlinkFeedConfig,
   timestampsSec: number[],
   options?: HistoryReadOptions,
+  shared?: {
+    budget: HistoryFetchBudget;
+    latestRoundId: bigint;
+  },
 ): Promise<HistoryReadResult> {
   if (timestampsSec.length === 0) {
     return { samples: [], partial: false };
@@ -373,33 +378,41 @@ async function readHistoryViaRounds(
   const ok = await bootCheckFeed(feed);
   if (!ok) return { samples: [], partial: true };
 
-  const budget = createHistoryBudget(options?.deadlineMs ?? HISTORY_DEADLINE_MS);
+  const ownsBudget = !shared;
+  const budget =
+    shared?.budget ??
+    createHistoryBudget(options?.deadlineMs ?? HISTORY_DEADLINE_MS);
   const stepSec = options?.stepSec ?? 3600;
   const rangeFromSec = options?.rangeFromSec ?? timestampsSec[0] ?? 0;
 
   try {
-    if (!consumeBudget(budget, 1)) {
-      return { samples: [], partial: true };
+    let latestRoundId = shared?.latestRoundId;
+    if (latestRoundId === undefined) {
+      if (!consumeBudget(budget, 1)) {
+        return { samples: [], partial: true };
+      }
+      const client = getPublicClient(feed.chain);
+      const latest = await client.readContract({
+        address: feed.proxy,
+        abi: aggregatorAbi,
+        functionName: "latestRoundData",
+      });
+      latestRoundId = latest[0] as bigint;
     }
-    const client = getPublicClient(feed.chain);
-    const latest = await client.readContract({
-      address: feed.proxy,
-      abi: aggregatorAbi,
-      functionName: "latestRoundData",
-    });
-    const latestRoundId = latest[0] as bigint;
+
     const batchFetch: BatchFetchRoundData = (roundIds) =>
       batchFetchRoundRows(feed, budget, roundIds);
 
-    const { samples: rows, partial } = await buildHistorySamples(
-      batchFetch,
-      budget,
-      latestRoundId,
-      timestampsSec,
-      stepSec,
-      rangeFromSec,
-      Boolean(options?.useFeedInception),
-    );
+    const { samples: rows, partial, historyStartSec } =
+      await buildHistorySamples(
+        batchFetch,
+        budget,
+        latestRoundId,
+        timestampsSec,
+        stepSec,
+        rangeFromSec,
+        Boolean(options?.useFeedInception),
+      );
 
     const mapped = rows.map((row) => ({
       t: row.t,
@@ -407,17 +420,18 @@ async function readHistoryViaRounds(
       decimals: feed.decimals,
     }));
 
-    if (partial) {
+    if (partial && ownsBudget) {
       logMarketDataWarning("history_partial_coverage", {
         chain: feed.chain,
         pair: feed.pairSlug,
         buckets: timestampsSec.length,
         filled: mapped.length,
         callsLeft: budget.callsLeft,
+        historyStartSec,
       });
     }
 
-    return { samples: mapped, partial };
+    return { samples: mapped, partial, historyStartSec };
   } catch (err) {
     logMarketDataWarning("history_sample_failed", {
       chain: feed.chain,
@@ -426,6 +440,145 @@ async function readHistoryViaRounds(
     });
     return { samples: [], partial: true };
   }
+}
+
+async function readMergedHistory(
+  entry: AssetRegistryEntry,
+  timestampsSec: number[],
+  options?: HistoryReadOptions,
+): Promise<HistoryReadResult> {
+  const stepSec = options?.stepSec ?? 3600;
+  const rangeFromSec = options?.rangeFromSec ?? timestampsSec[0] ?? 0;
+  const budget = createHistoryBudget(options?.deadlineMs ?? HISTORY_DEADLINE_MS);
+
+  const primaryFeed = entry.price;
+  const ok = await bootCheckFeed(primaryFeed);
+  if (!ok) return { samples: [], partial: true };
+
+  if (!consumeBudget(budget, 1)) {
+    return { samples: [], partial: true };
+  }
+  const client = getPublicClient(primaryFeed.chain);
+  const latest = await client.readContract({
+    address: primaryFeed.proxy,
+    abi: aggregatorAbi,
+    functionName: "latestRoundData",
+  });
+  const latestRoundId = latest[0] as bigint;
+  const batchPrimary: BatchFetchRoundData = (roundIds) =>
+    batchFetchRoundRows(primaryFeed, budget, roundIds);
+
+  const feedStart = await resolveFeedHistoryStart(
+    batchPrimary,
+    budget,
+    latestRoundId,
+  );
+  const primaryCutSec = feedStart?.historyStartSec;
+
+  const legacyBuckets =
+    primaryCutSec &&
+    entry.historyFeed &&
+    rangeFromSec + 60 < primaryCutSec
+      ? timestampsSec.filter((t) => t + stepSec <= primaryCutSec)
+      : [];
+  const primaryBuckets = primaryCutSec
+    ? timestampsSec.filter((t) => t + stepSec > primaryCutSec)
+    : timestampsSec;
+
+  const byTime = new Map<
+    number,
+    { t: number; answer: bigint; decimals: number }
+  >();
+  let partial = false;
+  let historyStartSec = primaryCutSec;
+
+  if (legacyBuckets.length > 0 && entry.historyFeed) {
+    const legacyFeed = entry.historyFeed;
+    if (!consumeBudget(budget, 1)) {
+      partial = true;
+    } else {
+      const legacyLatest = await client.readContract({
+        address: legacyFeed.proxy,
+        abi: aggregatorAbi,
+        functionName: "latestRoundData",
+      });
+      const legacyLatestRoundId = legacyLatest[0] as bigint;
+      const batchLegacy: BatchFetchRoundData = (roundIds) =>
+        batchFetchRoundRows(legacyFeed, budget, roundIds);
+      const legacy = await buildHistorySamples(
+        batchLegacy,
+        budget,
+        legacyLatestRoundId,
+        legacyBuckets,
+        stepSec,
+        rangeFromSec,
+        false,
+      );
+      partial = partial || legacy.partial;
+      if (legacy.historyStartSec !== undefined) {
+        historyStartSec =
+          historyStartSec !== undefined
+            ? Math.min(historyStartSec, legacy.historyStartSec)
+            : legacy.historyStartSec;
+      }
+      for (const row of legacy.samples) {
+        byTime.set(row.t, {
+          t: row.t,
+          answer: row.answer,
+          decimals: legacyFeed.decimals,
+        });
+      }
+    }
+  }
+
+  if (primaryBuckets.length > 0) {
+      const primary = await buildHistorySamples(
+        batchPrimary,
+        budget,
+        latestRoundId,
+        primaryBuckets,
+        stepSec,
+        rangeFromSec,
+        Boolean(options?.useFeedInception),
+        feedStart ?? undefined,
+      );
+    partial = partial || primary.partial;
+    if (primary.historyStartSec !== undefined) {
+      historyStartSec =
+        historyStartSec !== undefined
+          ? Math.min(historyStartSec, primary.historyStartSec)
+          : primary.historyStartSec;
+    }
+    for (const row of primary.samples) {
+      byTime.set(row.t, {
+        t: row.t,
+        answer: row.answer,
+        decimals: primaryFeed.decimals,
+      });
+    }
+  }
+
+  if (
+    historyStartSec !== undefined &&
+    rangeFromSec + 60 < historyStartSec &&
+    !entry.historyFeed
+  ) {
+    partial = true;
+  }
+
+  const samples = [...byTime.values()].sort((a, b) => a.t - b.t);
+  if (partial) {
+    logMarketDataWarning("history_partial_coverage", {
+      chain: primaryFeed.chain,
+      pair: primaryFeed.pairSlug,
+      buckets: timestampsSec.length,
+      filled: samples.length,
+      callsLeft: budget.callsLeft,
+      historyStartSec,
+    });
+  }
+
+  return { samples, partial, historyStartSec };
 }
 
 function feedForAsset(entry: AssetRegistryEntry): ChainlinkFeedConfig {
@@ -467,8 +620,10 @@ export const chainlinkPriceProvider: PriceProvider = {
   },
 
   async readHistoryAtTimestamps(entry, timestampsSec, options) {
-    const feed = entry.price;
-    return readHistoryViaRounds(feed, timestampsSec, options);
+    if (entry.historyFeed) {
+      return readMergedHistory(entry, timestampsSec, options);
+    }
+    return readHistoryViaRounds(entry.price, timestampsSec, options);
   },
 };
 
@@ -486,6 +641,7 @@ export function listConfiguredFeeds(): ChainlinkFeedConfig[] {
   for (const entry of Object.values(ASSET_REGISTRY)) {
     feeds.push(entry.price);
     if (entry.fallback) feeds.push(entry.fallback);
+    if (entry.historyFeed) feeds.push(entry.historyFeed);
   }
   return feeds;
 }

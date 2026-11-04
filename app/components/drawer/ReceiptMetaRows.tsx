@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { Fragment, type ReactNode } from "react";
 import { LinkSquare02Icon } from "hugeicons-react";
 
 import { classNames } from "@/app/utils";
@@ -80,6 +80,37 @@ export function ReceiptMetaRows({
 
   const visible = mergedRows.filter((row) => !row.hidden);
 
+  const receiptGrid = (className: string, valueClassName: string) => (
+    <dl
+      className={classNames(
+        "mx-auto grid w-full max-w-[320px] grid-cols-[auto_minmax(0,1fr)] gap-x-6 gap-y-4 text-sm",
+        className,
+      )}
+    >
+      {visible.map((row) => (
+        <Fragment key={row.label}>
+          <dt className={classNames(drawerSecondaryText, "whitespace-nowrap")}>
+            {row.label}
+          </dt>
+          <dd
+            className={classNames(
+              "min-w-0 justify-self-end text-right",
+              row.valueClassName ?? valueClassName,
+            )}
+          >
+            {row.label === "Onchain receipt" ? (
+              <span className="inline-flex max-w-full flex-nowrap items-center justify-end gap-1 whitespace-nowrap">
+                {row.value}
+              </span>
+            ) : (
+              row.value
+            )}
+          </dd>
+        </Fragment>
+      ))}
+    </dl>
+  );
+
   if (layout === "modal") {
     return (
       <div className="mx-auto flex w-[275px] max-w-full flex-col gap-[19px] text-sm">
@@ -104,60 +135,10 @@ export function ReceiptMetaRows({
   }
 
   if (layout === "failed") {
-    return (
-      <dl className="mx-auto flex w-full max-w-[320px] flex-col gap-4 text-sm">
-        {visible.map((row) => (
-          <div
-            key={row.label}
-            className="grid grid-cols-[max-content_minmax(0,1fr)] items-start gap-x-4"
-          >
-            <dt
-              className={classNames(
-                drawerSecondaryText,
-                "whitespace-nowrap",
-              )}
-            >
-              {row.label}
-            </dt>
-            <dd
-              className={classNames(
-                "min-w-0 text-left",
-                row.valueClassName ?? valueFallbackClass,
-              )}
-            >
-              {row.label === "Onchain receipt" ? (
-                <span className="inline-flex max-w-full flex-nowrap items-center gap-1 whitespace-nowrap">
-                  {row.value}
-                </span>
-              ) : (
-                row.value
-              )}
-            </dd>
-          </div>
-        ))}
-      </dl>
-    );
+    return receiptGrid("", valueFallbackClass);
   }
 
-  return (
-    <div className="mx-auto flex w-[256px] max-w-full gap-6 text-sm">
-      <div className={classNames("flex flex-col gap-6", drawerSecondaryText)}>
-        {visible.map((row) => (
-          <p key={row.label}>{row.label}</p>
-        ))}
-      </div>
-      <div className="flex flex-1 flex-col items-end gap-6 text-right">
-        {visible.map((row) => (
-          <div
-            key={row.label}
-            className={classNames(row.valueClassName ?? valueFallbackClass)}
-          >
-            {row.value}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
+  return receiptGrid("max-w-[256px]", valueFallbackClass);
 }
 
 export function ReceiptDashedRule({ className }: { className?: string }) {

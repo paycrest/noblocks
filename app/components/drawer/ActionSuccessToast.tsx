@@ -5,12 +5,7 @@ import { CheckmarkCircle01Icon } from "hugeicons-react";
 
 import { classNames } from "@/app/utils";
 
-import {
-  drawerBorderLight,
-  drawerBodyText,
-  drawerOverlaySurfaceClasses,
-  drawerSuccessIconClasses,
-} from "./drawerStyles";
+import { drawerBodyText, drawerSuccessIconClasses } from "./drawerStyles";
 
 /**
  * Success toast pattern from Figma (2631:134140): green title + divider + body.
@@ -21,9 +16,7 @@ export function showActionSuccessToast(title: string, description: string) {
       <div
         role="status"
         className={classNames(
-          "w-[min(100vw-2rem,20rem)] overflow-hidden rounded-2xl shadow-2xl",
-          drawerOverlaySurfaceClasses,
-          drawerBorderLight,
+          "w-[min(100vw-2rem,20rem)] overflow-hidden rounded-2xl border border-border-light bg-white shadow-sm dark:border-[0.5px] dark:border-white/10 dark:bg-[#202020] dark:shadow-2xl",
         )}
       >
         <div className="flex items-center gap-2.5 px-3.5 py-2.5">

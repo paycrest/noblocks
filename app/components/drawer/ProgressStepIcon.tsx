@@ -5,7 +5,7 @@ import { CheckmarkCircle01Icon } from "hugeicons-react";
 
 import { classNames } from "@/app/utils";
 
-import { drawerSuccessIconClasses } from "./drawerStyles";
+import { drawerProgressTrackStrokeClasses, drawerSuccessIconClasses } from "./drawerStyles";
 import type { ActionProgressStepState } from "./types";
 
 export function ProgressStepIcon({ state }: { state: ActionProgressStepState }) {
@@ -44,9 +44,8 @@ export function ProgressStepIcon({ state }: { state: ActionProgressStepState }) 
             cy="10"
             r="8"
             fill="none"
-            stroke="#ebebef"
-            className="dark:stroke-white/20"
             strokeWidth="2"
+            className={drawerProgressTrackStrokeClasses}
           />
           <circle
             cx="10"
@@ -71,9 +70,8 @@ export function ProgressStepIcon({ state }: { state: ActionProgressStepState }) 
           cy="10"
           r="8"
           fill="none"
-          stroke="#ebebef"
-          className="dark:stroke-white/20"
           strokeWidth="2"
+          className={drawerProgressTrackStrokeClasses}
         />
       </svg>
     </span>

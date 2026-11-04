@@ -40,13 +40,13 @@ function hasOpenModalDialog() {
 
 /** Move focus into the drawer on open; restore trigger on close (non-modal drawer). */
 export function useDrawerOpenFocus(
-  containerRef: React.RefObject<HTMLElement | null>,
+  container: HTMLElement | null,
   isActive: boolean,
 ) {
   const previouslyFocused = useRef<HTMLElement | null>(null);
 
   useLayoutEffect(() => {
-    if (!isActive) {
+    if (!isActive || !container) {
       return;
     }
     previouslyFocused.current =
@@ -54,32 +54,26 @@ export function useDrawerOpenFocus(
         ? document.activeElement
         : null;
 
-    const container = containerRef.current;
-    const nodes = container ? getFocusables(container) : [];
+    const nodes = getFocusables(container);
     const first = nodes[0];
     first?.focus({ focusVisible: false } as FocusOptions);
 
     return () => {
       previouslyFocused.current?.focus?.({ focusVisible: false } as FocusOptions);
     };
-  }, [containerRef, isActive]);
+  }, [container, isActive]);
 }
 
 export function useDrawerEscape(
-  containerRef: React.RefObject<HTMLElement | null>,
+  container: HTMLElement | null,
   onClose: () => void,
   isActive: boolean,
 ) {
   const lastInteractionInsideRef = useRef(false);
 
-  useEffect(() => {
-    if (!isActive) {
+  useLayoutEffect(() => {
+    if (!isActive || !container) {
       lastInteractionInsideRef.current = false;
-      return;
-    }
-
-    const container = containerRef.current;
-    if (!container) {
       return;
     }
 
@@ -115,14 +109,14 @@ export function useDrawerEscape(
 
     container.addEventListener("pointerdown", markInteractionInside);
     container.addEventListener("focusin", markInteractionInside);
-    container.addEventListener("keydown", onKeyDown);
+    document.addEventListener("keydown", onKeyDown);
 
     return () => {
       container.removeEventListener("pointerdown", markInteractionInside);
       container.removeEventListener("focusin", markInteractionInside);
-      container.removeEventListener("keydown", onKeyDown);
+      document.removeEventListener("keydown", onKeyDown);
     };
-  }, [containerRef, isActive, onClose]);
+  }, [container, isActive, onClose]);
 }
 
 export function usePendingActionClose({

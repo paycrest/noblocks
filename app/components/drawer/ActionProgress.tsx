@@ -7,7 +7,7 @@ import { classNames } from "@/app/utils";
 import { ActionSubmitButton } from "./ActionSubmitButton";
 import {
   drawerBorderLight,
-  drawerOverlaySurfaceClasses,
+  drawerProgressCardClasses,
   drawerProgressConnectorClasses,
   drawerSecondaryText,
   drawerStepHeadingClasses,
@@ -85,7 +85,7 @@ export function ActionProgress({
       <div
         className={classNames(
           "rounded-3xl p-5",
-          drawerOverlaySurfaceClasses,
+          drawerProgressCardClasses,
           drawerBorderLight,
         )}
       >

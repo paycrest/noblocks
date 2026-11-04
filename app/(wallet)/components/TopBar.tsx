@@ -53,7 +53,7 @@ export function TopBar({
   const isHomeOnly = crumbs.length === 1 && crumbs[0]?.label === "Home";
 
   return (
-    <header className="flex h-14 shrink-0 items-center justify-between border-b border-border-light px-4 md:px-6 dark:border-white/10">
+    <header className="flex h-14 shrink-0 items-center justify-between px-4 md:px-6">
       <div className="flex min-w-0 items-center gap-2 md:gap-3">
         <ShellIconButton
           ref={mobileNavToggleRef}

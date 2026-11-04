@@ -500,6 +500,26 @@ describe("wallet shell design QA (PR #737)", () => {
   });
 });
 
+describe("wallet shell dividers (Figma Home 2640:180143)", () => {
+  it("renders the top bar header without a bottom divider", () => {
+    render(
+      <TopBar mobileNavOpen={false} onMobileNavToggle={jest.fn()} />,
+    );
+    const header = screen.getByRole("banner");
+    expect(header).not.toHaveClass("border-b");
+    expect(header.className).not.toContain("border-border-light");
+  });
+
+  it("keeps the sidebar divider only on the mobile off-canvas drawer", () => {
+    const { container } = render(
+      <LeftNav mobileOpen={false} onMobileOpenChange={jest.fn()} />,
+    );
+    const aside = container.querySelector(`#${WALLET_MOBILE_NAV_ID}`);
+    expect(aside).not.toBeNull();
+    expect(aside).toHaveClass("border-r", "md:border-r-0");
+  });
+});
+
 describe("wallet shell hit targets (aedda35 follow-up)", () => {
   it("defines a centred 44px ::before hit area without blocking pointer events", () => {
     expect(shellMinHitTargetClasses).toContain("before:size-11");

@@ -1,7 +1,6 @@
 /**
- * Per-feature flags for Noblocks v2. Reads from NEXT_PUBLIC_* env vars (default OFF).
- * Each flag MUST use a literal `process.env.NEXT_PUBLIC_*` access so Next.js inlines
- * values into client bundles. Swappable later for Datadog / OpenFeature.
+ * Per-feature flags for Noblocks v2 (default OFF). Each reader uses a dedicated
+ * NEXT_PUBLIC_FF_* variable so Next.js can inline values into client bundles.
  */
 
 export type FeatureFlagName =

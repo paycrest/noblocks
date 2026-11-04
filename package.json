@@ -55,6 +55,7 @@
     "dapvatar": "^0.1.4",
     "date-fns": "^4.1.0",
     "dd-trace": "^6.10.0",
+    "decimal.js": "10.6.0",
     "framer-motion": "^11.18.2",
     "https-proxy-agent": "^9.0.0",
     "hugeicons-react": "^0.3.0",

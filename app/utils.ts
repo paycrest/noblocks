@@ -28,6 +28,7 @@ import {
   isHyperfxSupportedNetwork,
 } from "./lib/hyperfxNetworks";
 import { logBalanceTelemetry } from "./lib/balanceTelemetry";
+import Decimal from "decimal.js";
 
 /**
  * Type predicate to narrow RecipientDetails to bank/mobile_money types.
@@ -294,6 +295,39 @@ export function formatNumberWithCommas(num: string | number): string {
   const parts = num.toString().split(".");
   parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ",");
   return parts.join(".");
+}
+
+/**
+ * Presentational amount formatting for v2 action drawers. Accepts a decimal
+ * string (never a JS float) and formats to the token's decimal places.
+ */
+export function formatActionAmount(amount: string, decimals: number): string {
+  const trimmed = amount.trim();
+  if (!trimmed || !/^-?\d+(\.\d+)?$/.test(trimmed)) {
+    return "—";
+  }
+  let value: Decimal;
+  try {
+    value = new Decimal(trimmed);
+  } catch {
+    return "—";
+  }
+  if (!value.isFinite()) {
+    return "—";
+  }
+  if (value.isZero()) {
+    value = new Decimal(0);
+  }
+
+  const safeDecimals = Math.max(0, Math.min(Math.trunc(decimals), 36));
+  const fixed = value.toFixed(safeDecimals, Decimal.ROUND_DOWN);
+  const [intPart, fracPart] = fixed.split(".");
+  const formattedInt = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  if (!fracPart || /^0+$/.test(fracPart)) {
+    return formattedInt;
+  }
+  const trimmedFrac = fracPart.replace(/0+$/, "");
+  return trimmedFrac ? `${formattedInt}.${trimmedFrac}` : formattedInt;
 }
 
 /**

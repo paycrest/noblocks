@@ -322,6 +322,88 @@ export function pickRoundAtOrBeforeTime(
   return best;
 }
 
+export interface PhaseTimeRange {
+  phaseId: number;
+  lo: bigint;
+  hi: bigint;
+  startSec: number;
+  endSec: number;
+}
+
+export async function resolvePhaseTimeRanges(
+  batchFetch: BatchFetchRoundData,
+  budget: HistoryFetchBudget,
+  windowStartRoundId: bigint,
+  latestRoundId: bigint,
+): Promise<PhaseTimeRange[]> {
+  const { phaseId: startPhase, aggregatorRoundId: startAgg } =
+    decodeRoundId(windowStartRoundId);
+  const { phaseId: endPhase, aggregatorRoundId: endAgg } =
+    decodeRoundId(latestRoundId);
+  const ranges: PhaseTimeRange[] = [];
+
+  for (let phase = startPhase; phase <= endPhase; phase++) {
+    const lo = phase === startPhase ? startAgg : BigInt(1);
+    let hi = endAgg;
+    if (phase !== endPhase) {
+      hi = await findPhaseHighRound(batchFetch, budget, phase);
+    }
+    if (hi < lo) hi = lo;
+    if (!consumeBudget(budget, 1)) break;
+    const rows = (
+      await batchFetch([encodeRoundId(phase, lo), encodeRoundId(phase, hi)])
+    ).filter((r) => r.ok && r.updatedAt > 0);
+    const loRow = rows.find(
+      (r) => decodeRoundId(r.roundId).aggregatorRoundId === lo,
+    );
+    const hiRow = rows.find(
+      (r) => decodeRoundId(r.roundId).aggregatorRoundId === hi,
+    );
+    if (!loRow || !hiRow) continue;
+    ranges.push({
+      phaseId: phase,
+      lo,
+      hi,
+      startSec: loRow.updatedAt,
+      endSec: hiRow.updatedAt,
+    });
+  }
+  return ranges.sort((a, b) => a.startSec - b.startSec);
+}
+
+export function countBucketsPerPhase(
+  bucketStarts: number[],
+  stepSec: number,
+  historyStartSec: number,
+  phaseRanges: PhaseTimeRange[],
+): Map<number, number> {
+  const counts = new Map<number, number>();
+  for (const start of bucketStarts) {
+    const end = start + stepSec;
+    if (end <= historyStartSec) continue;
+    const phase = phaseForBucketEnd(end, phaseRanges);
+    if (phase === null) continue;
+    counts.set(phase, (counts.get(phase) ?? 0) + 1);
+  }
+  return counts;
+}
+
+export function phaseForBucketEnd(
+  bucketEndSec: number,
+  phaseRanges: PhaseTimeRange[],
+): number | null {
+  for (const range of phaseRanges) {
+    if (bucketEndSec >= range.startSec && bucketEndSec <= range.endSec) {
+      return range.phaseId;
+    }
+  }
+  let best: PhaseTimeRange | null = null;
+  for (const range of phaseRanges) {
+    if (range.startSec <= bucketEndSec) best = range;
+  }
+  return best?.phaseId ?? null;
+}
+
 export function windowTimelineProbeCount(
   fillableBucketCount: number,
   windowRoundSpan: bigint,
@@ -340,45 +422,64 @@ export async function fetchWindowTimelineSamples(
   windowStartRoundId: bigint,
   latestRoundId: bigint,
   fillableBucketCount: number,
+  bucketStarts: number[],
+  stepSec: number,
+  historyStartSec: number,
+  phaseRanges: PhaseTimeRange[],
 ): Promise<RoundSample[]> {
   const { phaseId: startPhase, aggregatorRoundId: startAgg } =
     decodeRoundId(windowStartRoundId);
   const { phaseId: endPhase, aggregatorRoundId: endAgg } =
     decodeRoundId(latestRoundId);
 
-  if (startPhase === endPhase) {
-    const span = endAgg - startAgg;
-    const probeCount = windowTimelineProbeCount(fillableBucketCount, span);
-    const planned = probeRoundIds(startPhase, startAgg, endAgg, probeCount);
-    return fetchRoundIdList(batchFetch, budget, planned, [
-      windowStartRoundId,
-      latestRoundId,
-    ]);
+  const fillableEnds = bucketStarts
+    .map((s) => s + stepSec)
+    .filter((e) => e > historyStartSec);
+  const windowStartSec =
+    fillableEnds.length > 0
+      ? Math.min(...fillableEnds) - stepSec
+      : historyStartSec;
+  const windowEndSec =
+    fillableEnds.length > 0 ? Math.max(...fillableEnds) : historyStartSec;
+  const windowDuration = Math.max(windowEndSec - windowStartSec, 1);
+
+  const totalProbes = windowTimelineProbeCount(
+    fillableBucketCount,
+    endAgg - startAgg,
+  );
+  const bucketsPerPhase = countBucketsPerPhase(
+    bucketStarts,
+    stepSec,
+    historyStartSec,
+    phaseRanges,
+  );
+
+  const planned: bigint[] = [];
+  for (const range of phaseRanges) {
+    if (range.phaseId < startPhase || range.phaseId > endPhase) continue;
+    const lo = range.phaseId === startPhase ? startAgg : range.lo;
+    const hi = range.phaseId === endPhase ? endAgg : range.hi;
+    const overlapStart = Math.max(
+      range.startSec,
+      windowStartSec,
+      historyStartSec,
+    );
+    const overlapEnd = Math.min(range.endSec, windowEndSec);
+    if (overlapEnd <= overlapStart) continue;
+    const timeShare = (overlapEnd - overlapStart) / windowDuration;
+    const bucketNeed = bucketsPerPhase.get(range.phaseId) ?? 0;
+    const probeCount = Math.max(
+      bucketNeed,
+      Math.ceil(totalProbes * timeShare),
+      2,
+    );
+    planned.push(
+      ...probeRoundIds(range.phaseId, lo, hi, probeCount),
+      encodeRoundId(range.phaseId, lo),
+      encodeRoundId(range.phaseId, hi),
+    );
   }
 
-  const phaseCount = endPhase - startPhase + 1;
-  const probesPerPhase = Math.max(
-    8,
-    Math.floor(
-      windowTimelineProbeCount(fillableBucketCount, endAgg - startAgg) /
-        phaseCount,
-    ),
-  );
-  const planned: bigint[] = [];
-  for (let phase = startPhase; phase <= endPhase; phase++) {
-    const lo = phase === startPhase ? startAgg : BigInt(1);
-    let hi = endPhase === phase ? endAgg : await findPhaseHighRound(
-      batchFetch,
-      budget,
-      phase,
-    );
-    if (hi < lo) hi = lo;
-    planned.push(
-      ...probeRoundIds(phase, lo, hi, probesPerPhase),
-      encodeRoundId(phase, lo),
-      encodeRoundId(phase, hi),
-    );
-  }
   return fetchRoundIdList(batchFetch, budget, planned, [
     windowStartRoundId,
     latestRoundId,
@@ -434,22 +535,21 @@ export async function resolveBucketEndRounds(
   latestRoundId: bigint,
   bucketEnds: number[],
   timeline: RoundSample[],
+  stepSec: number,
 ): Promise<RoundSample[]> {
   const merged = new Map<string, RoundSample>();
   for (const row of timeline) {
     merged.set(row.roundId.toString(), row);
   }
 
+  const sortedEnds = [...new Set(bucketEnds)].sort((a, b) => a - b);
   let resolved = 0;
-  for (const bucketEnd of bucketEnds) {
+  for (const bucketEnd of sortedEnds) {
     if (resolved >= HISTORY_MAX_BUCKET_END_RESOLVES) break;
     if (searchPhaseExpired(budget)) break;
 
-    const pick = pickRoundAtOrBeforeTime(
-      [...merged.values()].sort((a, b) => a.updatedAt - b.updatedAt),
-      bucketEnd,
-    );
     const sorted = [...merged.values()].sort((a, b) => a.updatedAt - b.updatedAt);
+    const pick = pickRoundAtOrBeforeTime(sorted, bucketEnd);
     const pickIdx = pick
       ? sorted.findIndex((r) => r.roundId === pick.roundId)
       : -1;
@@ -458,7 +558,7 @@ export async function resolveBucketEndRounds(
       pick &&
       (!next ||
         next.updatedAt > bucketEnd ||
-        next.updatedAt - pick.updatedAt <= 900);
+        next.updatedAt - pick.updatedAt <= Math.max(stepSec, 900));
     if (gapOk && pick) continue;
 
     const roundId = await findRoundAtOrBeforeGlobal(
@@ -484,7 +584,8 @@ export async function resolveBucketEndRounds(
 }
 
 export interface BucketAssignment {
-  t: number;
+  labelT: number;
+  bucketStart: number;
   answer: bigint;
   source: RoundSample;
 }
@@ -508,12 +609,27 @@ export function assignSamplesToBucketTimes(
     const pick = pickRoundAtOrBeforeTime(sorted, bucketEnd);
     if (pick) {
       carry = pick;
-      out.push({ t: bucketStart, answer: pick.answer, source: pick });
+      out.push({
+        labelT: bucketEnd,
+        bucketStart,
+        answer: pick.answer,
+        source: pick,
+      });
     } else if (carry) {
-      out.push({ t: bucketStart, answer: carry.answer, source: carry });
+      out.push({
+        labelT: bucketEnd,
+        bucketStart,
+        answer: carry.answer,
+        source: carry,
+      });
     } else if (sorted.length > 0) {
       carry = sorted[0];
-      out.push({ t: bucketStart, answer: sorted[0].answer, source: sorted[0] });
+      out.push({
+        labelT: bucketEnd,
+        bucketStart,
+        answer: sorted[0].answer,
+        source: sorted[0],
+      });
     }
   }
   return out;
@@ -522,39 +638,16 @@ export function assignSamplesToBucketTimes(
 export function hasStaleCarryForwardPartial(
   assignments: BucketAssignment[],
   timeline: RoundSample[],
-  stepSec: number,
 ): boolean {
   if (assignments.length === 0) return false;
   const sorted = [...timeline].sort((a, b) => a.updatedAt - b.updatedAt);
-  let streak = 0;
-  let streakStart = 0;
-
-  for (let i = 0; i < assignments.length; i++) {
-    const a = assignments[i];
-    const carried = a.source.updatedAt < a.t;
-    const sameAsPrev =
-      i > 0 && assignments[i - 1].source.roundId === a.source.roundId;
-
-    if (carried && sameAsPrev) {
-      streak += 1;
-    } else if (carried) {
-      streak = 1;
-      streakStart = i;
-    } else {
-      streak = 0;
+  for (const a of assignments) {
+    const ideal = pickRoundAtOrBeforeTime(sorted, a.labelT);
+    if (!ideal) continue;
+    if (ideal.roundId === a.source.roundId) continue;
+    if (ideal.updatedAt > a.source.updatedAt && ideal.updatedAt <= a.labelT) {
+      return true;
     }
-
-    if (streak <= 2) continue;
-
-    const bucketEnd = a.t + stepSec;
-    const sourceUpdatedAt = assignments[streakStart].source.updatedAt;
-    const hasIntermediateUpdate = sorted.some(
-      (r) =>
-        r.updatedAt > sourceUpdatedAt &&
-        r.updatedAt <= bucketEnd &&
-        r.roundId !== a.source.roundId,
-    );
-    if (hasIntermediateUpdate) return true;
   }
   return false;
 }
@@ -646,7 +739,7 @@ export async function buildHistorySamples(
   useFeedInception: boolean,
   knownGlobalStart?: { historyStartSec: number; earliestRoundId: bigint },
 ): Promise<{
-  samples: Array<{ t: number; answer: bigint }>;
+  samples: Array<{ t: number; bucketStart: number; answer: bigint }>;
   partial: boolean;
   historyStartSec?: number;
   rpcCalls: number;
@@ -683,12 +776,52 @@ export async function buildHistorySamples(
     historyStartSec,
   );
 
+  const startDecoded = decodeRoundId(windowStartRound);
+  const endDecoded = decodeRoundId(latestRoundId);
+  let phaseRanges: PhaseTimeRange[];
+
+  if (startDecoded.phaseId === endDecoded.phaseId) {
+    const windowEndSec =
+      fillableBucketEnds(bucketStarts, stepSec, historyStartSec).at(-1) ??
+      Math.floor(Date.now() / 1000);
+    phaseRanges = [
+      {
+        phaseId: startDecoded.phaseId,
+        lo: startDecoded.aggregatorRoundId,
+        hi: endDecoded.aggregatorRoundId,
+        startSec: historyStartSec,
+        endSec: windowEndSec,
+      },
+    ];
+  } else {
+    phaseRanges = await resolvePhaseTimeRanges(
+      batchFetch,
+      budget,
+      windowStartRound,
+      latestRoundId,
+    );
+  }
+
   let timeline = await fetchWindowTimelineSamples(
     batchFetch,
     budget,
     windowStartRound,
     latestRoundId,
     fillable,
+    bucketStarts,
+    stepSec,
+    historyStartSec,
+    phaseRanges.length > 0
+      ? phaseRanges
+      : [
+          {
+            phaseId: endDecoded.phaseId,
+            lo: endDecoded.aggregatorRoundId,
+            hi: endDecoded.aggregatorRoundId,
+            startSec: historyStartSec,
+            endSec: Math.floor(Date.now() / 1000),
+          },
+        ],
   );
 
   const bucketEnds = fillableBucketEnds(
@@ -702,6 +835,7 @@ export async function buildHistorySamples(
     latestRoundId,
     bucketEnds,
     timeline,
+    stepSec,
   );
 
   const assignments = assignSamplesToBucketTimes(
@@ -710,11 +844,7 @@ export async function buildHistorySamples(
     timeline,
     historyStartSec,
   );
-  const carryPartial = hasStaleCarryForwardPartial(
-    assignments,
-    timeline,
-    stepSec,
-  );
+  const carryPartial = hasStaleCarryForwardPartial(assignments, timeline);
   const partial = isHistoryPartial(
     bucketStarts,
     stepSec,
@@ -725,7 +855,11 @@ export async function buildHistorySamples(
   );
 
   return {
-    samples: assignments.map((a) => ({ t: a.t, answer: a.answer })),
+    samples: assignments.map((a) => ({
+      t: a.labelT,
+      bucketStart: a.bucketStart,
+      answer: a.answer,
+    })),
     partial,
     historyStartSec,
     rpcCalls: rpcCallsUsed(budget, initialCalls),

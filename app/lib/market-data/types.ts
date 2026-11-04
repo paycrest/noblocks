@@ -27,6 +27,8 @@ export interface AssetRegistryEntry {
   cmcId: number;
   price: ChainlinkFeedConfig;
   fallback?: ChainlinkFeedConfig;
+  /** Chart history proxy when it differs from live `price` (e.g. ETH SVR vs full-phase feed). */
+  historyProxy?: ChainlinkFeedConfig;
   marketCapMode?: MarketCapMode;
 }
 

@@ -250,9 +250,13 @@ export async function getTokenHistory(
           stale: false,
           marketClosed: false,
         });
-        const closed = isBucketClosed(r.t, spec.stepSec, nowSec);
+        const closed = isBucketClosed(r.bucketStart, spec.stepSec, nowSec);
         const point = { t: r.t, p };
-        setHistoryBucket(historyBucketKey(id, range, r.t), point, closed);
+        setHistoryBucket(
+          historyBucketKey(id, range, r.bucketStart),
+          point,
+          closed,
+        );
         if (!merged.some((m) => m.t === r.t)) merged.push(point);
       }
     }

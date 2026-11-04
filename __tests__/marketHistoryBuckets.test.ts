@@ -1,4 +1,4 @@
-import { ASSET_REGISTRY } from "../app/lib/market-data/assets";
+import { ASSET_REGISTRY, historyFeedFor } from "../app/lib/market-data/assets";
 import {
   assignSamplesToBucketTimes,
   buildHistorySamples,
@@ -71,7 +71,7 @@ describe("bucket carry-forward semantics", () => {
       { roundId: 2n, updatedAt: 1150, answer: 20n },
     ];
     const mapped = assignSamplesToBucketTimes(buckets, step, rounds, historyStart);
-    expect(mapped.map((m) => m.t)).toEqual([1000, 1100, 1200]);
+    expect(mapped.map((m) => m.labelT)).toEqual([1100, 1200, 1300]);
     expect(mapped[0].answer).toBe(10n);
     expect(mapped[1].answer).toBe(20n);
     expect(mapped[2].answer).toBe(20n);
@@ -158,17 +158,22 @@ describe("long-range history with irregular feeds", () => {
 
     expect(samples.length).toBeGreaterThanOrEqual(buckets.length - 1);
     const lastBucket = buckets[buckets.length - 1];
-    expect(samples.some((s) => s.t === lastBucket)).toBe(true);
+    expect(samples.some((s) => s.bucketStart === lastBucket || s.t === lastBucket + spec.stepSec)).toBe(true);
     const lastSample = samples[samples.length - 1];
-    expect(lastSample.t).toBeGreaterThanOrEqual(lastBucket - spec.stepSec);
+    expect(lastSample.t).toBeGreaterThanOrEqual(lastBucket + spec.stepSec - 1);
   });
 });
 
 describe("feed history start expectations", () => {
-  it("uses SVR proxy for ETH latest and history with multi-phase rounds", () => {
+  it("uses SVR for ETH live price and secondary proxy for history", () => {
     expect(ASSET_REGISTRY.eth.price.proxy).toBe(
       "0x50015f8b17fb2C290Dde41fDc246ed0dcEE93a8b",
     );
-    expect(ASSET_REGISTRY.eth.historyFeed).toBeUndefined();
+    expect(ASSET_REGISTRY.eth.historyProxy?.proxy).toBe(
+      "0x71041dddad3595F9CEd3DcCFBe3D1F4b0a16Bb70",
+    );
+    expect(historyFeedFor(ASSET_REGISTRY.eth).proxy).toBe(
+      "0x71041dddad3595F9CEd3DcCFBe3D1F4b0a16Bb70",
+    );
   });
 });

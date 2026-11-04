@@ -16,7 +16,12 @@ export interface HistoryReadOptions {
 }
 
 export interface HistoryReadResult {
-  samples: Array<{ t: number; answer: bigint; decimals: number }>;
+  samples: Array<{
+    t: number;
+    bucketStart: number;
+    answer: bigint;
+    decimals: number;
+  }>;
   partial: boolean;
   historyStartSec?: number;
 }

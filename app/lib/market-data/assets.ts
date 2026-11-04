@@ -2,7 +2,12 @@ import "server-only";
 
 import { FALLBACK_TOKENS } from "@/app/utils";
 import { canonicalTokenSymbol } from "@/app/lib/token-symbol";
-import type { AssetRegistryEntry, HistoryRange, MarketChain } from "./types";
+import type {
+  AssetRegistryEntry,
+  ChainlinkFeedConfig,
+  HistoryRange,
+  MarketChain,
+} from "./types";
 
 /** L2 sequencer uptime feeds (AggregatorV3). */
 export const SEQUENCER_FEEDS: Record<"base" | "arbitrum", `0x${string}`> = {
@@ -17,6 +22,10 @@ export const MULTICALL3_ADDRESS =
  * Feed proxies verified against Chainlink reference-data-directory (2026-11-04).
  * Base ETH/USD uses eth-usd-shared-svr-2 (legacy 0x71041… is omitted from the directory).
  */
+export function historyFeedFor(entry: AssetRegistryEntry): ChainlinkFeedConfig {
+  return entry.historyProxy ?? entry.price;
+}
+
 export const ASSET_REGISTRY: Record<string, AssetRegistryEntry> = {
   usdc: {
     id: "usdc",
@@ -77,6 +86,15 @@ export const ASSET_REGISTRY: Record<string, AssetRegistryEntry> = {
       // Base directory lists only SVR ETH/USD proxies (no classic eth-usd path). SVR proxies
       // still implement AggregatorV3 latestRoundData for display; heartbeat 1200s (directory).
       proxy: "0x50015f8b17fb2C290Dde41fDc246ed0dcEE93a8b",
+      pairSlug: "eth-usd",
+      heartbeatS: 1200,
+      description: "ETH / USD",
+      decimals: 8,
+      inceptionUnix: 1691020800,
+    },
+    historyProxy: {
+      chain: "base",
+      proxy: "0x71041dddad3595F9CEd3DcCFBe3D1F4b0a16Bb70",
       pairSlug: "eth-usd",
       heartbeatS: 1200,
       description: "ETH / USD",

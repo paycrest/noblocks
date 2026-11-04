@@ -11,6 +11,7 @@ import {
   ASSET_REGISTRY,
   SEQUENCER_FEEDS,
   formatPriceSource,
+  historyFeedFor,
 } from "./assets";
 import {
   answerToDecimalString,
@@ -405,6 +406,7 @@ async function readHistoryViaRounds(
 
     const mapped = rows.map((row) => ({
       t: row.t,
+      bucketStart: row.bucketStart,
       answer: row.answer,
       decimals: feed.decimals,
     }));
@@ -470,7 +472,7 @@ export const chainlinkPriceProvider: PriceProvider = {
   },
 
   async readHistoryAtTimestamps(entry, timestampsSec, options) {
-    return readHistoryViaRounds(entry.price, timestampsSec, options);
+    return readHistoryViaRounds(historyFeedFor(entry), timestampsSec, options);
   },
 };
 
@@ -488,6 +490,7 @@ export function listConfiguredFeeds(): ChainlinkFeedConfig[] {
   for (const entry of Object.values(ASSET_REGISTRY)) {
     feeds.push(entry.price);
     if (entry.fallback) feeds.push(entry.fallback);
+    if (entry.historyProxy) feeds.push(entry.historyProxy);
   }
   return feeds;
 }

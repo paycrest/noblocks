@@ -6,9 +6,11 @@ import userEvent from "@testing-library/user-event";
 import { formatActionAmount } from "@/app/utils";
 import {
   ActionDrawer,
+  ActionProgress,
   ActionReceiptFailed,
   ActionReceiptSuccess,
   ActionSubmitButton,
+  formatExpiryCountdown,
   ReceiptMetaRows,
   ReviewModal,
   getAllowlistedExplorerUrl,
@@ -25,6 +27,7 @@ jest.mock("framer-motion", () => {
   const React = require("react");
   return {
     AnimatePresence: ({ children }: { children: React.ReactNode }) => children,
+    useReducedMotion: () => false,
     motion: {
       aside: React.forwardRef(
         (
@@ -54,12 +57,17 @@ jest.mock("../app/components/AnimatedComponents", () => {
       children: React.ReactNode;
     }) =>
       isOpen ? (
-        <div role="dialog" aria-label="Review modal" onKeyDown={(e) => {
-          if (e.key === "Escape") {
-            e.preventDefault();
-            onClose();
-          }
-        }}>
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Review modal"
+          onKeyDown={(e) => {
+            if (e.key === "Escape") {
+              e.preventDefault();
+              onClose();
+            }
+          }}
+        >
           {children}
         </div>
       ) : null,
@@ -72,6 +80,20 @@ const { toastMappedError } = jest.requireMock("../app/lib/toastMappedError");
 
 const VALID_EVM_HASH =
   "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef";
+
+describe("formatExpiryCountdown", () => {
+  it("formats mm:ss with zero padding and seconds capped at 59", () => {
+    expect(formatExpiryCountdown(0)).toBe("00:00");
+    expect(formatExpiryCountdown(59)).toBe("00:59");
+    expect(formatExpiryCountdown(60)).toBe("01:00");
+    expect(formatExpiryCountdown(1783)).toBe("29:43");
+    expect(formatExpiryCountdown(1799)).toBe("29:59");
+  });
+
+  it("clamps negative values to 00:00", () => {
+    expect(formatExpiryCountdown(-30)).toBe("00:00");
+  });
+});
 
 describe("formatActionAmount", () => {
   it("formats to token decimals without float math", () => {
@@ -132,8 +154,8 @@ describe("getAllowlistedExplorerUrl", () => {
   });
 });
 
-describe("ActionDrawer focus trap and Escape", () => {
-  it("traps tab focus and closes on Escape", async () => {
+describe("ActionDrawer focus and Escape", () => {
+  it("moves focus into the drawer without trapping tab and closes on Escape", async () => {
     const user = userEvent.setup();
     const onRequestClose = jest.fn();
 
@@ -148,15 +170,17 @@ describe("ActionDrawer focus trap and Escape", () => {
       </ActionDrawer>,
     );
 
-    const dialog = screen.getByRole("dialog");
+    expect(screen.getByRole("dialog")).toHaveAttribute("aria-modal", "false");
+
     const closeButtons = screen.getAllByRole("button", { name: "Close" });
-    closeButtons[0].focus();
+    expect(closeButtons[0]).toHaveFocus();
+
     await user.tab();
     expect(screen.getByRole("button", { name: "First" })).toHaveFocus();
     await user.tab();
     expect(screen.getByRole("button", { name: "Second" })).toHaveFocus();
 
-    fireEvent.keyDown(dialog, { key: "Escape", code: "Escape" });
+    fireEvent.keyDown(document, { key: "Escape", code: "Escape" });
     expect(onRequestClose).toHaveBeenCalledTimes(1);
   });
 
@@ -222,7 +246,7 @@ describe("ActionSubmitButton / useActionSubmit", () => {
     expect(handler).toHaveBeenCalledTimes(1);
     expect(handler).toHaveBeenCalledWith("key-1");
     expect(
-      screen.getByRole("button", { name: "Buy loading" }),
+      screen.getByRole("button", { name: "Buy" }),
     ).toBeDisabled();
 
     await act(async () => {
@@ -317,29 +341,101 @@ describe("ActionReceipt variants", () => {
       />,
     );
     expect(screen.getByText("USDT 14.3 added")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "View in explorer" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: /View in explorer/i })).toHaveAttribute(
       "rel",
       "noopener noreferrer",
     );
     expect(screen.getByRole("button", { name: "Earn" })).toBeInTheDocument();
   });
 
-  it("renders failed drawer receipt with Done", () => {
+  it("renders failed drawer receipt without Done", () => {
     render(
       <ActionReceiptFailed
         body="Your transfer failed."
         fundStatusLabel="Deposited"
         timeSpentLabel="4 seconds"
         networkName="Base"
-        onDone={jest.fn()}
         onRetry={jest.fn()}
       />,
     );
     expect(screen.getByText("Oops! Transaction failed")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Done" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Done" })).not.toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Retry transaction" }),
     ).toBeInTheDocument();
+  });
+
+  it("renders powered-by footer inside drawer body by default", () => {
+    render(
+      <ActionDrawer isOpen title="Buy" onRequestClose={jest.fn()}>
+        <p>Step content</p>
+      </ActionDrawer>,
+    );
+    expect(screen.getByText("Powered by")).toBeInTheDocument();
+  });
+
+  it("modal success receipt omits subtitle when not provided", () => {
+    render(
+      <ActionReceiptSuccess
+        variant="modal"
+        isOpen
+        onClose={jest.fn()}
+        title="Swap successful"
+        fundStatusLabel="Swapped"
+        timeSpentLabel="12 seconds"
+        networkName="Base"
+      />,
+    );
+    expect(screen.getByText("Swap successful")).toBeInTheDocument();
+    expect(
+      screen.queryByText("Your money is in your balance"),
+    ).not.toBeInTheDocument();
+  });
+});
+
+describe("ReceiptMetaRows modal tone", () => {
+  it("applies valueClassName over default secondary tone", () => {
+    render(
+      <ReceiptMetaRows
+        layout="modal"
+        networkName="Base"
+        txHash={null}
+        rows={[
+          {
+            kind: "default",
+            label: "Transaction status",
+            value: "Completed",
+            valueClassName: "text-[#39c65d]",
+          },
+        ]}
+      />,
+    );
+    const value = screen.getByText("Completed");
+    expect(value).toHaveClass("text-[#39c65d]");
+    expect(value).not.toHaveClass("text-white/80");
+  });
+});
+
+describe("ActionProgress defaults", () => {
+  it("shows disabled secondary button and note by default", () => {
+    render(
+      <ActionProgress
+        heading="Watching for your transfer"
+        subheading="Transfers usually arrive within a few minutes."
+        steps={[
+          { id: "1", label: "Waiting", state: "active" },
+          { id: "2", label: "Complete", state: "pending" },
+        ]}
+      />,
+    );
+    expect(
+      screen.getByRole("button", { name: "I have sent the money" }),
+    ).toBeDisabled();
+    expect(
+      screen.getByText(/You can leave this page/),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/when it lands$/)).toBeInTheDocument();
+    expect(screen.queryByText(/when it lands\./)).not.toBeInTheDocument();
   });
 });
 

@@ -26,7 +26,20 @@ function isVisibleFocusable(el: HTMLElement): boolean {
   return true;
 }
 
-export function useDrawerFocusTrap(
+function getFocusables(container: HTMLElement) {
+  return Array.from(
+    container.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR),
+  ).filter(isVisibleFocusable);
+}
+
+function hasOpenModalDialog() {
+  return (
+    document.querySelector('[role="dialog"][aria-modal="true"]') !== null
+  );
+}
+
+/** Focus trap for centred modals only. */
+export function useModalFocusTrap(
   containerRef: React.RefObject<HTMLElement | null>,
   isActive: boolean,
 ) {
@@ -42,14 +55,11 @@ export function useDrawerFocusTrap(
         : null;
 
     const container = containerRef.current;
-
     const focusables = () => {
       if (!container) {
         return [];
       }
-      return Array.from(
-        container.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR),
-      ).filter(isVisibleFocusable);
+      return getFocusables(container);
     };
 
     const first = focusables()[0];
@@ -78,22 +88,41 @@ export function useDrawerFocusTrap(
     container?.addEventListener("keydown", onKeyDown, true);
     return () => {
       container?.removeEventListener("keydown", onKeyDown, true);
-      previouslyFocused.current?.focus?.();
+      previouslyFocused.current?.focus?.({ focusVisible: false } as FocusOptions);
     };
   }, [containerRef, isActive]);
 }
 
-export function useDrawerEscape(
+/** Move focus into the drawer on open; restore trigger on close (non-modal drawer). */
+export function useDrawerOpenFocus(
   containerRef: React.RefObject<HTMLElement | null>,
-  onClose: () => void,
   isActive: boolean,
 ) {
+  const previouslyFocused = useRef<HTMLElement | null>(null);
+
   useLayoutEffect(() => {
     if (!isActive) {
       return;
     }
+    previouslyFocused.current =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
+
     const container = containerRef.current;
-    if (!container) {
+    const nodes = container ? getFocusables(container) : [];
+    const first = nodes[0];
+    first?.focus({ focusVisible: false } as FocusOptions);
+
+    return () => {
+      previouslyFocused.current?.focus?.({ focusVisible: false } as FocusOptions);
+    };
+  }, [containerRef, isActive]);
+}
+
+export function useDrawerEscape(onClose: () => void, isActive: boolean) {
+  useEffect(() => {
+    if (!isActive) {
       return;
     }
 
@@ -104,15 +133,20 @@ export function useDrawerEscape(
       if (event.defaultPrevented) {
         return;
       }
+      if (hasOpenModalDialog()) {
+        return;
+      }
       event.preventDefault();
-      event.stopPropagation();
       onClose();
     };
 
-    container.addEventListener("keydown", onKeyDown);
-    return () => container.removeEventListener("keydown", onKeyDown);
-  }, [containerRef, isActive, onClose]);
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [isActive, onClose]);
 }
+
+/** @deprecated Use useModalFocusTrap for modals; drawer is non-modal. */
+export const useDrawerFocusTrap = useModalFocusTrap;
 
 export function usePendingActionClose({
   isActionPending,

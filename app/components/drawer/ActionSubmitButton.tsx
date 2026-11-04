@@ -3,7 +3,12 @@
 import { ImSpinner } from "react-icons/im";
 
 import { classNames } from "@/app/utils";
-import { primaryBtnClasses } from "@/app/components/Styles";
+
+import {
+  drawerPillPrimaryButtonClasses,
+  drawerPrimaryButtonClasses,
+  drawerSecondaryButtonClasses,
+} from "./drawerStyles";
 
 type ActionSubmitButtonProps = {
   label: string;
@@ -11,13 +16,9 @@ type ActionSubmitButtonProps = {
   isSubmitting?: boolean;
   onClick: () => void;
   className?: string;
-  variant?: "primary" | "secondary";
+  variant?: "primary" | "secondary" | "pill";
 };
 
-/**
- * Primary drawer CTA. Loading state follows existing Noblocks pattern (spinner
- * icon) — design gap G13: no dedicated loading frame in Figma.
- */
 export function ActionSubmitButton({
   label,
   disabled,
@@ -28,25 +29,29 @@ export function ActionSubmitButton({
 }: ActionSubmitButtonProps) {
   const isDisabled = Boolean(disabled || isSubmitting);
 
+  const base =
+    variant === "pill"
+      ? drawerPillPrimaryButtonClasses
+      : variant === "secondary"
+        ? drawerSecondaryButtonClasses
+        : drawerPrimaryButtonClasses;
+
   return (
     <button
       type="button"
       disabled={isDisabled}
       onClick={onClick}
       aria-busy={isSubmitting || undefined}
-      aria-label={isSubmitting ? `${label} loading` : label}
-      className={classNames(
-        variant === "primary"
-          ? classNames(
-              primaryBtnClasses,
-              "h-11 w-full rounded-xl bg-lavender-500 disabled:bg-[#2e2e2e] disabled:text-white/50",
-            )
-          : "flex h-11 w-full items-center justify-center rounded-xl bg-white/10 text-sm font-medium text-white transition-colors hover:bg-white/15 focus:outline-none focus-visible:ring-2 focus-visible:ring-lavender-500 disabled:cursor-not-allowed disabled:opacity-50",
-        className,
-      )}
+      aria-label={label}
+      className={classNames(base, className)}
     >
       {isSubmitting ? (
-        <ImSpinner className="size-5 animate-spin" aria-hidden />
+        <span role="img" aria-label={`${label} loading`}>
+          <ImSpinner
+            className="size-5 motion-reduce:animate-none animate-spin"
+            aria-hidden
+          />
+        </span>
       ) : (
         label
       )}

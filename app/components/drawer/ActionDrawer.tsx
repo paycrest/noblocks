@@ -2,17 +2,23 @@
 
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Cancel01Icon } from "hugeicons-react";
 
 import { acquireBodyScrollLock, releaseBodyScrollLock } from "@/app/components/AnimatedComponents";
 import { classNames } from "@/app/utils";
 
-import { useDrawerEscape, useDrawerFocusTrap } from "./hooks";
+import { DrawerPoweredByFooter } from "./DrawerPoweredByFooter";
+import {
+  drawerCloseButtonClasses,
+  drawerDividerClasses,
+  drawerHeaderTitleClasses,
+  drawerShellClasses,
+} from "./drawerStyles";
+import { useDrawerEscape, useDrawerOpenFocus } from "./hooks";
 import type { ActionDrawerTitle } from "./types";
 
-/** Above Navbar (`z-50`) and nav portaled menus (`z-[60]`), below centred modals (`z-[70]`). */
-const DRAWER_BACKDROP_Z = "z-[68]";
+/** Above Navbar (`z-50`) and nav menus (`z-[60]`), below centred modals (`z-[70]`). */
 const DRAWER_PANEL_Z = "z-[68]";
 
 export type ActionDrawerProps = {
@@ -20,9 +26,11 @@ export type ActionDrawerProps = {
   title: ActionDrawerTitle;
   onRequestClose: () => void;
   children: ReactNode;
+  /** @deprecated Use in-body content; powered-by renders inside the body stack by default. */
   footer?: ReactNode;
-  /** Optional class on the scrollable body region. */
   bodyClassName?: string;
+  bodyAlign?: "center" | "start";
+  showPoweredByFooter?: boolean;
 };
 
 export function ActionDrawer({
@@ -32,17 +40,20 @@ export function ActionDrawer({
   children,
   footer,
   bodyClassName,
+  bodyAlign = "center",
+  showPoweredByFooter = true,
 }: ActionDrawerProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
   const [portalReady, setPortalReady] = useState(false);
+  const reduceMotion = useReducedMotion();
 
   useEffect(() => {
     setPortalReady(true);
   }, []);
 
-  useDrawerFocusTrap(panelRef, isOpen && portalReady);
-  useDrawerEscape(panelRef, onRequestClose, isOpen && portalReady);
+  useDrawerOpenFocus(panelRef, isOpen && portalReady);
+  useDrawerEscape(onRequestClose, isOpen && portalReady);
 
   useEffect(() => {
     if (!isOpen) {
@@ -54,66 +65,73 @@ export function ActionDrawer({
     };
   }, [isOpen]);
 
+  const slideTransition = reduceMotion
+    ? { duration: 0 }
+    : { type: "spring" as const, stiffness: 320, damping: 32 };
+
   const overlay = (
     <AnimatePresence>
       {isOpen ? (
-        <>
-          <motion.div
-            aria-hidden
-            className={classNames(
-              "fixed inset-0 bg-black/70",
-              DRAWER_BACKDROP_Z,
-            )}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={onRequestClose}
-          />
-          <motion.aside
-            ref={panelRef}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby={titleId}
-            className={classNames(
-              "fixed inset-y-0 right-0 flex w-full max-w-[379px] flex-col",
-              "border-l border-white/10 bg-[#202020] py-3",
-              DRAWER_PANEL_Z,
-            )}
-            initial={{ x: "100%" }}
-            animate={{ x: 0 }}
-            exit={{ x: "100%" }}
-            transition={{ type: "spring", stiffness: 320, damping: 32 }}
-          >
-            <header className="flex shrink-0 items-center justify-between px-[18px]">
+        <motion.aside
+          ref={panelRef}
+          role="dialog"
+          aria-modal="false"
+          aria-labelledby={titleId}
+          className={classNames(
+            "fixed flex flex-col outline-none",
+            "top-[58px] right-[10px] bottom-[10px] w-[379px] max-w-[calc(100vw-20px)]",
+            "rounded-tr-xl rounded-br-xl border-l",
+            drawerDividerClasses,
+            drawerShellClasses,
+            DRAWER_PANEL_Z,
+          )}
+          initial={reduceMotion ? false : { x: "100%" }}
+          animate={{ x: 0 }}
+          exit={reduceMotion ? { opacity: 0 } : { x: "100%" }}
+          transition={slideTransition}
+        >
+          <header className="shrink-0 px-[18px] pt-3">
+            <div className="flex items-center justify-between">
               <h2
                 id={titleId}
-                className="text-lg font-semibold tracking-[-0.54px] text-white"
+                className={drawerHeaderTitleClasses}
               >
                 {title}
               </h2>
               <button
                 type="button"
                 aria-label="Close"
-                className="rounded-md text-white/50 transition-colors hover:text-white outline-none focus:outline-none focus:ring-0 focus-visible:ring-2 focus-visible:ring-lavender-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#202020]"
+                className={drawerCloseButtonClasses}
                 onClick={onRequestClose}
               >
-                <Cancel01Icon className="size-5" />
+                <Cancel01Icon className="size-5" aria-hidden />
               </button>
-            </header>
-            <hr className="my-4 border-white/10" />
+            </div>
+          </header>
+          <hr className={classNames("mx-0 mt-4", drawerDividerClasses)} />
+          <div
+            className={classNames(
+              "flex min-h-0 flex-1 flex-col overflow-y-auto px-[18px] pt-4",
+              bodyAlign === "center" ? "justify-center" : "justify-start",
+            )}
+          >
             <div
               className={classNames(
-                "flex flex-1 flex-col justify-center gap-4 overflow-y-auto px-[18px]",
+                "flex w-full flex-col",
+                bodyAlign === "center" ? "items-center" : "items-stretch",
                 bodyClassName,
               )}
             >
               {children}
+              {showPoweredByFooter ? (
+                <DrawerPoweredByFooter className="mt-4" />
+              ) : null}
             </div>
-            {footer ? (
-              <footer className="mt-4 shrink-0 px-[18px] pb-2">{footer}</footer>
-            ) : null}
-          </motion.aside>
-        </>
+          </div>
+          {footer ? (
+            <footer className="mt-4 shrink-0 px-[18px] pb-2">{footer}</footer>
+          ) : null}
+        </motion.aside>
       ) : null}
     </AnimatePresence>
   );

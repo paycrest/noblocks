@@ -1,11 +1,12 @@
 "use client";
 import type { CSSProperties, ReactNode } from "react";
 import { useEffect, useLayoutEffect, useRef } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { Dialog, DialogPanel } from "@headlessui/react";
 import type { AnimatedComponentProps } from "../types";
 import { classNames } from "../utils";
 import { Cancel01Icon } from "hugeicons-react";
+import { useModalFocusTrap } from "./drawer/hooks";
 
 // Animation variants and transition
 const pageVariants = {
@@ -309,6 +310,8 @@ type AnimatedModalProps = {
    * genuinely needs the page behind it to stay scrollable.
    */
   lockBodyScroll?: boolean;
+  /** Id of the visible title node inside the modal (accessible name). */
+  ariaLabelledBy?: string;
 };
 
 // Module-level refcount: overlapping locked modals share one body pin, and only
@@ -409,8 +412,13 @@ export const AnimatedModal = ({
   showGradientHeader = false,
   backgroundImagePath,
   lockBodyScroll = true,
+  ariaLabelledBy,
 }: AnimatedModalProps) => {
   const holdsLockRef = useRef(false);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const reduceMotion = useReducedMotion();
+
+  useModalFocusTrap(panelRef, isOpen);
 
   const releaseHeldLock = () => {
     if (holdsLockRef.current) {
@@ -443,13 +451,19 @@ export const AnimatedModal = ({
   return (
   <AnimatePresence onExitComplete={handleExitComplete}>
     {isOpen && (
-      <Dialog open={isOpen} onClose={onClose} className="relative z-[70]">
+      <Dialog
+        open={isOpen}
+        onClose={onClose}
+        className="relative z-[70]"
+        aria-labelledby={ariaLabelledBy}
+        aria-modal="true"
+      >
         <motion.div
-          initial={{ opacity: 0 }}
+          initial={reduceMotion ? false : { opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          transition={{ duration: 0.3 }}
-          className="fixed inset-0 bg-black/30 backdrop-blur-sm"
+          transition={{ duration: reduceMotion ? 0 : 0.3 }}
+          className="fixed inset-0 bg-black/50"
         />
 
         <div className="fixed inset-0 flex w-screen items-end sm:items-center sm:justify-center sm:p-4">
@@ -457,20 +471,25 @@ export const AnimatedModal = ({
               same node as overflow-y-auto breaks touch scrolling on notch-era
               iOS Safari (e.g. iPhone 12 Pro) inside partner iframes. */}
           <div
+            ref={panelRef}
             className={classNames(
               "animated-modal-panel w-full max-h-[90dvh] overflow-y-auto overscroll-contain touch-pan-y",
               "[-webkit-overflow-scrolling:touch]",
             )}
           >
             <motion.div
-              initial={{ y: "100%", opacity: 0 }}
+              initial={reduceMotion ? false : { y: "100%", opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
-              exit={{ y: "100%", opacity: 0 }}
-              transition={{
-                type: "spring",
-                stiffness: 300,
-                damping: 30,
-              }}
+              exit={reduceMotion ? { opacity: 0 } : { y: "100%", opacity: 0 }}
+              transition={
+                reduceMotion
+                  ? { duration: 0 }
+                  : {
+                      type: "spring",
+                      stiffness: 300,
+                      damping: 30,
+                    }
+              }
             >
               <DialogPanel
                 className={classNames(

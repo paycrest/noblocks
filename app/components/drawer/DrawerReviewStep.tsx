@@ -6,6 +6,11 @@ import type { ReactNode } from "react";
 import { classNames } from "@/app/utils";
 
 import { ActionSubmitButton } from "./ActionSubmitButton";
+import {
+  drawerBorderNeutral,
+  drawerSecondaryText,
+  drawerStepHeadingClasses,
+} from "./drawerStyles";
 import { ReviewDetailCard } from "./ReviewShared";
 import type { ReviewDetailRow } from "./types";
 
@@ -13,7 +18,7 @@ export type DrawerReviewStepProps = {
   heading: string;
   subheading: ReactNode;
   detailRows: ReviewDetailRow[];
-  expiresInLabel?: string;
+  expiresInSeconds?: number;
   confirmationLabel: string;
   confirmationChecked: boolean;
   onConfirmationChange: (checked: boolean) => void;
@@ -27,7 +32,7 @@ export function DrawerReviewStep({
   heading,
   subheading,
   detailRows,
-  expiresInLabel,
+  expiresInSeconds,
   confirmationLabel,
   confirmationChecked,
   onConfirmationChange,
@@ -41,34 +46,28 @@ export function DrawerReviewStep({
   return (
     <div className="flex w-full flex-col gap-6">
       <div>
-        <p className="text-base font-medium text-white/80">{heading}</p>
-        <div className="text-sm text-white/50">{subheading}</div>
+        <p className={drawerStepHeadingClasses}>{heading}</p>
+        <div className={classNames("text-sm leading-5", drawerSecondaryText)}>
+          {subheading}
+        </div>
       </div>
 
-      <ReviewDetailCard rows={detailRows} />
-
-      {expiresInLabel ? (
-        <div className="flex items-center justify-between text-sm">
-          <span className="text-white/50">Expires in</span>
-          <span className="rounded-full bg-white/10 px-3 py-1 text-sm text-lavender-500">
-            {expiresInLabel}
-          </span>
-        </div>
-      ) : null}
+      <ReviewDetailCard rows={detailRows} expiresInSeconds={expiresInSeconds} />
 
       <Checkbox
         checked={confirmationChecked}
         onChange={onConfirmationChange}
-        className="group flex cursor-pointer items-start gap-3 text-left"
+        className="group flex cursor-pointer items-start gap-2 rounded-md text-left outline-none focus:outline-none data-[focus]:outline-none data-[focus-visible]:ring-2 data-[focus-visible]:ring-lavender-500 data-[focus-visible]:ring-offset-2 data-[focus-visible]:ring-offset-white dark:data-[focus-visible]:ring-offset-[#2b2b2b]"
       >
         <span
           className={classNames(
-            "mt-0.5 flex size-[18px] shrink-0 items-center justify-center rounded border-2 border-white/30",
+            "flex size-6 shrink-0 items-center justify-center rounded-md border-2",
+            drawerBorderNeutral,
             "group-data-[checked]:border-lavender-500 group-data-[checked]:bg-lavender-500",
           )}
         >
           <svg
-            className="size-3 text-white opacity-0 group-data-[checked]:opacity-100"
+            className="size-3.5 text-white opacity-0 group-data-[checked]:opacity-100"
             viewBox="0 0 12 10"
             fill="none"
             aria-hidden
@@ -81,7 +80,9 @@ export function DrawerReviewStep({
             />
           </svg>
         </span>
-        <span className="text-sm text-white/80">{confirmationLabel}</span>
+        <span className={classNames("text-sm", drawerSecondaryText)}>
+          {confirmationLabel}
+        </span>
       </Checkbox>
 
       <ActionSubmitButton

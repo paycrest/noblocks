@@ -1,9 +1,17 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { LinkSquare02Icon } from "hugeicons-react";
 
 import { classNames } from "@/app/utils";
 
+import {
+  drawerBodyText,
+  drawerDashedDividerClasses,
+  drawerFailedStatusClasses,
+  drawerSecondaryText,
+  drawerSuccessIconClasses,
+} from "./drawerStyles";
 import { getAllowlistedExplorerUrl } from "./explorer";
 import type { ReceiptRow } from "./types";
 
@@ -12,7 +20,7 @@ export type ReceiptMetaRowsProps = {
   networkName: string;
   txHash?: string | null;
   explorerLinkLabel?: string;
-  layout?: "drawer" | "modal";
+  layout?: "drawer" | "modal" | "failed";
 };
 
 type DisplayRow = {
@@ -21,6 +29,8 @@ type DisplayRow = {
   valueClassName?: string;
   hidden?: boolean;
 };
+
+const valueFallbackClass = drawerSecondaryText;
 
 export function ReceiptMetaRows({
   rows,
@@ -57,9 +67,11 @@ export function ReceiptMetaRows({
           href={explorerUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="text-lavender-500 hover:underline"
+          className="inline-flex items-center gap-1 text-lavender-500 hover:underline"
         >
           {explorerLinkLabel}
+          <LinkSquare02Icon className="size-4 shrink-0" aria-hidden />
+          <span className="sr-only">(opens in new tab)</span>
         </a>
       ),
       valueClassName: row.valueClassName,
@@ -70,17 +82,17 @@ export function ReceiptMetaRows({
 
   if (layout === "modal") {
     return (
-      <div className="flex w-full flex-col gap-4 text-sm text-white/50">
+      <div className="mx-auto flex w-[275px] max-w-full flex-col gap-[19px] text-sm">
         {visible.map((row) => (
           <div
             key={row.label}
             className="flex items-center justify-between gap-3"
           >
-            <span>{row.label}</span>
+            <span className={drawerSecondaryText}>{row.label}</span>
             <span
               className={classNames(
-                "text-right text-white/80",
-                row.valueClassName,
+                "text-right",
+                row.valueClassName ?? valueFallbackClass,
               )}
             >
               {row.value}
@@ -91,18 +103,40 @@ export function ReceiptMetaRows({
     );
   }
 
+  if (layout === "failed") {
+    return (
+      <div className="mx-auto flex w-[270px] max-w-full gap-[30px] text-sm">
+        <div className={classNames("flex flex-col gap-4", drawerSecondaryText)}>
+          {visible.map((row) => (
+            <p key={row.label}>{row.label}</p>
+          ))}
+        </div>
+        <div className="flex flex-col gap-4 text-left">
+          {visible.map((row) => (
+            <div
+              key={row.label}
+              className={classNames(row.valueClassName ?? valueFallbackClass)}
+            >
+              {row.value}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex w-full gap-6 text-sm">
-      <div className="flex flex-col gap-4 text-white/50">
+    <div className="mx-auto flex w-[256px] max-w-full gap-6 text-sm">
+      <div className={classNames("flex flex-col gap-6", drawerSecondaryText)}>
         {visible.map((row) => (
           <p key={row.label}>{row.label}</p>
         ))}
       </div>
-      <div className="flex flex-1 flex-col items-end gap-4 text-right text-white/80">
+      <div className="flex flex-1 flex-col items-end gap-6 text-right">
         {visible.map((row) => (
           <div
             key={row.label}
-            className={classNames(row.valueClassName)}
+            className={classNames(row.valueClassName ?? valueFallbackClass)}
           >
             {row.value}
           </div>
@@ -112,8 +146,10 @@ export function ReceiptMetaRows({
   );
 }
 
-export function ReceiptDashedRule() {
-  return <hr className="w-full border-dashed border-white/10" />;
+export function ReceiptDashedRule({ className }: { className?: string }) {
+  return (
+    <hr className={classNames("w-full", drawerDashedDividerClasses, className)} />
+  );
 }
 
 export function buildDefaultReceiptRows(input: {
@@ -124,10 +160,10 @@ export function buildDefaultReceiptRows(input: {
 }): ReceiptRow[] {
   const statusClass =
     input.transactionStatusTone === "success"
-      ? "text-[#39c65d]"
+      ? drawerSuccessIconClasses
       : input.transactionStatusTone === "failed"
-        ? "text-[#f53d6b]"
-        : "text-white/80";
+        ? drawerFailedStatusClasses
+        : drawerBodyText;
 
   return [
     {
@@ -140,13 +176,13 @@ export function buildDefaultReceiptRows(input: {
       kind: "default",
       label: "Fund status",
       value: input.fundStatusLabel,
-      valueClassName: "text-white/50",
+      valueClassName: valueFallbackClass,
     },
     {
       kind: "default",
       label: "Time spent",
       value: input.timeSpentLabel,
-      valueClassName: "text-white/50",
+      valueClassName: valueFallbackClass,
     },
     {
       kind: "explorer",

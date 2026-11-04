@@ -1,10 +1,14 @@
 "use client";
 
-import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { useEffect, useId, useLayoutEffect, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import { Cancel01Icon } from "hugeicons-react";
 
+import {
+  acquireBodyScrollLock,
+  releaseBodyScrollLock,
+} from "@/app/components/AnimatedComponents";
 import { classNames } from "@/app/utils";
 
 import { DrawerPoweredByFooter } from "./DrawerPoweredByFooter";
@@ -14,7 +18,11 @@ import {
   drawerHeaderTitleClasses,
   drawerShellClasses,
 } from "./drawerStyles";
-import { useDrawerEscape, useDrawerOpenFocus } from "./hooks";
+import {
+  useDrawerEscape,
+  useDrawerFocusTrap,
+  useDrawerOpenFocus,
+} from "./hooks";
 import type { ActionDrawerTitle } from "./types";
 import {
   DRAWER_COLUMN_WIDTH_PX,
@@ -32,7 +40,6 @@ export type ActionDrawerProps = {
 };
 
 function DrawerPanel({
-  panelRef,
   setPanelNode,
   titleId,
   title,
@@ -41,9 +48,9 @@ function DrawerPanel({
   bodyClassName,
   showPoweredByFooter,
   children,
+  isModalSheet,
   className,
 }: {
-  panelRef: React.RefObject<HTMLElement | null>;
   setPanelNode: (node: HTMLElement | null) => void;
   titleId: string;
   title: ActionDrawerTitle;
@@ -52,19 +59,18 @@ function DrawerPanel({
   bodyClassName?: string;
   showPoweredByFooter: boolean;
   children: ReactNode;
+  isModalSheet: boolean;
   className?: string;
 }) {
   return (
     <aside
-      ref={(node) => {
-        panelRef.current = node;
-        setPanelNode(node);
-      }}
+      ref={setPanelNode}
       role="dialog"
-      aria-modal="false"
+      aria-modal={isModalSheet ? "true" : "false"}
       aria-labelledby={titleId}
       className={classNames(
-        "flex h-full w-[379px] max-w-full shrink-0 flex-col outline-none",
+        "flex w-[379px] max-w-full shrink-0 flex-col outline-none",
+        isModalSheet ? "h-full" : "sticky top-0 max-h-full",
         drawerShellClasses,
         className,
       )}
@@ -108,6 +114,20 @@ function DrawerPanel({
   );
 }
 
+type DrawerPlacement = {
+  target: HTMLElement;
+  docked: boolean;
+};
+
+function resolveDocked() {
+  const slot = document.getElementById(WALLET_DRAWER_SLOT_ID);
+  const wide = window.matchMedia("(min-width: 768px)").matches;
+  return {
+    slot,
+    docked: Boolean(wide && slot),
+  };
+}
+
 export function ActionDrawer({
   isOpen,
   title,
@@ -117,41 +137,72 @@ export function ActionDrawer({
   bodyAlign = "center",
   showPoweredByFooter = true,
 }: ActionDrawerProps) {
-  const panelRef = useRef<HTMLElement | null>(null);
   const [panelNode, setPanelNode] = useState<HTMLElement | null>(null);
   const titleId = useId();
   const [portalReady, setPortalReady] = useState(false);
-  const [portalTarget, setPortalTarget] = useState<HTMLElement | null>(null);
-  const [dockedInShell, setDockedInShell] = useState(false);
+  const [placement, setPlacement] = useState<DrawerPlacement | null>(null);
   const reduceMotion = useReducedMotion();
 
   useEffect(() => {
     setPortalReady(true);
   }, []);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!portalReady) {
       return;
     }
 
-    const syncPlacement = () => {
-      const slot = document.getElementById(WALLET_DRAWER_SLOT_ID);
-      const wide = window.matchMedia("(min-width: 768px)").matches;
-      const docked = Boolean(wide && slot);
-      setDockedInShell(docked);
-      setPortalTarget(docked && slot ? slot : document.body);
+    if (!isOpen) {
+      setPlacement(null);
+      setPanelNode(null);
+      return;
+    }
+
+    setPlacement((prev) => {
+      const { slot, docked } = resolveDocked();
+      if (prev) {
+        return { target: prev.target, docked };
+      }
+      return { target: slot ?? document.body, docked };
+    });
+  }, [portalReady, isOpen]);
+
+  useEffect(() => {
+    if (!portalReady || !isOpen) {
+      return;
+    }
+
+    const onResize = () => {
+      setPlacement((prev) => {
+        if (!prev) {
+          return prev;
+        }
+        const { docked } = resolveDocked();
+        return { ...prev, docked };
+      });
     };
 
-    syncPlacement();
-    window.addEventListener("resize", syncPlacement);
-    return () => window.removeEventListener("resize", syncPlacement);
-  }, [portalReady]);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, [portalReady, isOpen]);
 
-  const panelRefForHooks = useRef<HTMLElement | null>(null);
-  panelRefForHooks.current = panelNode;
+  const dockedInShell = placement?.docked ?? false;
+  const isModalSheet = Boolean(isOpen && !dockedInShell);
+  const hooksActive = isOpen && portalReady && Boolean(panelNode);
 
-  useDrawerOpenFocus(panelNode, isOpen && portalReady && Boolean(panelNode));
-  useDrawerEscape(panelNode, onRequestClose, isOpen && portalReady && Boolean(panelNode));
+  useDrawerOpenFocus(panelNode, hooksActive);
+  useDrawerFocusTrap(panelNode, hooksActive && isModalSheet);
+  useDrawerEscape(panelNode, onRequestClose, hooksActive);
+
+  useEffect(() => {
+    if (!isModalSheet) {
+      return;
+    }
+    acquireBodyScrollLock();
+    return () => {
+      releaseBodyScrollLock();
+    };
+  }, [isModalSheet]);
 
   const widthTransition = reduceMotion
     ? { duration: 0 }
@@ -161,65 +212,57 @@ export function ActionDrawer({
     ? { duration: 0 }
     : { type: "spring" as const, stiffness: 320, damping: 32 };
 
-  const panelProps = {
-    panelRef,
-    setPanelNode,
-    titleId,
-    title,
-    onRequestClose,
-    bodyAlign,
-    bodyClassName,
-    showPoweredByFooter,
-    children,
-  };
-
-  let overlay: ReactNode = null;
-
-  if (dockedInShell) {
-    overlay = (
-      <motion.div
-        className="flex h-full shrink-0 overflow-hidden"
-        initial={false}
-        animate={{ width: isOpen ? DRAWER_COLUMN_WIDTH_PX : 0 }}
-        transition={widthTransition}
-        aria-hidden={!isOpen}
-      >
-        <AnimatePresence initial={false}>
-          {isOpen ? (
-            <motion.div
-              className="h-full shrink-0"
-              initial={reduceMotion ? false : { opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: reduceMotion ? 0 : 0.15 }}
-            >
-              <DrawerPanel {...panelProps} />
-            </motion.div>
-          ) : null}
-        </AnimatePresence>
-      </motion.div>
-    );
-  } else {
-    overlay = (
-      <AnimatePresence>
-        {isOpen ? (
-          <motion.div
-            className="fixed inset-y-0 right-0 z-[68] flex max-w-[379px] w-full"
-            initial={reduceMotion ? false : { x: "100%" }}
-            animate={{ x: 0 }}
-            exit={reduceMotion ? { opacity: 0 } : { x: "100%" }}
-            transition={slideTransition}
-          >
-            <DrawerPanel {...panelProps} className="shadow-2xl md:shadow-none" />
-          </motion.div>
-        ) : null}
-      </AnimatePresence>
-    );
-  }
-
-  if (!portalReady || !portalTarget) {
+  if (!portalReady || !placement) {
     return null;
   }
 
-  return createPortal(overlay, portalTarget);
+  const panel = (
+    <DrawerPanel
+      setPanelNode={setPanelNode}
+      titleId={titleId}
+      title={title}
+      onRequestClose={onRequestClose}
+      bodyAlign={bodyAlign}
+      bodyClassName={bodyClassName}
+      showPoweredByFooter={showPoweredByFooter}
+      isModalSheet={isModalSheet}
+      className={isModalSheet ? "shadow-2xl" : undefined}
+    >
+      {children}
+    </DrawerPanel>
+  );
+
+  const overlay = (
+    <>
+      {isModalSheet && isOpen ? (
+        <button
+          type="button"
+          aria-label="Close drawer"
+          className="fixed inset-0 z-[67] bg-black/50"
+          onClick={onRequestClose}
+        />
+      ) : null}
+      <motion.div
+        className={classNames(
+          dockedInShell
+            ? "sticky top-0 flex h-full max-h-full shrink-0 self-start overflow-hidden"
+            : "fixed inset-y-0 right-0 z-[68] flex max-w-[379px] w-full",
+        )}
+        initial={false}
+        animate={
+          dockedInShell
+            ? { width: isOpen ? DRAWER_COLUMN_WIDTH_PX : 0, opacity: 1 }
+            : isOpen
+              ? { x: 0, opacity: 1 }
+              : { x: reduceMotion ? 0 : "100%", opacity: reduceMotion ? 0 : 1 }
+        }
+        transition={dockedInShell ? widthTransition : slideTransition}
+        aria-hidden={!isOpen}
+      >
+        {isOpen ? panel : null}
+      </motion.div>
+    </>
+  );
+
+  return createPortal(overlay, placement.target);
 }

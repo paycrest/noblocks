@@ -24,7 +24,7 @@ export default function WalletShellLayout({
               </main>
               <div
                 id={WALLET_DRAWER_SLOT_ID}
-                className="flex h-full shrink-0 self-stretch"
+                className="sticky top-0 flex h-full max-h-full shrink-0 self-start overflow-hidden"
               />
             </div>
           </WalletRouteGuard>

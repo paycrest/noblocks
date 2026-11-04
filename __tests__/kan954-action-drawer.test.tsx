@@ -178,6 +178,15 @@ describe("getAllowlistedExplorerUrl", () => {
 });
 
 describe("ActionDrawer focus and Escape", () => {
+  beforeEach(() => {
+    (window.matchMedia as jest.Mock).mockImplementation((query: string) => ({
+      matches: query.includes("min-width: 768px"),
+      media: query,
+      addEventListener: jest.fn(),
+      removeEventListener: jest.fn(),
+    }));
+  });
+
   it("moves focus into the drawer without trapping tab and closes on Escape", async () => {
     const user = userEvent.setup();
     const onRequestClose = jest.fn();
@@ -203,6 +212,30 @@ describe("ActionDrawer focus and Escape", () => {
 
     await user.keyboard("{Escape}");
     expect(onRequestClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not close on Escape after tabbing focus out of the drawer", async () => {
+    const user = userEvent.setup();
+    const onRequestClose = jest.fn();
+
+    renderWithDrawerSlot(
+      <>
+        <button type="button">Outside</button>
+        <ActionDrawer isOpen title="Buy" onRequestClose={onRequestClose}>
+          <button type="button">Inside</button>
+        </ActionDrawer>
+      </>,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Inside" }));
+    expect(screen.getByRole("button", { name: "Inside" })).toHaveFocus();
+
+    await user.tab();
+    await user.tab();
+    expect(screen.getByRole("button", { name: "Outside" })).toHaveFocus();
+
+    await user.keyboard("{Escape}");
+    expect(onRequestClose).not.toHaveBeenCalled();
   });
 
   it("does not close on Escape when focus is outside the drawer", () => {

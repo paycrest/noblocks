@@ -58,26 +58,27 @@ class ResizeObserverMock {
 }
 global.ResizeObserver = ResizeObserverMock
 
-// Mock window.ethereum for wallet tests
-Object.defineProperty(window, 'ethereum', {
-  writable: true,
-  value: {
-    request: jest.fn(),
-    on: jest.fn(),
-    removeListener: jest.fn(),
-  },
-})
+// Wallet / storage mocks apply only in jsdom (node test files use @jest-environment node).
+if (typeof window !== 'undefined') {
+  Object.defineProperty(window, 'ethereum', {
+    writable: true,
+    value: {
+      request: jest.fn(),
+      on: jest.fn(),
+      removeListener: jest.fn(),
+    },
+  })
 
-// Mock localStorage
-Object.defineProperty(window, 'localStorage', {
-  value: {
-    getItem: jest.fn(),
-    setItem: jest.fn(),
-    removeItem: jest.fn(),
-    clear: jest.fn(),
-  },
-  writable: true,
-})
+  Object.defineProperty(window, 'localStorage', {
+    value: {
+      getItem: jest.fn(),
+      setItem: jest.fn(),
+      removeItem: jest.fn(),
+      clear: jest.fn(),
+    },
+    writable: true,
+  })
+}
 
 // Suppress console warnings in tests
 console.warn = jest.fn()

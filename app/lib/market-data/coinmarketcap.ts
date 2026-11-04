@@ -5,8 +5,9 @@ import Decimal from "decimal.js";
 import { getCoinMarketCapApiKey } from "@/app/lib/server-config";
 import { allRegistryEntries } from "./assets";
 import {
+  applyCmcRateLimitBackoff,
   canSpendCmcCredit,
-  getStaleStats,
+  isCmcInBackoff,
   recordCmcCall,
   setCachedStats,
   setNegativeCache,
@@ -19,7 +20,7 @@ import type { StatsProvider } from "./provider";
 const CMC_URL =
   "https://pro-api.coinmarketcap.com/v3/cryptocurrency/quotes/latest";
 
-const CMC_ERROR_BUDGET = new Set([1008, 1009, 1010]);
+const CMC_DAILY_CODES = new Set([1009, 1010]);
 
 function mapQuoteToStats(
   quote: Record<string, unknown>,
@@ -55,14 +56,26 @@ function mapQuoteToStats(
   };
 }
 
+function extractCmcErrorCode(data: unknown): number | undefined {
+  if (!data || typeof data !== "object") return undefined;
+  const status = (data as Record<string, unknown>).status as
+    | { error_code?: number }
+    | undefined;
+  const code = status?.error_code;
+  return typeof code === "number" ? code : undefined;
+}
+
 function parseCmcResponse(data: unknown): Record<number, TokenStatsBlock> | null {
   if (!data || typeof data !== "object") return null;
   const root = data as Record<string, unknown>;
-  const status = root.status as { error_code?: number } | undefined;
-  if (status?.error_code && status.error_code !== 0) {
-    if (CMC_ERROR_BUDGET.has(status.error_code)) {
-      return null;
+  const errorCode = extractCmcErrorCode(data);
+  if (errorCode && errorCode !== 0) {
+    if (errorCode === 1008) {
+      applyCmcRateLimitBackoff(429, 1008);
+    } else if (CMC_DAILY_CODES.has(errorCode)) {
+      applyCmcRateLimitBackoff(429, errorCode);
     }
+    return null;
   }
   const payload = root.data as Record<string, unknown> | undefined;
   if (!payload) return null;
@@ -85,6 +98,7 @@ function parseCmcResponse(data: unknown): Record<number, TokenStatsBlock> | null
 async function fetchCmcQuotes(): Promise<Record<number, TokenStatsBlock> | null> {
   const apiKey = getCoinMarketCapApiKey();
   if (!apiKey) return null;
+  if (isCmcInBackoff()) return null;
   if (!canSpendCmcCredit()) return null;
 
   const ids = allRegistryEntries()
@@ -92,7 +106,6 @@ async function fetchCmcQuotes(): Promise<Record<number, TokenStatsBlock> | null>
     .join(",");
 
   try {
-    recordCmcCall();
     const { data, status } = await axios.get(CMC_URL, {
       params: { id: ids, convert: "USD" },
       headers: { "X-CMC_PRO_API_KEY": apiKey },
@@ -100,9 +113,19 @@ async function fetchCmcQuotes(): Promise<Record<number, TokenStatsBlock> | null>
       maxRedirects: 0,
       validateStatus: () => true,
     });
-    if (status === 429) return null;
+
+    const errorCode = extractCmcErrorCode(data);
+    if (status === 429 || (errorCode && errorCode !== 0)) {
+      applyCmcRateLimitBackoff(status, errorCode);
+      return null;
+    }
     if (status < 200 || status >= 300) return null;
-    return parseCmcResponse(data);
+
+    const parsed = parseCmcResponse(data);
+    if (!parsed) return null;
+
+    recordCmcCall();
+    return parsed;
   } catch (err) {
     console.warn("[market-data] CMC fetch failed:", redactErrorMessage(err));
     return null;
@@ -127,11 +150,6 @@ export const coinMarketCapStatsProvider: StatsProvider = {
     });
   },
 };
-
-export function getStatsForToken(id: string): TokenStatsBlock | null {
-  const stale = getStaleStats(id);
-  return stale;
-}
 
 export function getCmcMarketPrice(
   all: Record<number, TokenStatsBlock> | null,

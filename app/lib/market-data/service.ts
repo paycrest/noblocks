@@ -19,7 +19,19 @@ import {
 } from "./chainlink";
 import { coinMarketCapStatsProvider } from "./coinmarketcap";
 import { computeCngnBadge } from "./cngn";
-import { applySpikeFilter, bucketTimestamps, rangeStartUnix } from "./series";
+import {
+  getHistoryBucket,
+  historyBucketKey,
+  isBucketClosed,
+  setHistoryBucket,
+} from "./history-cache";
+import {
+  applySpikeFilter,
+  bucketSpecForRange,
+  bucketTimestamps,
+  rangeStartUnix,
+  type RawPoint,
+} from "./series";
 import Decimal from "decimal.js";
 import { absChangeDecimal, pctChangeDecimal } from "./validate";
 import type { TokenHistoryResponse, TokenMarketSnapshot, TokenStatsBlock } from "./types";
@@ -175,36 +187,57 @@ export async function getTokenHistory(
 
   const nowSec = Math.floor(Date.now() / 1000);
   const inception = entry.price.inceptionUnix;
+  const spec = bucketSpecForRange(range);
   const timestamps = bucketTimestamps(range, nowSec, inception);
   const from = rangeStartUnix(range, nowSec, inception);
-  const cacheKey = `history:${id}:${range}`;
+  const flightKey = `history:${id}:${range}`;
 
-  const cached = getCachedPrice<TokenHistoryResponse>(cacheKey);
-  if (cached) return cached;
+  return withSingleFlight(flightKey, async () => {
+    const merged: RawPoint[] = [];
+    const toFetch: number[] = [];
 
-  const response = await withSingleFlight(cacheKey, async () => {
-    const reads = await chainlinkPriceProvider.readHistoryAtTimestamps(
-      entry,
-      timestamps,
-    );
-    const points = reads.map((r) => ({
-      t: r.t,
-      p: roundToPriceString({
-        answer: r.answer,
-        updatedAt: r.t,
-        decimals: r.decimals,
-        chain: entry.price.chain,
-        pairSlug: entry.price.pairSlug,
-        stale: false,
-        marketClosed: false,
-      }),
-    }));
+    for (const t of timestamps) {
+      const closed = isBucketClosed(t, spec.stepSec, nowSec);
+      const key = historyBucketKey(id, range, t);
+      const cached = getHistoryBucket(key, closed);
+      if (cached) {
+        merged.push(cached);
+        continue;
+      }
+      toFetch.push(t);
+    }
+
+    if (toFetch.length > 0) {
+      const reads = await chainlinkPriceProvider.readHistoryAtTimestamps(
+        entry,
+        toFetch,
+      );
+      for (const r of reads) {
+        const p = roundToPriceString({
+          answer: r.answer,
+          updatedAt: r.t,
+          decimals: r.decimals,
+          chain: entry.price.chain,
+          pairSlug: entry.price.pairSlug,
+          stale: false,
+          marketClosed: false,
+        });
+        const closed = isBucketClosed(r.t, spec.stepSec, nowSec);
+        const point = { t: r.t, p };
+        setHistoryBucket(historyBucketKey(id, range, r.t), point, closed);
+        merged.push(point);
+      }
+    }
+
+    merged.sort((a, b) => a.t - b.t);
+
     const stableOrNgn =
       entry.id === "cngn" ||
       entry.id === "usdc" ||
       entry.id === "usdt" ||
       entry.id === "cusd";
-    const filtered = applySpikeFilter(points, { stableOrNgn });
+    const filtered = applySpikeFilter(merged, { stableOrNgn });
+
     if (filtered.length === 0) {
       return {
         id,
@@ -216,7 +249,8 @@ export async function getTokenHistory(
         unavailable: true,
       };
     }
-    const payload: TokenHistoryResponse = {
+
+    return {
       id,
       range,
       points: filtered.map((p) => [p.t, p.p]),
@@ -224,9 +258,5 @@ export async function getTokenHistory(
       asOf: new Date().toISOString(),
       stale: false,
     };
-    setCachedPrice(cacheKey, payload);
-    return payload;
   });
-
-  return response;
 }

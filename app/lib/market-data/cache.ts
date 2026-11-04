@@ -36,9 +36,18 @@ const inFlight: InFlightMap = new Map();
 
 let cmcCallsToday = 0;
 let cmcBudgetDayKey = "";
+let cmcBudgetWarnedDayKey = "";
+let cmcBackoffUntilMs = 0;
 
 function utcDayKey(): string {
   return new Date().toISOString().slice(0, 10);
+}
+
+export function nextUtcMidnightMs(fromMs = Date.now()): number {
+  const d = new Date(fromMs);
+  d.setUTCDate(d.getUTCDate() + 1);
+  d.setUTCHours(0, 0, 0, 0);
+  return d.getTime();
 }
 
 export function resetMarketDataCachesForTests(): void {
@@ -51,6 +60,65 @@ export function resetMarketDataCachesForTests(): void {
   inFlight.clear();
   cmcCallsToday = 0;
   cmcBudgetDayKey = utcDayKey();
+  cmcBudgetWarnedDayKey = "";
+  cmcBackoffUntilMs = 0;
+}
+
+export function isCmcInBackoff(): boolean {
+  return Date.now() < cmcBackoffUntilMs;
+}
+
+export function getCmcBackoffUntilForTests(): number {
+  return cmcBackoffUntilMs;
+}
+
+export function setCmcBackoffUntil(untilMs: number, reason: string): void {
+  cmcBackoffUntilMs = Math.max(cmcBackoffUntilMs, untilMs);
+  console.warn(
+    JSON.stringify({
+      event: "market_data_cmc_backoff",
+      level: "warn",
+      reason,
+      until: new Date(cmcBackoffUntilMs).toISOString(),
+    }),
+  );
+}
+
+export function applyCmcRateLimitBackoff(
+  httpStatus: number,
+  errorCode?: number,
+): void {
+  if (httpStatus === 429 && errorCode === 1008) {
+    setCmcBackoffUntil(Date.now() + 60_000, "cmc_minute_limit_1008");
+    return;
+  }
+  if (httpStatus === 429 || errorCode === 1009 || errorCode === 1010) {
+    setCmcBackoffUntil(nextUtcMidnightMs(), "cmc_daily_or_monthly_limit");
+    return;
+  }
+  if (httpStatus === 429) {
+    setCmcBackoffUntil(Date.now() + 60_000, "cmc_http_429");
+  }
+}
+
+function maybeWarnCmcBudgetThreshold(): void {
+  const day = utcDayKey();
+  if (cmcBudgetWarnedDayKey === day) return;
+  const max = maxCmcCallsPerDayPerInstance();
+  if (max <= 0) return;
+  const threshold = Math.floor(max * 0.8);
+  if (cmcCallsToday >= threshold) {
+    cmcBudgetWarnedDayKey = day;
+    console.warn(
+      JSON.stringify({
+        event: "market_data_cmc_budget_warning",
+        level: "warn",
+        callsToday: cmcCallsToday,
+        dailyMax: max,
+        pctUsed: Number(((cmcCallsToday / max) * 100).toFixed(1)),
+      }),
+    );
+  }
 }
 
 export function maxCmcCallsPerDayPerInstance(): number {
@@ -73,8 +141,10 @@ export function recordCmcCall(): void {
   if (day !== cmcBudgetDayKey) {
     cmcBudgetDayKey = day;
     cmcCallsToday = 0;
+    cmcBudgetWarnedDayKey = "";
   }
   cmcCallsToday += 1;
+  maybeWarnCmcBudgetThreshold();
 }
 
 export function getCmcCallsTodayForTests(): number {

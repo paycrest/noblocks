@@ -38,13 +38,17 @@ import {
 } from "../app/lib/market-data/assets";
 import {
   CACHE_TTLS,
+  applyCmcRateLimitBackoff,
   canSpendCmcCredit,
+  getCmcBackoffUntilForTests,
   getCmcCallsTodayForTests,
+  isCmcInBackoff,
   maxCmcCallsPerDayPerInstance,
   recordCmcCall,
   resetMarketDataCachesForTests,
   setCachedStats,
 } from "../app/lib/market-data/cache";
+import { resetHistoryBucketCacheForTests } from "../app/lib/market-data/history-cache";
 import { computeCngnBadge } from "../app/lib/market-data/cngn";
 import { applySpikeFilter } from "../app/lib/market-data/series";
 import {
@@ -81,6 +85,7 @@ function mockRound(overrides: Partial<{ answer: bigint; updatedAt: number }> = {
 
 beforeEach(() => {
   resetMarketDataCachesForTests();
+  resetHistoryBucketCacheForTests();
   mockedReadLatest.mockReset();
   mockedReadAt.mockReset();
   mockedHistory.mockReset();
@@ -191,6 +196,37 @@ describe("CMC budget guard", () => {
     }
     expect(canSpendCmcCredit()).toBe(false);
     expect(getCmcCallsTodayForTests()).toBe(max);
+  });
+});
+
+describe("CMC backoff", () => {
+  it("blocks fetches for 60s on minute-limit code 1008", () => {
+    resetMarketDataCachesForTests();
+    applyCmcRateLimitBackoff(429, 1008);
+    expect(isCmcInBackoff()).toBe(true);
+    expect(getCmcBackoffUntilForTests()).toBeGreaterThan(Date.now());
+  });
+});
+
+describe("history bucket cache", () => {
+  it("fetches only missing buckets on a second request", async () => {
+    mockedHistory.mockImplementation(
+      async (_entry: unknown, timestamps: number[]) => {
+        return timestamps.map((t: number) => ({
+          t,
+          answer: 99983000n,
+          decimals: 8,
+        }));
+      },
+    );
+
+    await getTokenHistory("usdc", "1D");
+    const firstCalls = mockedHistory.mock.calls.length;
+    expect(firstCalls).toBeGreaterThan(0);
+
+    mockedHistory.mockClear();
+    await getTokenHistory("usdc", "1D");
+    expect(mockedHistory.mock.calls.length).toBeLessThan(firstCalls);
   });
 });
 

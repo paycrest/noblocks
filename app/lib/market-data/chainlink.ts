@@ -201,8 +201,18 @@ export async function blockNumberForTimestamp(
   const client = getPublicClient(chain);
   try {
     const latest = await client.getBlockNumber();
-    let lo = BigInt(0);
-    let hi = latest;
+    const latestBlock = await client.getBlock({ blockNumber: latest });
+    const latestTs = Number(latestBlock.timestamp);
+    if (targetSec >= latestTs) return latest;
+
+    const blockTimeSec =
+      chain === "arbitrum" ? 1 : chain === "celo" ? 5 : 2;
+    const delta = latestTs - targetSec;
+    let guess =
+      latest - BigInt(Math.max(0, Math.floor(delta / blockTimeSec)));
+    const window = BigInt(5000);
+    let lo = guess > window ? guess - window : BigInt(0);
+    let hi = guess + window > latest ? latest : guess + window;
     while (lo < hi) {
       const mid = (lo + hi + BigInt(1)) / BigInt(2);
       const block = await client.getBlock({ blockNumber: mid });
@@ -214,6 +224,68 @@ export async function blockNumberForTimestamp(
   } catch {
     return null;
   }
+}
+
+const HISTORY_MULTICALL_CHUNK = 100;
+
+async function blockNumbersForTimestamps(
+  chain: MarketChain,
+  timestampsSec: number[],
+): Promise<Map<number, bigint>> {
+  const unique = [...new Set(timestampsSec)].sort((a, b) => a - b);
+  const map = new Map<number, bigint>();
+  for (const ts of unique) {
+    const block = await blockNumberForTimestamp(chain, ts);
+    if (block !== null) map.set(ts, block);
+  }
+  return map;
+}
+
+async function batchLatestRoundDataAtBlocks(
+  feed: ChainlinkFeedConfig,
+  samples: Array<{ t: number; blockNumber: bigint }>,
+): Promise<Array<{ t: number; answer: bigint; decimals: number }>> {
+  if (samples.length === 0) return [];
+  const ok = await bootCheckFeed(feed);
+  if (!ok) return [];
+
+  const client = getPublicClient(feed.chain);
+  const out: Array<{ t: number; answer: bigint; decimals: number }> = [];
+
+  for (let i = 0; i < samples.length; i += HISTORY_MULTICALL_CHUNK) {
+    const chunk = samples.slice(i, i + HISTORY_MULTICALL_CHUNK);
+    const results = await client.multicall({
+      contracts: chunk.map(({ blockNumber }) => ({
+        address: feed.proxy,
+        abi: aggregatorAbi,
+        functionName: "latestRoundData",
+        blockNumber,
+      })),
+      allowFailure: true,
+    });
+
+    for (let j = 0; j < chunk.length; j++) {
+      const row = results[j];
+      if (row.status !== "success") continue;
+      const [, answer] = row.result as readonly [
+        bigint,
+        bigint,
+        bigint,
+        bigint,
+        bigint,
+      ];
+      if (!validatePositiveAnswer(answer)) continue;
+      const priceStr = answerToDecimalString(answer, feed.decimals);
+      if (!isStablecoinBandOk(feed, priceStr)) continue;
+      out.push({
+        t: chunk[j].t,
+        answer,
+        decimals: feed.decimals,
+      });
+    }
+  }
+
+  return out;
 }
 
 function feedForAsset(entry: AssetRegistryEntry): ChainlinkFeedConfig {
@@ -255,16 +327,15 @@ export const chainlinkPriceProvider: PriceProvider = {
   },
 
   async readHistoryAtTimestamps(entry, timestampsSec) {
+    if (timestampsSec.length === 0) return [];
     const feed = entry.price;
-    const out: Array<{ t: number; answer: bigint; decimals: number }> = [];
+    const blockByTs = await blockNumbersForTimestamps(feed.chain, timestampsSec);
+    const samples: Array<{ t: number; blockNumber: bigint }> = [];
     for (const t of timestampsSec) {
-      const block = await blockNumberForTimestamp(feed.chain, t);
-      if (!block) continue;
-      const round = await readFeedAtBlock(feed, block);
-      if (!round) continue;
-      out.push({ t, answer: round.answer, decimals: round.decimals });
+      const blockNumber = blockByTs.get(t);
+      if (blockNumber !== undefined) samples.push({ t, blockNumber });
     }
-    return out;
+    return batchLatestRoundDataAtBlocks(feed, samples);
   },
 };
 

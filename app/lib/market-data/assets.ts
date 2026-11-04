@@ -74,6 +74,8 @@ export const ASSET_REGISTRY: Record<string, AssetRegistryEntry> = {
     cmcId: 1027,
     price: {
       chain: "base",
+      // Base directory lists only SVR ETH/USD proxies (no classic eth-usd path). SVR proxies
+      // still implement AggregatorV3 latestRoundData for display; heartbeat 1200s (directory).
       proxy: "0x50015f8b17fb2C290Dde41fDc246ed0dcEE93a8b",
       pairSlug: "eth-usd",
       heartbeatS: 1200,

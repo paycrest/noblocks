@@ -114,7 +114,8 @@ function SceneContent({ scene }: { scene: string }) {
     );
   }
 
-  if (scene === "review") {
+  if (scene === "review" || scene === "review-unchecked") {
+    const checked = scene !== "review-unchecked";
     return (
       <PageChrome>
         <DrawerHarness title="Buy">
@@ -130,7 +131,7 @@ function SceneContent({ scene }: { scene: string }) {
             detailRows={reviewRows}
             expiresInSeconds={1783}
             confirmationLabel="I sent exactly ₦19,000 from my own bank account to the account above."
-            confirmationChecked
+            confirmationChecked={checked}
             onConfirmationChange={() => {}}
             submitLabel="I have sent the money"
             onSubmit={() => {}}

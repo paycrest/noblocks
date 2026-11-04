@@ -20,6 +20,8 @@ import {
   usePendingActionClose,
 } from "@/app/components/drawer";
 import { WALLET_DRAWER_SLOT_ID } from "@/app/components/drawer/walletDrawerSlot";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 
 beforeAll(() => {
   Object.defineProperty(window, "matchMedia", {
@@ -525,6 +527,20 @@ describe("ActionReceipt variants", () => {
     expect(
       screen.queryByText("Your money is in your balance"),
     ).not.toBeInTheDocument();
+  });
+});
+
+describe("drawer Figma token classes", () => {
+  it("maps failed, scrim, and checkbox colours to approved values", () => {
+    const styles = readFileSync(
+      join(process.cwd(), "app/components/drawer/drawerStyles.ts"),
+      "utf8",
+    );
+    expect(styles).toContain("text-text-accent-red dark:text-[#F53D6B]");
+    expect(styles).toContain("bg-[#000]/50 backdrop-blur-[2px]");
+    expect(styles).toContain("dark:bg-white/20");
+    expect(styles).toContain("border-[1.5px] border-border-input dark:border-white/30");
+    expect(styles).toContain("font-medium text-black dark:text-white");
   });
 });
 

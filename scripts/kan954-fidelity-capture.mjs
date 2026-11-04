@@ -4,12 +4,13 @@ import { join } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 
 const ARTIFACT_ROOT =
-  process.env.KAN954_ARTIFACT_ROOT ?? "/cursor/stores/self/kan954-r4";
+  process.env.KAN954_ARTIFACT_ROOT ?? "/cursor/stores/self/kan954-figma";
 const BASE = process.env.KAN954_BASE_URL ?? "http://127.0.0.1:3002";
 
 const drawerScenes = [
   { scene: "filled", file: "drawer-filled.png" },
   { scene: "review", file: "drawer-review.png" },
+  { scene: "review-unchecked", file: "drawer-review-checkbox-unchecked.png" },
   { scene: "progress1", file: "progress-step1.png" },
   { scene: "progress3", file: "progress-step3.png" },
   { scene: "receipt-success", file: "receipt-success-drawer.png" },

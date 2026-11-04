@@ -16,7 +16,7 @@ export function showActionSuccessToast(title: string, description: string) {
       <div
         role="status"
         className={classNames(
-          "w-[min(100vw-2rem,20rem)] overflow-hidden rounded-2xl border border-border-light bg-white shadow-sm dark:border-[0.5px] dark:border-white/10 dark:bg-[#202020] dark:shadow-2xl",
+          "w-[min(100vw-2rem,20rem)] overflow-hidden rounded-2xl border border-border-light bg-white shadow-sm dark:border dark:border-white/10 dark:bg-[#202020] dark:shadow-[0_23px_46px_rgba(18,18,23,0.99)]",
         )}
       >
         <div className="flex items-center gap-2.5 px-3.5 py-2.5">

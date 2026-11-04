@@ -12,6 +12,7 @@ import {
   drawerBodyText,
   drawerBorderLight,
   drawerCloseButtonClasses,
+  drawerModalScrimClasses,
   drawerModalShellClasses,
   drawerModalTitleClasses,
   drawerNeutralCardClasses,
@@ -68,7 +69,7 @@ export function ReviewModal({
       dialogPanelClassName="!bg-transparent !shadow-none"
       contentClassName={drawerModalShellClasses}
       ariaLabelledBy={titleId}
-      scrimClassName="fixed inset-0 bg-black/50"
+      scrimClassName={drawerModalScrimClasses}
     >
       <div className="flex flex-col gap-7">
         <div className="flex items-start justify-between gap-3">

@@ -244,6 +244,12 @@ describe("KAN-970 token holdings helpers", () => {
     expect(isAllowedWalletTokenSymbol("NOTATOKEN")).toBe(false);
     expect(isAllowedWalletTokenSymbol("USDC")).toBe(true);
   });
+
+  it("rejects malformed percent-encoded symbols without throwing", () => {
+    expect(() => isAllowedWalletTokenSymbol("100%")).not.toThrow();
+    expect(isAllowedWalletTokenSymbol("100%")).toBe(false);
+    expect(isAllowedWalletTokenSymbol("USDC")).toBe(true);
+  });
 });
 
 describe("TokensPageContent", () => {
@@ -366,6 +372,29 @@ describe("TokensPageContent", () => {
       "/tokens/USDC",
     ]);
     expect(screen.queryByRole("link", { name: /NOTATOKEN/i })).toBeNull();
+  });
+
+  it("keeps malformed symbols visible without a detail link", () => {
+    usePortfolio.mockReturnValue({
+      data: tokenSummary([
+        holding({ symbol: "USDC", amount: "10", usd: "10", id: "c" }),
+        holding({ symbol: "100%", amount: "3", usd: "3", id: "p" }),
+      ]),
+      isLoading: false,
+      error: null,
+      refetch: jest.fn(),
+    });
+
+    expect(() => render(<TokensPageContent />)).not.toThrow();
+    expect(screen.getByText("3 100%")).toBeInTheDocument();
+    expect(screen.getByText("$3.00")).toBeInTheDocument();
+    const tokenLinks = screen
+      .getAllByRole("link")
+      .filter((link) => link.getAttribute("href")?.startsWith("/tokens/"));
+    expect(tokenLinks.map((link) => link.getAttribute("href"))).toEqual([
+      "/tokens/USDC",
+    ]);
+    expect(screen.queryByRole("link", { name: /100%/ })).toBeNull();
   });
 });
 

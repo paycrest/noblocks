@@ -23,7 +23,13 @@ function getAllowlistSymbols(): Set<string> {
 
 /** Validates dynamic `[symbol]` segments against supported token symbols. */
 export function isAllowedWalletTokenSymbol(raw: string): boolean {
-  const canonical = canonicalTokenSymbol(decodeURIComponent(raw));
+  let decoded: string;
+  try {
+    decoded = decodeURIComponent(raw);
+  } catch {
+    return false;
+  }
+  const canonical = canonicalTokenSymbol(decoded);
   if (!canonical) return false;
   for (const allowed of getAllowlistSymbols()) {
     if (tokensEqual(allowed, canonical)) return true;

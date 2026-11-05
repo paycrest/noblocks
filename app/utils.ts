@@ -1296,7 +1296,7 @@ export type FetchBalancesForChainArgs =
     tokens?: Token[];
   };
 
-async function fetchEvmBalancesUnifiedUncached(
+export async function fetchEvmBalancesUnifiedUncached(
   client: any,
   address: string,
 ): Promise<UnifiedWalletBalances> {
@@ -1487,7 +1487,7 @@ export async function fetchEvmBalancesForAddress(
   );
 }
 
-async function fetchStarknetBalancesUnified(
+export async function fetchStarknetBalancesUnified(
   address: string,
   tokens: Token[],
 ): Promise<UnifiedWalletBalances> {
@@ -1611,7 +1611,7 @@ export async function fetchStarknetBalance(
   };
 }
 
-async function fetchTronBalancesUnified(
+export async function fetchTronBalancesUnified(
   address: string,
   tokens: Token[],
 ): Promise<UnifiedWalletBalances> {

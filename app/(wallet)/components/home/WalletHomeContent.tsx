@@ -40,16 +40,15 @@ import {
 import { usePortfolio } from "@/app/hooks/usePortfolio";
 import { useWalletAddress } from "@/app/hooks/useWalletAddress";
 import { classNames, isReferralEnabled } from "@/app/utils";
-import { shellFocusRingClasses, shellMinHitTargetClasses } from "../shellFocusStyles";
-import { AddFundsSplitButton } from "./AddFundsSplitButton";
+import { shellFocusRingClasses } from "../shellFocusStyles";
+import {
+  AddFundsSplitButton,
+  walletHomePrimaryOnlyButtonClasses,
+} from "./AddFundsSplitButton";
 import {
   AssetBucketListSkeleton,
   AssetBucketRow,
 } from "./AssetBucketRow";
-
-/** Primary Gray (Figma button primary-gray): light fill #121217, dark fill white. */
-const homePrimaryGrayButtonClasses =
-  "bg-black text-white transition hover:bg-black/90 dark:bg-white dark:text-black dark:hover:bg-white/90";
 
 const EXPLORE_BANNERS = {
   stocks: "/images/wallet-home/explore-stocks-banner.png",
@@ -168,12 +167,7 @@ function AddFundsGetStartedCard({ onAddFunds }: { onAddFunds: () => void }) {
       <button
         type="button"
         onClick={onAddFunds}
-        className={classNames(
-          "inline-flex h-8 shrink-0 items-center justify-center rounded-xl px-4 text-sm font-semibold",
-          homePrimaryGrayButtonClasses,
-          shellMinHitTargetClasses,
-          shellFocusRingClasses,
-        )}
+        className={walletHomePrimaryOnlyButtonClasses}
       >
         Add funds
       </button>

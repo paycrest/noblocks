@@ -1,10 +1,5 @@
-import { WalletPlaceholderPage } from "./components/WalletPlaceholderPage";
+import { WalletHomeContent } from "./components/home/WalletHomeContent";
 
 export default function HomePage() {
-  return (
-    <WalletPlaceholderPage
-      title="Home"
-      description="Your Noblocks v2 dashboard will live here."
-    />
-  );
+  return <WalletHomeContent />;
 }

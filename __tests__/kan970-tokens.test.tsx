@@ -344,6 +344,29 @@ describe("TokensPageContent", () => {
     expect(screen.getByText("-0.07%")).toBeInTheDocument();
     expect(screen.getByText("+0.94%")).toBeInTheDocument();
   });
+
+  it("keeps non-allowlisted holdings visible without a detail link", () => {
+    usePortfolio.mockReturnValue({
+      data: tokenSummary([
+        holding({ symbol: "USDC", amount: "10", usd: "10", id: "c" }),
+        holding({ symbol: "NOTATOKEN", amount: "5", usd: "5", id: "n" }),
+      ]),
+      isLoading: false,
+      error: null,
+      refetch: jest.fn(),
+    });
+
+    render(<TokensPageContent />);
+    expect(screen.getByText("5 NOTATOKEN")).toBeInTheDocument();
+    expect(screen.getByText("$5.00")).toBeInTheDocument();
+    const tokenLinks = screen
+      .getAllByRole("link")
+      .filter((link) => link.getAttribute("href")?.startsWith("/tokens/"));
+    expect(tokenLinks.map((link) => link.getAttribute("href"))).toEqual([
+      "/tokens/USDC",
+    ]);
+    expect(screen.queryByRole("link", { name: /NOTATOKEN/i })).toBeNull();
+  });
 });
 
 describe("TokenDetailContent", () => {
@@ -543,6 +566,55 @@ describe("TokenDetailContent", () => {
     expect(screen.getByTestId("token-price-header")).toHaveTextContent("$1.00");
     expect(screen.getByTestId("token-pnl-unavailable")).toBeInTheDocument();
     expect(screen.queryByText("Chart unavailable")).not.toBeInTheDocument();
+  });
+
+  it("shows PortfolioError and unavailable balance/PnL when portfolio fails", () => {
+    const refetch = jest.fn();
+    usePortfolio.mockReturnValue({
+      data: null,
+      isLoading: false,
+      error: new Error("fail"),
+      refetch,
+    });
+    useTokenMarketSnapshot.mockReturnValue({
+      data: {
+        id: "usdc",
+        price: "1",
+        change24h: { pct: "0.01", abs: "0.0001" },
+        asOf: "2026-11-05T12:00:00.000Z",
+        stale: false,
+        stats: null,
+      },
+      isLoading: false,
+      unavailable: false,
+      error: false,
+      refetch: jest.fn(),
+    });
+    useTokenMarketHistory.mockReturnValue({
+      data: {
+        id: "usdc",
+        range: "1D",
+        points: [
+          [1, "1"],
+          [2, "1.01"],
+        ],
+        stale: false,
+      },
+      isLoading: false,
+      unavailable: false,
+      error: false,
+      refetch: jest.fn(),
+    });
+
+    render(<TokenDetailContent symbol="USDC" />);
+    expect(screen.getByTestId("token-balance-amount")).toHaveTextContent("—");
+    expect(screen.getByTestId("token-pnl-unavailable")).toBeInTheDocument();
+    expect(screen.queryByTestId("token-pnl-value")).not.toBeInTheDocument();
+    expect(
+      screen.getByText("We couldn't load your token balances."),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Try again/i }));
+    expect(refetch).toHaveBeenCalled();
   });
 
   it("opens ActionDrawer with preselected token for Transfer", () => {

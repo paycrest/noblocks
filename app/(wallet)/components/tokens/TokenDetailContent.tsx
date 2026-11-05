@@ -36,6 +36,7 @@ import {
   shellMinHitTargetClasses,
 } from "../shellFocusStyles";
 import {
+  PortfolioError,
   TokenActionDrawerHost,
   aggregateTokenHoldings,
   changePctTone,
@@ -370,7 +371,7 @@ function formatSupplyLabel(value: string | null, symbol: string): string {
 export function TokenDetailContent({ symbol }: TokenDetailContentProps) {
   const { ready, authenticated } = usePrivy();
   const { trackBridge } = useBridgeStatusTracker();
-  const { data, isLoading } = usePortfolio({
+  const { data, isLoading, error, refetch } = usePortfolio({
     enabled: ready && authenticated,
   });
   const [range, setRange] = useState<TokenHistoryRange>("1D");
@@ -407,11 +408,13 @@ export function TokenDetailContent({ symbol }: TokenDetailContentProps) {
     priceUnavailable || historyUnavailable || history?.unavailable;
   const chartLoading = snapshotLoading || historyLoading;
 
+  const portfolioError = error != null;
   const pnl = computeTodaysPnlUsd(
     holding?.amount ?? "0",
     snapshot?.change24h ?? null,
   );
-  const pnlUnavailable = priceUnavailable || pnl.status === "unavailable";
+  const pnlUnavailable =
+    portfolioError || priceUnavailable || pnl.status === "unavailable";
 
   const imageUrl = resolveTokenImageUrl(symbol);
 
@@ -437,13 +440,19 @@ export function TokenDetailContent({ symbol }: TokenDetailContentProps) {
               >
                 {holding
                   ? formatTokenDetailBalanceAmount(holding.amount)
-                  : "0"}
+                  : portfolioError
+                    ? "—"
+                    : "0"}
               </p>
             )}
           </div>
         </div>
         <TokenDetailActionsMenu onAction={setActiveAction} />
       </div>
+
+      {portfolioError ? (
+        <PortfolioError onRetry={() => void refetch()} />
+      ) : null}
 
       <section className="overflow-hidden rounded-[24px] border border-border-light bg-accent-gray dark:border-white/10 dark:bg-white/5">
         <div

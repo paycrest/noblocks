@@ -24,7 +24,10 @@ import type { PortfolioHolding } from "@/app/lib/portfolio/types";
 import { resolveMarketTokenId } from "@/app/lib/tokens/market-id";
 import type { TokenHistoryRange } from "@/app/lib/tokens/market-id";
 import { canonicalTokenSymbol, tokensEqual } from "@/app/lib/token-symbol";
-import { resolveWalletTokenMeta } from "@/app/lib/wallet-token-allowlist";
+import {
+  isAllowedWalletTokenSymbol,
+  resolveWalletTokenMeta,
+} from "@/app/lib/wallet-token-allowlist";
 import { FALLBACK_TOKENS, classNames, copyToClipboard } from "@/app/utils";
 import { Copy01Icon } from "hugeicons-react";
 import { PiCheck } from "react-icons/pi";
@@ -687,7 +690,7 @@ function TokenRowLink({
   usdLabel: string;
   changePct: string | null;
   imageUrl?: string;
-  href: string;
+  href?: string;
 }) {
   const tone =
     changePct == null
@@ -698,14 +701,15 @@ function TokenRowLink({
           ? "up"
           : "flat";
 
-  return (
-    <Link
-      href={href}
-      className={classNames(
-        "flex min-h-16 items-center justify-between gap-4 px-6 py-2 transition hover:bg-white/40 dark:hover:bg-white/5",
-        shellFocusRingClasses,
-      )}
-    >
+  const rowClasses = classNames(
+    "flex min-h-16 items-center justify-between gap-4 px-6 py-2",
+    href &&
+      "transition hover:bg-white/40 dark:hover:bg-white/5",
+    href && shellFocusRingClasses,
+  );
+
+  const inner = (
+    <>
       <div className="flex min-w-0 items-center gap-3">
         <div className="relative size-11 shrink-0 overflow-hidden rounded-full bg-white dark:bg-white/10">
           {imageUrl ? (
@@ -737,6 +741,16 @@ function TokenRowLink({
           {changePct ?? "—"}
         </p>
       </div>
+    </>
+  );
+
+  if (!href) {
+    return <div className={rowClasses}>{inner}</div>;
+  }
+
+  return (
+    <Link href={href} className={rowClasses}>
+      {inner}
     </Link>
   );
 }
@@ -763,7 +777,7 @@ const ACTION_TITLES: Record<WalletHomeActionId, string> = {
   swap: "Swap",
 };
 
-function PortfolioError({ onRetry }: { onRetry: () => void }) {
+export function PortfolioError({ onRetry }: { onRetry: () => void }) {
   return (
     <div
       role="alert"
@@ -954,7 +968,11 @@ export function TokensPageContent() {
                   usdLabel={formatTokenRowUsd(row.usd)}
                   changePct={changePct}
                   imageUrl={resolveTokenImageUrl(row.symbol)}
-                  href={tokenDetailHref(row.symbol)}
+                  href={
+                    isAllowedWalletTokenSymbol(row.symbol)
+                      ? tokenDetailHref(row.symbol)
+                      : undefined
+                  }
                 />
               );
             })}

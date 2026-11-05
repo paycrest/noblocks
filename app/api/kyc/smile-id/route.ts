@@ -164,7 +164,7 @@ export async function POST(request: NextRequest) {
     const { data: existingProfile, error: profileFetchError } =
       await supabaseAdmin
         .from("user_kyc_profiles")
-        .select("platform, tier, is_injected_wallet")
+        .select("platform, tier, is_injected_wallet, attempts")
         .eq("wallet_address", walletAddress)
         .maybeSingle();
 
@@ -224,45 +224,16 @@ export async function POST(request: NextRequest) {
 
     const tierFrom = Number(existingProfile.tier) || 0;
 
-    // Tier 2 allows up to 3 attempts
+    // Tier 2 allows up to 3 attempts. The counter is deliberately NOT
+    // incremented here: a try is only spent once Smile ID has returned a
+    // verdict on the submission (see the consume in the !verificationSuccess
+    // branch). Reserving it up front meant a provider outage, a transport
+    // error or a misconfigured key burned the user's whole quota and left
+    // them locked out behind support, having never been verified at all.
     const MAX_ATTEMPTS = 3;
-    const { data: newAttemptCount, error: rpcError } = await supabaseAdmin.rpc(
-      "increment_kyc_attempts",
-      { p_wallet_address: walletAddress, p_max_attempts: MAX_ATTEMPTS },
-    );
-    if (rpcError) {
-      report.failed({
-        ...idContext,
-        stage: "attempt_counter",
-        reason: "supabase_error",
-        provider: "supabase",
-        providerCode: rpcError.code,
-        detail: rpcError.message,
-        tierFrom,
-        statusCode: 500,
-      });
-      return NextResponse.json(
-        { status: "error", message: "Failed to process verification attempt." },
-        { status: 500 },
-      );
-    }
-    if (newAttemptCount === -1) {
-      report.rejected({
-        ...idContext,
-        stage: "attempt_counter",
-        reason: "no_kyc_profile",
-        tierFrom,
-        statusCode: 404,
-      });
-      return NextResponse.json(
-        {
-          status: "error",
-          message: "KYC profile not found. Please complete phone verification first.",
-        },
-        { status: 404 },
-      );
-    }
-    if (newAttemptCount === -2) {
+    const priorAttempts = Number(existingProfile.attempts) || 0;
+
+    if (priorAttempts >= MAX_ATTEMPTS) {
       // The user is now stuck until support intervenes — the one rejection
       // that always needs a human, so it must be findable by wallet address.
       report.rejected({
@@ -283,9 +254,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // What this run would be if it reaches a verdict, and the quota the user
+    // still holds until one does.
     const attemptContext = {
-      attempt: Number(newAttemptCount) || null,
-      attemptsRemaining: Math.max(0, MAX_ATTEMPTS - (Number(newAttemptCount) || 0)),
+      attempt: priorAttempts + 1,
+      attemptsRemaining: MAX_ATTEMPTS - priorAttempts,
     };
 
     // Use server utility to submit SmileID job
@@ -376,12 +349,12 @@ export async function POST(request: NextRequest) {
       const outcomeContext = {
         ...idContext,
         ...attemptContext,
-        // The refund below restores the try, so report what the user can
-        // actually retry with rather than the pre-refund count. If the refund
+        // Only a real rejection spends a try, so report the post-consume
+        // count there and the untouched quota for an outage. If the consume
         // itself fails it gets its own line.
         attemptsRemaining: isInfrastructureFailure
-          ? Math.max(0, MAX_ATTEMPTS - Math.max(0, newAttemptCount - 1))
-          : attemptContext.attemptsRemaining,
+          ? attemptContext.attemptsRemaining
+          : Math.max(0, MAX_ATTEMPTS - attemptContext.attempt),
         stage: "provider_verify",
         detail: errorMessage,
         failureCategory: category,
@@ -397,25 +370,26 @@ export async function POST(request: NextRequest) {
         report.rejected({ ...outcomeContext, reason: "provider_rejected" });
       }
 
-      // Infrastructure outages should not count against the user's attempt quota
-      // regardless of job type (Job Type 1, 5, or 6). Restore the counter that
-      // was incremented above so they can retry freely.
-      if (isInfrastructureFailure) {
-        const { error: restoreError } = await supabaseAdmin
-          .from("user_kyc_profiles")
-          .update({ attempts: Math.max(0, newAttemptCount - 1) })
-          .eq("wallet_address", walletAddress);
-        if (restoreError) {
-          // The user keeps a try they should have been refunded — silent to
-          // them, and only visible here.
+      // Smile ID adjudicated this submission and said no — that is the only
+      // outcome that costs the user a try. Infrastructure outages stay free
+      // regardless of job type (Job Type 1, 5, or 6). The RPC keeps the cap
+      // atomic, so concurrent runs can never push the counter past the max.
+      if (!isInfrastructureFailure) {
+        const { data: consumed, error: consumeError } = await supabaseAdmin.rpc(
+          "increment_kyc_attempts",
+          { p_wallet_address: walletAddress, p_max_attempts: MAX_ATTEMPTS },
+        );
+        if (consumeError || consumed === -1 || consumed === -2) {
+          // The user keeps a try they should have spent — invisible to them,
+          // and only visible here. Their rejection response is unaffected.
           report.failed({
             ...idContext,
             ...attemptContext,
-            stage: "attempt_restore",
-            reason: "supabase_error",
+            stage: "attempt_consume",
+            reason: consumeError ? "supabase_error" : "counter_unavailable",
             provider: "supabase",
-            providerCode: restoreError.code,
-            detail: restoreError.message,
+            providerCode: consumeError?.code,
+            detail: consumeError?.message ?? `increment returned ${consumed}`,
             tierFrom,
           });
         }

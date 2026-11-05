@@ -1282,6 +1282,11 @@ export type UnifiedWalletBalances = {
   balancesInWei?: Record<string, bigint>;
   /** Starknet parity: mirrors `balances` (display units), not an external oracle. */
   balancesUsd?: Record<string, number>;
+  /**
+   * When false, balances are a synthetic empty snapshot from a failed read.
+   * Omitted or true on successful reads (including legitimately zero balances).
+   */
+  readOk?: boolean;
 };
 
 export type FetchBalancesForChainArgs =
@@ -1296,7 +1301,7 @@ export type FetchBalancesForChainArgs =
     tokens?: Token[];
   };
 
-async function fetchEvmBalancesUnifiedUncached(
+export async function fetchEvmBalancesUnifiedUncached(
   client: any,
   address: string,
 ): Promise<UnifiedWalletBalances> {
@@ -1314,6 +1319,7 @@ async function fetchEvmBalancesUnifiedUncached(
     total: 0,
     balances: {},
     balancesInWei: {},
+    readOk: false,
   });
 
   if (!supportedTokens) return empty();
@@ -1454,6 +1460,7 @@ async function fetchEvmBalancesUnifiedUncached(
       total: isNaN(totalBalance) ? 0 : totalBalance,
       balances,
       balancesInWei,
+      readOk: true,
     };
   } catch {
     return empty();
@@ -1487,7 +1494,7 @@ export async function fetchEvmBalancesForAddress(
   );
 }
 
-async function fetchStarknetBalancesUnified(
+export async function fetchStarknetBalancesUnified(
   address: string,
   tokens: Token[],
 ): Promise<UnifiedWalletBalances> {
@@ -1500,6 +1507,7 @@ async function fetchStarknetBalancesUnified(
     balances: {},
     balancesInWei: {},
     balancesUsd: {},
+    readOk: false,
   });
 
   if (!address || !tokens || tokens.length === 0) {
@@ -1569,6 +1577,7 @@ async function fetchStarknetBalancesUnified(
       balances,
       balancesInWei,
       balancesUsd,
+      readOk: true,
     };
   } catch {
     return emptyUsd();
@@ -1611,7 +1620,7 @@ export async function fetchStarknetBalance(
   };
 }
 
-async function fetchTronBalancesUnified(
+export async function fetchTronBalancesUnified(
   address: string,
   tokens: Token[],
 ): Promise<UnifiedWalletBalances> {
@@ -1624,6 +1633,7 @@ async function fetchTronBalancesUnified(
     balances: {},
     balancesInWei: {},
     balancesUsd: {},
+    readOk: false,
   });
 
   if (!address || !tokens || tokens.length === 0) {
@@ -1709,6 +1719,7 @@ async function fetchTronBalancesUnified(
       balances,
       balancesInWei,
       balancesUsd,
+      readOk: true,
     };
   } catch (error) {
     console.error("Error fetching Tron balances:", error);

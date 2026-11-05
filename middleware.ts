@@ -556,6 +556,7 @@ export const config = {
     "/api/v1/payment-orders",
     "/api/v1/payment-orders/:path*",
     "/api/v1/wallets/moralis-stream/register",
+    "/api/v1/portfolio",
     "/api/kyc/smile-id",
     "/api/kyc/identity-check",
     "/api/kyc/status",

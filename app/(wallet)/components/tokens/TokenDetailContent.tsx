@@ -272,37 +272,38 @@ export function TokenDetailContent({ symbol }: TokenDetailContentProps) {
         <TokenDetailActionsMenu onAction={setActiveAction} />
       </div>
 
-      <section className="space-y-4 rounded-[20px] border border-border-light bg-accent-gray px-4 py-5 dark:border-white/10 dark:bg-white/5 sm:px-6">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <p className="text-sm text-text-secondary dark:text-white/50">
-              {symbol} price today
+      <section className="overflow-hidden rounded-[24px] border border-border-light bg-accent-gray dark:border-white/10 dark:bg-white/5">
+        <div
+          className="flex flex-col gap-0.5 px-5 pt-4 pb-4"
+          data-testid="token-price-header"
+        >
+          <p className="text-sm font-medium text-text-secondary dark:text-white/50">
+            {symbol} price today
+          </p>
+          {snapshotLoading ? (
+            <BalanceSkeleton className="h-6 w-24 rounded-lg" />
+          ) : (
+            <p className="text-[17px] font-medium leading-6 text-text-body dark:text-white">
+              {priceUnavailable
+                ? "Unavailable"
+                : formatMarketPriceUsd(snapshot!.price)}
             </p>
-            {snapshotLoading ? (
-              <BalanceSkeleton className="mt-1 h-6 w-24 rounded-lg" />
-            ) : (
-              <p className="text-[17px] font-medium leading-6 text-text-body dark:text-white">
-                {priceUnavailable
-                  ? "Unavailable"
-                  : formatMarketPriceUsd(snapshot!.price)}
-              </p>
-            )}
-          </div>
-          <div className="text-sm">
-            <p className="text-text-secondary dark:text-white/50">
+          )}
+          <div className="flex items-center gap-2 text-sm font-medium">
+            <span className="text-text-secondary dark:text-white/50">
               Today&apos;s PnL
-            </p>
+            </span>
             {pnlUnavailable ? (
-              <p
-                className="font-medium text-text-secondary dark:text-white/50"
+              <span
+                className="text-text-secondary dark:text-white/50"
                 data-testid="token-pnl-unavailable"
               >
                 Unavailable
-              </p>
+              </span>
             ) : (
-              <p
+              <span
                 className={classNames(
-                  "flex items-center gap-1 font-medium",
+                  "inline-flex items-center gap-1",
                   changePctTone(pnl.pct) === "up" &&
                     "text-[#227738] dark:text-[#39c65d]",
                   changePctTone(pnl.pct) === "down" &&
@@ -316,18 +317,21 @@ export function TokenDetailContent({ symbol }: TokenDetailContentProps) {
                   <PnlTrendCaret direction="down" />
                 ) : null}
                 {formatSignedUsdPnl(pnl.usd)} ({formatChangePctDisplay(pnl.pct)})
-              </p>
+              </span>
             )}
           </div>
         </div>
 
-        <PriceLineChart
-          points={history?.points ?? []}
-          isLoading={chartLoading}
-          unavailable={chartUnavailable}
-        />
+        <div className="h-[320px] w-full" data-testid="token-price-chart">
+          <PriceLineChart
+            points={history?.points ?? []}
+            isLoading={chartLoading}
+            unavailable={chartUnavailable}
+            className="h-full w-full"
+          />
+        </div>
 
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2 px-4 pb-4">
           {TOKEN_HISTORY_RANGES.map((item) => (
             <button
               key={item}
@@ -346,32 +350,35 @@ export function TokenDetailContent({ symbol }: TokenDetailContentProps) {
           ))}
         </div>
 
-        <dl className="grid gap-4 border-t border-border-light pt-4 text-sm dark:border-white/10 sm:grid-cols-3">
-          <div>
-            <dt className="text-text-secondary dark:text-white/50">
+        <dl
+          className="flex flex-wrap items-start gap-x-[95px] gap-y-4 border-t border-border-light px-4 pt-5 pb-2.5 text-xs dark:border-white/10"
+          data-testid="token-market-legend"
+        >
+          <div className="flex flex-col gap-0.5">
+            <dt className="font-medium leading-5 text-text-secondary dark:text-white/50">
               Market cap
             </dt>
-            <dd className="font-medium text-text-body dark:text-white">
+            <dd className="font-medium leading-6 text-text-body dark:text-white">
               {snapshot?.stats?.marketCap
                 ? formatPortfolioUsd(snapshot.stats.marketCap)
                 : "—"}
             </dd>
           </div>
-          <div>
-            <dt className="text-text-secondary dark:text-white/50">
+          <div className="flex flex-col gap-0.5">
+            <dt className="font-medium leading-5 text-text-secondary dark:text-white/50">
               24-hour volume
             </dt>
-            <dd className="font-medium text-text-body dark:text-white">
+            <dd className="font-medium leading-6 text-text-body dark:text-white">
               {snapshot?.stats?.volume24h
                 ? formatPortfolioUsd(snapshot.stats.volume24h)
                 : "—"}
             </dd>
           </div>
-          <div>
-            <dt className="text-text-secondary dark:text-white/50">
+          <div className="flex flex-col gap-0.5">
+            <dt className="font-medium leading-5 text-text-secondary dark:text-white/50">
               Circulating supply
             </dt>
-            <dd className="font-medium text-text-body dark:text-white">
+            <dd className="font-medium leading-6 text-text-body dark:text-white">
               {formatSupplyLabel(
                 snapshot?.stats?.circulatingSupply ?? null,
                 symbol,

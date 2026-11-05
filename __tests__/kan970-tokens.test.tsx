@@ -394,6 +394,17 @@ describe("TokenDetailContent", () => {
     const { container } = render(<TokenDetailContent symbol="USDC" />);
     expect(screen.getByTestId("token-pnl-value")).toBeInTheDocument();
     expect(container.querySelector('[data-testid="token-pnl-value"] svg')).toBeTruthy();
+
+    const header = screen.getByTestId("token-price-header");
+    expect(header).toHaveClass("px-5", "pt-4", "pb-4");
+    expect(header).toContainElement(screen.getByTestId("token-pnl-value"));
+
+    const chart = screen.getByTestId("token-price-chart");
+    expect(chart).toHaveClass("w-full", "h-[320px]");
+
+    const legend = screen.getByTestId("token-market-legend");
+    expect(legend.className).toContain("gap-x-[95px]");
+    expect(legend.className).not.toMatch(/grid-cols-3/);
   });
 
   it("opens ActionDrawer with preselected token for Transfer", () => {

@@ -21,7 +21,8 @@ import {
   isWalletHomeActionVisible,
   type WalletHomeActionId,
 } from "@/app/lib/portfolio/home-visibility";
-import { shellFocusRingClasses } from "../shellFocusStyles";
+import { shellFocusRingClasses, shellMinHitTargetClasses } from "../shellFocusStyles";
+import { homePrimaryGrayButtonClasses } from "./homeButtonStyles";
 
 export type AddFundsMenuAction = {
   id: WalletHomeActionId;
@@ -78,7 +79,7 @@ function ActionMenuSection({
   if (actions.length === 0) return null;
   return (
     <div className="px-2 py-2">
-      <p className="px-2 pb-1 text-xs font-medium text-text-secondary dark:text-white/40">
+      <p className="px-2 pb-1 text-xs font-medium text-text-secondary dark:text-white/50">
         {title}
       </p>
       <ul className="space-y-0.5">
@@ -88,7 +89,7 @@ function ActionMenuSection({
               type="button"
               onClick={action.onSelect}
               className={classNames(
-                "flex w-full items-center gap-3 rounded-lg px-2 py-2.5 text-left text-sm font-medium text-text-body transition hover:bg-accent-gray dark:text-white dark:hover:bg-white/10",
+                "flex min-h-11 w-full items-center gap-3 rounded-lg px-2 text-left text-sm font-medium text-text-body transition hover:bg-accent-gray dark:text-white dark:hover:bg-white/10",
                 shellFocusRingClasses,
               )}
             >
@@ -139,9 +140,12 @@ export function AddFundsSplitButton({
         onAction("buy");
       }}
       className={classNames(
-        "inline-flex min-h-11 items-center justify-center bg-white px-5 text-sm font-semibold text-gray-900 transition hover:bg-white/90 dark:bg-white dark:text-gray-900",
+        "inline-flex h-9 items-center justify-center px-5 text-sm font-semibold",
+        homePrimaryGrayButtonClasses,
         variant === "split" ? "rounded-l-xl" : "rounded-xl",
+        shellMinHitTargetClasses,
         shellFocusRingClasses,
+        variant === "split" ? "rounded-l-xl" : "rounded-xl",
       )}
     >
       Add funds
@@ -161,8 +165,11 @@ export function AddFundsSplitButton({
             {primaryButton}
             <PopoverButton
               className={classNames(
-                "inline-flex min-h-11 items-center justify-center rounded-r-xl border-l border-gray-200 bg-white px-2.5 text-gray-900 transition hover:bg-white/90 dark:border-white/20 dark:bg-white dark:text-gray-900",
+                "inline-flex h-9 items-center justify-center rounded-r-xl border-l border-black/10 px-2.5 dark:border-white/20",
+                homePrimaryGrayButtonClasses,
+                shellMinHitTargetClasses,
                 shellFocusRingClasses,
+                "rounded-r-xl",
               )}
               aria-label="More add funds options"
             >
@@ -170,12 +177,12 @@ export function AddFundsSplitButton({
             </PopoverButton>
             <Transition
               as={Fragment}
-              enter="transition ease-out duration-100"
-              enterFrom="opacity-0 translate-y-1"
+              enter="transition ease-out duration-100 motion-reduce:transition-none"
+              enterFrom="opacity-0 translate-y-1 motion-reduce:translate-y-0"
               enterTo="opacity-100 translate-y-0"
-              leave="transition ease-in duration-75"
+              leave="transition ease-in duration-75 motion-reduce:transition-none"
               leaveFrom="opacity-100 translate-y-0"
-              leaveTo="opacity-0 translate-y-1"
+              leaveTo="opacity-0 translate-y-1 motion-reduce:translate-y-0"
             >
               <PopoverPanel
                 anchor="bottom end"

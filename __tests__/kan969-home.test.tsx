@@ -14,7 +14,17 @@ import {
   shouldShowStocksExploreCard,
 } from "../app/lib/portfolio/home-visibility";
 import { getFeatureFlags } from "../app/lib/flags";
+import { isReferralEnabled } from "../app/utils";
 import { WalletHomeContent } from "../app/(wallet)/components/home/WalletHomeContent";
+import { ExploreCards } from "../app/(wallet)/components/home/ExploreCards";
+
+jest.mock("../app/utils", () => {
+  const actual = jest.requireActual("../app/utils");
+  return {
+    ...actual,
+    isReferralEnabled: jest.fn(() => true),
+  };
+});
 
 jest.mock("../app/lib/flags", () => ({
   getFeatureFlags: jest.fn(),
@@ -31,10 +41,18 @@ jest.mock("../app/(wallet)/components/home/WalletActionDrawerHost", () => ({
 
 jest.mock("next/image", () => ({
   __esModule: true,
-  default: (props: { alt: string }) => (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img alt={props.alt} />
-  ),
+  default: (props: { alt: string; src?: string | { src: string } }) => {
+    const src =
+      typeof props.src === "string"
+        ? props.src
+        : props.src && typeof props.src === "object"
+          ? props.src.src
+          : undefined;
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img alt={props.alt} src={src} />
+    );
+  },
 }));
 
 jest.mock("next/link", () => ({
@@ -132,7 +150,12 @@ const loadedSummary: PortfolioSummary = {
   },
 };
 
+const mockedIsReferralEnabled = isReferralEnabled as jest.MockedFunction<
+  typeof isReferralEnabled
+>;
+
 beforeEach(() => {
+  mockedIsReferralEnabled.mockReturnValue(true);
   mockedGetFeatureFlags.mockReturnValue({
     stocks: true,
     "noblocks-earn-v2": true,
@@ -259,6 +282,9 @@ describe("WalletHomeContent", () => {
     render(<WalletHomeContent />);
     expect(screen.getByRole("alert")).toBeInTheDocument();
     expect(screen.queryByText("$0.00")).not.toBeInTheDocument();
+    expect(
+      document.querySelector(".divide-y"),
+    ).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /Try again/i }));
     expect(refetch).toHaveBeenCalled();
   });
@@ -303,5 +329,23 @@ describe("WalletHomeContent", () => {
     const earnRow = screen.getByText("Earn positions").closest("[data-readonly]");
     expect(earnRow).toHaveAttribute("data-readonly", "true");
     expect(screen.queryByText(/Earn up to/i)).not.toBeInTheDocument();
+  });
+});
+
+describe("ExploreCards", () => {
+  it("uses neutral card shell with top banner art", () => {
+    render(<ExploreCards onInviteClick={jest.fn()} />);
+    const stocksLink = screen.getByRole("link", {
+      name: /Own popular stocks/i,
+    });
+    expect(stocksLink.className).toMatch(/rounded-\[20px\]/);
+    expect(stocksLink.className).toMatch(/dark:bg-white\/5|bg-accent-gray/);
+    expect(stocksLink.className).toMatch(/focus-visible:ring-lavender-500/);
+    expect(
+      stocksLink.querySelector('img[src*="explore-stocks-banner"]'),
+    ).toBeTruthy();
+    expect(screen.getByText(/Earn up to/i).closest("a")?.className).toMatch(
+      /rounded-\[20px\]/,
+    );
   });
 });

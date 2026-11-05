@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ArrowRight01Icon } from "hugeicons-react";
 import { classNames } from "@/app/utils";
 import { formatPortfolioBucketUsd } from "@/app/lib/portfolio/display";
+import { shellFocusRingClasses } from "../shellFocusStyles";
 
 type AssetBucketRowProps = {
   title: string;
@@ -36,15 +37,17 @@ export function AssetBucketRow({
   );
 
   const rowClasses = classNames(
-    "flex w-full items-center gap-3 px-4 py-4 text-left transition-colors",
+    "flex w-full items-center gap-3 px-4 py-2 text-left transition-colors",
     !readOnly && href
       ? "hover:bg-accent-gray/60 dark:hover:bg-white/[0.04]"
       : "",
+    !readOnly && href ? shellFocusRingClasses : "",
+    !readOnly && href ? "rounded-md" : "",
   );
 
   const inner = (
     <>
-      <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-accent-gray text-icon-outline-secondary dark:bg-white/10 dark:text-white/70">
+      <span className="flex size-[35px] shrink-0 items-center justify-center rounded-[10px] bg-accent-gray text-icon-outline-secondary dark:bg-white/10 dark:text-white/70">
         {icon}
       </span>
       <span className="min-w-0 flex-1">
@@ -78,8 +81,8 @@ export function AssetBucketListSkeleton() {
   return (
     <div className="divide-y divide-border-light dark:divide-white/10">
       {[1, 2, 3].map((key) => (
-        <div key={key} className="flex items-center gap-3 px-4 py-4">
-          <div className="size-10 animate-pulse rounded-xl bg-gray-200 dark:bg-white/10" />
+        <div key={key} className="flex items-center gap-3 px-4 py-2">
+          <div className="size-[35px] animate-pulse rounded-[10px] bg-gray-200 dark:bg-white/10" />
           <div className="flex-1 space-y-2">
             <div className="h-4 w-28 animate-pulse rounded bg-gray-200 dark:bg-white/10" />
             <div className="h-3 w-36 animate-pulse rounded bg-gray-200 dark:bg-white/10" />

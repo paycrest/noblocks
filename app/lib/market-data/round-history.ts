@@ -194,41 +194,36 @@ export async function findPhaseHighRound(
   phaseId: number,
 ): Promise<bigint> {
   let lo = BigInt(1);
-  let hi = BigInt(1);
 
   if (!searchPhaseExpired(budget) && consumeBudget(budget, 1)) {
-    const row = (await batchFetch([encodeRoundId(phaseId, hi)]))[0];
-    if (!row?.ok) return BigInt(1);
+    const row = (await batchFetch([encodeRoundId(phaseId, lo)]))[0];
+    if (!row?.ok || row.updatedAt <= 0) return BigInt(1);
   }
 
-  while (!searchPhaseExpired(budget)) {
+  let missingUpper: bigint | null = null;
+  let probeHi = lo;
+
+  while (!searchPhaseExpired(budget) && missingUpper === null) {
     if (!consumeBudget(budget, 1)) break;
-    const probe = encodeRoundId(phaseId, hi * BigInt(2));
-    const row = (await batchFetch([probe]))[0];
+    const next = probeHi * BigInt(2);
+    const row = (await batchFetch([encodeRoundId(phaseId, next)]))[0];
     if (row?.ok && row.updatedAt > 0) {
-      lo = hi;
-      hi = hi * BigInt(2);
+      lo = next;
+      probeHi = next;
     } else {
-      break;
+      missingUpper = next;
     }
   }
 
+  if (missingUpper === null) return lo;
+
+  let hi = missingUpper - BigInt(1);
   while (lo < hi && !searchPhaseExpired(budget)) {
     if (!consumeBudget(budget, 1)) break;
-    const probes = probeRoundIds(phaseId, lo, hi, HISTORY_MULTICALL_CHUNK);
-    const rows = (await batchFetch(probes)).filter(
-      (r) => r.ok && r.updatedAt > 0,
-    );
-    if (rows.length === 0) break;
-    const maxAgg = rows.reduce(
-      (m, r) =>
-        decodeRoundId(r.roundId).aggregatorRoundId > m
-          ? decodeRoundId(r.roundId).aggregatorRoundId
-          : m,
-      lo,
-    );
-    if (maxAgg >= hi) break;
-    lo = maxAgg;
+    const mid = (lo + hi + BigInt(1)) / BigInt(2);
+    const row = (await batchFetch([encodeRoundId(phaseId, mid)]))[0];
+    if (row?.ok && row.updatedAt > 0) lo = mid;
+    else hi = mid - BigInt(1);
   }
 
   return lo;

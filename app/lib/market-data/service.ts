@@ -255,18 +255,18 @@ async function loadLatestPrice(id: string): Promise<PricePayload> {
 async function load24hChange(
   id: string,
   currentPrice: string,
-): Promise<{ pct: string; abs: string }> {
+): Promise<{ pct: string; abs: string } | null> {
   const cacheKey = `change:${id}`;
   const cached = getCachedChange<{ pct: string; abs: string }>(cacheKey);
   if (cached) return cached;
 
   const entry = getRegistryEntry(id);
-  if (!entry) return { pct: "0", abs: "0" };
+  if (!entry) return null;
 
   return withSingleFlight(cacheKey, async () => {
     const now = Math.floor(Date.now() / 1000);
     const past = await chainlinkPriceProvider.readAt(entry, now - 86400);
-    if (!past) return { pct: "0", abs: "0" };
+    if (!past) return null;
     const pastPrice = roundToPriceString(past);
     const change = {
       pct: pctChangeDecimal(currentPrice, pastPrice),

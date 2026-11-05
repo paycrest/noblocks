@@ -421,7 +421,8 @@ describe("service integration (mocked upstream)", () => {
     const snap = await getTokenMarketSnapshot("usdc");
     expect(snap.price).toBe("0.99983");
     expect(snap.stats?.volume24h).toBe("1000000");
-    expect(typeof snap.change24h.pct).toBe("string");
+    expect(snap.change24h).not.toBeNull();
+    expect(typeof snap.change24h!.pct).toBe("string");
   });
 
   it("returns 503 path when price unavailable", async () => {

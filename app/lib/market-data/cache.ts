@@ -95,7 +95,7 @@ export function applyCmcRateLimitBackoff(
     setCmcBackoffUntil(Date.now() + 60_000, "cmc_minute_limit_1008");
     return;
   }
-  if (httpStatus === 429 || errorCode === 1009 || errorCode === 1010) {
+  if (errorCode === 1009 || errorCode === 1010) {
     setCmcBackoffUntil(nextUtcMidnightMs(), "cmc_daily_or_monthly_limit");
     return;
   }

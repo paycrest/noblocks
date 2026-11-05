@@ -2,6 +2,7 @@
 
 import { Fragment, useMemo, useRef, useState } from "react";
 import Image from "next/image";
+import Decimal from "decimal.js";
 import { ActionDrawer } from "@/app/components/drawer";
 import { ReferralHubView } from "@/app/components/wallet-mobile-modal/ReferralHubView";
 import {
@@ -19,40 +20,187 @@ import {
 import { usePrivy } from "@privy-io/react-auth";
 import { BalanceSkeleton } from "@/app/components/BalanceSkeleton";
 import { usePortfolio } from "@/app/hooks/usePortfolio";
-import {
-  useTokenMarketHistory,
-  useTokenMarketSnapshot,
-} from "@/app/hooks/useTokenMarket";
 import { formatPortfolioUsd } from "@/app/lib/portfolio/display";
 import {
-  aggregateTokenHoldings,
-  findAggregatedHolding,
-} from "@/app/lib/tokens/aggregate-holdings";
-import {
-  resolveMarketTokenId,
   TOKEN_HISTORY_RANGES,
+  resolveMarketTokenId,
   type TokenHistoryRange,
 } from "@/app/lib/tokens/market-id";
+import { FALLBACK_TOKENS, classNames } from "@/app/utils";
+import { canonicalTokenSymbol, tokensEqual } from "@/app/lib/token-symbol";
+import { walletHomePrimaryGrayButtonClasses } from "../home/AddFundsSplitButton";
+import { ExploreCards } from "../home/WalletHomeContent";
 import {
+  shellFocusRingClasses,
+  shellMinHitTargetClasses,
+} from "../shellFocusStyles";
+import {
+  TokenActionDrawerHost,
+  aggregateTokenHoldings,
+  changePctTone,
   computeTodaysPnlUsd,
+  findAggregatedHolding,
   formatChangePctDisplay,
   formatSignedUsdPnl,
-  changePctTone,
-} from "@/app/lib/tokens/todays-pnl";
-import {
-  formatMarketPriceUsd,
-  formatTokenDetailBalanceAmount,
-  resolveTokenImageUrl,
-} from "@/app/lib/tokens/token-display";
-import { classNames } from "@/app/utils";
-import {
-  splitIconSegmentClasses,
-  splitPrimarySegmentClasses,
-} from "../home/AddFundsSplitButton";
-import { ExploreCards } from "../home/WalletHomeContent";
-import { shellFocusRingClasses } from "../shellFocusStyles";
-import { PriceLineChart } from "./PriceLineChart";
-import { TokenActionDrawerHost } from "./TokenPageShared";
+  useTokenMarketHistory,
+  useTokenMarketSnapshot,
+} from "./TokensPageContent";
+
+const money = Decimal.clone({ precision: 40 });
+
+const splitPrimarySegmentClasses = classNames(
+  walletHomePrimaryGrayButtonClasses,
+  "text-sm font-medium leading-5 tracking-[-0.01em]",
+  "inline-flex h-9 w-[100px] shrink-0 items-center justify-center px-2 py-1.5",
+  "rounded-tl-xl rounded-bl-xl rounded-tr-[2px] rounded-br-[2px]",
+  shellMinHitTargetClasses,
+  shellFocusRingClasses,
+);
+
+const splitIconSegmentClasses = classNames(
+  walletHomePrimaryGrayButtonClasses,
+  "inline-flex size-9 shrink-0 items-center justify-center p-0",
+  "rounded-tr-xl rounded-br-xl rounded-tl-[2px] rounded-bl-[2px]",
+  shellMinHitTargetClasses,
+  shellFocusRingClasses,
+);
+
+function resolveTokenImageUrl(symbol: string): string | undefined {
+  const canonical = canonicalTokenSymbol(symbol);
+  for (const networkTokens of Object.values(FALLBACK_TOKENS)) {
+    const match = networkTokens.find((t) => tokensEqual(t.symbol, canonical));
+    if (match?.imageUrl) return match.imageUrl;
+  }
+  return undefined;
+}
+
+function formatTokenDetailBalanceAmount(amount: string): string {
+  try {
+    const value = money(amount.trim());
+    if (value.isZero()) return "0";
+    const maximumFractionDigits = value.abs().gte(1) ? 4 : 6;
+    return new Intl.NumberFormat("en-US", { maximumFractionDigits }).format(
+      value.toNumber(),
+    );
+  } catch {
+    return "0";
+  }
+}
+
+function formatMarketPriceUsd(price: string): string {
+  return formatPortfolioUsd(price);
+}
+
+function buildPriceChartPath(
+  values: number[],
+  width: number,
+  height: number,
+  paddingY: number,
+): string | null {
+  if (values.length < 2) return null;
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const span = max - min || 1;
+  const innerHeight = height - paddingY * 2;
+
+  return values
+    .map((value, index) => {
+      const x = (index / (values.length - 1)) * width;
+      const y =
+        paddingY + innerHeight - ((value - min) / span) * innerHeight;
+      return `${index === 0 ? "M" : "L"} ${x.toFixed(2)} ${y.toFixed(2)}`;
+    })
+    .join(" ");
+}
+
+function PriceLineChart({
+  points,
+  className,
+  unavailable,
+  isLoading,
+}: {
+  points: Array<[number, string]>;
+  className?: string;
+  unavailable?: boolean;
+  isLoading?: boolean;
+}) {
+  const width = 640;
+  const height = 320;
+  const paddingY = 12;
+
+  const values = points
+    .map(([, price]) => {
+      try {
+        return money(price.trim()).toNumber();
+      } catch {
+        return Number.NaN;
+      }
+    })
+    .filter((n) => Number.isFinite(n));
+
+  const path = buildPriceChartPath(values, width, height, paddingY);
+  const areaPath =
+    path != null ? `${path} L ${width} ${height} L 0 ${height} Z` : null;
+
+  if (isLoading) {
+    return (
+      <div
+        className={classNames(
+          "flex h-[320px] items-center justify-center rounded-xl bg-accent-gray/30 dark:bg-white/5",
+          className,
+        )}
+        aria-busy="true"
+      >
+        <span className="text-sm text-text-secondary dark:text-white/50">
+          Loading chart…
+        </span>
+      </div>
+    );
+  }
+
+  if (unavailable || !path) {
+    return (
+      <div
+        className={classNames(
+          "flex h-[320px] items-center justify-center rounded-xl bg-accent-gray/30 dark:bg-white/5",
+          className,
+        )}
+        role="status"
+      >
+        <span className="text-sm text-text-secondary dark:text-white/50">
+          Chart unavailable
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <svg
+      viewBox={`0 0 ${width} ${height}`}
+      className={classNames("h-[320px] w-full", className)}
+      role="img"
+      aria-label="Price chart"
+    >
+      <defs>
+        <linearGradient id="token-price-fill" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="rgb(34, 197, 94)" stopOpacity="0.35" />
+          <stop offset="100%" stopColor="rgb(34, 197, 94)" stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      {areaPath ? (
+        <path d={areaPath} fill="url(#token-price-fill)" stroke="none" />
+      ) : null}
+      <path
+        d={path}
+        fill="none"
+        stroke="rgb(34, 197, 94)"
+        strokeWidth={2}
+        strokeLinejoin="round"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
 
 function InviteFriendsDrawer({
   isOpen,

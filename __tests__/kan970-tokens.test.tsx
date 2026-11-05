@@ -3,24 +3,33 @@
 import React from "react";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import type { PortfolioHolding, PortfolioSummary } from "../app/lib/portfolio/types";
-import {
-  aggregateTokenHoldings,
-  sortTokenHoldingsByUsd,
-} from "../app/lib/tokens/aggregate-holdings";
-import { computeTodaysPnlUsd } from "../app/lib/tokens/todays-pnl";
 import { isAllowedWalletTokenSymbol } from "../app/lib/wallet-token-allowlist";
-import { TokensPageContent } from "../app/(wallet)/components/tokens/TokensPageContent";
+import {
+  TokensPageContent,
+  aggregateTokenHoldings,
+  computeTodaysPnlUsd,
+  sortTokenHoldingsByUsd,
+} from "../app/(wallet)/components/tokens/TokensPageContent";
 import { TokenDetailContent } from "../app/(wallet)/components/tokens/TokenDetailContent";
 
 jest.mock("../app/hooks/usePortfolio", () => ({
   usePortfolio: jest.fn(),
 }));
 
-jest.mock("../app/hooks/useTokenMarket", () => ({
-  useTokenMarketQuotes: jest.fn(() => ({ quotesById: {}, isLoading: false })),
-  useTokenMarketSnapshot: jest.fn(),
-  useTokenMarketHistory: jest.fn(),
-}));
+jest.mock("../app/(wallet)/components/tokens/TokensPageContent", () => {
+  const actual = jest.requireActual(
+    "../app/(wallet)/components/tokens/TokensPageContent",
+  );
+  return {
+    ...actual,
+    useTokenMarketQuotes: jest.fn(() => ({
+      quotesById: {},
+      isLoading: false,
+    })),
+    useTokenMarketSnapshot: jest.fn(),
+    useTokenMarketHistory: jest.fn(),
+  };
+});
 
 jest.mock("@privy-io/react-auth", () => ({
   usePrivy: jest.fn(() => ({ ready: true, authenticated: true })),
@@ -122,7 +131,7 @@ const {
   useTokenMarketSnapshot,
   useTokenMarketHistory,
   useTokenMarketQuotes,
-} = jest.requireMock("../app/hooks/useTokenMarket");
+} = jest.requireMock("../app/(wallet)/components/tokens/TokensPageContent");
 
 function holding(partial: Partial<PortfolioHolding> & Pick<PortfolioHolding, "symbol" | "amount" | "usd">): PortfolioHolding {
   return {
@@ -225,14 +234,49 @@ describe("KAN-970 token holdings helpers", () => {
 });
 
 describe("TokensPageContent", () => {
+  const originalFetch = global.fetch;
+
   beforeEach(() => {
-    useTokenMarketQuotes.mockReturnValue({
-      quotesById: {
-        usdc: { pct: "-0.07", unavailable: false },
-        usdt: { pct: "0.94", unavailable: false },
-      },
-      isLoading: false,
-    });
+    global.fetch = jest.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/api/market/tokens/usdc")) {
+        return {
+          ok: true,
+          json: async () => ({
+            success: true,
+            data: {
+              id: "usdc",
+              price: "1",
+              change24h: { pct: "-0.07", abs: "0" },
+              asOf: "2026-11-05T12:00:00.000Z",
+              stale: false,
+              stats: null,
+            },
+          }),
+        } as Response;
+      }
+      if (url.includes("/api/market/tokens/usdt")) {
+        return {
+          ok: true,
+          json: async () => ({
+            success: true,
+            data: {
+              id: "usdt",
+              price: "1",
+              change24h: { pct: "0.94", abs: "0" },
+              asOf: "2026-11-05T12:00:00.000Z",
+              stale: false,
+              stats: null,
+            },
+          }),
+        } as Response;
+      }
+      throw new Error(`Unexpected fetch: ${url}`);
+    }) as typeof fetch;
+  });
+
+  afterEach(() => {
+    global.fetch = originalFetch;
   });
 
   it("shows empty state when the tokens bucket has no holdings", () => {
@@ -264,7 +308,7 @@ describe("TokensPageContent", () => {
     expect(retry).toHaveClass("rounded-md");
   });
 
-  it("lists holdings sorted by USD with 24h change", () => {
+  it("lists holdings sorted by USD with 24h change", async () => {
     usePortfolio.mockReturnValue({
       data: tokenSummary([
         holding({ symbol: "USDT", amount: "201.09", usd: "201.09", id: "u" }),
@@ -276,6 +320,9 @@ describe("TokensPageContent", () => {
     });
 
     render(<TokensPageContent />);
+    await waitFor(() => {
+      expect(screen.getByText("-0.07%")).toBeInTheDocument();
+    });
     const links = screen.getAllByRole("link");
     const tokenLinks = links.filter((link) =>
       link.getAttribute("href")?.startsWith("/tokens/"),

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import Image from "next/image";
 import Link from "next/link";
@@ -317,13 +317,32 @@ function ReceiveDepositPanel({
   onCopyWarningOpen: () => void;
 }) {
   const [isAddressCopied, setIsAddressCopied] = useState(false);
+  const isMountedRef = useRef(true);
+  const copyFeedbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      if (copyFeedbackTimeoutRef.current) {
+        clearTimeout(copyFeedbackTimeoutRef.current);
+        copyFeedbackTimeoutRef.current = null;
+      }
+    };
+  }, []);
 
   const handleCopyAddress = async () => {
     if (!walletAddress) return;
     const ok = await copyToClipboard(walletAddress, "Address");
-    if (!ok) return;
+    if (!isMountedRef.current || !ok) return;
     setIsAddressCopied(true);
-    setTimeout(() => setIsAddressCopied(false), 2000);
+    copyFeedbackTimeoutRef.current = setTimeout(() => {
+      if (isMountedRef.current) {
+        setIsAddressCopied(false);
+      }
+    }, 2000);
     if (localStorage.getItem("hideAddressWarningModal") !== "true") {
       onCopyWarningOpen();
     }

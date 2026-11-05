@@ -1,7 +1,7 @@
 /// <reference types="jest" />
 
 import React from "react";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import type { PortfolioSummary } from "../app/lib/portfolio/types";
 import {
   bucketSubtitle,
@@ -15,7 +15,7 @@ import {
   shouldShowStocksExploreCard,
 } from "../app/lib/portfolio/home-visibility";
 import { getFeatureFlags } from "../app/lib/flags";
-import { isReferralEnabled } from "../app/utils";
+import { isReferralEnabled, copyToClipboard } from "../app/utils";
 import {
   ExploreCards,
   WalletHomeContent,
@@ -208,6 +208,9 @@ const loadedSummary: PortfolioSummary = {
 const mockedIsReferralEnabled = isReferralEnabled as jest.MockedFunction<
   typeof isReferralEnabled
 >;
+const mockedCopyToClipboard = copyToClipboard as jest.MockedFunction<
+  typeof copyToClipboard
+>;
 const { useWalletAddress } = jest.requireMock("@/hooks/useWalletAddress");
 
 function openReceiveFromHome() {
@@ -219,6 +222,7 @@ function openReceiveFromHome() {
 
 beforeEach(() => {
   mockedIsReferralEnabled.mockReturnValue(true);
+  mockedCopyToClipboard.mockResolvedValue(true);
   localStorage.clear();
   useWalletAddress.mockReturnValue(null);
   mockedGetFeatureFlags.mockReturnValue({
@@ -461,6 +465,42 @@ describe("WalletHomeContent", () => {
     expect(
       screen.queryByTestId("copy-address-warning-modal"),
     ).not.toBeInTheDocument();
+  });
+
+  it("does not open address warning after receive closes before copy resolves", async () => {
+    let resolveCopy: ((value: boolean) => void) | undefined;
+    mockedCopyToClipboard.mockImplementation(
+      () =>
+        new Promise<boolean>((resolve) => {
+          resolveCopy = resolve;
+        }),
+    );
+    useWalletAddress.mockReturnValue("0xabc123def456");
+    usePortfolio.mockReturnValue({
+      data: loadedSummary,
+      isLoading: false,
+      error: null,
+      refetch: jest.fn(),
+    });
+
+    render(<WalletHomeContent />);
+    openReceiveFromHome();
+    fireEvent.click(
+      screen.getByRole("button", { name: /Copy wallet address/i }),
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /More add funds options/i }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: /Buy \(onramp\)/i }));
+    expect(screen.getByRole("heading", { name: "Buy" })).toBeInTheDocument();
+
+    resolveCopy?.(true);
+    await waitFor(() => {
+      expect(
+        screen.queryByTestId("copy-address-warning-modal"),
+      ).not.toBeInTheDocument();
+    });
   });
 });
 

@@ -1,14 +1,16 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import Image from "next/image";
 import Link from "next/link";
 import {
   Coins01Icon,
+  Copy01Icon,
   MarketAnalysisIcon,
   Money03Icon,
 } from "hugeicons-react";
+import { PiCheck } from "react-icons/pi";
 import { ActionDrawer } from "@/app/components/drawer";
 import { TransferForm } from "@/app/components/TransferForm";
 import { BridgeForm } from "@/app/components/bridge/BridgeForm";
@@ -39,7 +41,7 @@ import {
 } from "@/app/lib/wallet-home-config";
 import { usePortfolio } from "@/app/hooks/usePortfolio";
 import { useWalletAddress } from "@/app/hooks/useWalletAddress";
-import { classNames, isReferralEnabled } from "@/app/utils";
+import { classNames, copyToClipboard, isReferralEnabled } from "@/app/utils";
 import { shellFocusRingClasses } from "../shellFocusStyles";
 import {
   AddFundsSplitButton,
@@ -307,6 +309,78 @@ function RampActionPlaceholder({ mode }: { mode: "buy" | "sell" }) {
   );
 }
 
+function ReceiveDepositPanel({
+  walletAddress,
+  onCopyWarningOpen,
+}: {
+  walletAddress: string | undefined;
+  onCopyWarningOpen: () => void;
+}) {
+  const [isAddressCopied, setIsAddressCopied] = useState(false);
+
+  const handleCopyAddress = async () => {
+    if (!walletAddress) return;
+    const ok = await copyToClipboard(walletAddress, "Address");
+    if (!ok) return;
+    setIsAddressCopied(true);
+    setTimeout(() => setIsAddressCopied(false), 2000);
+    if (localStorage.getItem("hideAddressWarningModal") !== "true") {
+      onCopyWarningOpen();
+    }
+  };
+
+  if (!walletAddress) {
+    return (
+      <div
+        role="alert"
+        className="rounded-2xl border border-border-light bg-accent-gray/40 px-4 py-3 dark:border-white/10 dark:bg-white/5"
+      >
+        <p className="text-sm font-medium text-text-body dark:text-white">
+          Wallet address unavailable
+        </p>
+        <p className="mt-1 text-sm text-text-secondary dark:text-white/60">
+          We couldn&apos;t load your deposit address. Try again later or sign
+          out and back in.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <p className="text-sm text-text-secondary dark:text-white/60">
+        Receive supported tokens to your Noblocks wallet address.
+      </p>
+      <div className="relative flex min-h-[80px] flex-col gap-3 rounded-2xl border border-border-light bg-white px-3 py-3 dark:border-white/10 dark:bg-surface-canvas">
+        <div className="flex w-full items-start justify-between gap-4">
+          <p className="min-w-0 flex-1 break-all text-base font-medium text-text-body dark:text-white/80">
+            {walletAddress}
+          </p>
+          <button
+            type="button"
+            onClick={() => void handleCopyAddress()}
+            title="Copy wallet address"
+            aria-label="Copy wallet address"
+            className={classNames(
+              "shrink-0 rounded-lg p-1 transition-colors hover:bg-accent-gray dark:hover:bg-white/10",
+              shellFocusRingClasses,
+            )}
+          >
+            {isAddressCopied ? (
+              <PiCheck className="size-5 text-green-900 dark:text-green-500" />
+            ) : (
+              <Copy01Icon
+                className="size-5 text-icon-outline-secondary dark:text-white/50"
+                strokeWidth={2}
+              />
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function WalletActionDrawerHost({
   activeAction,
   onClose,
@@ -315,12 +389,13 @@ function WalletActionDrawerHost({
   onClose: () => void;
 }) {
   const walletAddress = useWalletAddress();
-  const [receiveWarningOpen, setReceiveWarningOpen] = useState(false);
+  const [addressWarningOpen, setAddressWarningOpen] = useState(false);
 
-  const openReceive = useCallback(() => {
-    if (!walletAddress) return;
-    setReceiveWarningOpen(true);
-  }, [walletAddress]);
+  useEffect(() => {
+    if (activeAction !== "receive") {
+      setAddressWarningOpen(false);
+    }
+  }, [activeAction]);
 
   const renderBody = () => {
     if (!activeAction) return null;
@@ -331,19 +406,10 @@ function WalletActionDrawerHost({
         return <RampActionPlaceholder mode="sell" />;
       case "receive":
         return (
-          <div className="space-y-3">
-            <p className="text-sm text-text-secondary dark:text-white/60">
-              Receive supported tokens to your Noblocks wallet address.
-            </p>
-            <button
-              type="button"
-              onClick={openReceive}
-              disabled={!walletAddress}
-              className="min-h-11 w-full rounded-xl bg-lavender-500 text-sm font-semibold text-white disabled:opacity-50"
-            >
-              Show deposit address
-            </button>
-          </div>
+          <ReceiveDepositPanel
+            walletAddress={walletAddress}
+            onCopyWarningOpen={() => setAddressWarningOpen(true)}
+          />
         );
       case "transfer":
         return <TransferForm onClose={onClose} />;
@@ -357,7 +423,7 @@ function WalletActionDrawerHost({
   return (
     <>
       <ActionDrawer
-        isOpen={activeAction != null && activeAction !== "receive"}
+        isOpen={activeAction != null}
         title={activeAction ? ACTION_TITLES[activeAction] : "Action"}
         onRequestClose={onClose}
         bodyAlign="start"
@@ -366,11 +432,8 @@ function WalletActionDrawerHost({
       </ActionDrawer>
       {walletAddress ? (
         <CopyAddressWarningModal
-          isOpen={receiveWarningOpen || activeAction === "receive"}
-          onClose={() => {
-            setReceiveWarningOpen(false);
-            if (activeAction === "receive") onClose();
-          }}
+          isOpen={addressWarningOpen}
+          onClose={() => setAddressWarningOpen(false)}
           address={walletAddress}
         />
       ) : null}

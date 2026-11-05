@@ -1,5 +1,6 @@
 /// <reference types="jest" />
 
+import React from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
 import type { PortfolioSummary } from "../app/lib/portfolio/types";
 import {
@@ -25,6 +26,7 @@ jest.mock("../app/utils", () => {
   return {
     ...actual,
     isReferralEnabled: jest.fn(() => true),
+    copyToClipboard: jest.fn(() => Promise.resolve(true)),
   };
 });
 
@@ -41,7 +43,21 @@ jest.mock("@privy-io/react-auth", () => ({
 }));
 
 jest.mock("@/components/drawer", () => ({
-  ActionDrawer: () => null,
+  ActionDrawer: ({
+    isOpen,
+    title,
+    children,
+  }: {
+    isOpen: boolean;
+    title: string;
+    children: React.ReactNode;
+  }) =>
+    isOpen ? (
+      <div data-testid="action-drawer">
+        <h2>{title}</h2>
+        {children}
+      </div>
+    ) : null,
 }));
 
 jest.mock("@/components/TransferForm", () => ({
@@ -57,7 +73,21 @@ jest.mock("@/components/wallet-mobile-modal/ReferralHubView", () => ({
 }));
 
 jest.mock("@/components/CopyAddressWarningModal", () => ({
-  CopyAddressWarningModal: () => null,
+  CopyAddressWarningModal: ({
+    isOpen,
+    onClose,
+  }: {
+    isOpen: boolean;
+    onClose: () => void;
+  }) => {
+    React.useEffect(() => {
+      const preference = localStorage.getItem("hideAddressWarningModal");
+      if (preference === "true" && isOpen) {
+        onClose();
+      }
+    }, [isOpen, onClose]);
+    return isOpen ? <div data-testid="copy-address-warning-modal" /> : null;
+  },
 }));
 
 jest.mock("@/hooks/useWalletAddress", () => ({
@@ -178,9 +208,19 @@ const loadedSummary: PortfolioSummary = {
 const mockedIsReferralEnabled = isReferralEnabled as jest.MockedFunction<
   typeof isReferralEnabled
 >;
+const { useWalletAddress } = jest.requireMock("@/hooks/useWalletAddress");
+
+function openReceiveFromHome() {
+  fireEvent.click(
+    screen.getByRole("button", { name: /More add funds options/i }),
+  );
+  fireEvent.click(screen.getByRole("button", { name: /^Receive$/i }));
+}
 
 beforeEach(() => {
   mockedIsReferralEnabled.mockReturnValue(true);
+  localStorage.clear();
+  useWalletAddress.mockReturnValue(null);
   mockedGetFeatureFlags.mockReturnValue({
     stocks: true,
     "noblocks-earn-v2": true,
@@ -354,6 +394,73 @@ describe("WalletHomeContent", () => {
     const earnRow = screen.getByText("Earn positions").closest("[data-readonly]");
     expect(earnRow).toHaveAttribute("data-readonly", "true");
     expect(screen.queryByText(/Earn up to/i)).not.toBeInTheDocument();
+  });
+
+  it("opens receive drawer with deposit address and copy control", () => {
+    useWalletAddress.mockReturnValue("0xabc123def456");
+    usePortfolio.mockReturnValue({
+      data: loadedSummary,
+      isLoading: false,
+      error: null,
+      refetch: jest.fn(),
+    });
+
+    render(<WalletHomeContent />);
+    openReceiveFromHome();
+
+    expect(screen.getByTestId("action-drawer")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Receive" })).toBeInTheDocument();
+    expect(screen.getByText("0xabc123def456")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /Copy wallet address/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("shows receive error state when wallet address is missing", () => {
+    useWalletAddress.mockReturnValue(null);
+    usePortfolio.mockReturnValue({
+      data: loadedSummary,
+      isLoading: false,
+      error: null,
+      refetch: jest.fn(),
+    });
+
+    render(<WalletHomeContent />);
+    openReceiveFromHome();
+
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      /Wallet address unavailable/i,
+    );
+    expect(
+      screen.queryByRole("button", { name: /Copy wallet address/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("keeps receive drawer visible when address warning is opted out", () => {
+    localStorage.setItem("hideAddressWarningModal", "true");
+    useWalletAddress.mockReturnValue("0xabc123def456");
+    usePortfolio.mockReturnValue({
+      data: loadedSummary,
+      isLoading: false,
+      error: null,
+      refetch: jest.fn(),
+    });
+
+    render(<WalletHomeContent />);
+    openReceiveFromHome();
+
+    expect(screen.getByText("0xabc123def456")).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("copy-address-warning-modal"),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /Copy wallet address/i }),
+    );
+    expect(screen.getByText("0xabc123def456")).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("copy-address-warning-modal"),
+    ).not.toBeInTheDocument();
   });
 });
 

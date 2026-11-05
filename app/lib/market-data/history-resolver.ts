@@ -63,40 +63,68 @@ export interface HistoryTarget {
   answer: bigint;
   bestUpdatedAt: number;
   phaseLastRound: bigint;
+  bestRoundAgg: bigint;
+  proven: boolean;
+  widenSteps: number;
 }
 
 export interface HistoryResolveResult {
-  samples: Array<{ t: number; bucketStart: number; answer: bigint }>;
+  samples: Array<{
+    t: number;
+    bucketStart: number;
+    answer: bigint;
+    answerUpdatedAt: number;
+  }>;
   partial: boolean;
   historyStartSec: number;
   rpcCalls: number;
 }
 
-interface CachedPhaseTable {
+interface CachedPhaseBundle {
   rows: PhaseTableRow[];
   historyStartSec: number;
   fetchedAt: number;
+  latestPhaseId: number;
+  indexes: Map<number, PhaseRoundIndex>;
 }
 
-const phaseTableCache = new Map<string, CachedPhaseTable>();
-const phaseTableInFlight = new Map<
-  string,
-  Promise<{ rows: PhaseTableRow[]; historyStartSec: number }>
->();
-
-export function resetPhaseTableCacheForTests(): void {
-  phaseTableCache.clear();
-  phaseTableInFlight.clear();
-}
+const phaseBundleCache = new Map<string, CachedPhaseBundle>();
+const phaseBundleInFlight = new Map<string, Promise<CachedPhaseBundle>>();
 
 export type HistoryChainClient = Pick<
   PublicClient,
   "multicall" | "readContract"
 >;
 
-export function historyDeadlineMs(stepSec: number, bucketCount: number): number {
-  if (bucketCount >= 120 && stepSec >= 86400) return 20_000;
+export function resetPhaseTableCacheForTests(): void {
+  phaseBundleCache.clear();
+  phaseBundleInFlight.clear();
+}
+
+export const PHASE_INDEX_SAMPLES = 2048;
+export const CLOSED_PHASE_INDEX_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+export const HISTORY_SEARCH_MAX_ITERATIONS = 4;
+
+export interface PhaseRoundIndexPoint {
+  round: bigint;
+  updatedAt: number;
+}
+
+export interface PhaseRoundIndex {
+  phaseId: number;
+  points: PhaseRoundIndexPoint[];
+  closed: boolean;
+  fetchedAt: number;
+}
+
+export function historyDeadlineMs(
+  stepSec: number,
+  specCount: number,
+  range?: import("./types").HistoryRange,
+): number {
+  if (range === "1Y" || range === "ALL") return 20_000;
   if (stepSec >= 7 * 86400) return 20_000;
+  if (stepSec >= 86400 && specCount >= 120) return 20_000;
   return HISTORY_DEADLINE_MS;
 }
 
@@ -107,72 +135,61 @@ export function acceptanceSlopSec(
   return Math.min(Math.floor(stepSec / 4), feedHeartbeatSec);
 }
 
-export function estimateAggregatorRoundForTime(
-  phase: PhaseTableRow,
-  targetSec: number,
-): bigint {
-  const clamped = Math.max(
-    phase.firstTs,
-    Math.min(targetSec, phase.lastTs),
-  );
-  const span = phase.lastTs - phase.firstTs;
-  if (span <= 0) return BigInt(1);
-  const frac = (clamped - phase.firstTs) / span;
-  const last = Number(phase.lastRound);
-  const est = 1 + Math.floor(frac * Math.max(0, last - 1));
-  return BigInt(Math.max(1, Math.min(last, est)));
-}
-
-export function seedSearchInterval(
-  phase: PhaseTableRow,
-  bucketEnd: number,
-): { lo: bigint; hi: bigint } {
-  const seed = estimateAggregatorRoundForTime(phase, bucketEnd);
-  const width = BigInt(
-    Math.max(48, Math.min(4096, Math.ceil(Number(phase.lastRound) ** 0.45))),
-  );
-  let lo = seed > width ? seed - width : BigInt(1);
-  let hi = seed + width;
-  if (hi > phase.lastRound) hi = phase.lastRound;
-  if (lo < BigInt(1)) lo = BigInt(1);
-  return { lo, hi };
-}
-
-export function probesForTarget(
-  target: HistoryTarget,
-  phase: PhaseTableRow,
-  count: number,
+export function sampleRoundIdsForIndex(
+  phaseId: number,
+  lastRound: bigint,
 ): bigint[] {
-  const seed = estimateAggregatorRoundForTime(phase, target.bucketEnd);
-  const clamped =
-    seed < target.lo ? target.lo : seed > target.hi ? target.hi : seed;
-  const seen = new Set<string>();
+  const last = Number(lastRound);
+  if (!Number.isFinite(last) || last <= 1) {
+    return [encodeRoundId(phaseId, BigInt(1))];
+  }
   const out: bigint[] = [];
-  const add = (agg: bigint) => {
-    if (agg < target.lo || agg > target.hi) return;
-    const id = encodeRoundId(target.phaseId, agg);
+  const seen = new Set<string>();
+  for (let i = 0; i < PHASE_INDEX_SAMPLES; i++) {
+    const agg =
+      BigInt(1) +
+      (BigInt(last - 1) * BigInt(i)) / BigInt(PHASE_INDEX_SAMPLES - 1);
+    const id = encodeRoundId(phaseId, agg);
     const key = id.toString();
     if (!seen.has(key)) {
       seen.add(key);
       out.push(id);
     }
-  };
-  add(clamped);
-  for (const id of probeAggregatorRounds(
-    target.phaseId,
-    target.lo,
-    target.hi,
-    count,
-  )) {
-    add(decodeRoundId(id).aggregatorRoundId);
   }
   return out;
 }
 
+export function bracketIntervalForBucketEnd(
+  index: PhaseRoundIndex,
+  phase: PhaseTableRow,
+  bucketEnd: number,
+): { lo: bigint; hi: bigint } {
+  const pts = index.points;
+  if (pts.length === 0) {
+    return { lo: BigInt(1), hi: phase.lastRound };
+  }
+  let loIdx = 0;
+  for (let i = 0; i < pts.length; i++) {
+    if (pts[i].updatedAt <= bucketEnd) loIdx = i;
+  }
+  const lo = pts[loIdx].round;
+  let hi =
+    loIdx + 1 < pts.length ? pts[loIdx + 1].round : phase.lastRound;
+  if (hi < lo) hi = lo;
+  if (hi > phase.lastRound) hi = phase.lastRound;
+  if (lo < BigInt(1)) return { lo: BigInt(1), hi };
+  return { lo, hi };
+}
+
+export function probeCountForInterval(lo: bigint, hi: bigint): number {
+  const width = Number(hi - lo + BigInt(1));
+  if (!Number.isFinite(width) || width <= 0) return 2;
+  return Math.min(HISTORY_KARY_PROBES, Math.max(2, width));
+}
+
 export function karySearchIterations(maxLastRound: bigint): number {
-  const n = Number(maxLastRound);
-  if (!Number.isFinite(n) || n <= 1) return 4;
-  return Math.ceil(Math.log(n) / Math.log(7)) + 2;
+  void maxLastRound;
+  return HISTORY_SEARCH_MAX_ITERATIONS;
 }
 
 export function isTargetIntervalUnresolved(target: HistoryTarget): boolean {
@@ -273,10 +290,27 @@ export function narrowTargetInterval(
     );
     target.hi = minAgg - BigInt(1);
   }
+}
 
-  if (target.hi < target.lo) {
-    target.done = true;
-  }
+export function expandTargetInterval(
+  target: HistoryTarget,
+  index: PhaseRoundIndex,
+  phase: PhaseTableRow,
+): void {
+  const bracket = bracketIntervalForBucketEnd(index, phase, target.bucketEnd);
+  const width =
+    bracket.hi >= bracket.lo ? bracket.hi - bracket.lo : BigInt(64);
+  const pad = width > BigInt(0) ? width : BigInt(64);
+  const extra = pad * BigInt(1 + target.widenSteps);
+  target.lo = bracket.lo > extra ? bracket.lo - extra : BigInt(1);
+  target.hi =
+    bracket.hi + extra > phase.lastRound ? phase.lastRound : bracket.hi + extra;
+  target.widenSteps += 1;
+  target.proven = false;
+  target.done = false;
+  target.answer = BigInt(0);
+  target.bestUpdatedAt = 0;
+  target.bestRoundAgg = BigInt(0);
 }
 
 export function pickBestAtOrBefore(
@@ -310,8 +344,46 @@ export function pickBestAtOrBefore(
   if (best) {
     target.answer = best.answer;
     target.bestUpdatedAt = best.updatedAt;
+    target.bestRoundAgg = decodeRoundId(best.roundId).aggregatorRoundId;
   }
+}
+
+export function canProveRoundAtOrBefore(
+  target: HistoryTarget,
+  probes: Map<string, RoundProbe>,
+  stepSec: number,
+  feedHeartbeatSec: number,
+): boolean {
+  if (target.answer <= BigInt(0) || target.bestUpdatedAt <= 0) return false;
+  if (target.bestUpdatedAt > target.bucketEnd) return false;
+  const slop = acceptanceSlopSec(stepSec, feedHeartbeatSec);
+  if (target.bestUpdatedAt >= target.bucketEnd - slop) return true;
+
+  const nextAgg = target.bestRoundAgg + BigInt(1);
+  if (nextAgg > target.phaseLastRound) return true;
+  const next = probes.get(
+    encodeRoundId(target.phaseId, nextAgg).toString(),
+  );
+  if (!next?.ok || next.updatedAt <= 0) return true;
+  if (next.updatedAt > target.bucketEnd) return true;
+  return false;
+}
+
+export function attemptProveTarget(
+  target: HistoryTarget,
+  probes: Map<string, RoundProbe>,
+  stepSec: number,
+  feedHeartbeatSec: number,
+): boolean {
+  refreshTargetBest(target, probes);
+  if (!canProveRoundAtOrBefore(target, probes, stepSec, feedHeartbeatSec)) {
+    target.proven = false;
+    target.done = false;
+    return false;
+  }
+  target.proven = true;
   target.done = true;
+  return true;
 }
 
 export function refreshTargetBest(
@@ -343,46 +415,18 @@ export function refreshTargetBest(
   if (best) {
     target.answer = best.answer;
     target.bestUpdatedAt = best.updatedAt;
+    target.bestRoundAgg = decodeRoundId(best.roundId).aggregatorRoundId;
   }
-}
-
-export function tryAcceptTargetEarly(
-  target: HistoryTarget,
-  probes: Map<string, RoundProbe>,
-  stepSec: number,
-  feedHeartbeatSec: number,
-): boolean {
-  if (target.done) return true;
-  refreshTargetBest(target, probes);
-  if (target.answer <= BigInt(0)) return false;
-  const slop = acceptanceSlopSec(stepSec, feedHeartbeatSec);
-  if (target.bestUpdatedAt >= target.bucketEnd - slop) {
-    target.done = true;
-    return true;
-  }
-  return false;
 }
 
 export function shouldEmitTargetSample(
   target: HistoryTarget,
-  stepSec: number,
-  feedHeartbeatSec: number,
 ): boolean {
-  if (target.answer <= BigInt(0)) return false;
-  if (target.hi - target.lo <= BigInt(1)) return true;
-  const slop = acceptanceSlopSec(stepSec, feedHeartbeatSec);
-  if (target.bestUpdatedAt >= target.bucketEnd - slop) return true;
-  if (target.bestUpdatedAt >= target.bucketEnd - stepSec) return true;
-  return false;
+  return target.proven && target.answer > BigInt(0);
 }
 
-export function targetStillNeedsWork(
-  target: HistoryTarget,
-  stepSec: number,
-  feedHeartbeatSec: number,
-): boolean {
-  if (shouldEmitTargetSample(target, stepSec, feedHeartbeatSec)) return false;
-  return target.hi - target.lo > BigInt(1) || target.answer <= BigInt(0);
+export function targetStillNeedsWork(target: HistoryTarget): boolean {
+  return !target.proven || target.answer <= BigInt(0);
 }
 
 export function initHistoryTargets(
@@ -390,13 +434,17 @@ export function initHistoryTargets(
   stepSec: number,
   phases: PhaseTableRow[],
   historyStartSec: number,
+  indexes: Map<number, PhaseRoundIndex>,
 ): HistoryTarget[] {
   const out: HistoryTarget[] = [];
   for (const bucketStart of bucketStarts) {
     const bucketEnd = bucketStart + stepSec;
     const phase = pickPhaseForTimestamp(bucketEnd, phases);
     if (!phase || bucketEnd < historyStartSec) continue;
-    const { lo, hi } = seedSearchInterval(phase, bucketEnd);
+    const index = indexes.get(phase.phaseId);
+    const { lo, hi } = index
+      ? bracketIntervalForBucketEnd(index, phase, bucketEnd)
+      : { lo: BigInt(1), hi: phase.lastRound };
     out.push({
       bucketStart,
       bucketEnd,
@@ -407,6 +455,9 @@ export function initHistoryTargets(
       answer: BigInt(0),
       bestUpdatedAt: 0,
       phaseLastRound: phase.lastRound,
+      bestRoundAgg: BigInt(0),
+      proven: false,
+      widenSteps: 0,
     });
   }
   return out;
@@ -414,16 +465,17 @@ export function initHistoryTargets(
 
 export function estimateHistoryRpcCalls(
   targetCount: number,
-  maxLastRound: bigint = BigInt(30_000),
+  phaseCount = 3,
 ): number {
   const probesPerIter = Math.min(
     targetCount * HISTORY_KARY_PROBES,
     targetCount + 64,
   );
-  const iterations = karySearchIterations(maxLastRound);
   return (
     PHASE_TABLE_HTTP_CALLS +
-    iterations * Math.ceil(probesPerIter / HISTORY_MULTICALL_CHUNK)
+    estimatePhaseIndexHttpCalls(phaseCount) +
+    HISTORY_SEARCH_MAX_ITERATIONS *
+      Math.ceil(probesPerIter / HISTORY_MULTICALL_CHUNK)
   );
 }
 
@@ -572,7 +624,11 @@ async function readAggregatorLatestRound(
 async function buildPhaseTable(
   client: HistoryChainClient,
   feed: ChainlinkFeedConfig,
-): Promise<{ rows: PhaseTableRow[]; historyStartSec: number }> {
+): Promise<{
+  rows: PhaseTableRow[];
+  historyStartSec: number;
+  latestPhaseId: number;
+}> {
   const currentPhase = Number(
     await client.readContract({
       address: feed.proxy,
@@ -716,7 +772,97 @@ async function buildPhaseTable(
       ? Math.min(...rows.map((r) => r.firstTs))
       : Math.floor(Date.now() / 1000);
 
-  return { rows, historyStartSec };
+  return { rows, historyStartSec, latestPhaseId };
+}
+
+export async function buildPhaseRoundIndex(
+  client: HistoryChainClient,
+  feed: ChainlinkFeedConfig,
+  phase: PhaseTableRow,
+  closed: boolean,
+): Promise<PhaseRoundIndex> {
+  const roundIds = sampleRoundIdsForIndex(phase.phaseId, phase.lastRound);
+  const points: PhaseRoundIndexPoint[] = [];
+  for (let i = 0; i < roundIds.length; i += HISTORY_MULTICALL_CHUNK) {
+    const chunk = roundIds.slice(i, i + HISTORY_MULTICALL_CHUNK);
+    const { probes } = await fetchRoundProbes(
+      client,
+      feed,
+      chunk,
+      HISTORY_MULTICALL_CHUNK,
+    );
+    for (const probe of probes.values()) {
+      if (!probe.ok || probe.updatedAt <= 0) continue;
+      points.push({
+        round: decodeRoundId(probe.roundId).aggregatorRoundId,
+        updatedAt: probe.updatedAt,
+      });
+    }
+  }
+  points.sort((a, b) => {
+    if (a.round < b.round) return -1;
+    if (a.round > b.round) return 1;
+    return 0;
+  });
+  return {
+    phaseId: phase.phaseId,
+    points,
+    closed,
+    fetchedAt: Date.now(),
+  };
+}
+
+export function estimatePhaseIndexHttpCalls(phaseCount: number): number {
+  return phaseCount * Math.ceil(PHASE_INDEX_SAMPLES / HISTORY_MULTICALL_CHUNK);
+}
+
+export async function loadPhaseContext(
+  client: HistoryChainClient,
+  feed: ChainlinkFeedConfig,
+  forceRefresh = false,
+): Promise<CachedPhaseBundle> {
+  const key = `${feed.chain}:${feed.proxy}`;
+  const hit = phaseBundleCache.get(key);
+  if (
+    !forceRefresh &&
+    hit &&
+    Date.now() - hit.fetchedAt < PHASE_TABLE_TTL_MS
+  ) {
+    return hit;
+  }
+
+  const inflight = phaseBundleInFlight.get(key);
+  if (inflight) return inflight;
+
+  const build = (async () => {
+    const built = await buildPhaseTable(client, feed);
+    const indexes = new Map<number, PhaseRoundIndex>();
+    for (const row of built.rows) {
+      indexes.set(
+        row.phaseId,
+        await buildPhaseRoundIndex(
+          client,
+          feed,
+          row,
+          row.phaseId !== built.latestPhaseId,
+        ),
+      );
+    }
+    const bundle: CachedPhaseBundle = {
+      rows: built.rows,
+      historyStartSec: built.historyStartSec,
+      fetchedAt: Date.now(),
+      latestPhaseId: built.latestPhaseId,
+      indexes,
+    };
+    phaseBundleCache.set(key, bundle);
+    return bundle;
+  })().finally(() => {
+    phaseBundleInFlight.delete(key);
+  });
+
+  phaseBundleInFlight.set(key, build);
+  return build;
 }
 
 export async function loadPhaseTable(
@@ -724,33 +870,8 @@ export async function loadPhaseTable(
   feed: ChainlinkFeedConfig,
   forceRefresh = false,
 ): Promise<{ rows: PhaseTableRow[]; historyStartSec: number }> {
-  const key = `${feed.chain}:${feed.proxy}`;
-  const hit = phaseTableCache.get(key);
-  if (
-    !forceRefresh &&
-    hit &&
-    Date.now() - hit.fetchedAt < PHASE_TABLE_TTL_MS
-  ) {
-    return { rows: hit.rows, historyStartSec: hit.historyStartSec };
-  }
-
-  const inflight = phaseTableInFlight.get(key);
-  if (inflight) return inflight;
-
-  const build = (async () => {
-    const built = await buildPhaseTable(client, feed);
-    phaseTableCache.set(key, {
-      rows: built.rows,
-      historyStartSec: built.historyStartSec,
-      fetchedAt: Date.now(),
-    });
-    return built;
-  })().finally(() => {
-    phaseTableInFlight.delete(key);
-  });
-
-  phaseTableInFlight.set(key, build);
-  return build;
+  const ctx = await loadPhaseContext(client, feed, forceRefresh);
+  return { rows: ctx.rows, historyStartSec: ctx.historyStartSec };
 }
 
 export async function resolveHistoryWithFetcher(
@@ -758,6 +879,7 @@ export async function resolveHistoryWithFetcher(
     roundIds: bigint[],
   ) => Promise<Map<string, RoundProbe>>,
   phases: PhaseTableRow[],
+  indexes: Map<number, PhaseRoundIndex>,
   historyStartSec: number,
   bucketStarts: number[],
   stepSec: number,
@@ -766,11 +888,11 @@ export async function resolveHistoryWithFetcher(
   feedHeartbeatSec: number,
   nowSec: number,
   onRpcCall?: () => void,
+  searchDeadlineAt?: number,
 ): Promise<HistoryResolveResult> {
   void rangeFromSec;
-  const deadlineAt = Date.now() + deadlineMs;
+  const deadlineAt = searchDeadlineAt ?? Date.now() + deadlineMs;
   let rpcCalls = 0;
-  let deadlineHit = false;
   const call = async (roundIds: bigint[]) => {
     rpcCalls += 1;
     onRpcCall?.();
@@ -783,40 +905,33 @@ export async function resolveHistoryWithFetcher(
     stepSec,
     phases,
     historyStartSec,
+    indexes,
   );
-  const maxLastRound = phases.reduce(
-    (m, row) => (row.lastRound > m ? row.lastRound : m),
-    BigInt(1),
-  );
-  const maxIterations = karySearchIterations(maxLastRound);
   const probeCache = new Map<string, RoundProbe>();
 
-  for (let iter = 0; iter < maxIterations; iter++) {
-    if (Date.now() >= deadlineAt) {
-      deadlineHit = true;
-      break;
-    }
+  for (let iter = 0; iter < HISTORY_SEARCH_MAX_ITERATIONS; iter++) {
+    if (Date.now() >= deadlineAt) break;
 
-    const active = targets.filter((t) => !t.done);
+    const active = targets.filter((t) => !t.proven);
     if (active.length === 0) break;
 
     const toFetch = new Set<string>();
     for (const target of active) {
+      if (target.hi < target.lo) continue;
+      const count = probeCountForInterval(target.lo, target.hi);
+      for (const id of probeAggregatorRounds(
+        target.phaseId,
+        target.lo,
+        target.hi,
+        count,
+      )) {
+        toFetch.add(id.toString());
+      }
       if (target.hi - target.lo <= BigInt(1)) {
         toFetch.add(encodeRoundId(target.phaseId, target.lo).toString());
         if (target.hi !== target.lo) {
           toFetch.add(encodeRoundId(target.phaseId, target.hi).toString());
         }
-        continue;
-      }
-      const phase = phaseById.get(target.phaseId);
-      if (!phase) continue;
-      for (const id of probesForTarget(
-        target,
-        phase,
-        HISTORY_KARY_PROBES,
-      )) {
-        toFetch.add(id.toString());
       }
     }
 
@@ -827,59 +942,44 @@ export async function resolveHistoryWithFetcher(
     }
 
     for (const target of active) {
-      if (target.hi - target.lo <= BigInt(1)) {
-        pickBestAtOrBefore(target, probeCache);
-        continue;
-      }
-      narrowTargetInterval(target, probeCache);
-      if (tryAcceptTargetEarly(target, probeCache, stepSec, feedHeartbeatSec)) {
-        continue;
-      }
-      if (target.hi - target.lo <= BigInt(1)) {
-        pickBestAtOrBefore(target, probeCache);
-      }
-    }
-  }
+      const phase = phaseById.get(target.phaseId);
+      const index = indexes.get(target.phaseId);
+      if (!phase || !index) continue;
 
-  if (deadlineHit) {
-    for (const target of targets) {
-      if (target.done && shouldEmitTargetSample(target, stepSec, feedHeartbeatSec)) {
+      if (target.hi < target.lo) {
+        if (target.widenSteps < 6) {
+          expandTargetInterval(target, index, phase);
+        }
         continue;
       }
-      refreshTargetBest(
-        target,
-        probeCache,
-        BigInt(1),
-        target.phaseLastRound,
-      );
-      if (
-        shouldEmitTargetSample(target, stepSec, feedHeartbeatSec) &&
-        !target.done
-      ) {
-        target.done = true;
-      }
-    }
-  }
 
-  for (const target of targets.filter(
-    (t) => !t.done && t.hi - t.lo <= BigInt(1),
-  )) {
-    pickBestAtOrBefore(target, probeCache);
+      if (target.hi - target.lo > BigInt(1)) {
+        narrowTargetInterval(target, probeCache);
+      }
+
+      if (target.hi < target.lo) {
+        if (target.widenSteps < 6) {
+          expandTargetInterval(target, index, phase);
+        }
+        continue;
+      }
+
+      attemptProveTarget(target, probeCache, stepSec, feedHeartbeatSec);
+    }
   }
 
   const samples: HistoryResolveResult["samples"] = [];
   for (const target of targets) {
-    if (!shouldEmitTargetSample(target, stepSec, feedHeartbeatSec)) continue;
+    if (!shouldEmitTargetSample(target)) continue;
     samples.push({
       t: bucketLabelTimestamp(target.bucketStart, stepSec, nowSec),
       bucketStart: target.bucketStart,
       answer: target.answer,
+      answerUpdatedAt: target.bestUpdatedAt,
     });
   }
 
-  const partial = targets.some((t) =>
-    targetStillNeedsWork(t, stepSec, feedHeartbeatSec),
-  );
+  const partial = targets.some((t) => targetStillNeedsWork(t));
 
   return {
     samples,
@@ -898,27 +998,24 @@ export async function resolveHistoryPoints(
   deadlineMs = HISTORY_DEADLINE_MS,
   nowSec = Math.floor(Date.now() / 1000),
 ): Promise<HistoryResolveResult> {
-  const { rows, historyStartSec } = await loadPhaseTable(client, feed);
+  const ctx = await loadPhaseContext(client, feed);
   let chunk = HISTORY_MULTICALL_CHUNK;
-  const deadlineAt = Date.now() + deadlineMs;
+  const searchDeadlineAt = Date.now() + deadlineMs;
 
   const fetchProbes = async (roundIds: bigint[]) => {
     try {
-      const { probes, deadlineHit } = await fetchRoundProbes(
+      const { probes } = await fetchRoundProbes(
         client,
         feed,
         roundIds,
         chunk,
-        { deadlineAt },
+        { deadlineAt: searchDeadlineAt },
       );
-      if (deadlineHit) {
-        // preserve partial batch — caller merges into probeCache
-      }
       return probes;
     } catch {
       chunk = HISTORY_FALLBACK_MULTICALL_CHUNK;
       const { probes } = await fetchRoundProbes(client, feed, roundIds, chunk, {
-        deadlineAt,
+        deadlineAt: searchDeadlineAt,
       });
       return probes;
     }
@@ -926,18 +1023,24 @@ export async function resolveHistoryPoints(
 
   const result = await resolveHistoryWithFetcher(
     fetchProbes,
-    rows,
-    historyStartSec,
+    ctx.rows,
+    ctx.indexes,
+    ctx.historyStartSec,
     bucketStarts,
     stepSec,
     rangeFromSec,
     deadlineMs,
     feed.heartbeatS,
     nowSec,
+    undefined,
+    searchDeadlineAt,
   );
 
   return {
     ...result,
-    rpcCalls: result.rpcCalls + PHASE_TABLE_HTTP_CALLS,
+    rpcCalls:
+      result.rpcCalls +
+      PHASE_TABLE_HTTP_CALLS +
+      estimatePhaseIndexHttpCalls(ctx.rows.length),
   };
 }

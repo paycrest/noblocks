@@ -11,6 +11,7 @@ import {
   bucketSpecForRange,
   bucketTimestamps,
 } from "../app/lib/market-data/series";
+import { acceptanceSlopSec } from "../app/lib/market-data/history-resolver";
 import { redactErrorMessage } from "../app/lib/market-data/validate";
 
 const RANGES: HistoryRange[] = ["1D", "1W", "1M", "1Y", "ALL"];
@@ -169,6 +170,54 @@ async function main(): Promise<number> {
       console.error(`ETH 1D vs 1W disagree by up to ${maxDiffPct}%`);
       exitCode = 1;
     }
+  }
+
+  const ethEntry = getRegistryEntry("eth");
+  if (ethEntry) {
+    const { chainlinkPriceProvider } = await import(
+      "../app/lib/market-data/chainlink"
+    );
+    resetHistoryBucketCacheForTests();
+    resetChainlinkClientsForTests();
+    const spec = bucketSpecForRange("1Y");
+    const buckets = bucketTimestamps("1Y", nowSec);
+    const heartbeat = ethEntry.price.heartbeatS;
+    const slop = acceptanceSlopSec(spec.stepSec, heartbeat);
+    const { samples } = await chainlinkPriceProvider.readHistoryAtTimestamps(
+      ethEntry,
+      buckets,
+      {
+        stepSec: spec.stepSec,
+        rangeFromSec: buckets[0] ?? nowSec,
+        nowSec,
+        specCount: spec.count,
+        range: "1Y",
+      },
+    );
+    for (const sample of samples) {
+      const bucketEnd = sample.bucketStart + spec.stepSec;
+      const minUpdatedAt = bucketEnd - (heartbeat + slop);
+      if (
+        sample.answerUpdatedAt !== undefined &&
+        sample.answerUpdatedAt < minUpdatedAt
+      ) {
+        console.error(
+          `ETH 1Y stale emit: bucketEnd=${bucketEnd} answerUpdatedAt=${sample.answerUpdatedAt} min=${minUpdatedAt}`,
+        );
+        exitCode = 1;
+      }
+      if (sample.t > nowSec) {
+        console.error(`ETH 1Y future label t=${sample.t} now=${nowSec}`);
+        exitCode = 1;
+      }
+    }
+    console.log(
+      JSON.stringify({
+        check: "eth_1y_stale_emits",
+        samples: samples.length,
+        buckets: buckets.length,
+      }),
+    );
   }
 
   return exitCode;

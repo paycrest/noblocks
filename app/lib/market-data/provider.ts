@@ -12,7 +12,8 @@ export interface HistoryReadOptions {
   stepSec?: number;
   rangeFromSec?: number;
   nowSec?: number;
-  /** When true (All range), anchor sampling at phase-1 round 1. */
+  specCount?: number;
+  range?: import("./types").HistoryRange;
   useFeedInception?: boolean;
 }
 
@@ -22,6 +23,7 @@ export interface HistoryReadResult {
     bucketStart: number;
     answer: bigint;
     decimals: number;
+    answerUpdatedAt?: number;
   }>;
   partial: boolean;
   historyStartSec?: number;

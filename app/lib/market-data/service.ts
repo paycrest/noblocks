@@ -21,6 +21,7 @@ import {
 } from "./chainlink";
 import { coinMarketCapStatsProvider } from "./coinmarketcap";
 import { computeCngnBadge } from "./cngn";
+import { logMarketDataInfo } from "./log";
 import {
   getCachedHistoryResponse,
   getHistoryBucket,
@@ -120,12 +121,24 @@ function scheduleHistoryBackfill(
       });
       if (toFetch.length === 0) return;
 
+      const prior = getCachedHistoryResponse(id, range);
+      const priorCount = prior?.points.length ?? 0;
+      const mergedBefore = merged.length;
+
+      logMarketDataInfo("history_backfill_start", {
+        id,
+        range,
+        missing: toFetch.length,
+      });
+
       const { samples, partial, historyStartSec } =
         await chainlinkPriceProvider.readHistoryAtTimestamps(entry, toFetch, {
           deadlineMs: HISTORY_BACKFILL_DEADLINE_MS,
           stepSec: spec.stepSec,
           rangeFromSec: from,
           nowSec: gridNowSec,
+          specCount: spec.count,
+          range,
         });
 
       mergeHistorySamplesIntoCache(
@@ -137,8 +150,6 @@ function scheduleHistoryBackfill(
         nowSec,
         merged,
       );
-
-      if (partial) return;
 
       merged.sort((a, b) => a.t - b.t);
       const stableOrNgn =
@@ -152,13 +163,24 @@ function scheduleHistoryBackfill(
       });
       if (filtered.length === 0) return;
 
-      let responsePartial = false;
+      let responsePartial = partial;
       if (
         historyStartSec !== undefined &&
         isRangeBeforeHistoryStart(from, historyStartSec, spec.stepSec)
       ) {
         responsePartial = true;
       }
+
+      const filled = Math.max(0, filtered.length - priorCount);
+      logMarketDataInfo("history_backfill_done", {
+        id,
+        range,
+        filled,
+        partial: responsePartial,
+        points: filtered.length,
+      });
+
+      if (filtered.length <= priorCount && responsePartial) return;
 
       const response: TokenHistoryResponse = {
         id,
@@ -173,6 +195,7 @@ function scheduleHistoryBackfill(
           : {}),
       };
       setCachedHistoryResponse(id, range, response);
+      void mergedBefore;
     } finally {
       historyBackfillInFlight.delete(key);
     }
@@ -363,10 +386,12 @@ export async function getTokenHistory(
         partial: upstreamPartial,
         historyStartSec: upstreamHistoryStart,
       } = await chainlinkPriceProvider.readHistoryAtTimestamps(entry, toFetch, {
-        deadlineMs: historyDeadlineMs(spec.stepSec, toFetch.length),
+        deadlineMs: historyDeadlineMs(spec.stepSec, spec.count, range),
         stepSec: spec.stepSec,
         rangeFromSec: from,
         nowSec,
+        specCount: spec.count,
+        range,
       });
       partial = upstreamPartial;
       historyStartSec = upstreamHistoryStart;

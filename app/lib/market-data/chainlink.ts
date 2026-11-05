@@ -293,9 +293,11 @@ async function readHistoryViaRounds(
   const stepSec = options?.stepSec ?? 3600;
   const rangeFromSec = options?.rangeFromSec ?? timestampsSec[0] ?? 0;
   const nowSec = options?.nowSec ?? Math.floor(Date.now() / 1000);
+  const specCount =
+    options?.specCount ?? timestampsSec.length;
   const deadlineMs =
     options?.deadlineMs ??
-    historyDeadlineMs(stepSec, timestampsSec.length);
+    historyDeadlineMs(stepSec, specCount, options?.range);
 
   try {
     const client = getPublicClient(feed.chain);
@@ -315,6 +317,7 @@ async function readHistoryViaRounds(
       bucketStart: row.bucketStart,
       answer: row.answer,
       decimals: feed.decimals,
+      answerUpdatedAt: row.answerUpdatedAt,
     }));
 
     if (partial) {

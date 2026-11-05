@@ -8,7 +8,7 @@ const CLOSED_BUCKET_TTL_MS = 7 * 24 * 60 * 60_000;
 /** Open (current) bucket follows price freshness. */
 const OPEN_BUCKET_TTL_MS = 60_000;
 const HISTORY_OK_RESPONSE_TTL_MS = 60_000;
-const HISTORY_PARTIAL_RESPONSE_TTL_MS = 30_000;
+const HISTORY_PARTIAL_RESPONSE_TTL_MS = 5_000;
 const HISTORY_UNAVAILABLE_RESPONSE_TTL_MS = 15_000;
 
 export interface HistoryBucketPoint {

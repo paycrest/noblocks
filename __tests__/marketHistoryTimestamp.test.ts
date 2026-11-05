@@ -1,5 +1,4 @@
 import {
-  batchFetchToProbes,
   resolveHistoryWithBatchMock,
   singlePhaseRow,
 } from "./historyResolverHarness";
@@ -7,14 +6,13 @@ import {
   type BatchFetchRoundData,
   type RoundDataResult,
 } from "../app/lib/market-data/round-history";
-import { decodeRoundId, encodeRoundId } from "../app/lib/market-data/round-id";
+import { decodeRoundId } from "../app/lib/market-data/round-id";
 import {
   bucketLabelTimestamp,
   bucketSpecForRange,
   bucketTimestamps,
   rangeStartUnix,
 } from "../app/lib/market-data/series";
-import { resolveHistoryWithFetcher } from "../app/lib/market-data/history-resolver";
 
 const NOW = 1_762_000_000;
 const PHASE = 1;
@@ -70,13 +68,15 @@ describe("history point timestamps", () => {
     const phases = [
       singlePhaseRow(PHASE, historyStartSec, NOW, maxAgg),
     ];
-    const fetchProbes = batchFetchToProbes(mock);
     const spec1d = bucketSpecForRange("1D");
     const buckets1d = bucketTimestamps("1D", NOW);
     const from1d = rangeStartUnix("1D", NOW);
+    const spec1w = bucketSpecForRange("1W");
+    const buckets1w = bucketTimestamps("1W", NOW);
+    const from1w = rangeStartUnix("1W", NOW);
 
-    const day = await resolveHistoryWithFetcher(
-      fetchProbes,
+    const day = await resolveHistoryWithBatchMock(
+      mock,
       phases,
       historyStartSec,
       buckets1d,
@@ -87,12 +87,8 @@ describe("history point timestamps", () => {
       NOW,
     );
 
-    const spec1w = bucketSpecForRange("1W");
-    const buckets1w = bucketTimestamps("1W", NOW);
-    const from1w = rangeStartUnix("1W", NOW);
-
-    const week = await resolveHistoryWithFetcher(
-      fetchProbes,
+    const week = await resolveHistoryWithBatchMock(
+      mock,
       phases,
       historyStartSec,
       buckets1w,

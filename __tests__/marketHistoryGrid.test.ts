@@ -5,9 +5,11 @@ import {
 } from "../app/lib/market-data/history-cache";
 import {
   HISTORY_DEADLINE_MS,
+  acceptanceSlopSec,
   resolveHistoryWithFetcher,
   shouldEmitTargetSample,
   targetStillNeedsWork,
+  type PhaseRoundIndex,
   type PhaseTableRow,
   type RoundProbe,
 } from "../app/lib/market-data/history-resolver";
@@ -20,6 +22,7 @@ import {
   rangeStartUnix,
 } from "../app/lib/market-data/series";
 import {
+  buildMockPhaseIndex,
   resolveHistoryWithBatchMock,
   singlePhaseRow,
 } from "./historyResolverHarness";
@@ -100,20 +103,25 @@ describe("aligned history grid", () => {
 });
 
 describe("deadline preserves resolved targets", () => {
-  it("emits wide-interval targets when best is within one step", () => {
+  it("emits only when round at-or-before is proven", () => {
     const target = {
       bucketStart: 1_700_000_000,
       bucketEnd: 1_700_086_400,
       phaseId: 1,
       lo: BigInt(100),
-      hi: BigInt(5000),
+      hi: BigInt(50),
       done: false,
       answer: 123n,
-      bestUpdatedAt: 1_700_085_900,
+      bestUpdatedAt: 1_700_000_000,
       phaseLastRound: BigInt(10_000),
+      bestRoundAgg: BigInt(500),
+      proven: false,
+      widenSteps: 0,
     };
-    expect(shouldEmitTargetSample(target, 86400, 900)).toBe(true);
-    expect(targetStillNeedsWork(target, 86400, 900)).toBe(false);
+    expect(shouldEmitTargetSample(target)).toBe(false);
+    target.proven = true;
+    expect(shouldEmitTargetSample(target)).toBe(true);
+    expect(targetStillNeedsWork(target)).toBe(false);
   });
 
   it("returns partial with cached probes when deadline stops further fetches", async () => {
@@ -124,6 +132,10 @@ describe("deadline preserves resolved targets", () => {
     const phases: PhaseTableRow[] = [
       singlePhaseRow(PHASE, historyStartSec, NOW, maxAgg),
     ];
+    const mock = denseMock(maxAgg, NOW);
+    const indexes = new Map([
+      [PHASE, await buildMockPhaseIndex(phases[0], mock)],
+    ]);
 
     let calls = 0;
     const fetchProbes = async (roundIds: bigint[]) => {
@@ -131,22 +143,24 @@ describe("deadline preserves resolved targets", () => {
       if (calls > 1) {
         await new Promise((r) => setTimeout(r, 200));
       }
-      const rows = await denseMock(maxAgg, NOW)(roundIds);
-      const map = new Map<string, RoundProbe>();
-      for (const row of rows) {
-        map.set(row.roundId.toString(), {
-          roundId: row.roundId,
-          updatedAt: row.updatedAt,
-          answer: row.answer,
-          ok: row.ok,
-        });
-      }
-      return map;
+      return mock(roundIds).then((rows) => {
+        const map = new Map<string, RoundProbe>();
+        for (const row of rows) {
+          map.set(row.roundId.toString(), {
+            roundId: row.roundId,
+            updatedAt: row.updatedAt,
+            answer: row.answer,
+            ok: row.ok,
+          });
+        }
+        return map;
+      });
     };
 
     const result = await resolveHistoryWithFetcher(
       fetchProbes,
       phases,
+      indexes,
       historyStartSec,
       buckets,
       spec.stepSec,

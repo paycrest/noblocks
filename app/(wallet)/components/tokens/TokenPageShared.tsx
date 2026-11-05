@@ -19,10 +19,6 @@ import type { WalletHomeActionId } from "@/app/lib/portfolio/home-visibility";
 import { canonicalTokenSymbol } from "@/app/lib/token-symbol";
 import { classNames, copyToClipboard } from "@/app/utils";
 import { shellFocusRingClasses } from "../shellFocusStyles";
-import {
-  AddFundsSplitButton,
-  walletHomePrimaryOnlyButtonClasses,
-} from "../home/AddFundsSplitButton";
 import { Copy01Icon } from "hugeicons-react";
 import { PiCheck } from "react-icons/pi";
 
@@ -198,10 +194,19 @@ export function TokenActionDrawerHost({
   );
 }
 
+const TOKEN_CHANGE_UP_CLASSES = "text-[#227738] dark:text-[#39c65d]";
+const TOKEN_CHANGE_DOWN_CLASSES = "text-text-accent-red dark:text-accent-red";
+
+const tokensEmptySecondaryButtonClasses = classNames(
+  "inline-flex h-11 items-center justify-center rounded-xl px-4 text-sm font-medium text-text-body transition hover:opacity-90",
+  "bg-accent-gray dark:bg-white/10 dark:text-white",
+  shellFocusRingClasses,
+);
+
 export function TokensEmptyState({ onAddFunds }: { onAddFunds: () => void }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-3 rounded-[20px] border border-border-light bg-accent-gray px-6 py-16 text-center dark:border-white/10 dark:bg-white/5">
-      <h2 className="text-lg font-semibold text-text-body dark:text-white">
+    <div className="flex flex-col items-center justify-center gap-3 rounded-[24px] border border-border-light bg-accent-gray px-6 py-12 text-center dark:border-white/10 dark:bg-white/5 sm:px-12">
+      <h2 className="text-[15px] font-semibold leading-5 text-text-body dark:text-white">
         No tokens yet
       </h2>
       <p className="max-w-sm text-sm text-text-secondary dark:text-white/50">
@@ -210,7 +215,7 @@ export function TokensEmptyState({ onAddFunds }: { onAddFunds: () => void }) {
       <button
         type="button"
         onClick={onAddFunds}
-        className={walletHomePrimaryOnlyButtonClasses}
+        className={tokensEmptySecondaryButtonClasses}
       >
         Add funds
       </button>
@@ -248,18 +253,18 @@ export function TokenRowLink({
     <Link
       href={href}
       className={classNames(
-        "flex items-center justify-between gap-4 px-4 py-4 transition hover:bg-white/40 dark:hover:bg-white/5",
+        "flex min-h-16 items-center justify-between gap-4 px-6 py-2 transition hover:bg-white/40 dark:hover:bg-white/5",
         shellFocusRingClasses,
       )}
     >
       <div className="flex min-w-0 items-center gap-3">
-        <div className="relative size-10 shrink-0 overflow-hidden rounded-full bg-white dark:bg-white/10">
+        <div className="relative size-11 shrink-0 overflow-hidden rounded-full bg-white dark:bg-white/10">
           {imageUrl ? (
             <Image src={imageUrl} alt="" fill className="object-cover p-1.5" />
           ) : null}
         </div>
         <div className="min-w-0">
-          <p className="truncate text-sm font-medium text-text-body dark:text-white">
+          <p className="truncate text-base font-medium text-text-body dark:text-white">
             {name}
           </p>
           <p className="truncate text-sm text-text-secondary dark:text-white/50">
@@ -268,14 +273,14 @@ export function TokenRowLink({
         </div>
       </div>
       <div className="shrink-0 text-right">
-        <p className="text-sm font-medium text-text-body dark:text-white">
+        <p className="text-base font-medium text-text-body dark:text-white">
           {usdLabel}
         </p>
         <p
           className={classNames(
             "text-xs font-medium",
-            tone === "up" && "text-green-600 dark:text-green-400",
-            tone === "down" && "text-red-600 dark:text-red-400",
+            tone === "up" && TOKEN_CHANGE_UP_CLASSES,
+            tone === "down" && TOKEN_CHANGE_DOWN_CLASSES,
             tone === "muted" && "text-text-secondary dark:text-white/40",
             tone === "flat" && "text-text-secondary dark:text-white/50",
           )}
@@ -291,7 +296,7 @@ export function TokenListSkeleton() {
   return (
     <div className="divide-y divide-border-light dark:divide-white/10">
       {[0, 1, 2].map((key) => (
-        <div key={key} className="px-4 py-4">
+        <div key={key} className="px-6 py-2">
           <BalanceSkeleton className="h-10 w-full rounded-lg" />
         </div>
       ))}

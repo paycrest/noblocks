@@ -20,8 +20,10 @@ import {
 } from "@/app/lib/tokens/token-display";
 import { formatPortfolioUsd } from "@/app/lib/portfolio/display";
 import type { WalletHomeActionId } from "@/app/lib/portfolio/home-visibility";
+import { classNames } from "@/app/utils";
 import { ExploreCards } from "../home/WalletHomeContent";
 import { AddFundsSplitButton } from "../home/AddFundsSplitButton";
+import { shellFocusRingClasses } from "../shellFocusStyles";
 import {
   TokenActionDrawerHost,
   TokenListSkeleton,
@@ -49,7 +51,12 @@ function PortfolioError({ onRetry }: { onRetry: () => void }) {
       <button
         type="button"
         onClick={() => void onRetry()}
-        className="mt-2 text-sm font-semibold text-[#0065F5] underline-offset-2 hover:underline dark:text-lavender-500"
+        className={classNames(
+          "mt-2 text-sm font-semibold underline-offset-2 hover:underline",
+          "text-[#0065F5] dark:text-lavender-500",
+          shellFocusRingClasses,
+          "rounded-md",
+        )}
       >
         Try again
       </button>
@@ -191,7 +198,7 @@ export function TokensPageContent() {
       {showError ? <PortfolioError onRetry={() => void refetch()} /> : null}
 
       {portfolioLoading ? (
-        <div className="overflow-hidden rounded-[20px] border border-border-light dark:border-white/10">
+        <div className="overflow-hidden rounded-[24px] border border-border-light bg-accent-gray dark:border-white/10 dark:bg-white/5">
           <TokenListSkeleton />
         </div>
       ) : null}
@@ -201,8 +208,8 @@ export function TokensPageContent() {
       ) : null}
 
       {showContent && !isEmpty ? (
-        <section className="overflow-hidden rounded-[20px] border border-border-light dark:border-white/10">
-          <h2 className="px-4 pb-2 pt-4 text-sm font-medium text-text-secondary dark:text-white/50">
+        <section className="overflow-hidden rounded-[24px] border border-border-light bg-accent-gray dark:border-white/10 dark:bg-white/5">
+          <h2 className="px-6 pb-2 pt-4 text-base font-medium text-text-secondary dark:text-white/50">
             All your available tokens
           </h2>
           <div className="divide-y divide-border-light dark:divide-white/10">

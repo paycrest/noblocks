@@ -41,7 +41,7 @@ export function PriceLineChart({
   isLoading,
 }: PriceLineChartProps) {
   const width = 640;
-  const height = 220;
+  const height = 320;
   const paddingY = 12;
 
   const values = points
@@ -64,7 +64,7 @@ export function PriceLineChart({
     return (
       <div
         className={classNames(
-          "flex h-[220px] items-center justify-center rounded-xl bg-accent-gray/30 dark:bg-white/5",
+          "flex h-[320px] items-center justify-center rounded-xl bg-accent-gray/30 dark:bg-white/5",
           className,
         )}
         aria-busy="true"
@@ -80,7 +80,7 @@ export function PriceLineChart({
     return (
       <div
         className={classNames(
-          "flex h-[220px] items-center justify-center rounded-xl bg-accent-gray/30 dark:bg-white/5",
+          "flex h-[320px] items-center justify-center rounded-xl bg-accent-gray/30 dark:bg-white/5",
           className,
         )}
         role="status"
@@ -95,7 +95,7 @@ export function PriceLineChart({
   return (
     <svg
       viewBox={`0 0 ${width} ${height}`}
-      className={classNames("h-[220px] w-full", className)}
+      className={classNames("h-[320px] w-full", className)}
       role="img"
       aria-label="Price chart"
     >

@@ -172,6 +172,24 @@ function TokenDetailActionsMenu({
   );
 }
 
+function PnlTrendCaret({ direction }: { direction: "up" | "down" }) {
+  return (
+    <svg
+      width={12}
+      height={6}
+      viewBox="0 0 12 6"
+      className="shrink-0"
+      aria-hidden
+    >
+      {direction === "up" ? (
+        <path d="M6 0 12 6H0Z" fill="currentColor" />
+      ) : (
+        <path d="M0 0h12L6 6Z" fill="currentColor" />
+      )}
+    </svg>
+  );
+}
+
 function formatSupplyLabel(value: string | null, symbol: string): string {
   if (!value) return "—";
   return `${value} ${symbol}`;
@@ -228,7 +246,7 @@ export function TokenDetailContent({ symbol }: TokenDetailContentProps) {
     <div className="mx-auto flex w-full max-w-[921px] flex-col gap-[49px] pb-8">
       <div className="flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex min-w-0 items-start gap-4">
-          <div className="relative size-12 shrink-0 overflow-hidden rounded-full bg-white dark:bg-white/10">
+          <div className="relative size-14 shrink-0 overflow-hidden rounded-full bg-white dark:bg-white/10">
             {imageUrl ? (
               <Image src={imageUrl} alt="" fill className="object-cover p-2" />
             ) : null}
@@ -238,10 +256,10 @@ export function TokenDetailContent({ symbol }: TokenDetailContentProps) {
               Your {symbol} balance
             </p>
             {balanceLoading ? (
-              <BalanceSkeleton className="h-10 w-40 rounded-lg" />
+              <BalanceSkeleton className="h-7 w-40 rounded-lg" />
             ) : (
               <p
-                className="text-[35px] font-semibold leading-9 tracking-[-1.05px] text-text-body dark:text-white"
+                className="text-[26px] font-medium leading-6 text-text-body dark:text-white"
                 data-testid="token-balance-amount"
               >
                 {holding
@@ -261,9 +279,9 @@ export function TokenDetailContent({ symbol }: TokenDetailContentProps) {
               {symbol} price today
             </p>
             {snapshotLoading ? (
-              <BalanceSkeleton className="mt-1 h-8 w-24 rounded-lg" />
+              <BalanceSkeleton className="mt-1 h-6 w-24 rounded-lg" />
             ) : (
-              <p className="text-2xl font-semibold text-text-body dark:text-white">
+              <p className="text-[17px] font-medium leading-6 text-text-body dark:text-white">
                 {priceUnavailable
                   ? "Unavailable"
                   : formatMarketPriceUsd(snapshot!.price)}
@@ -284,14 +302,19 @@ export function TokenDetailContent({ symbol }: TokenDetailContentProps) {
             ) : (
               <p
                 className={classNames(
-                  "font-medium",
+                  "flex items-center gap-1 font-medium",
                   changePctTone(pnl.pct) === "up" &&
-                    "text-green-600 dark:text-green-400",
+                    "text-[#227738] dark:text-[#39c65d]",
                   changePctTone(pnl.pct) === "down" &&
-                    "text-red-600 dark:text-red-400",
+                    "text-text-accent-red dark:text-accent-red",
                 )}
                 data-testid="token-pnl-value"
               >
+                {changePctTone(pnl.pct) === "up" ? (
+                  <PnlTrendCaret direction="up" />
+                ) : changePctTone(pnl.pct) === "down" ? (
+                  <PnlTrendCaret direction="down" />
+                ) : null}
                 {formatSignedUsdPnl(pnl.usd)} ({formatChangePctDisplay(pnl.pct)})
               </p>
             )}

@@ -245,9 +245,23 @@ describe("TokensPageContent", () => {
 
     render(<TokensPageContent />);
     expect(screen.getByText("No tokens yet")).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "Add funds" }),
-    ).toBeInTheDocument();
+    const addFunds = screen.getByRole("button", { name: "Add funds" });
+    expect(addFunds).toBeInTheDocument();
+    expect(addFunds).toHaveClass("h-11", "rounded-xl", "dark:bg-white/10");
+  });
+
+  it("adds focus ring classes to portfolio error retry", () => {
+    usePortfolio.mockReturnValue({
+      data: null,
+      isLoading: false,
+      error: new Error("fail"),
+      refetch: jest.fn(),
+    });
+
+    render(<TokensPageContent />);
+    const retry = screen.getByRole("button", { name: /Try again/i });
+    expect(retry.className).toMatch(/focus-visible:ring/);
+    expect(retry).toHaveClass("rounded-md");
   });
 
   it("lists holdings sorted by USD with 24h change", () => {
@@ -344,6 +358,42 @@ describe("TokenDetailContent", () => {
     await waitFor(() => {
       expect(useTokenMarketHistory).toHaveBeenCalled();
     });
+  });
+
+  it("shows PnL trend caret when market data is available", () => {
+    useTokenMarketSnapshot.mockReturnValue({
+      data: {
+        id: "usdc",
+        price: "1",
+        change24h: { pct: "0.01", abs: "0.0001" },
+        asOf: "2026-11-05T12:00:00.000Z",
+        stale: false,
+        stats: null,
+      },
+      isLoading: false,
+      unavailable: false,
+      error: false,
+      refetch: jest.fn(),
+    });
+    useTokenMarketHistory.mockReturnValue({
+      data: {
+        id: "usdc",
+        range: "1D",
+        points: [
+          [1, "1"],
+          [2, "1.01"],
+        ],
+        stale: false,
+      },
+      isLoading: false,
+      unavailable: false,
+      error: false,
+      refetch: jest.fn(),
+    });
+
+    const { container } = render(<TokenDetailContent symbol="USDC" />);
+    expect(screen.getByTestId("token-pnl-value")).toBeInTheDocument();
+    expect(container.querySelector('[data-testid="token-pnl-value"] svg')).toBeTruthy();
   });
 
   it("opens ActionDrawer with preselected token for Transfer", () => {

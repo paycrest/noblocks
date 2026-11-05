@@ -889,16 +889,21 @@ async function refreshCachedOpenPhase(
   bundle: CachedPhaseBundle,
 ): Promise<CachedPhaseBundle> {
   const feedKey = `${feed.chain}:${feed.proxy}`;
-  const latestTuple = (await client.multicall({
-    contracts: [
-      {
-        address: feed.proxy,
-        abi: proxyAbi,
-        functionName: "latestRoundData" as const,
-      },
-    ],
-    allowFailure: false,
-  }))[0] as readonly [bigint, bigint, bigint, bigint, bigint];
+  let latestTuple: readonly [bigint, bigint, bigint, bigint, bigint];
+  try {
+    latestTuple = (await client.multicall({
+      contracts: [
+        {
+          address: feed.proxy,
+          abi: proxyAbi,
+          functionName: "latestRoundData" as const,
+        },
+      ],
+      allowFailure: false,
+    }))[0] as readonly [bigint, bigint, bigint, bigint, bigint];
+  } catch {
+    return bundle;
+  }
 
   const latestRoundId = latestTuple[0];
   const latestUpdatedAt = Number(latestTuple[3]);
@@ -911,21 +916,36 @@ async function refreshCachedOpenPhase(
 
   const row = bundle.rows.find((r) => r.phaseId === latestPhaseId);
   if (!row) {
-    return loadPhaseContext(client, feed, true);
+    return bundle;
   }
 
   if (latestAgg <= row.lastRound && latestUpdatedAt <= row.lastTs) {
     return bundle;
   }
 
-  row.lastRound = latestAgg;
-  row.lastTs = latestUpdatedAt;
+  const candidateRow: PhaseTableRow = {
+    phaseId: row.phaseId,
+    firstTs: row.firstTs,
+    lastTs: latestUpdatedAt,
+    lastRound: latestAgg,
+  };
 
   const indexKey = phaseIndexCacheKey(feedKey, latestPhaseId);
-  const index = await buildPhaseRoundIndex(client, feed, row, false);
-  phaseIndexCache.set(indexKey, index);
-  bundle.indexes.set(latestPhaseId, index);
-  phaseBundleCache.set(feedKey, bundle);
+  try {
+    const index = await buildPhaseRoundIndex(
+      client,
+      feed,
+      candidateRow,
+      false,
+    );
+    row.lastRound = latestAgg;
+    row.lastTs = latestUpdatedAt;
+    phaseIndexCache.set(indexKey, index);
+    bundle.indexes.set(latestPhaseId, index);
+    phaseBundleCache.set(feedKey, bundle);
+  } catch {
+    return bundle;
+  }
   return bundle;
 }
 

@@ -67,7 +67,9 @@ import {
 } from "../app/lib/market-data/round-id";
 import {
   getCachedHistoryResponse,
+  getHistoryBucket,
   setCachedHistoryResponse,
+  setHistoryBucket,
 } from "../app/lib/market-data/history-cache";
 import {
   evaluateSequencerStatus,
@@ -376,6 +378,14 @@ describe("CMC backoff", () => {
 });
 
 describe("history bucket cache", () => {
+  it("treats open bucket entry as miss when caller expects closed", () => {
+    resetHistoryBucketCacheForTests();
+    const key = "eth:1D:123";
+    setHistoryBucket(key, { t: 123, p: "1" }, false);
+    expect(getHistoryBucket(key, false)?.p).toBe("1");
+    expect(getHistoryBucket(key, true)).toBeNull();
+  });
+
   it("uses response cache so second call skips upstream", async () => {
     mockedHistory.mockResolvedValue({
       samples: Array.from({ length: 96 }, (_, i) => ({

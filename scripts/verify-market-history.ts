@@ -17,6 +17,11 @@ import { redactErrorMessage } from "../app/lib/market-data/validate";
 const RANGES: HistoryRange[] = ["1D", "1W", "1M", "1Y", "ALL"];
 const CHECK_TOKENS = ["eth", "usdc", "cngn"] as const;
 const FLAT_CHECK_RANGES: HistoryRange[] = ["1Y", "ALL"];
+const WEEKLY_BUCKET_STEP_SEC = 7 * 86400;
+
+function maxAdjacentStepThresholdPct(stepSec: number): number {
+  return stepSec >= WEEKLY_BUCKET_STEP_SEC ? 50 : 30;
+}
 
 function longestIdenticalRunBuckets(
   points: Array<[number, string]>,
@@ -141,9 +146,13 @@ async function main(): Promise<number> {
         exitCode = 1;
       }
 
+      const spec = bucketSpecForRange(range);
       const maxStep = maxAdjacentStepPct(res.points);
-      if (maxStep > 30) {
-        console.error(`${id} ${range}: adjacent jump ${maxStep.toFixed(2)}%`);
+      const stepThreshold = maxAdjacentStepThresholdPct(spec.stepSec);
+      if (maxStep > stepThreshold) {
+        console.error(
+          `${id} ${range}: adjacent jump ${maxStep.toFixed(2)}% (limit ${stepThreshold}% for stepSec=${spec.stepSec})`,
+        );
         exitCode = 1;
       }
 

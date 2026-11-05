@@ -5,7 +5,7 @@ import { isInjectedUserId } from "@/app/lib/injected-identity";
 
 export type PortfolioWalletContext = {
   primaryEvm: string;
-  /** Address used for EVM multicall balance reads (SCW when present). */
+  /** Address used for EVM multicall balance reads (embedded EOA, same as middleware / v1). */
   evmBalanceAddress: string;
   starknetAddress: string | null;
   tronAddress: string | null;
@@ -51,9 +51,6 @@ export async function resolvePortfolioWalletContext(
   const user = await getPrivyClient().getUser(privyUserId);
   const accounts = user?.linkedAccounts ?? [];
 
-  const smartWallet = accounts.find(
-    (a) => (a as { type?: string }).type === "smart_wallet",
-  );
   const embedded = accounts.find((a) => {
     const o = a as { type?: string; connectorType?: string; connector_type?: string };
     return (
@@ -78,12 +75,11 @@ export async function resolvePortfolioWalletContext(
     );
   });
 
-  const smartAddr = readLinkedEvmAddress(smartWallet);
   const embeddedAddr = readLinkedEvmAddress(embedded);
 
   return {
     primaryEvm,
-    evmBalanceAddress: smartAddr ?? embeddedAddr ?? primaryEvm,
+    evmBalanceAddress: embeddedAddr ?? primaryEvm,
     starknetAddress: readLinkedStarknetAddress(starknet),
     tronAddress: readLinkedTronAddress(tron),
   };

@@ -35,7 +35,7 @@ describe("resolvePortfolioWalletContext", () => {
     expect(ctx.tronAddress).toBe(tronAddress);
   });
 
-  it("lowercases EVM smart wallet addresses", async () => {
+  it("uses middleware primary EVM when only a legacy smart wallet is linked", async () => {
     mockedGetPrivyClient.mockReturnValue({
       getUser: async () => ({
         linkedAccounts: [
@@ -52,7 +52,33 @@ describe("resolvePortfolioWalletContext", () => {
       "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
     );
     expect(ctx.evmBalanceAddress).toBe(
-      "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    );
+  });
+
+  it("prefers embedded EOA over smart wallet for EVM balance reads", async () => {
+    mockedGetPrivyClient.mockReturnValue({
+      getUser: async () => ({
+        linkedAccounts: [
+          {
+            type: "smart_wallet",
+            address: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          },
+          {
+            type: "wallet",
+            connectorType: "embedded",
+            address: "0xCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC",
+          },
+        ],
+      }),
+    } as ReturnType<typeof getPrivyClient>);
+
+    const ctx = await resolvePortfolioWalletContext(
+      "did:privy:test",
+      "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    );
+    expect(ctx.evmBalanceAddress).toBe(
+      "0xcccccccccccccccccccccccccccccccccccccccc",
     );
   });
 });

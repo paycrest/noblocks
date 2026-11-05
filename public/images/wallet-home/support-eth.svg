@@ -1,0 +1,23 @@
+<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="blockchain">
+<g clip-path="url(#clip0_0_101)">
+<path id="bg" d="M23.9999 11.9999C23.9999 18.6274 18.6274 24 12 24C5.37255 24 2.19792e-07 18.6274 2.19792e-07 11.9999C2.19792e-07 5.37256 5.37255 9.38773e-06 12 9.38773e-06C18.6273 9.38773e-06 23.9999 5.37256 23.9999 11.9999" fill="black"/>
+<g id="Group">
+<g id="Vector">
+<path d="M11.7141 4L7 11.8219L11.7141 14.6084L11.7141 9.67918L11.7141 4Z" fill="white"/>
+<path d="M11.7141 16.1421L11.6561 16.2129V19.8305L11.7141 20L16.431 13.357L11.7141 16.1421Z" fill="#C9C9C9"/>
+<path d="M11.7141 20V16.1421L7 13.357L11.7141 20Z" fill="white"/>
+<path d="M7 11.8219L11.7141 14.6084L11.7141 9.67918L7 11.8219Z" fill="white"/>
+<path d="M11.7141 4L11.6111 4.34998V14.5056L11.7141 14.6084L11.7141 9.67918L11.7141 4Z" fill-rule="evenodd" clip-rule="evenodd" fill="#C9C9C9"/>
+<path d="M11.7141 14.6084L16.4282 11.8219L11.7141 9.67918L11.7141 14.6084Z" fill="#C9C9C9"/>
+<path d="M16.4282 11.8219L11.7141 4L11.7141 9.67918L16.4282 11.8219Z" fill="#C9C9C9"/>
+</g>
+</g>
+</g>
+</g>
+<defs>
+<clipPath id="clip0_0_101">
+<rect width="24" height="24" rx="12" fill="white"/>
+</clipPath>
+</defs>
+</svg>

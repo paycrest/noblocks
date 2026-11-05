@@ -883,6 +883,70 @@ export function estimatePhaseIndexHttpCalls(phaseCount: number): number {
   return phaseCount * Math.ceil(PHASE_INDEX_SAMPLES / HISTORY_MULTICALL_CHUNK);
 }
 
+async function refreshCachedOpenPhase(
+  client: HistoryChainClient,
+  feed: ChainlinkFeedConfig,
+  bundle: CachedPhaseBundle,
+): Promise<CachedPhaseBundle> {
+  const feedKey = `${feed.chain}:${feed.proxy}`;
+  const latestTuple = (await client.multicall({
+    contracts: [
+      {
+        address: feed.proxy,
+        abi: proxyAbi,
+        functionName: "latestRoundData" as const,
+      },
+    ],
+    allowFailure: false,
+  }))[0] as readonly [bigint, bigint, bigint, bigint, bigint];
+
+  const latestRoundId = latestTuple[0];
+  const latestUpdatedAt = Number(latestTuple[3]);
+  const { phaseId: latestPhaseId, aggregatorRoundId: latestAgg } =
+    decodeRoundId(latestRoundId);
+
+  if (latestPhaseId !== bundle.latestPhaseId) {
+    return loadPhaseContext(client, feed, true);
+  }
+
+  const row = bundle.rows.find((r) => r.phaseId === latestPhaseId);
+  if (!row) {
+    return loadPhaseContext(client, feed, true);
+  }
+
+  if (latestAgg <= row.lastRound && latestUpdatedAt <= row.lastTs) {
+    return bundle;
+  }
+
+  row.lastRound = latestAgg;
+  row.lastTs = latestUpdatedAt;
+
+  const indexKey = phaseIndexCacheKey(feedKey, latestPhaseId);
+  const index = await buildPhaseRoundIndex(client, feed, row, false);
+  phaseIndexCache.set(indexKey, index);
+  bundle.indexes.set(latestPhaseId, index);
+  phaseBundleCache.set(feedKey, bundle);
+  return bundle;
+}
+
+function syncOpenPhaseTargetBounds(
+  targets: HistoryTarget[],
+  latestPhaseId: number,
+  phaseById: Map<number, PhaseTableRow>,
+): void {
+  for (const target of targets) {
+    if (target.phaseId !== latestPhaseId) continue;
+    const phase = phaseById.get(target.phaseId);
+    if (!phase) continue;
+    target.phaseLastRound = phase.lastRound;
+    if (target.hi > phase.lastRound) {
+      target.hi = phase.lastRound;
+      target.proven = false;
+      target.done = false;
+    }
+  }
+}
+
 export async function loadPhaseContext(
   client: HistoryChainClient,
   feed: ChainlinkFeedConfig,
@@ -895,7 +959,7 @@ export async function loadPhaseContext(
     hit &&
     Date.now() - hit.fetchedAt < PHASE_TABLE_TTL_MS
   ) {
-    return hit;
+    return refreshCachedOpenPhase(client, feed, hit);
   }
 
   const inflight = phaseBundleInFlight.get(key);
@@ -917,6 +981,7 @@ export async function loadPhaseContext(
       const ttl = closed ? CLOSED_PHASE_INDEX_TTL_MS : PHASE_TABLE_TTL_MS;
       if (
         !forceRefresh &&
+        closed &&
         cached &&
         Date.now() - cached.fetchedAt < ttl
       ) {
@@ -991,6 +1056,10 @@ export async function resolveHistoryWithFetcher(
   };
 
   const phaseById = new Map(phases.map((p) => [p.phaseId, p]));
+  const latestPhaseId = phases.reduce(
+    (max, p) => (p.phaseId > max ? p.phaseId : max),
+    0,
+  );
   const targets = initHistoryTargets(
     bucketStarts,
     stepSec,
@@ -1047,6 +1116,7 @@ export async function resolveHistoryWithFetcher(
     }
 
     for (const target of active) {
+      syncOpenPhaseTargetBounds([target], latestPhaseId, phaseById);
       const phase = phaseById.get(target.phaseId);
       const index = indexes.get(target.phaseId);
       if (!phase || !index) continue;

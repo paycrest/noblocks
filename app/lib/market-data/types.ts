@@ -53,7 +53,7 @@ export interface CngnExtras {
 export interface TokenMarketSnapshot {
   id: string;
   price: string;
-  change24h: { pct: string; abs: string };
+  change24h: { pct: string; abs: string } | null;
   asOf: string;
   source: string;
   derived: boolean;

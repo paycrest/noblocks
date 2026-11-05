@@ -190,6 +190,7 @@ async function fetchCmcQuotes(): Promise<Record<number, TokenStatsBlock> | null>
       maxRedirects: 0,
       validateStatus: () => true,
     });
+    recordCmcCall();
 
     const errorCode = extractCmcErrorCode(data);
     if (status === 429 || (errorCode && errorCode !== 0)) {
@@ -227,7 +228,6 @@ async function fetchCmcQuotes(): Promise<Record<number, TokenStatsBlock> | null>
       matchedIds,
     });
 
-    recordCmcCall();
     return parsed;
   } catch (err) {
     logMarketDataWarning("cmc_fetch_failed", {

@@ -266,13 +266,31 @@ export async function blockNumberForTimestamp(
     const window = BigInt(5000);
     let lo = guess > window ? guess - window : BigInt(0);
     let hi = guess + window > latest ? latest : guess + window;
-    while (lo < hi) {
-      const mid = (lo + hi + BigInt(1)) / BigInt(2);
-      const block = await client.getBlock({ blockNumber: mid });
-      const ts = Number(block.timestamp);
-      if (ts <= targetSec) lo = mid;
-      else hi = mid - BigInt(1);
+
+    const tsAt = async (n: bigint) =>
+      Number((await client.getBlock({ blockNumber: n })).timestamp);
+
+    while (lo > BigInt(0)) {
+      const ts = await tsAt(lo);
+      if (ts <= targetSec) break;
+      const step = lo > BigInt(50_000) ? BigInt(50_000) : lo;
+      lo = lo > step ? lo - step : BigInt(0);
     }
+    if ((await tsAt(lo)) > targetSec) return null;
+
+    if ((await tsAt(hi)) < targetSec) {
+      lo = hi;
+    } else {
+      while (lo < hi) {
+        const mid = (lo + hi + BigInt(1)) / BigInt(2);
+        const ts = await tsAt(mid);
+        if (ts <= targetSec) lo = mid;
+        else hi = mid - BigInt(1);
+      }
+    }
+
+    const resultTs = await tsAt(lo);
+    if (resultTs > targetSec) return null;
     return lo;
   } catch {
     return null;

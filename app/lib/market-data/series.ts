@@ -33,7 +33,15 @@ export function alignedRangeStart(
   const spec = bucketSpecForRange(range);
   if (range === "ALL") {
     const anchor = inceptionUnix ?? nowSec - spec.count * spec.stepSec;
-    return Math.floor(anchor / spec.stepSec) * spec.stepSec;
+    const alignedInception =
+      Math.floor(anchor / spec.stepSec) * spec.stepSec;
+    const spanSec = nowSec - alignedInception;
+    const maxSpan = (spec.count - 1) * spec.stepSec;
+    if (spanSec > maxSpan) {
+      const gridEnd = Math.floor(nowSec / spec.stepSec) * spec.stepSec;
+      return gridEnd - maxSpan;
+    }
+    return alignedInception;
   }
   const gridEnd = Math.floor(nowSec / spec.stepSec) * spec.stepSec;
   return gridEnd - (spec.count - 1) * spec.stepSec;

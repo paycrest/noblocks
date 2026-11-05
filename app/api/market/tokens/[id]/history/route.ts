@@ -47,11 +47,16 @@ export const GET = withRateLimit(async (request: NextRequest, context: RouteCont
   try {
     const data = await getTokenHistory(id, range);
     trackApiResponse(path, "GET", 200, Date.now() - start, { id, range });
+    const cacheControl = data.unavailable
+      ? "no-store"
+      : data.partial
+        ? "public, max-age=10, stale-while-revalidate=30"
+        : "public, max-age=30, stale-while-revalidate=60";
     return NextResponse.json(
       { success: true, data },
       {
         headers: {
-          "Cache-Control": "public, max-age=30, stale-while-revalidate=60",
+          "Cache-Control": cacheControl,
         },
       },
     );

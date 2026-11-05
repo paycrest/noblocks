@@ -12,6 +12,10 @@ import { CopyAddressWarningModal } from "@/app/components/CopyAddressWarningModa
 import { ReferralHubView } from "@/app/components/wallet-mobile-modal/ReferralHubView";
 import { BalanceSkeleton } from "@/app/components/BalanceSkeleton";
 import { usePortfolio } from "@/app/hooks/usePortfolio";
+import {
+  useBridgeStatusTracker,
+  type BridgeSubmitInfo,
+} from "@/app/hooks/useBridgeStatusTracker";
 import { useWalletAddress } from "@/app/hooks/useWalletAddress";
 import { formatPortfolioUsd } from "@/app/lib/portfolio/display";
 import type { WalletHomeActionId } from "@/app/lib/portfolio/home-visibility";
@@ -310,9 +314,6 @@ export function useTokenMarketSnapshot(
         return;
       }
       setData(body.data);
-      if (!body.data.change24h) {
-        setUnavailable(true);
-      }
     } catch {
       if (requestId !== requestIdRef.current) return;
       setData(null);
@@ -572,10 +573,12 @@ export function TokenActionDrawerHost({
   activeAction,
   preferredTokenSymbol,
   onClose,
+  onBridgeSubmit,
 }: {
   activeAction: TokenActionId | null;
   preferredTokenSymbol?: string;
   onClose: () => void;
+  onBridgeSubmit: (info: BridgeSubmitInfo) => void;
 }) {
   const walletAddress = useWalletAddress();
   const [addressWarningOpen, setAddressWarningOpen] = useState(false);
@@ -608,7 +611,7 @@ export function TokenActionDrawerHost({
         return (
           <BridgeForm
             onClose={onClose}
-            onBridgeSubmit={() => {}}
+            onBridgeSubmit={onBridgeSubmit}
             preferredTokenSymbol={preferredTokenSymbol}
           />
         );
@@ -798,9 +801,11 @@ function RampActionPlaceholder({ mode }: { mode: "buy" | "sell" }) {
 function TokensFundsDrawerHost({
   activeAction,
   onClose,
+  onBridgeSubmit,
 }: {
   activeAction: WalletHomeActionId | null;
   onClose: () => void;
+  onBridgeSubmit: (info: BridgeSubmitInfo) => void;
 }) {
   if (
     activeAction === "receive" ||
@@ -808,7 +813,11 @@ function TokensFundsDrawerHost({
     activeAction === "swap"
   ) {
     return (
-      <TokenActionDrawerHost activeAction={activeAction} onClose={onClose} />
+      <TokenActionDrawerHost
+        activeAction={activeAction}
+        onClose={onClose}
+        onBridgeSubmit={onBridgeSubmit}
+      />
     );
   }
 
@@ -848,6 +857,7 @@ function InviteFriendsDrawer({
 
 export function TokensPageContent() {
   const { ready, authenticated } = usePrivy();
+  const { trackBridge } = useBridgeStatusTracker();
   const { data, isLoading, error, refetch } = usePortfolio({
     enabled: ready && authenticated,
   });
@@ -959,6 +969,7 @@ export function TokensPageContent() {
       <TokensFundsDrawerHost
         activeAction={activeAction}
         onClose={() => setActiveAction(null)}
+        onBridgeSubmit={trackBridge}
       />
       <InviteFriendsDrawer
         isOpen={inviteOpen}

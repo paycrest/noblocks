@@ -16,6 +16,13 @@ jest.mock("../app/hooks/usePortfolio", () => ({
   usePortfolio: jest.fn(),
 }));
 
+jest.mock("../app/hooks/useBridgeStatusTracker", () => ({
+  useBridgeStatusTracker: jest.fn(() => ({
+    trackBridge: jest.fn(),
+    pendingBridges: [],
+  })),
+}));
+
 jest.mock("../app/(wallet)/components/tokens/TokensPageContent", () => {
   const actual = jest.requireActual(
     "../app/(wallet)/components/tokens/TokensPageContent",
@@ -227,6 +234,12 @@ describe("KAN-970 token holdings helpers", () => {
     });
   });
 
+  it("returns unavailable PnL when change24h is missing", () => {
+    expect(computeTodaysPnlUsd("1000", null)).toEqual({
+      status: "unavailable",
+    });
+  });
+
   it("rejects unsupported token symbols for dynamic routes", () => {
     expect(isAllowedWalletTokenSymbol("NOTATOKEN")).toBe(false);
     expect(isAllowedWalletTokenSymbol("USDC")).toBe(true);
@@ -403,8 +416,49 @@ describe("TokenDetailContent", () => {
     render(<TokenDetailContent symbol="USDC" />);
     fireEvent.click(screen.getByRole("button", { name: "1W" }));
     await waitFor(() => {
-      expect(useTokenMarketHistory).toHaveBeenCalled();
+      expect(useTokenMarketHistory).toHaveBeenCalledWith(
+        "usdc",
+        "1W",
+        expect.anything(),
+      );
     });
+  });
+
+  it("formats positive sub-cent market prices without collapsing to $0.00", () => {
+    useTokenMarketSnapshot.mockReturnValue({
+      data: {
+        id: "usdc",
+        price: "0.00072286",
+        change24h: { pct: "0.01", abs: "0.0001" },
+        asOf: "2026-11-05T12:00:00.000Z",
+        stale: false,
+        stats: null,
+      },
+      isLoading: false,
+      unavailable: false,
+      error: false,
+      refetch: jest.fn(),
+    });
+    useTokenMarketHistory.mockReturnValue({
+      data: {
+        id: "usdc",
+        range: "1D",
+        points: [
+          [1, "0.0007"],
+          [2, "0.0008"],
+        ],
+        stale: false,
+      },
+      isLoading: false,
+      unavailable: false,
+      error: false,
+      refetch: jest.fn(),
+    });
+
+    render(<TokenDetailContent symbol="USDC" />);
+    const header = screen.getByTestId("token-price-header");
+    expect(header.textContent).not.toMatch(/\$0\.00(?!\d)/);
+    expect(header.textContent).toMatch(/\$0\.00072/);
   });
 
   it("shows PnL trend caret when market data is available", () => {
@@ -454,6 +508,43 @@ describe("TokenDetailContent", () => {
     expect(legend.className).not.toMatch(/grid-cols-3/);
   });
 
+  it("shows price and leaves PnL unavailable when change24h is missing", () => {
+    useTokenMarketSnapshot.mockReturnValue({
+      data: {
+        id: "usdc",
+        price: "1",
+        change24h: null,
+        asOf: "2026-11-05T12:00:00.000Z",
+        stale: false,
+        stats: null,
+      },
+      isLoading: false,
+      unavailable: false,
+      error: false,
+      refetch: jest.fn(),
+    });
+    useTokenMarketHistory.mockReturnValue({
+      data: {
+        id: "usdc",
+        range: "1D",
+        points: [
+          [1, "1"],
+          [2, "1.01"],
+        ],
+        stale: false,
+      },
+      isLoading: false,
+      unavailable: false,
+      error: false,
+      refetch: jest.fn(),
+    });
+
+    render(<TokenDetailContent symbol="USDC" />);
+    expect(screen.getByTestId("token-price-header")).toHaveTextContent("$1.00");
+    expect(screen.getByTestId("token-pnl-unavailable")).toBeInTheDocument();
+    expect(screen.queryByText("Chart unavailable")).not.toBeInTheDocument();
+  });
+
   it("opens ActionDrawer with preselected token for Transfer", () => {
     useTokenMarketSnapshot.mockReturnValue({
       data: null,
@@ -479,5 +570,51 @@ describe("TokenDetailContent", () => {
       "data-preferred-token",
       "USDC",
     );
+  });
+});
+
+describe("useTokenMarketSnapshot", () => {
+  const originalFetch = global.fetch;
+  const { useTokenMarketSnapshot: useRealSnapshot } = jest.requireActual(
+    "../app/(wallet)/components/tokens/TokensPageContent",
+  ) as typeof import("../app/(wallet)/components/tokens/TokensPageContent");
+
+  function Harness({ marketId }: { marketId: string }) {
+    const { data, unavailable, isLoading } = useRealSnapshot(marketId);
+    if (isLoading) return <div>loading</div>;
+    return (
+      <div>
+        <span data-testid="snap-price">{data?.price ?? ""}</span>
+        <span data-testid="snap-unavailable">{String(unavailable)}</span>
+      </div>
+    );
+  }
+
+  afterEach(() => {
+    global.fetch = originalFetch;
+  });
+
+  it("does not mark a priced snapshot unavailable when change24h is missing", async () => {
+    global.fetch = jest.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        success: true,
+        data: {
+          id: "usdc",
+          price: "1",
+          change24h: null,
+          asOf: "2026-11-05T12:00:00.000Z",
+          stale: false,
+          stats: null,
+        },
+      }),
+    })) as typeof fetch;
+
+    render(<Harness marketId="usdc" />);
+    await waitFor(() => {
+      expect(screen.getByTestId("snap-price")).toHaveTextContent("1");
+    });
+    expect(screen.getByTestId("snap-unavailable")).toHaveTextContent("false");
   });
 });

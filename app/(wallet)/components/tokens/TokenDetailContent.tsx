@@ -20,6 +20,7 @@ import {
 import { usePrivy } from "@privy-io/react-auth";
 import { BalanceSkeleton } from "@/app/components/BalanceSkeleton";
 import { usePortfolio } from "@/app/hooks/usePortfolio";
+import { useBridgeStatusTracker } from "@/app/hooks/useBridgeStatusTracker";
 import { formatPortfolioUsd } from "@/app/lib/portfolio/display";
 import {
   TOKEN_HISTORY_RANGES,
@@ -87,8 +88,31 @@ function formatTokenDetailBalanceAmount(amount: string): string {
   }
 }
 
+function marketPriceMaximumFractionDigits(
+  abs: InstanceType<typeof money>,
+): number {
+  if (abs.isZero() || abs.gte(1)) return 2;
+  if (abs.gte("0.01")) return 4;
+  if (abs.gte("0.0001")) return 6;
+  return 8;
+}
+
 function formatMarketPriceUsd(price: string): string {
-  return formatPortfolioUsd(price);
+  try {
+    const value = money(price.trim());
+    const abs = value.abs();
+    if (abs.isZero() || abs.gte(1)) {
+      return formatPortfolioUsd(price);
+    }
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+      minimumFractionDigits: 2,
+      maximumFractionDigits: marketPriceMaximumFractionDigits(abs),
+    }).format(value.toNumber());
+  } catch {
+    return "—";
+  }
 }
 
 function buildPriceChartPath(
@@ -345,6 +369,7 @@ function formatSupplyLabel(value: string | null, symbol: string): string {
 
 export function TokenDetailContent({ symbol }: TokenDetailContentProps) {
   const { ready, authenticated } = usePrivy();
+  const { trackBridge } = useBridgeStatusTracker();
   const { data, isLoading } = usePortfolio({
     enabled: ready && authenticated,
   });
@@ -542,6 +567,7 @@ export function TokenDetailContent({ symbol }: TokenDetailContentProps) {
         activeAction={activeAction}
         preferredTokenSymbol={symbol}
         onClose={() => setActiveAction(null)}
+        onBridgeSubmit={trackBridge}
       />
 
       <InviteFriendsDrawer

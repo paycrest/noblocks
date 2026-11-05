@@ -4,13 +4,10 @@
  * Overlap key format (documented for KAN-961 AC #3):
  *   `${normalizeChain(chain)}:${canonicalSymbol}:${positionId}`
  *
- * Wallet token rows use positionId `wallet`. Vesu earn rows use the Vesu pool
- * contract address. EVM-sourced earn (KAN-394) uses `evm-earn-source` on the
- * source chain while bridged funds may still appear in the wallet balance.
- *
- * When an earn row has a non-zero amount, wallet rows on the same chain + symbol
- * are removed from the **tokens** bucket USD total (amounts still show in the
- * tokens list). Earn always keeps the position value.
+ * Wallet token rows use positionId `wallet`. EVM-sourced earn (KAN-394) uses
+ * `evm-earn-source` on the source chain while bridged funds may still appear
+ * in the wallet balance — only that case excludes wallet USD from the tokens
+ * bucket. Vesu positions already left the wallet; do not exclude wallet USD.
  */
 
 import { canonicalTokenSymbol } from "@/app/lib/token-symbol";
@@ -40,7 +37,7 @@ export function collectWalletUsdExclusionKeys(
   for (const h of holdings) {
     if (h.bucket !== "earn") continue;
     if (isZeroDecimalString(h.amount)) continue;
-    if (h.positionId === "wallet") continue;
+    if (h.positionId !== "evm-earn-source") continue;
     exclusions.add(portfolioOverlapKey(h.chain, h.symbol, "wallet"));
   }
 

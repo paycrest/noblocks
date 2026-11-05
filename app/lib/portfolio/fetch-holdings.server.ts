@@ -9,6 +9,7 @@ import {
   getNetworkTokens,
   getRpcUrl,
   type ChainBalanceEntry,
+  type UnifiedWalletBalances,
 } from "@/app/utils";
 import {
   getVesuPosition,
@@ -29,10 +30,21 @@ export type FetchHoldingsResult = {
   holdings: PortfolioBuildInputHolding[];
   stale: boolean;
   asOf: string;
+  /** When true, do not replace the cached snapshot with this payload. */
+  refreshFailed: boolean;
 };
 
 function nowIso(): string {
   return new Date().toISOString();
+}
+
+function assertBalanceReadOk(
+  unified: UnifiedWalletBalances,
+  label: string,
+): void {
+  if (unified.readOk === false) {
+    throw new Error(`${label} balance read failed`);
+  }
 }
 
 async function withTimeout<T>(
@@ -84,12 +96,13 @@ function entriesToTokenHoldings(
 async function fetchEvmTokenHoldings(
   evmAddress: string,
   asOf: string,
-): Promise<{ rows: PortfolioBuildInputHolding[]; stale: boolean }> {
+): Promise<{ rows: PortfolioBuildInputHolding[]; stale: boolean; refreshFailed: boolean }> {
   const evmNetworks = networks.filter(
     (n) => n.chain.name !== "Starknet" && n.chain.name !== "Tron",
   );
   const rows: PortfolioBuildInputHolding[] = [];
   let stale = false;
+  let refreshFailed = false;
 
   const settled = await Promise.allSettled(
     evmNetworks.map(async (network) => {
@@ -103,22 +116,22 @@ async function fetchEvmTokenHoldings(
         `evm:${network.chain.name}`,
         fetchEvmBalancesUnifiedUncached(publicClient, evmAddress),
       );
+      assertBalanceReadOk(unified, `evm:${network.chain.name}`);
       rows.push(
         ...entriesToTokenHoldings(unified.entries, network.chain.name, asOf, false),
       );
     }),
   );
 
-  if (settled.some((s) => s.status === "rejected")) {
-    stale = true;
-    for (const s of settled) {
-      if (s.status === "rejected") {
-        console.error("[portfolio] EVM chain fetch failed:", s.reason);
-      }
+  for (const s of settled) {
+    if (s.status === "rejected") {
+      stale = true;
+      refreshFailed = true;
+      console.error("[portfolio] EVM chain fetch failed:", s.reason);
     }
   }
 
-  return { rows, stale };
+  return { rows, stale, refreshFailed };
 }
 
 async function fetchStarknetTokenHoldings(
@@ -130,6 +143,7 @@ async function fetchStarknetTokenHoldings(
     "starknet:wallet",
     fetchStarknetBalancesUnified(address, tokens),
   );
+  assertBalanceReadOk(unified, "starknet:wallet");
   return entriesToTokenHoldings(unified.entries, "Starknet", asOf, false);
 }
 
@@ -142,6 +156,7 @@ async function fetchTronTokenHoldings(
     "tron:wallet",
     fetchTronBalancesUnified(address, tokens),
   );
+  assertBalanceReadOk(unified, "tron:wallet");
   return entriesToTokenHoldings(unified.entries, "Tron", asOf, false);
 }
 
@@ -159,6 +174,9 @@ async function fetchVesuEarnHoldings(
       `vesu:${tokenSymbol}`,
       getVesuPosition(starknetAddress, tokenSymbol),
     );
+    if (summary.readOk === false) {
+      throw new Error(`vesu:${tokenSymbol} position read failed`);
+    }
     const tokenMeta =
       tokenSymbol === "USDC" ? STARKNET_USDC_TOKEN : STARKNET_USDT_TOKEN;
     const poolId =
@@ -188,10 +206,12 @@ export async function fetchPortfolioHoldings(
   const asOf = nowIso();
   const holdings: PortfolioBuildInputHolding[] = [];
   let stale = false;
+  let refreshFailed = false;
 
   const evm = await fetchEvmTokenHoldings(ctx.evmBalanceAddress, asOf);
   holdings.push(...evm.rows);
   stale = stale || evm.stale;
+  refreshFailed = refreshFailed || evm.refreshFailed;
 
   if (ctx.starknetAddress) {
     try {
@@ -201,6 +221,7 @@ export async function fetchPortfolioHoldings(
     } catch (error) {
       console.error("[portfolio] Starknet wallet holdings failed:", error);
       stale = true;
+      refreshFailed = true;
     }
     try {
       holdings.push(
@@ -209,6 +230,7 @@ export async function fetchPortfolioHoldings(
     } catch (error) {
       console.error("[portfolio] Vesu earn holdings failed:", error);
       stale = true;
+      refreshFailed = true;
     }
   }
 
@@ -220,8 +242,9 @@ export async function fetchPortfolioHoldings(
     } catch (error) {
       console.error("[portfolio] Tron holdings failed:", error);
       stale = true;
+      refreshFailed = true;
     }
   }
 
-  return { holdings, stale, asOf };
+  return { holdings, stale, asOf, refreshFailed };
 }

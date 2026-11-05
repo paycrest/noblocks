@@ -1,6 +1,6 @@
 import {
   clearPortfolioHoldingsCache,
-  getStalePortfolioHoldings,
+  expirePortfolioHoldingsCache,
   portfolioCacheKey,
   setCachedPortfolioHoldings,
 } from "../app/lib/portfolio/cache.server";
@@ -39,7 +39,7 @@ describe("portfolio stale cache", () => {
     jest.clearAllMocks();
   });
 
-  it("reuses last holdings with stale=true when refresh fails", async () => {
+  it("reuses last holdings with stale=true when refresh throws", async () => {
     const key = portfolioCacheKey(ctx.evmBalanceAddress);
     setCachedPortfolioHoldings(key, {
       holdings: [
@@ -58,9 +58,7 @@ describe("portfolio stale cache", () => {
       stale: false,
     });
 
-    // Force expiry
-    const entry = getStalePortfolioHoldings(key)!;
-    entry.expiresAt = Date.now() - 1;
+    expirePortfolioHoldingsCache(key);
 
     mockedFetch.mockRejectedValue(new Error("rpc timeout"));
 
@@ -68,5 +66,39 @@ describe("portfolio stale cache", () => {
     expect(summary.stale).toBe(true);
     expect(summary.asOf).toBe("2026-11-05T10:00:00.000Z");
     expect(summary.buckets.tokens.totalUsd).toBe("3");
+  });
+
+  it("keeps prior cache when refreshFailed would cache empty zeros", async () => {
+    const key = portfolioCacheKey(ctx.evmBalanceAddress);
+    setCachedPortfolioHoldings(key, {
+      holdings: [
+        {
+          chain: "Base",
+          symbol: "USDC",
+          tokenAddress: "0xusdc",
+          amount: "5.000000",
+          decimals: 6,
+          bucket: "tokens",
+          positionId: "wallet",
+          asOf: "2026-11-05T10:00:00.000Z",
+        },
+      ],
+      asOf: "2026-11-05T10:00:00.000Z",
+      stale: false,
+    });
+
+    expirePortfolioHoldingsCache(key);
+
+    mockedFetch.mockResolvedValue({
+      holdings: [],
+      stale: true,
+      asOf: "2026-11-05T12:00:00.000Z",
+      refreshFailed: true,
+    });
+
+    const summary = await buildPortfolioForWallet(ctx);
+    expect(summary.stale).toBe(true);
+    expect(summary.asOf).toBe("2026-11-05T10:00:00.000Z");
+    expect(summary.buckets.tokens.totalUsd).toBe("5");
   });
 });

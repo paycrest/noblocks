@@ -11,15 +11,26 @@ export type PortfolioWalletContext = {
   tronAddress: string | null;
 };
 
-function readLinkedAddress(
-  account: unknown,
-  predicate: (a: Record<string, unknown>) => boolean,
-): string | null {
+const EVM_ADDRESS_LOWER = /^0x[a-f0-9]{40}$/;
+
+function readLinkedEvmAddress(account: unknown): string | null {
   if (!account || typeof account !== "object") return null;
-  const o = account as Record<string, unknown>;
-  if (!predicate(o)) return null;
-  const addr = o.address;
-  return typeof addr === "string" ? addr.toLowerCase() : null;
+  const addr = (account as { address?: unknown }).address;
+  return typeof addr === "string" && EVM_ADDRESS_LOWER.test(addr.toLowerCase())
+    ? addr.toLowerCase()
+    : null;
+}
+
+function readLinkedStarknetAddress(account: unknown): string | null {
+  if (!account || typeof account !== "object") return null;
+  const addr = (account as { address?: unknown }).address;
+  return typeof addr === "string" ? addr : null;
+}
+
+function readLinkedTronAddress(account: unknown): string | null {
+  if (!account || typeof account !== "object") return null;
+  const addr = (account as { address?: unknown }).address;
+  return typeof addr === "string" && addr.length > 0 ? addr : null;
 }
 
 export async function resolvePortfolioWalletContext(
@@ -67,13 +78,13 @@ export async function resolvePortfolioWalletContext(
     );
   });
 
-  const smartAddr = readLinkedAddress(smartWallet, () => true);
-  const embeddedAddr = readLinkedAddress(embedded, () => true);
+  const smartAddr = readLinkedEvmAddress(smartWallet);
+  const embeddedAddr = readLinkedEvmAddress(embedded);
 
   return {
     primaryEvm,
     evmBalanceAddress: smartAddr ?? embeddedAddr ?? primaryEvm,
-    starknetAddress: readLinkedAddress(starknet, () => true),
-    tronAddress: readLinkedAddress(tron, () => true),
+    starknetAddress: readLinkedStarknetAddress(starknet),
+    tronAddress: readLinkedTronAddress(tron),
   };
 }

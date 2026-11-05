@@ -15,6 +15,7 @@ import type {
   PortfolioBuildInputHolding,
   PortfolioHolding,
   PortfolioPriceLookup,
+  PortfolioPriceQuote,
   PortfolioSummary,
 } from "./types";
 
@@ -27,19 +28,58 @@ function latestIso(a: string, b: string): string {
   return new Date(a).getTime() >= new Date(b).getTime() ? a : b;
 }
 
+function resolveFallbackAsOf(rows: PortfolioBuildInputHolding[]): string {
+  if (rows.length === 0) {
+    return new Date().toISOString();
+  }
+  return rows.reduce(
+    (latest, row) => latestIso(latest, row.asOf),
+    rows[0].asOf,
+  );
+}
+
+async function buildMemoizedPriceLookup(
+  rows: PortfolioBuildInputHolding[],
+  priceLookup: PortfolioPriceLookup,
+): Promise<PortfolioPriceLookup> {
+  const symbols = [
+    ...new Set(
+      rows.map((r) => canonicalTokenSymbol(r.symbol) ?? r.symbol),
+    ),
+  ];
+  const quotes = await Promise.all(
+    symbols.map(async (symbol) => [symbol, await priceLookup(symbol)] as const),
+  );
+  const bySymbol = new Map<string, PortfolioPriceQuote>(quotes);
+  return async (symbol: string) => {
+    const key = canonicalTokenSymbol(symbol) ?? symbol;
+    return (
+      bySymbol.get(key) ?? {
+        usdPerUnit: null,
+        priceUnavailable: true,
+        stale: false,
+        asOf: null,
+      }
+    );
+  };
+}
+
 async function buildBucket(
   name: PortfolioBucketName,
   rows: PortfolioBuildInputHolding[],
   priceLookup: PortfolioPriceLookup,
   walletUsdExclusions: Set<string>,
+  fallbackAsOf: string,
 ): Promise<PortfolioBucket> {
   const holdings: PortfolioHolding[] = [];
   const usdParts: string[] = [];
   let bucketStale = false;
-  let bucketAsOf = new Date(0).toISOString();
+  let bucketAsOf = fallbackAsOf;
+  let sawRow = false;
 
   for (const row of rows) {
     if (row.bucket !== name) continue;
+    sawRow = true;
 
     const quote = await priceLookup(row.symbol);
     let usd: string | null = null;
@@ -75,6 +115,10 @@ async function buildBucket(
     });
   }
 
+  if (!sawRow) {
+    bucketAsOf = fallbackAsOf;
+  }
+
   return {
     totalUsd: sumUsdStrings(usdParts),
     stale: bucketStale,
@@ -91,25 +135,33 @@ export async function buildPortfolioSummary(
   inputHoldings: PortfolioBuildInputHolding[],
   priceLookup: PortfolioPriceLookup,
 ): Promise<PortfolioSummary> {
+  const fallbackAsOf = resolveFallbackAsOf(inputHoldings);
+  const memoizedLookup = await buildMemoizedPriceLookup(
+    inputHoldings,
+    priceLookup,
+  );
   const walletUsdExclusions = collectWalletUsdExclusionKeys(inputHoldings);
 
   const tokens = await buildBucket(
     "tokens",
     inputHoldings,
-    priceLookup,
+    memoizedLookup,
     walletUsdExclusions,
+    fallbackAsOf,
   );
   const earn = await buildBucket(
     "earn",
     inputHoldings,
-    priceLookup,
+    memoizedLookup,
     walletUsdExclusions,
+    fallbackAsOf,
   );
   const stocks = await buildBucket(
     "stocks",
     inputHoldings,
-    priceLookup,
+    memoizedLookup,
     walletUsdExclusions,
+    fallbackAsOf,
   );
 
   const totalUsd = sumUsdStrings([

@@ -1,6 +1,6 @@
-import Decimal from "decimal.js";
+import DecimalBase from "decimal.js";
 
-Decimal.set({ precision: 40 });
+const Decimal = DecimalBase.clone({ precision: 40 });
 
 const ZERO = new Decimal(0);
 
@@ -42,4 +42,9 @@ export function maxDecimal(a: string, b: string): string {
   const da = new Decimal(a);
   const db = new Decimal(b);
   return da.gte(db) ? da.toFixed() : db.toFixed();
+}
+
+/** @internal tests — module uses a cloned Decimal, not global precision. */
+export function portfolioMoneyDecimalPrecision(): number {
+  return Decimal.precision;
 }

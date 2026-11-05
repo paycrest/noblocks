@@ -8,6 +8,7 @@ import {
   AUTH_RETURN_STORAGE_KEY,
   sanitizeAuthReturnPath,
 } from "@/app/lib/wallet-auth";
+import { resolveWalletRouteId } from "@/app/lib/wallet-routes";
 import { useLoginWithScrollPin } from "@/app/hooks/useLoginWithScrollPin";
 
 export function WalletRouteGuard({ children }: { children: React.ReactNode }) {
@@ -42,11 +43,13 @@ export function WalletRouteGuard({ children }: { children: React.ReactNode }) {
     loginWithPin();
   }, [authenticated, loginWithPin, pathname, ready]);
 
-  if (!ready) {
-    return <Preloader isLoading variant="wallet-content" />;
+  const isWalletHome = resolveWalletRouteId(pathname) === "home";
+
+  if ((!ready || !authenticated) && isWalletHome) {
+    return <>{children}</>;
   }
 
-  if (!authenticated) {
+  if (!ready || !authenticated) {
     return <Preloader isLoading variant="wallet-content" />;
   }
 

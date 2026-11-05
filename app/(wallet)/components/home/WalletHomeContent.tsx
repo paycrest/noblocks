@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
+import { usePrivy } from "@privy-io/react-auth";
 import Image from "next/image";
 import Link from "next/link";
 import {
@@ -404,15 +405,23 @@ function InviteFriendsDrawer({
 }
 
 export function WalletHomeContent() {
+  const { ready, authenticated } = usePrivy();
+  const authSettling = !ready || !authenticated;
   const flags = useMemo(() => getFeatureFlags(), []);
-  const { data, isLoading, error, refetch } = usePortfolio();
+  const { data, isLoading, error, refetch } = usePortfolio({
+    enabled: ready && authenticated,
+  });
   const [activeAction, setActiveAction] = useState<WalletHomeActionId | null>(
     null,
   );
   const [inviteOpen, setInviteOpen] = useState(false);
 
-  const showError = !isLoading && error != null;
-  const showContent = !isLoading && !error && data != null;
+  const portfolioLoading =
+    authSettling ||
+    isLoading ||
+    (ready && authenticated && data == null && error == null);
+  const showError = !portfolioLoading && error != null;
+  const showContent = !portfolioLoading && !error && data != null;
 
   const isEmpty = data != null && isPortfolioEmpty(data);
 
@@ -428,7 +437,7 @@ export function WalletHomeContent() {
   return (
     <div className="mx-auto flex w-full max-w-[921px] flex-col gap-[49px] pb-8">
       <BalanceHeader
-        isLoading={isLoading}
+        isLoading={portfolioLoading}
         totalUsd={showError ? null : data?.totalUsd ?? null}
         trailing={addFundsControl}
       />
@@ -439,9 +448,9 @@ export function WalletHomeContent() {
         <AddFundsGetStartedCard onAddFunds={() => handleAction("buy")} />
       ) : null}
 
-      {isLoading || showContent ? (
+      {portfolioLoading || showContent ? (
       <div className="overflow-hidden rounded-[20px] border border-border-light bg-accent-gray dark:border-white/10 dark:bg-white/5">
-        {isLoading ? (
+        {portfolioLoading ? (
           <AssetBucketListSkeleton />
         ) : showContent && data ? (
           <div className="divide-y divide-border-light dark:divide-white/10">

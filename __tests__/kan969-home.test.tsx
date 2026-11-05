@@ -36,6 +36,10 @@ jest.mock("../app/hooks/usePortfolio", () => ({
   usePortfolio: jest.fn(),
 }));
 
+jest.mock("@privy-io/react-auth", () => ({
+  usePrivy: jest.fn(() => ({ ready: true, authenticated: true })),
+}));
+
 jest.mock("@/components/drawer", () => ({
   ActionDrawer: () => null,
 }));

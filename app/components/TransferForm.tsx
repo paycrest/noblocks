@@ -32,6 +32,7 @@ import { Token, type MobileSheetView } from "../types";
 import { networks } from "../mocks";
 import { getNetworkImageUrl } from "../utils";
 import { useActualTheme } from "../hooks/useActualTheme";
+import { tokensEqual } from "../lib/token-symbol";
 import Image from "next/image";
 
 export const TransferForm: React.FC<{
@@ -39,7 +40,14 @@ export const TransferForm: React.FC<{
   onSuccess?: () => void;
   showBackButton?: boolean;
   setCurrentView?: React.Dispatch<React.SetStateAction<MobileSheetView>>;
-}> = ({ onClose, onSuccess, showBackButton = false, setCurrentView }) => {
+  preferredTokenSymbol?: string;
+}> = ({
+  onClose,
+  onSuccess,
+  showBackButton = false,
+  setCurrentView,
+  preferredTokenSymbol,
+}) => {
   const searchParams = useSearchParams();
   const useInjectedWallet = shouldUseInjectedWallet(searchParams);
   const { selectedNetwork } = useNetwork();
@@ -127,6 +135,16 @@ export const TransferForm: React.FC<{
       deployed,
     },
   });
+
+  useEffect(() => {
+    if (!preferredTokenSymbol) return;
+    const match = fetchedTokens.find((t) =>
+      tokensEqual(t.symbol, preferredTokenSymbol),
+    );
+    if (match) {
+      setValue("token", match.symbol, { shouldDirty: false });
+    }
+  }, [preferredTokenSymbol, fetchedTokens, setValue]);
 
   useEffect(() => {
     if (!recipientNetwork) {
@@ -350,6 +368,12 @@ export const TransferForm: React.FC<{
         onSubmit={handleSubmit(onFormSubmit)}
         className="z-50 w-full max-w-full space-y-4 overflow-x-hidden text-neutral-900 transition-all dark:text-white"
         noValidate
+        data-testid="transfer-form"
+        data-preferred-token={
+          preferredTokenSymbol
+            ? watch("token") || preferredTokenSymbol
+            : undefined
+        }
       >
         {/* Header */}
         <div className="flex items-center justify-between gap-4">

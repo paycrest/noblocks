@@ -1,10 +1,5 @@
-import { WalletPlaceholderPage } from "../components/WalletPlaceholderPage";
+import { TokensPageContent } from "@/app/(wallet)/components/tokens/TokensPageContent";
 
 export default function TokensPage() {
-  return (
-    <WalletPlaceholderPage
-      title="Tokens"
-      description="Token balances and actions will appear here."
-    />
-  );
+  return <TokensPageContent />;
 }

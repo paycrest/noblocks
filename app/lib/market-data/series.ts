@@ -67,8 +67,12 @@ export interface RawPoint {
  */
 export function applySpikeFilter(
   points: RawPoint[],
-  options: { stableOrNgn: boolean },
+  options: { stableOrNgn: boolean; stepSec?: number },
 ): RawPoint[] {
+  if (options.stepSec !== undefined && options.stepSec >= 86400) {
+    return points.filter((pt) => new Decimal(pt.p).gt(0));
+  }
+
   const thresholdPct = options.stableOrNgn ? 5 : 25;
   const result: RawPoint[] = [];
 

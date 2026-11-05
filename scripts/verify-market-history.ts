@@ -2,54 +2,39 @@
  * Real-RPC smoke check for Chainlink history resolution.
  *
  * Usage (from repo root):
- *   MARKET_DATA_RPC_KEY=… pnpm exec tsx scripts/verify-market-history.ts
- *
- * Uses MARKET_DATA_RPC_KEY (Dwellir archive) when set; otherwise the public
- * Base fallback from getMarketDataRpcUrl (non-production NODE_ENV).
+ *   MARKET_DATA_RPC_KEY=… pnpm verify:market-history
  */
 
-import { getTokenHistory } from "../app/lib/market-data/service";
-import { resetHistoryBucketCacheForTests } from "../app/lib/market-data/history-cache";
-import { resetChainlinkClientsForTests } from "../app/lib/market-data/chainlink";
-import type { HistoryRange, TokenHistoryResponse } from "../app/lib/market-data/types";
 import Decimal from "decimal.js";
+import type { HistoryRange, TokenHistoryResponse } from "../app/lib/market-data/types";
+import {
+  bucketSpecForRange,
+  bucketTimestamps,
+} from "../app/lib/market-data/series";
+import { redactErrorMessage } from "../app/lib/market-data/validate";
 
 const RANGES: HistoryRange[] = ["1D", "1W", "1M", "1Y", "ALL"];
-const TOKENS = ["eth", "cngn", "usdc"] as const;
+const CHECK_TOKENS = ["eth", "usdc", "cngn"] as const;
+const FLAT_CHECK_RANGES: HistoryRange[] = ["1Y", "ALL"];
 
-function longestIdenticalRunDays(
+function longestIdenticalRunBuckets(
   points: Array<[number, string]>,
-): { days: number; price: string; from: number; to: number } {
-  if (points.length === 0) {
-    return { days: 0, price: "", from: 0, to: 0 };
-  }
-  let best = { days: 0, price: points[0][1], from: points[0][0], to: points[0][0] };
-  let runPrice = points[0][1];
-  let runFrom = points[0][0];
-  let runTo = points[0][0];
-
+): { buckets: number; price: string } {
+  if (points.length === 0) return { buckets: 0, price: "" };
+  let best = { buckets: 1, price: points[0][1] };
+  let run = 1;
   for (let i = 1; i < points.length; i++) {
-    const [t, p] = points[i];
-    if (p === runPrice) {
-      runTo = t;
+    if (points[i][1] === points[i - 1][1]) {
+      run += 1;
+      if (run > best.buckets) best = { buckets: run, price: points[i][1] };
     } else {
-      const days = (runTo - runFrom) / 86400;
-      if (days > best.days) {
-        best = { days, price: runPrice, from: runFrom, to: runTo };
-      }
-      runPrice = p;
-      runFrom = t;
-      runTo = t;
+      run = 1;
     }
-  }
-  const tailDays = (runTo - runFrom) / 86400;
-  if (tailDays > best.days) {
-    best = { days: tailDays, price: runPrice, from: runFrom, to: runTo };
   }
   return best;
 }
 
-function maxStepPct(points: Array<[number, string]>): number {
+function maxAdjacentStepPct(points: Array<[number, string]>): number {
   let max = 0;
   for (let i = 1; i < points.length; i++) {
     const prev = new Decimal(points[i - 1][1]);
@@ -61,9 +46,21 @@ function maxStepPct(points: Array<[number, string]>): number {
   return max;
 }
 
+function expectedPointCount(
+  range: HistoryRange,
+  nowSec: number,
+  historyStartSec: number | undefined,
+  inceptionUnix?: number,
+): number {
+  const spec = bucketSpecForRange(range);
+  const buckets = bucketTimestamps(range, nowSec, inceptionUnix);
+  const start = historyStartSec ?? 0;
+  return buckets.filter((t) => t + spec.stepSec >= start).length;
+}
+
 function printHistory(id: string, range: HistoryRange, res: TokenHistoryResponse) {
-  const run = longestIdenticalRunDays(res.points);
-  const step = maxStepPct(res.points);
+  const flat = longestIdenticalRunBuckets(res.points);
+  const step = maxAdjacentStepPct(res.points);
   console.log(
     JSON.stringify({
       id,
@@ -71,11 +68,9 @@ function printHistory(id: string, range: HistoryRange, res: TokenHistoryResponse
       pointCount: res.points.length,
       partial: res.partial,
       historyStart: res.historyStart,
-      longestFlatDays: Number(run.days.toFixed(2)),
-      longestFlatPrice: run.price || undefined,
+      longestFlatBuckets: flat.buckets,
+      longestFlatPrice: flat.price || undefined,
       maxStepPct: Number(step.toFixed(4)),
-      first: res.points[0],
-      last: res.points[res.points.length - 1],
     }),
   );
 }
@@ -103,23 +98,68 @@ function compare1d1w(
 }
 
 async function main(): Promise<number> {
+  const { resetHistoryBucketCacheForTests } = await import(
+    "../app/lib/market-data/history-cache"
+  );
+  const { resetChainlinkClientsForTests } = await import(
+    "../app/lib/market-data/chainlink"
+  );
+  const { getTokenHistory } = await import("../app/lib/market-data/service");
+  const { getRegistryEntry } = await import("../app/lib/market-data/assets");
+
   resetHistoryBucketCacheForTests();
   resetChainlinkClientsForTests();
 
-  const byRange = new Map<HistoryRange, TokenHistoryResponse>();
+  const nowSec = Math.floor(Date.now() / 1000);
+  let exitCode = 0;
+  const ethByRange = new Map<HistoryRange, TokenHistoryResponse>();
 
-  for (const id of TOKENS) {
+  for (const id of CHECK_TOKENS) {
+    const entry = getRegistryEntry(id);
+    const inception = entry?.price.inceptionUnix;
     for (const range of RANGES) {
       const res = await getTokenHistory(id, range);
       printHistory(id, range, res);
-      if (id === "eth") byRange.set(range, res);
+      if (id === "eth") ethByRange.set(range, res);
+
+      const expected = expectedPointCount(
+        range,
+        nowSec,
+        res.historyStart,
+        inception,
+      );
+      if (res.points.length !== expected && !res.unavailable) {
+        console.error(
+          `${id} ${range}: expected ${expected} points, got ${res.points.length}`,
+        );
+        exitCode = 1;
+      }
+
+      if (res.partial && res.points.length >= expected && !res.unavailable) {
+        console.error(`${id} ${range}: partial=true on filled range`);
+        exitCode = 1;
+      }
+
+      const maxStep = maxAdjacentStepPct(res.points);
+      if (maxStep > 30) {
+        console.error(`${id} ${range}: adjacent jump ${maxStep.toFixed(2)}%`);
+        exitCode = 1;
+      }
+
+      if (FLAT_CHECK_RANGES.includes(range)) {
+        const flat = longestIdenticalRunBuckets(res.points);
+        if (flat.buckets > 3) {
+          console.error(
+            `${id} ${range}: ${flat.buckets} consecutive buckets at ${flat.price}`,
+          );
+          exitCode = 1;
+        }
+      }
     }
   }
 
-  const day = byRange.get("1D");
-  const week = byRange.get("1W");
-  let exitCode = 0;
-
+  const day = ethByRange.get("1D");
+  const week = ethByRange.get("1W");
   if (day && week) {
     const { compared, maxDiffPct } = compare1d1w(day, week);
     console.log(
@@ -131,24 +171,12 @@ async function main(): Promise<number> {
     }
   }
 
-  for (const range of RANGES) {
-    const eth = byRange.get(range);
-    if (!eth) continue;
-    const run = longestIdenticalRunDays(eth.points);
-    if (run.days > 3) {
-      console.error(
-        `ETH ${range}: identical price ${run.price} for ${run.days.toFixed(1)} days`,
-      );
-      exitCode = 1;
-    }
-  }
-
   return exitCode;
 }
 
 main()
   .then((code) => process.exit(code))
   .catch((err) => {
-    console.error(err);
+    console.error(redactErrorMessage(err));
     process.exit(1);
   });

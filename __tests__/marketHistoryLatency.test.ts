@@ -59,11 +59,18 @@ describe("history sampling under archive RPC latency", () => {
   const phases = [singlePhaseRow(PHASE, historyStartSec, nowSec, MAX_AGG)];
 
   it("estimates multicall batches for ETH ranges (phase table + k-ary search)", () => {
+    const ethMaxRound = BigInt(223_609);
     for (const range of ["1D", "1W", "1M", "1Y"] as const) {
       const count = bucketSpecForRange(range).count;
-      const estimate = estimateHistoryRpcCalls(count);
-      expect(estimate).toBeGreaterThanOrEqual(5);
-      expect(estimate).toBeLessThanOrEqual(20);
+      const estimate = estimateHistoryRpcCalls(count, ethMaxRound);
+      expect(estimate).toBeGreaterThanOrEqual(4);
+      if (range === "1D") {
+        expect(estimate).toBeLessThanOrEqual(12);
+      } else if (range === "1Y") {
+        expect(estimate).toBeLessThanOrEqual(35);
+      } else {
+        expect(estimate).toBeLessThanOrEqual(20);
+      }
     }
   });
 

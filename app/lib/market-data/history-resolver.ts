@@ -1,9 +1,6 @@
 import "server-only";
 
-import {
-  parseAbi,
-  type PublicClient,
-} from "viem";
+import { parseAbi, type PublicClient } from "viem";
 import type { ChainlinkFeedConfig } from "./types";
 import { decodeRoundId, encodeRoundId } from "./round-id";
 import {
@@ -16,8 +13,9 @@ export const HISTORY_DEADLINE_MS = 8_000;
 export const HISTORY_KARY_PROBES = 8;
 export const HISTORY_MULTICALL_CHUNK = 256;
 export const HISTORY_FALLBACK_MULTICALL_CHUNK = 64;
-export const HISTORY_MAX_KARY_ITERATIONS = 6;
+export const HISTORY_PROBE_CONCURRENCY = 3;
 export const PHASE_TABLE_TTL_MS = 60 * 60 * 1000;
+export const PHASE_TABLE_HTTP_CALLS = 3;
 
 const proxyAbi = parseAbi([
   "function phaseId() view returns (uint16)",
@@ -27,6 +25,17 @@ const proxyAbi = parseAbi([
   "function decimals() view returns (uint8)",
   "function description() view returns (string)",
 ]);
+
+const aggregatorAbi = parseAbi([
+  "function latestRound() view returns (uint256)",
+]);
+
+export class HistoryDeadlineError extends Error {
+  constructor() {
+    super("history_deadline_exceeded");
+    this.name = "HistoryDeadlineError";
+  }
+}
 
 export interface PhaseTableRow {
   phaseId: number;
@@ -66,15 +75,38 @@ interface CachedPhaseTable {
 }
 
 const phaseTableCache = new Map<string, CachedPhaseTable>();
+const phaseTableInFlight = new Map<
+  string,
+  Promise<{ rows: PhaseTableRow[]; historyStartSec: number }>
+>();
 
 export function resetPhaseTableCacheForTests(): void {
   phaseTableCache.clear();
+  phaseTableInFlight.clear();
 }
 
 export type HistoryChainClient = Pick<
   PublicClient,
   "multicall" | "readContract"
 >;
+
+export function karySearchIterations(maxLastRound: bigint): number {
+  const n = Number(maxLastRound);
+  if (!Number.isFinite(n) || n <= 1) return 4;
+  return Math.ceil(Math.log(n) / Math.log(7)) + 2;
+}
+
+export function isTargetIntervalUnresolved(target: HistoryTarget): boolean {
+  return target.hi - target.lo > BigInt(1);
+}
+
+export function isRangeBeforeHistoryStart(
+  rangeFromSec: number,
+  historyStartSec: number,
+  stepSec: number,
+): boolean {
+  return rangeFromSec + stepSec < historyStartSec;
+}
 
 export function pickPhaseForTimestamp(
   targetSec: number,
@@ -167,23 +199,31 @@ export function narrowTargetInterval(
   }
 }
 
-function pickBestAtOrBefore(
+export function pickBestAtOrBefore(
   target: HistoryTarget,
   probes: Map<string, RoundProbe>,
 ): void {
-  const candidates: RoundProbe[] = [];
-  for (let agg = target.lo; agg <= target.hi; agg += BigInt(1)) {
-    const row = probes.get(encodeRoundId(target.phaseId, agg).toString());
-    if (!row?.ok || row.updatedAt <= 0 || row.updatedAt > target.bucketEnd) {
+  let best: RoundProbe | null = null;
+  for (const row of probes.values()) {
+    if (!row.ok || row.updatedAt <= 0 || row.updatedAt > target.bucketEnd) {
       continue;
     }
-    candidates.push(row);
+    const { phaseId, aggregatorRoundId } = decodeRoundId(row.roundId);
+    if (phaseId !== target.phaseId) continue;
+    if (aggregatorRoundId < target.lo || aggregatorRoundId > target.hi) {
+      continue;
+    }
+    if (
+      !best ||
+      row.updatedAt > best.updatedAt ||
+      (row.updatedAt === best.updatedAt &&
+        aggregatorRoundId >
+          decodeRoundId(best.roundId).aggregatorRoundId)
+    ) {
+      best = row;
+    }
   }
-  if (candidates.length > 0) {
-    target.answer = candidates.reduce((a, b) =>
-      a.updatedAt >= b.updatedAt ? a : b,
-    ).answer;
-  }
+  if (best) target.answer = best.answer;
   target.done = true;
 }
 
@@ -211,16 +251,46 @@ export function initHistoryTargets(
   return out;
 }
 
-export function estimateHistoryRpcCalls(targetCount: number): number {
+export function estimateHistoryRpcCalls(
+  targetCount: number,
+  maxLastRound: bigint = BigInt(30_000),
+): number {
   const probesPerIter = Math.min(
     targetCount * HISTORY_KARY_PROBES,
     targetCount + 64,
   );
+  const iterations = karySearchIterations(maxLastRound);
   return (
-    4 +
-    HISTORY_MAX_KARY_ITERATIONS *
-      Math.ceil(probesPerIter / HISTORY_MULTICALL_CHUNK)
+    PHASE_TABLE_HTTP_CALLS +
+    iterations * Math.ceil(probesPerIter / HISTORY_MULTICALL_CHUNK)
   );
+}
+
+function parseRoundProbe(
+  feed: ChainlinkFeedConfig,
+  roundId: bigint,
+  row: { status: string; result?: unknown },
+): RoundProbe {
+  if (row.status !== "success") {
+    return { roundId, updatedAt: 0, answer: BigInt(0), ok: false };
+  }
+  const [, answer, , updatedAt] = row.result as readonly [
+    bigint,
+    bigint,
+    bigint,
+    bigint,
+    bigint,
+  ];
+  const ok =
+    validatePositiveAnswer(answer) &&
+    Number(updatedAt) > 0 &&
+    isStablecoinBandOk(feed, answerToDecimalString(answer, feed.decimals));
+  return {
+    roundId,
+    updatedAt: Number(updatedAt),
+    answer,
+    ok,
+  };
 }
 
 async function fetchRoundProbes(
@@ -228,105 +298,260 @@ async function fetchRoundProbes(
   feed: ChainlinkFeedConfig,
   roundIds: bigint[],
   chunkSize: number,
+  options?: { deadlineAt?: number },
 ): Promise<Map<string, RoundProbe>> {
   const out = new Map<string, RoundProbe>();
   if (roundIds.length === 0) return out;
 
+  const chunks: bigint[][] = [];
   for (let i = 0; i < roundIds.length; i += chunkSize) {
-    const chunk = roundIds.slice(i, i + chunkSize);
-    const results = await client.multicall({
-      contracts: chunk.map((roundId) => ({
-        address: feed.proxy,
-        abi: proxyAbi,
-        functionName: "getRoundData",
-        args: [roundId],
-      })),
-      allowFailure: true,
-    });
-
-    for (let j = 0; j < chunk.length; j++) {
-      const roundId = chunk[j];
-      const row = results[j];
-      if (row.status !== "success") {
-        out.set(roundId.toString(), {
-          roundId,
-          updatedAt: 0,
-          answer: BigInt(0),
-          ok: false,
-        });
-        continue;
-      }
-      const [, answer, , updatedAt] = row.result as readonly [
-        bigint,
-        bigint,
-        bigint,
-        bigint,
-        bigint,
-      ];
-      const ok =
-        validatePositiveAnswer(answer) &&
-        Number(updatedAt) > 0 &&
-        isStablecoinBandOk(
-          feed,
-          answerToDecimalString(answer, feed.decimals),
-        );
-      out.set(roundId.toString(), {
-        roundId,
-        updatedAt: Number(updatedAt),
-        answer,
-        ok,
-      });
-    }
+    chunks.push(roundIds.slice(i, i + chunkSize));
   }
+
+  let nextChunk = 0;
+  const workers = Array.from(
+    { length: Math.min(HISTORY_PROBE_CONCURRENCY, chunks.length) },
+    async () => {
+      while (nextChunk < chunks.length) {
+        if (options?.deadlineAt && Date.now() >= options.deadlineAt) {
+          throw new HistoryDeadlineError();
+        }
+        const chunkIndex = nextChunk;
+        nextChunk += 1;
+        const chunk = chunks[chunkIndex];
+        const results = await client.multicall({
+          contracts: chunk.map((roundId) => ({
+            address: feed.proxy,
+            abi: proxyAbi,
+            functionName: "getRoundData",
+            args: [roundId],
+          })),
+          allowFailure: true,
+        });
+
+        for (let j = 0; j < chunk.length; j++) {
+          out.set(
+            chunk[j].toString(),
+            parseRoundProbe(feed, chunk[j], results[j]),
+          );
+        }
+      }
+    },
+  );
+
+  await Promise.all(workers);
   return out;
 }
 
-async function findPhaseLastRound(
+/** Gallop + binary search on proxy getRoundData when aggregator latestRound is unavailable. */
+export async function findPhaseLastRoundGallop(
+  exists: (aggregatorRound: bigint) => Promise<boolean>,
+): Promise<bigint> {
+  let lastGood = BigInt(1);
+  if (!(await exists(lastGood))) return BigInt(1);
+
+  let probe = lastGood * BigInt(2);
+  while (true) {
+    if (await exists(probe)) {
+      lastGood = probe;
+      probe = probe * BigInt(2);
+    } else {
+      break;
+    }
+  }
+
+  let lo = lastGood;
+  let hi = probe - BigInt(1);
+  while (lo < hi) {
+    const mid = (lo + hi + BigInt(1)) / BigInt(2);
+    if (await exists(mid)) lo = mid;
+    else hi = mid - BigInt(1);
+  }
+  return lo;
+}
+
+async function findPhaseLastRoundOnProxy(
   client: HistoryChainClient,
   feed: ChainlinkFeedConfig,
   phaseId: number,
 ): Promise<bigint> {
-  let lo = BigInt(1);
-  let hi = BigInt(1);
-  const first = await fetchRoundProbes(
-    client,
-    feed,
-    [encodeRoundId(phaseId, hi)],
-    1,
+  const exists = async (agg: bigint) => {
+    const row = await fetchRoundProbes(
+      client,
+      feed,
+      [encodeRoundId(phaseId, agg)],
+      1,
+    );
+    return row.get(encodeRoundId(phaseId, agg).toString())?.ok ?? false;
+  };
+  return findPhaseLastRoundGallop(exists);
+}
+
+async function readAggregatorLatestRound(
+  client: HistoryChainClient,
+  aggregator: `0x${string}`,
+): Promise<bigint | null> {
+  try {
+    const value = await client.readContract({
+      address: aggregator,
+      abi: aggregatorAbi,
+      functionName: "latestRound",
+    });
+    const n = BigInt(value);
+    return n > BigInt(0) ? n : null;
+  } catch {
+    return null;
+  }
+}
+
+async function buildPhaseTable(
+  client: HistoryChainClient,
+  feed: ChainlinkFeedConfig,
+): Promise<{ rows: PhaseTableRow[]; historyStartSec: number }> {
+  const currentPhase = Number(
+    await client.readContract({
+      address: feed.proxy,
+      abi: proxyAbi,
+      functionName: "phaseId",
+    }),
   );
-  if (!first.get(encodeRoundId(phaseId, hi).toString())?.ok) {
-    return BigInt(1);
-  }
 
-  while (true) {
-    const probe = hi * BigInt(2);
-    const row = await fetchRoundProbes(
-      client,
-      feed,
-      [encodeRoundId(phaseId, probe)],
-      1,
-    );
-    if (row.get(encodeRoundId(phaseId, probe).toString())?.ok) {
-      lo = hi;
-      hi = probe;
-    } else {
-      break;
+  const metaContracts = [
+    {
+      address: feed.proxy,
+      abi: proxyAbi,
+      functionName: "latestRoundData" as const,
+    },
+    ...Array.from({ length: currentPhase }, (_, i) => ({
+      address: feed.proxy,
+      abi: proxyAbi,
+      functionName: "phaseAggregators" as const,
+      args: [i + 1] as const,
+    })),
+  ];
+
+  const metaResults = await client.multicall({
+    contracts: metaContracts,
+    allowFailure: false,
+  });
+
+  const latestTuple = metaResults[0] as readonly [
+    bigint,
+    bigint,
+    bigint,
+    bigint,
+    bigint,
+  ];
+  const latestRoundId = latestTuple[0];
+  const { phaseId: latestPhaseId, aggregatorRoundId: latestAgg } =
+    decodeRoundId(latestRoundId);
+
+  const phaseAggregators: Array<{
+    phaseId: number;
+    address: `0x${string}`;
+  }> = [];
+
+  for (let i = 0; i < currentPhase; i++) {
+    const address = metaResults[i + 1] as `0x${string}`;
+    if (!address || address === "0x0000000000000000000000000000000000000000") {
+      continue;
     }
-    if (hi > BigInt(1_000_000)) break;
+    phaseAggregators.push({ phaseId: i + 1, address });
   }
 
-  while (lo < hi) {
-    const mid = (lo + hi + BigInt(1)) / BigInt(2);
-    const row = await fetchRoundProbes(
-      client,
-      feed,
-      [encodeRoundId(phaseId, mid)],
-      1,
+  const lastRoundByPhase = new Map<number, bigint>();
+  for (const { phaseId } of phaseAggregators) {
+    lastRoundByPhase.set(
+      phaseId,
+      phaseId === latestPhaseId ? latestAgg : BigInt(0),
     );
-    if (row.get(encodeRoundId(phaseId, mid).toString())?.ok) lo = mid;
-    else hi = mid - BigInt(1);
   }
-  return lo;
+
+  const historical = phaseAggregators.filter((p) => p.phaseId !== latestPhaseId);
+  if (historical.length > 0) {
+    const latestRoundResults = await client.multicall({
+      contracts: historical.map(({ address }) => ({
+        address,
+        abi: aggregatorAbi,
+        functionName: "latestRound" as const,
+      })),
+      allowFailure: true,
+    });
+
+    for (let i = 0; i < historical.length; i++) {
+      const { phaseId, address } = historical[i];
+      const row = latestRoundResults[i];
+      if (row.status === "success") {
+        const v = BigInt(row.result as bigint);
+        if (v > BigInt(0)) {
+          lastRoundByPhase.set(phaseId, v);
+          continue;
+        }
+      }
+      const fallback = await readAggregatorLatestRound(client, address);
+      if (fallback) lastRoundByPhase.set(phaseId, fallback);
+      else {
+        lastRoundByPhase.set(
+          phaseId,
+          await findPhaseLastRoundOnProxy(client, feed, phaseId),
+        );
+      }
+    }
+  }
+
+  const boundRoundIds: bigint[] = [];
+  const boundMeta: Array<{ phaseId: number; kind: "first" | "last" }> = [];
+
+  for (const { phaseId } of phaseAggregators) {
+    const lastRound = lastRoundByPhase.get(phaseId);
+    if (!lastRound || lastRound <= BigInt(0)) continue;
+    boundRoundIds.push(encodeRoundId(phaseId, BigInt(1)));
+    boundMeta.push({ phaseId, kind: "first" });
+    boundRoundIds.push(encodeRoundId(phaseId, lastRound));
+    boundMeta.push({ phaseId, kind: "last" });
+  }
+
+  const boundResults = await client.multicall({
+    contracts: boundRoundIds.map((roundId) => ({
+      address: feed.proxy,
+      abi: proxyAbi,
+      functionName: "getRoundData",
+      args: [roundId],
+    })),
+    allowFailure: true,
+  });
+
+  const firstByPhase = new Map<number, RoundProbe>();
+  const lastByPhase = new Map<number, RoundProbe>();
+
+  for (let i = 0; i < boundResults.length; i++) {
+    const metaRow = boundMeta[i];
+    const probe = parseRoundProbe(feed, boundRoundIds[i], boundResults[i]);
+    if (metaRow.kind === "first") firstByPhase.set(metaRow.phaseId, probe);
+    else lastByPhase.set(metaRow.phaseId, probe);
+  }
+
+  const rows: PhaseTableRow[] = [];
+  for (const { phaseId } of phaseAggregators) {
+    const firstRow = firstByPhase.get(phaseId);
+    const lastRow = lastByPhase.get(phaseId);
+    const lastRound = lastRoundByPhase.get(phaseId);
+    if (!firstRow?.ok || !lastRow?.ok || !lastRound) continue;
+    rows.push({
+      phaseId,
+      firstTs: firstRow.updatedAt,
+      lastTs: lastRow.updatedAt,
+      lastRound,
+    });
+  }
+
+  rows.sort((a, b) => a.firstTs - b.firstTs);
+  const historyStartSec =
+    rows.length > 0
+      ? Math.min(...rows.map((r) => r.firstTs))
+      : Math.floor(Date.now() / 1000);
+
+  return { rows, historyStartSec };
 }
 
 export async function loadPhaseTable(
@@ -344,76 +569,23 @@ export async function loadPhaseTable(
     return { rows: hit.rows, historyStartSec: hit.historyStartSec };
   }
 
-  const currentPhase = Number(
-    await client.readContract({
-      address: feed.proxy,
-      abi: proxyAbi,
-      functionName: "phaseId",
-    }),
-  );
+  const inflight = phaseTableInFlight.get(key);
+  if (inflight) return inflight;
 
-  const latest = await client.readContract({
-    address: feed.proxy,
-    abi: proxyAbi,
-    functionName: "latestRoundData",
-  });
-  const latestRoundId = latest[0] as bigint;
-  const { phaseId: latestPhaseId, aggregatorRoundId: latestAgg } =
-    decodeRoundId(latestRoundId);
-
-  const rows: PhaseTableRow[] = [];
-
-  for (let phase = 1; phase <= currentPhase; phase++) {
-    const aggregator = await client.readContract({
-      address: feed.proxy,
-      abi: proxyAbi,
-      functionName: "phaseAggregators",
-      args: [phase],
+  const build = (async () => {
+    const built = await buildPhaseTable(client, feed);
+    phaseTableCache.set(key, {
+      rows: built.rows,
+      historyStartSec: built.historyStartSec,
+      fetchedAt: Date.now(),
     });
-    if (
-      !aggregator ||
-      aggregator === "0x0000000000000000000000000000000000000000"
-    ) {
-      continue;
-    }
-
-    const firstId = encodeRoundId(phase, BigInt(1));
-    const lastRound =
-      phase === latestPhaseId
-        ? latestAgg
-        : await findPhaseLastRound(client, feed, phase);
-
-    const bounds = await fetchRoundProbes(
-      client,
-      feed,
-      [firstId, encodeRoundId(phase, lastRound)],
-      2,
-    );
-    const firstRow = bounds.get(firstId.toString());
-    const lastRow = bounds.get(encodeRoundId(phase, lastRound).toString());
-    if (!firstRow?.ok || !lastRow?.ok) continue;
-
-    rows.push({
-      phaseId: phase,
-      firstTs: firstRow.updatedAt,
-      lastTs: lastRow.updatedAt,
-      lastRound,
-    });
-  }
-
-  rows.sort((a, b) => a.firstTs - b.firstTs);
-  const historyStartSec =
-    rows.length > 0
-      ? Math.min(...rows.map((r) => r.firstTs))
-      : Math.floor(Date.now() / 1000);
-
-  phaseTableCache.set(key, {
-    rows,
-    historyStartSec,
-    fetchedAt: Date.now(),
+    return built;
+  })().finally(() => {
+    phaseTableInFlight.delete(key);
   });
 
-  return { rows, historyStartSec };
+  phaseTableInFlight.set(key, build);
+  return build;
 }
 
 export async function resolveHistoryWithFetcher(
@@ -428,6 +600,7 @@ export async function resolveHistoryWithFetcher(
   deadlineMs: number,
   onRpcCall?: () => void,
 ): Promise<HistoryResolveResult> {
+  void rangeFromSec;
   const deadlineAt = Date.now() + deadlineMs;
   let rpcCalls = 0;
   const call = async (roundIds: bigint[]) => {
@@ -442,59 +615,67 @@ export async function resolveHistoryWithFetcher(
     phases,
     historyStartSec,
   );
+  const maxLastRound = phases.reduce(
+    (m, row) => (row.lastRound > m ? row.lastRound : m),
+    BigInt(1),
+  );
+  const maxIterations = karySearchIterations(maxLastRound);
   const probeCache = new Map<string, RoundProbe>();
-  let deadlineHit = false;
 
-  for (let iter = 0; iter < HISTORY_MAX_KARY_ITERATIONS; iter++) {
-    if (Date.now() >= deadlineAt) {
-      deadlineHit = true;
-      break;
-    }
-    const unresolved = targets.filter((t) => !t.done && t.hi >= t.lo);
-    if (unresolved.length === 0) break;
+  try {
+    for (let iter = 0; iter < maxIterations; iter++) {
+      if (Date.now() >= deadlineAt) break;
+      const unresolved = targets.filter(
+        (t) => !t.done && t.hi >= t.lo && t.hi - t.lo > BigInt(1),
+      );
+      if (unresolved.length === 0) break;
 
-    const toFetch = new Set<string>();
-    for (const target of unresolved) {
-      if (target.hi - target.lo <= BigInt(1)) {
-        toFetch.add(encodeRoundId(target.phaseId, target.lo).toString());
-        toFetch.add(encodeRoundId(target.phaseId, target.hi).toString());
-        continue;
+      const toFetch = new Set<string>();
+      for (const target of unresolved) {
+        if (target.hi - target.lo <= BigInt(1)) {
+          toFetch.add(encodeRoundId(target.phaseId, target.lo).toString());
+          toFetch.add(encodeRoundId(target.phaseId, target.hi).toString());
+          continue;
+        }
+        for (const id of probeAggregatorRounds(
+          target.phaseId,
+          target.lo,
+          target.hi,
+          HISTORY_KARY_PROBES,
+        )) {
+          toFetch.add(id.toString());
+        }
       }
-      for (const id of probeAggregatorRounds(
-        target.phaseId,
-        target.lo,
-        target.hi,
-        HISTORY_KARY_PROBES,
-      )) {
-        toFetch.add(id.toString());
-      }
-    }
 
-    const missing = [...toFetch].filter((k) => !probeCache.has(k));
-    if (missing.length > 0) {
-      const fetched = await call(missing.map((s) => BigInt(s)));
-      for (const [k, v] of fetched) probeCache.set(k, v);
-    }
+      const missing = [...toFetch].filter((k) => !probeCache.has(k));
+      if (missing.length > 0) {
+        const fetched = await call(missing.map((s) => BigInt(s)));
+        for (const [k, v] of fetched) probeCache.set(k, v);
+      }
 
-    for (const target of unresolved) {
-      if (target.hi - target.lo <= BigInt(1)) {
-        pickBestAtOrBefore(target, probeCache);
-        continue;
-      }
-      narrowTargetInterval(target, probeCache);
-      if (target.hi - target.lo <= BigInt(1) || target.done) {
-        pickBestAtOrBefore(target, probeCache);
+      for (const target of unresolved) {
+        if (target.hi - target.lo <= BigInt(1)) {
+          pickBestAtOrBefore(target, probeCache);
+          continue;
+        }
+        narrowTargetInterval(target, probeCache);
+        if (target.hi - target.lo <= BigInt(1) || target.done) {
+          pickBestAtOrBefore(target, probeCache);
+        }
       }
     }
+  } catch (err) {
+    if (!(err instanceof HistoryDeadlineError)) throw err;
   }
 
-  for (const target of targets.filter((t) => !t.done && t.hi >= t.lo)) {
+  for (const target of targets.filter((t) => t.hi - t.lo > BigInt(1))) {
     pickBestAtOrBefore(target, probeCache);
   }
 
   const samples: HistoryResolveResult["samples"] = [];
   for (const target of targets) {
-    if (!target.done || target.answer <= BigInt(0)) continue;
+    if (target.hi - target.lo > BigInt(1)) continue;
+    if (target.answer <= BigInt(0)) continue;
     samples.push({
       t: target.bucketEnd,
       bucketStart: target.bucketStart,
@@ -502,10 +683,7 @@ export async function resolveHistoryWithFetcher(
     });
   }
 
-  const partial =
-    targets.some((t) => !t.done) ||
-    rangeFromSec + 60 < historyStartSec ||
-    deadlineHit;
+  const partial = targets.some(isTargetIntervalUnresolved);
 
   return {
     samples,
@@ -525,13 +703,19 @@ export async function resolveHistoryPoints(
 ): Promise<HistoryResolveResult> {
   const { rows, historyStartSec } = await loadPhaseTable(client, feed);
   let chunk = HISTORY_MULTICALL_CHUNK;
+  const deadlineAt = Date.now() + deadlineMs;
 
   const fetchProbes = async (roundIds: bigint[]) => {
     try {
-      return await fetchRoundProbes(client, feed, roundIds, chunk);
-    } catch {
+      return await fetchRoundProbes(client, feed, roundIds, chunk, {
+        deadlineAt,
+      });
+    } catch (err) {
+      if (err instanceof HistoryDeadlineError) throw err;
       chunk = HISTORY_FALLBACK_MULTICALL_CHUNK;
-      return await fetchRoundProbes(client, feed, roundIds, chunk);
+      return await fetchRoundProbes(client, feed, roundIds, chunk, {
+        deadlineAt,
+      });
     }
   };
 
@@ -547,6 +731,6 @@ export async function resolveHistoryPoints(
 
   return {
     ...result,
-    rpcCalls: result.rpcCalls + 2,
+    rpcCalls: result.rpcCalls + PHASE_TABLE_HTTP_CALLS,
   };
 }

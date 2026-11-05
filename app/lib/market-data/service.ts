@@ -36,7 +36,10 @@ import {
   rangeStartUnix,
   type RawPoint,
 } from "./series";
-import { HISTORY_DEADLINE_MS } from "./history-resolver";
+import {
+  isRangeBeforeHistoryStart,
+  HISTORY_DEADLINE_MS,
+} from "./history-resolver";
 import Decimal from "decimal.js";
 import { absChangeDecimal, pctChangeDecimal } from "./validate";
 import type { TokenHistoryResponse, TokenMarketSnapshot, TokenStatsBlock } from "./types";
@@ -267,7 +270,10 @@ export async function getTokenHistory(
       entry.id === "usdc" ||
       entry.id === "usdt" ||
       entry.id === "cusd";
-    const filtered = applySpikeFilter(merged, { stableOrNgn });
+    const filtered = applySpikeFilter(merged, {
+      stableOrNgn,
+      stepSec: spec.stepSec,
+    });
 
     if (filtered.length === 0) {
       const empty: TokenHistoryResponse = {
@@ -284,7 +290,10 @@ export async function getTokenHistory(
       return empty;
     }
 
-    if (historyStartSec !== undefined && from + 60 < historyStartSec) {
+    if (
+      historyStartSec !== undefined &&
+      isRangeBeforeHistoryStart(from, historyStartSec, spec.stepSec)
+    ) {
       partial = true;
     }
 

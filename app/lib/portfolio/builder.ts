@@ -74,7 +74,7 @@ async function buildBucket(
   const holdings: PortfolioHolding[] = [];
   const usdParts: string[] = [];
   let bucketStale = false;
-  let bucketAsOf = fallbackAsOf;
+  let bucketAsOf: string | null = null;
   let sawRow = false;
 
   for (const row of rows) {
@@ -99,7 +99,8 @@ async function buildBucket(
 
     if (row.stale) bucketStale = true;
     if (quote.stale) bucketStale = true;
-    bucketAsOf = latestIso(bucketAsOf, row.asOf);
+    bucketAsOf =
+      bucketAsOf == null ? row.asOf : latestIso(bucketAsOf, row.asOf);
 
     holdings.push({
       id: holdingRowId(row),
@@ -122,7 +123,7 @@ async function buildBucket(
   return {
     totalUsd: sumUsdStrings(usdParts),
     stale: bucketStale,
-    asOf: bucketAsOf,
+    asOf: bucketAsOf ?? fallbackAsOf,
     holdings,
   };
 }

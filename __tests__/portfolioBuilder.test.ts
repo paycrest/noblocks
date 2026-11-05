@@ -149,6 +149,34 @@ describe("buildPortfolioSummary", () => {
     expect(summary.buckets.stocks.asOf).not.toMatch(/^1970-01-01/);
   });
 
+  it("bucket asOf is max timestamp within that bucket only", async () => {
+    const tokenAsOf = "2026-11-05T10:00:00.000Z";
+    const earnAsOf = "2026-11-05T14:00:00.000Z";
+    const summary = await buildPortfolioSummary(
+      [
+        row({
+          chain: "Base",
+          symbol: "USDC",
+          amount: "1.000000",
+          bucket: "tokens",
+          positionId: "wallet",
+          asOf: tokenAsOf,
+        }),
+        row({
+          chain: "Starknet",
+          symbol: "USDC",
+          amount: "2.000000",
+          bucket: "earn",
+          positionId: "0xpool",
+          asOf: earnAsOf,
+        }),
+      ],
+      usd1,
+    );
+    expect(summary.buckets.tokens.asOf).toBe(tokenAsOf);
+    expect(summary.buckets.earn.asOf).toBe(earnAsOf);
+  });
+
   it("de-dupes earn overlap from tokens USD but keeps earn USD", async () => {
     const summary = await buildPortfolioSummary(
       [

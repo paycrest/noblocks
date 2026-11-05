@@ -31,7 +31,7 @@ const primaryGrayLabelClasses =
   "text-sm font-medium leading-5 tracking-[-0.01em]";
 
 /** Split left segment (Button Primary Gray, 100×36). */
-const splitPrimarySegmentClasses = classNames(
+export const splitPrimarySegmentClasses = classNames(
   walletHomePrimaryGrayButtonClasses,
   primaryGrayLabelClasses,
   "inline-flex h-9 w-[100px] shrink-0 items-center justify-center px-2 py-1.5",
@@ -41,7 +41,7 @@ const splitPrimarySegmentClasses = classNames(
 );
 
 /** Split right segment (Icon Button Primary Gray, 36×36). */
-const splitIconSegmentClasses = classNames(
+export const splitIconSegmentClasses = classNames(
   walletHomePrimaryGrayButtonClasses,
   "inline-flex size-9 shrink-0 items-center justify-center p-0",
   "rounded-tr-xl rounded-br-xl rounded-tl-[2px] rounded-bl-[2px]",

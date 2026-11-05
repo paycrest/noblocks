@@ -3,24 +3,22 @@ import {
   isAllowedWalletTokenSymbol,
   resolveWalletTokenMeta,
 } from "@/app/lib/wallet-token-allowlist";
-import { WalletPlaceholderPage } from "../../components/WalletPlaceholderPage";
+import { canonicalTokenSymbol } from "@/app/lib/token-symbol";
+import { TokenDetailContent } from "@/app/(wallet)/components/tokens/TokenDetailContent";
 
 type PageProps = {
   params: Promise<{ symbol: string }>;
 };
 
 export default async function TokenSymbolPage({ params }: PageProps) {
-  const { symbol } = await params;
-  if (!isAllowedWalletTokenSymbol(symbol)) {
+  const { symbol: rawSymbol } = await params;
+  if (!isAllowedWalletTokenSymbol(rawSymbol)) {
     notFound();
   }
-  const meta = resolveWalletTokenMeta(symbol);
+  const meta = resolveWalletTokenMeta(rawSymbol);
   if (!meta) notFound();
 
-  return (
-    <WalletPlaceholderPage
-      title={meta.name}
-      description={`Token detail for ${meta.symbol}.`}
-    />
-  );
+  const symbol = canonicalTokenSymbol(meta.symbol) ?? meta.symbol;
+
+  return <TokenDetailContent symbol={symbol} />;
 }

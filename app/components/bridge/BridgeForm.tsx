@@ -35,6 +35,7 @@ import Link from "next/link";
 import { mapReportAndAct } from "@/app/lib/toastMappedError";
 import { format } from "date-fns";
 import { useCNGNRate, CNGN_CROSS_CHAIN_QUOTE_NETWORK } from "@/app/hooks/useCNGNRate";
+import { tokensEqual } from "@/app/lib/token-symbol";
 
 const CONVERSION_FAILED_MESSAGE = "Please try again.";
 
@@ -49,6 +50,7 @@ interface BridgeFormProps {
   setCurrentView?: React.Dispatch<React.SetStateAction<MobileSheetView>>;
   layout?: "modal" | "mobile";
   onBridgeSubmit?: (info: BridgeSubmitInfo) => void;
+  preferredTokenSymbol?: string;
 }
 
 const CNGN_RATE_UNAVAILABLE_MESSAGE = "No available quote";
@@ -57,6 +59,7 @@ export const BridgeForm: React.FC<BridgeFormProps> = ({
   onClose,
   setCurrentView,
   onBridgeSubmit,
+  preferredTokenSymbol,
 }) => {
   const { authenticated, getAccessToken } = usePrivy();
   const { wallets } = useWallets();
@@ -119,6 +122,31 @@ export const BridgeForm: React.FC<BridgeFormProps> = ({
   const [amount, setAmount] = useState("");
   const [fromNetworkName, setFromNetworkName] = useState(selectedNetwork.chain.name);
   const [toNetworkName, setToNetworkName] = useState(selectedNetwork.chain.name);
+
+  useEffect(() => {
+    if (!preferredTokenSymbol || from) return;
+    const networkName = fromNetworkName;
+    const tokenList = allTokens[networkName] ?? [];
+    const match = tokenList.find((t) =>
+      tokensEqual(t.symbol, preferredTokenSymbol),
+    );
+    const network = networks.find((n) => n.chain.name === networkName);
+    if (!match || !network) return;
+    setFrom({
+      network: network.chain.name,
+      chainId: network.chain.id,
+      token: match.symbol,
+      tokenAddress: match.address,
+      decimals: match.decimals,
+      amount: "0",
+      rawAmount: "0",
+    });
+  }, [
+    preferredTokenSymbol,
+    from,
+    fromNetworkName,
+    allTokens,
+  ]);
 
   const fromNetworkObj = useMemo(
     () => networks.find((n) => n.chain.name === fromNetworkName) ?? selectedNetwork,
@@ -444,7 +472,11 @@ export const BridgeForm: React.FC<BridgeFormProps> = ({
   // ── Render ───────────────────────────────────────────────────────────────────
 
   return (
-    <div className="relative flex flex-col gap-5">
+    <div
+      className="relative flex flex-col gap-5"
+      data-testid="bridge-form"
+      data-preferred-token={from?.token ?? preferredTokenSymbol}
+    >
       {/* Header — centered title, back arrow only on the form step, never a close icon.
           Same on desktop and mobile: on desktop there's no view stack to go "back" to, so the
           arrow just closes the modal instead. */}

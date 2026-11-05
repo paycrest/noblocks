@@ -52,7 +52,10 @@ export async function resolveHistoryWithBatchMock(
   stepSec: number,
   rangeFromSec: number,
   deadlineMs = HISTORY_DEADLINE_MS,
+  feedHeartbeatSec = 1200,
+  nowSec?: number,
 ) {
+  const now = nowSec ?? bucketStarts[bucketStarts.length - 1] + stepSec;
   return resolveHistoryWithFetcher(
     batchFetchToProbes(batch),
     phases,
@@ -61,6 +64,8 @@ export async function resolveHistoryWithBatchMock(
     stepSec,
     rangeFromSec,
     deadlineMs,
+    feedHeartbeatSec,
+    now,
   );
 }
 

@@ -23,6 +23,7 @@ import {
 import { logMarketDataWarning } from "./log";
 import {
   HISTORY_DEADLINE_MS,
+  historyDeadlineMs,
   resolveHistoryPoints,
   resetPhaseTableCacheForTests,
 } from "./history-resolver";
@@ -291,7 +292,10 @@ async function readHistoryViaRounds(
 
   const stepSec = options?.stepSec ?? 3600;
   const rangeFromSec = options?.rangeFromSec ?? timestampsSec[0] ?? 0;
-  const deadlineMs = options?.deadlineMs ?? HISTORY_DEADLINE_MS;
+  const nowSec = options?.nowSec ?? Math.floor(Date.now() / 1000);
+  const deadlineMs =
+    options?.deadlineMs ??
+    historyDeadlineMs(stepSec, timestampsSec.length);
 
   try {
     const client = getPublicClient(feed.chain);
@@ -303,6 +307,7 @@ async function readHistoryViaRounds(
         stepSec,
         rangeFromSec,
         deadlineMs,
+        nowSec,
       );
 
     const mapped = rows.map((row) => ({

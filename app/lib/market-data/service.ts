@@ -37,8 +37,9 @@ import {
   type RawPoint,
 } from "./series";
 import {
+  HISTORY_BACKFILL_DEADLINE_MS,
+  historyDeadlineMs,
   isRangeBeforeHistoryStart,
-  HISTORY_DEADLINE_MS,
 } from "./history-resolver";
 import Decimal from "decimal.js";
 import { absChangeDecimal, pctChangeDecimal } from "./validate";
@@ -49,6 +50,133 @@ export class PriceUnavailableError extends Error {
     super(message);
     this.name = "PriceUnavailableError";
   }
+}
+
+const historyBackfillInFlight = new Set<string>();
+
+function mergeHistorySamplesIntoCache(
+  id: string,
+  range: HistoryRange,
+  entry: NonNullable<ReturnType<typeof getRegistryEntry>>,
+  samples: Array<{
+    t: number;
+    bucketStart: number;
+    answer: bigint;
+    decimals: number;
+  }>,
+  stepSec: number,
+  nowSec: number,
+  merged: RawPoint[],
+): void {
+  for (const r of samples) {
+    const p = roundToPriceString({
+      answer: r.answer,
+      updatedAt: r.t,
+      decimals: r.decimals,
+      chain: entry.price.chain,
+      pairSlug: entry.price.pairSlug,
+      stale: false,
+      marketClosed: false,
+    });
+    const closed = isBucketClosed(r.bucketStart, stepSec, nowSec);
+    const point = { t: r.t, p };
+    setHistoryBucket(historyBucketKey(id, range, r.bucketStart), point, closed);
+    if (!merged.some((m) => m.t === r.t)) merged.push(point);
+  }
+}
+
+function scheduleHistoryBackfill(
+  id: string,
+  range: HistoryRange,
+  gridNowSec: number,
+): void {
+  const key = `${id}:${range}`;
+  if (historyBackfillInFlight.has(key)) return;
+  historyBackfillInFlight.add(key);
+
+  void (async () => {
+    try {
+      const entry = getRegistryEntry(id);
+      if (!entry) return;
+      const inception = entry.price.inceptionUnix;
+      const spec = bucketSpecForRange(range);
+      const timestamps = bucketTimestamps(range, gridNowSec, inception);
+      const from = rangeStartUnix(range, gridNowSec, inception);
+      const nowSec = Math.floor(Date.now() / 1000);
+      const merged: RawPoint[] = [];
+
+      for (const t of timestamps) {
+        const closed = isBucketClosed(t, spec.stepSec, nowSec);
+        const cached = getHistoryBucket(
+          historyBucketKey(id, range, t),
+          closed,
+        );
+        if (cached) merged.push(cached);
+      }
+
+      const toFetch = timestamps.filter((t) => {
+        const closed = isBucketClosed(t, spec.stepSec, nowSec);
+        return !getHistoryBucket(historyBucketKey(id, range, t), closed);
+      });
+      if (toFetch.length === 0) return;
+
+      const { samples, partial, historyStartSec } =
+        await chainlinkPriceProvider.readHistoryAtTimestamps(entry, toFetch, {
+          deadlineMs: HISTORY_BACKFILL_DEADLINE_MS,
+          stepSec: spec.stepSec,
+          rangeFromSec: from,
+          nowSec: gridNowSec,
+        });
+
+      mergeHistorySamplesIntoCache(
+        id,
+        range,
+        entry,
+        samples,
+        spec.stepSec,
+        nowSec,
+        merged,
+      );
+
+      if (partial) return;
+
+      merged.sort((a, b) => a.t - b.t);
+      const stableOrNgn =
+        entry.id === "cngn" ||
+        entry.id === "usdc" ||
+        entry.id === "usdt" ||
+        entry.id === "cusd";
+      const filtered = applySpikeFilter(merged, {
+        stableOrNgn,
+        stepSec: spec.stepSec,
+      });
+      if (filtered.length === 0) return;
+
+      let responsePartial = false;
+      if (
+        historyStartSec !== undefined &&
+        isRangeBeforeHistoryStart(from, historyStartSec, spec.stepSec)
+      ) {
+        responsePartial = true;
+      }
+
+      const response: TokenHistoryResponse = {
+        id,
+        range,
+        points: filtered.map((p) => [p.t, p.p]),
+        from,
+        asOf: new Date().toISOString(),
+        stale: false,
+        partial: responsePartial,
+        ...(historyStartSec !== undefined
+          ? { historyStart: historyStartSec }
+          : {}),
+      };
+      setCachedHistoryResponse(id, range, response);
+    } finally {
+      historyBackfillInFlight.delete(key);
+    }
+  })();
 }
 
 interface PricePayload {
@@ -235,32 +363,23 @@ export async function getTokenHistory(
         partial: upstreamPartial,
         historyStartSec: upstreamHistoryStart,
       } = await chainlinkPriceProvider.readHistoryAtTimestamps(entry, toFetch, {
-        deadlineMs: HISTORY_DEADLINE_MS,
+        deadlineMs: historyDeadlineMs(spec.stepSec, toFetch.length),
         stepSec: spec.stepSec,
         rangeFromSec: from,
+        nowSec,
       });
       partial = upstreamPartial;
       historyStartSec = upstreamHistoryStart;
 
-      for (const r of samples) {
-        const p = roundToPriceString({
-          answer: r.answer,
-          updatedAt: r.t,
-          decimals: r.decimals,
-          chain: entry.price.chain,
-          pairSlug: entry.price.pairSlug,
-          stale: false,
-          marketClosed: false,
-        });
-        const closed = isBucketClosed(r.bucketStart, spec.stepSec, nowSec);
-        const point = { t: r.t, p };
-        setHistoryBucket(
-          historyBucketKey(id, range, r.bucketStart),
-          point,
-          closed,
-        );
-        if (!merged.some((m) => m.t === r.t)) merged.push(point);
-      }
+      mergeHistorySamplesIntoCache(
+        id,
+        range,
+        entry,
+        samples,
+        spec.stepSec,
+        nowSec,
+        merged,
+      );
     }
 
     merged.sort((a, b) => a.t - b.t);
@@ -309,6 +428,9 @@ export async function getTokenHistory(
     };
 
     setCachedHistoryResponse(id, range, response);
+    if (partial && toFetch.length > 0) {
+      scheduleHistoryBackfill(id, range, nowSec);
+    }
     return response;
   });
 }

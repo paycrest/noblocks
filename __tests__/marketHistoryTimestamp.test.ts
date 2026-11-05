@@ -7,12 +7,13 @@ import {
   type BatchFetchRoundData,
   type RoundDataResult,
 } from "../app/lib/market-data/round-history";
+import { decodeRoundId, encodeRoundId } from "../app/lib/market-data/round-id";
 import {
+  bucketLabelTimestamp,
   bucketSpecForRange,
   bucketTimestamps,
   rangeStartUnix,
 } from "../app/lib/market-data/series";
-import { decodeRoundId, encodeRoundId } from "../app/lib/market-data/round-id";
 import { resolveHistoryWithFetcher } from "../app/lib/market-data/history-resolver";
 
 const NOW = 1_762_000_000;
@@ -56,7 +57,9 @@ describe("history point timestamps", () => {
       rangeStartUnix("1D", NOW),
     );
 
-    expect(samples[0].t).toBe(buckets[0] + spec.stepSec);
+    expect(samples[0].t).toBe(
+      bucketLabelTimestamp(buckets[0], spec.stepSec, NOW),
+    );
     expect(samples[0].bucketStart).toBe(buckets[0]);
   });
 
@@ -80,6 +83,8 @@ describe("history point timestamps", () => {
       spec1d.stepSec,
       from1d,
       8_000,
+      HEARTBEAT,
+      NOW,
     );
 
     const spec1w = bucketSpecForRange("1W");
@@ -94,6 +99,8 @@ describe("history point timestamps", () => {
       spec1w.stepSec,
       from1w,
       8_000,
+      HEARTBEAT,
+      NOW,
     );
 
     const weekByEnd = new Map(week.samples.map((s) => [s.t, s.answer]));

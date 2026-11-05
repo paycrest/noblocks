@@ -2,6 +2,7 @@ import "server-only";
 
 import { parseAbi, type PublicClient } from "viem";
 import type { ChainlinkFeedConfig } from "./types";
+import { bucketLabelTimestamp } from "./series";
 import { decodeRoundId, encodeRoundId } from "./round-id";
 import {
   answerToDecimalString,
@@ -10,6 +11,7 @@ import {
 } from "./validate";
 
 export const HISTORY_DEADLINE_MS = 8_000;
+export const HISTORY_BACKFILL_DEADLINE_MS = 60_000;
 export const HISTORY_KARY_PROBES = 8;
 export const HISTORY_MULTICALL_CHUNK = 256;
 export const HISTORY_FALLBACK_MULTICALL_CHUNK = 64;
@@ -59,6 +61,8 @@ export interface HistoryTarget {
   hi: bigint;
   done: boolean;
   answer: bigint;
+  bestUpdatedAt: number;
+  phaseLastRound: bigint;
 }
 
 export interface HistoryResolveResult {
@@ -89,6 +93,81 @@ export type HistoryChainClient = Pick<
   PublicClient,
   "multicall" | "readContract"
 >;
+
+export function historyDeadlineMs(stepSec: number, bucketCount: number): number {
+  if (bucketCount >= 120 && stepSec >= 86400) return 20_000;
+  if (stepSec >= 7 * 86400) return 20_000;
+  return HISTORY_DEADLINE_MS;
+}
+
+export function acceptanceSlopSec(
+  stepSec: number,
+  feedHeartbeatSec: number,
+): number {
+  return Math.min(Math.floor(stepSec / 4), feedHeartbeatSec);
+}
+
+export function estimateAggregatorRoundForTime(
+  phase: PhaseTableRow,
+  targetSec: number,
+): bigint {
+  const clamped = Math.max(
+    phase.firstTs,
+    Math.min(targetSec, phase.lastTs),
+  );
+  const span = phase.lastTs - phase.firstTs;
+  if (span <= 0) return BigInt(1);
+  const frac = (clamped - phase.firstTs) / span;
+  const last = Number(phase.lastRound);
+  const est = 1 + Math.floor(frac * Math.max(0, last - 1));
+  return BigInt(Math.max(1, Math.min(last, est)));
+}
+
+export function seedSearchInterval(
+  phase: PhaseTableRow,
+  bucketEnd: number,
+): { lo: bigint; hi: bigint } {
+  const seed = estimateAggregatorRoundForTime(phase, bucketEnd);
+  const width = BigInt(
+    Math.max(48, Math.min(4096, Math.ceil(Number(phase.lastRound) ** 0.45))),
+  );
+  let lo = seed > width ? seed - width : BigInt(1);
+  let hi = seed + width;
+  if (hi > phase.lastRound) hi = phase.lastRound;
+  if (lo < BigInt(1)) lo = BigInt(1);
+  return { lo, hi };
+}
+
+export function probesForTarget(
+  target: HistoryTarget,
+  phase: PhaseTableRow,
+  count: number,
+): bigint[] {
+  const seed = estimateAggregatorRoundForTime(phase, target.bucketEnd);
+  const clamped =
+    seed < target.lo ? target.lo : seed > target.hi ? target.hi : seed;
+  const seen = new Set<string>();
+  const out: bigint[] = [];
+  const add = (agg: bigint) => {
+    if (agg < target.lo || agg > target.hi) return;
+    const id = encodeRoundId(target.phaseId, agg);
+    const key = id.toString();
+    if (!seen.has(key)) {
+      seen.add(key);
+      out.push(id);
+    }
+  };
+  add(clamped);
+  for (const id of probeAggregatorRounds(
+    target.phaseId,
+    target.lo,
+    target.hi,
+    count,
+  )) {
+    add(decodeRoundId(id).aggregatorRoundId);
+  }
+  return out;
+}
 
 export function karySearchIterations(maxLastRound: bigint): number {
   const n = Number(maxLastRound);
@@ -180,6 +259,7 @@ export function narrowTargetInterval(
       }
     }
     target.answer = best.answer;
+    target.bestUpdatedAt = best.updatedAt;
     target.lo = maxAgg + BigInt(1);
   }
 
@@ -202,7 +282,11 @@ export function narrowTargetInterval(
 export function pickBestAtOrBefore(
   target: HistoryTarget,
   probes: Map<string, RoundProbe>,
+  scanLo?: bigint,
+  scanHi?: bigint,
 ): void {
+  const lo = scanLo ?? target.lo;
+  const hi = scanHi ?? target.hi;
   let best: RoundProbe | null = null;
   for (const row of probes.values()) {
     if (!row.ok || row.updatedAt <= 0 || row.updatedAt > target.bucketEnd) {
@@ -210,7 +294,7 @@ export function pickBestAtOrBefore(
     }
     const { phaseId, aggregatorRoundId } = decodeRoundId(row.roundId);
     if (phaseId !== target.phaseId) continue;
-    if (aggregatorRoundId < target.lo || aggregatorRoundId > target.hi) {
+    if (aggregatorRoundId < lo || aggregatorRoundId > hi) {
       continue;
     }
     if (
@@ -223,8 +307,82 @@ export function pickBestAtOrBefore(
       best = row;
     }
   }
-  if (best) target.answer = best.answer;
+  if (best) {
+    target.answer = best.answer;
+    target.bestUpdatedAt = best.updatedAt;
+  }
   target.done = true;
+}
+
+export function refreshTargetBest(
+  target: HistoryTarget,
+  probes: Map<string, RoundProbe>,
+  scanLo?: bigint,
+  scanHi?: bigint,
+): void {
+  const lo = scanLo ?? target.lo;
+  const hi = scanHi ?? target.hi;
+  let best: RoundProbe | null = null;
+  for (const row of probes.values()) {
+    if (!row.ok || row.updatedAt <= 0 || row.updatedAt > target.bucketEnd) {
+      continue;
+    }
+    const { phaseId, aggregatorRoundId } = decodeRoundId(row.roundId);
+    if (phaseId !== target.phaseId) continue;
+    if (aggregatorRoundId < lo || aggregatorRoundId > hi) continue;
+    if (
+      !best ||
+      row.updatedAt > best.updatedAt ||
+      (row.updatedAt === best.updatedAt &&
+        aggregatorRoundId >
+          decodeRoundId(best.roundId).aggregatorRoundId)
+    ) {
+      best = row;
+    }
+  }
+  if (best) {
+    target.answer = best.answer;
+    target.bestUpdatedAt = best.updatedAt;
+  }
+}
+
+export function tryAcceptTargetEarly(
+  target: HistoryTarget,
+  probes: Map<string, RoundProbe>,
+  stepSec: number,
+  feedHeartbeatSec: number,
+): boolean {
+  if (target.done) return true;
+  refreshTargetBest(target, probes);
+  if (target.answer <= BigInt(0)) return false;
+  const slop = acceptanceSlopSec(stepSec, feedHeartbeatSec);
+  if (target.bestUpdatedAt >= target.bucketEnd - slop) {
+    target.done = true;
+    return true;
+  }
+  return false;
+}
+
+export function shouldEmitTargetSample(
+  target: HistoryTarget,
+  stepSec: number,
+  feedHeartbeatSec: number,
+): boolean {
+  if (target.answer <= BigInt(0)) return false;
+  if (target.hi - target.lo <= BigInt(1)) return true;
+  const slop = acceptanceSlopSec(stepSec, feedHeartbeatSec);
+  if (target.bestUpdatedAt >= target.bucketEnd - slop) return true;
+  if (target.bestUpdatedAt >= target.bucketEnd - stepSec) return true;
+  return false;
+}
+
+export function targetStillNeedsWork(
+  target: HistoryTarget,
+  stepSec: number,
+  feedHeartbeatSec: number,
+): boolean {
+  if (shouldEmitTargetSample(target, stepSec, feedHeartbeatSec)) return false;
+  return target.hi - target.lo > BigInt(1) || target.answer <= BigInt(0);
 }
 
 export function initHistoryTargets(
@@ -238,14 +396,17 @@ export function initHistoryTargets(
     const bucketEnd = bucketStart + stepSec;
     const phase = pickPhaseForTimestamp(bucketEnd, phases);
     if (!phase || bucketEnd < historyStartSec) continue;
+    const { lo, hi } = seedSearchInterval(phase, bucketEnd);
     out.push({
       bucketStart,
       bucketEnd,
       phaseId: phase.phaseId,
-      lo: BigInt(1),
-      hi: phase.lastRound,
+      lo,
+      hi,
       done: false,
       answer: BigInt(0),
+      bestUpdatedAt: 0,
+      phaseLastRound: phase.lastRound,
     });
   }
   return out;
@@ -299,9 +460,9 @@ async function fetchRoundProbes(
   roundIds: bigint[],
   chunkSize: number,
   options?: { deadlineAt?: number },
-): Promise<Map<string, RoundProbe>> {
+): Promise<{ probes: Map<string, RoundProbe>; deadlineHit: boolean }> {
   const out = new Map<string, RoundProbe>();
-  if (roundIds.length === 0) return out;
+  if (roundIds.length === 0) return { probes: out, deadlineHit: false };
 
   const chunks: bigint[][] = [];
   for (let i = 0; i < roundIds.length; i += chunkSize) {
@@ -309,12 +470,14 @@ async function fetchRoundProbes(
   }
 
   let nextChunk = 0;
+  let deadlineHit = false;
   const workers = Array.from(
     { length: Math.min(HISTORY_PROBE_CONCURRENCY, chunks.length) },
     async () => {
       while (nextChunk < chunks.length) {
         if (options?.deadlineAt && Date.now() >= options.deadlineAt) {
-          throw new HistoryDeadlineError();
+          deadlineHit = true;
+          return;
         }
         const chunkIndex = nextChunk;
         nextChunk += 1;
@@ -340,7 +503,7 @@ async function fetchRoundProbes(
   );
 
   await Promise.all(workers);
-  return out;
+  return { probes: out, deadlineHit };
 }
 
 /** Gallop + binary search on proxy getRoundData when aggregator latestRound is unavailable. */
@@ -382,7 +545,9 @@ async function findPhaseLastRoundOnProxy(
       [encodeRoundId(phaseId, agg)],
       1,
     );
-    return row.get(encodeRoundId(phaseId, agg).toString())?.ok ?? false;
+    return (
+      row.probes.get(encodeRoundId(phaseId, agg).toString())?.ok ?? false
+    );
   };
   return findPhaseLastRoundGallop(exists);
 }
@@ -598,17 +763,21 @@ export async function resolveHistoryWithFetcher(
   stepSec: number,
   rangeFromSec: number,
   deadlineMs: number,
+  feedHeartbeatSec: number,
+  nowSec: number,
   onRpcCall?: () => void,
 ): Promise<HistoryResolveResult> {
   void rangeFromSec;
   const deadlineAt = Date.now() + deadlineMs;
   let rpcCalls = 0;
+  let deadlineHit = false;
   const call = async (roundIds: bigint[]) => {
     rpcCalls += 1;
     onRpcCall?.();
     return fetchProbes(roundIds);
   };
 
+  const phaseById = new Map(phases.map((p) => [p.phaseId, p]));
   const targets = initHistoryTargets(
     bucketStarts,
     stepSec,
@@ -622,68 +791,95 @@ export async function resolveHistoryWithFetcher(
   const maxIterations = karySearchIterations(maxLastRound);
   const probeCache = new Map<string, RoundProbe>();
 
-  try {
-    for (let iter = 0; iter < maxIterations; iter++) {
-      if (Date.now() >= deadlineAt) break;
-      const unresolved = targets.filter(
-        (t) => !t.done && t.hi >= t.lo && t.hi - t.lo > BigInt(1),
-      );
-      if (unresolved.length === 0) break;
+  for (let iter = 0; iter < maxIterations; iter++) {
+    if (Date.now() >= deadlineAt) {
+      deadlineHit = true;
+      break;
+    }
 
-      const toFetch = new Set<string>();
-      for (const target of unresolved) {
-        if (target.hi - target.lo <= BigInt(1)) {
-          toFetch.add(encodeRoundId(target.phaseId, target.lo).toString());
+    const active = targets.filter((t) => !t.done);
+    if (active.length === 0) break;
+
+    const toFetch = new Set<string>();
+    for (const target of active) {
+      if (target.hi - target.lo <= BigInt(1)) {
+        toFetch.add(encodeRoundId(target.phaseId, target.lo).toString());
+        if (target.hi !== target.lo) {
           toFetch.add(encodeRoundId(target.phaseId, target.hi).toString());
-          continue;
         }
-        for (const id of probeAggregatorRounds(
-          target.phaseId,
-          target.lo,
-          target.hi,
-          HISTORY_KARY_PROBES,
-        )) {
-          toFetch.add(id.toString());
-        }
+        continue;
       }
-
-      const missing = [...toFetch].filter((k) => !probeCache.has(k));
-      if (missing.length > 0) {
-        const fetched = await call(missing.map((s) => BigInt(s)));
-        for (const [k, v] of fetched) probeCache.set(k, v);
-      }
-
-      for (const target of unresolved) {
-        if (target.hi - target.lo <= BigInt(1)) {
-          pickBestAtOrBefore(target, probeCache);
-          continue;
-        }
-        narrowTargetInterval(target, probeCache);
-        if (target.hi - target.lo <= BigInt(1) || target.done) {
-          pickBestAtOrBefore(target, probeCache);
-        }
+      const phase = phaseById.get(target.phaseId);
+      if (!phase) continue;
+      for (const id of probesForTarget(
+        target,
+        phase,
+        HISTORY_KARY_PROBES,
+      )) {
+        toFetch.add(id.toString());
       }
     }
-  } catch (err) {
-    if (!(err instanceof HistoryDeadlineError)) throw err;
+
+    const missing = [...toFetch].filter((k) => !probeCache.has(k));
+    if (missing.length > 0) {
+      const fetched = await call(missing.map((s) => BigInt(s)));
+      for (const [k, v] of fetched) probeCache.set(k, v);
+    }
+
+    for (const target of active) {
+      if (target.hi - target.lo <= BigInt(1)) {
+        pickBestAtOrBefore(target, probeCache);
+        continue;
+      }
+      narrowTargetInterval(target, probeCache);
+      if (tryAcceptTargetEarly(target, probeCache, stepSec, feedHeartbeatSec)) {
+        continue;
+      }
+      if (target.hi - target.lo <= BigInt(1)) {
+        pickBestAtOrBefore(target, probeCache);
+      }
+    }
   }
 
-  for (const target of targets.filter((t) => t.hi - t.lo > BigInt(1))) {
+  if (deadlineHit) {
+    for (const target of targets) {
+      if (target.done && shouldEmitTargetSample(target, stepSec, feedHeartbeatSec)) {
+        continue;
+      }
+      refreshTargetBest(
+        target,
+        probeCache,
+        BigInt(1),
+        target.phaseLastRound,
+      );
+      if (
+        shouldEmitTargetSample(target, stepSec, feedHeartbeatSec) &&
+        !target.done
+      ) {
+        target.done = true;
+      }
+    }
+  }
+
+  for (const target of targets.filter(
+    (t) => !t.done && t.hi - t.lo <= BigInt(1),
+  )) {
     pickBestAtOrBefore(target, probeCache);
   }
 
   const samples: HistoryResolveResult["samples"] = [];
   for (const target of targets) {
-    if (target.hi - target.lo > BigInt(1)) continue;
-    if (target.answer <= BigInt(0)) continue;
+    if (!shouldEmitTargetSample(target, stepSec, feedHeartbeatSec)) continue;
     samples.push({
-      t: target.bucketEnd,
+      t: bucketLabelTimestamp(target.bucketStart, stepSec, nowSec),
       bucketStart: target.bucketStart,
       answer: target.answer,
     });
   }
 
-  const partial = targets.some(isTargetIntervalUnresolved);
+  const partial = targets.some((t) =>
+    targetStillNeedsWork(t, stepSec, feedHeartbeatSec),
+  );
 
   return {
     samples,
@@ -700,6 +896,7 @@ export async function resolveHistoryPoints(
   stepSec: number,
   rangeFromSec: number,
   deadlineMs = HISTORY_DEADLINE_MS,
+  nowSec = Math.floor(Date.now() / 1000),
 ): Promise<HistoryResolveResult> {
   const { rows, historyStartSec } = await loadPhaseTable(client, feed);
   let chunk = HISTORY_MULTICALL_CHUNK;
@@ -707,15 +904,23 @@ export async function resolveHistoryPoints(
 
   const fetchProbes = async (roundIds: bigint[]) => {
     try {
-      return await fetchRoundProbes(client, feed, roundIds, chunk, {
-        deadlineAt,
-      });
-    } catch (err) {
-      if (err instanceof HistoryDeadlineError) throw err;
+      const { probes, deadlineHit } = await fetchRoundProbes(
+        client,
+        feed,
+        roundIds,
+        chunk,
+        { deadlineAt },
+      );
+      if (deadlineHit) {
+        // preserve partial batch — caller merges into probeCache
+      }
+      return probes;
+    } catch {
       chunk = HISTORY_FALLBACK_MULTICALL_CHUNK;
-      return await fetchRoundProbes(client, feed, roundIds, chunk, {
+      const { probes } = await fetchRoundProbes(client, feed, roundIds, chunk, {
         deadlineAt,
       });
+      return probes;
     }
   };
 
@@ -727,6 +932,8 @@ export async function resolveHistoryPoints(
     stepSec,
     rangeFromSec,
     deadlineMs,
+    feed.heartbeatS,
+    nowSec,
   );
 
   return {

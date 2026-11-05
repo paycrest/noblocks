@@ -25,16 +25,26 @@ export function bucketSpecForRange(range: HistoryRange): SeriesBucketSpec {
   }
 }
 
-export function rangeStartUnix(
+export function alignedRangeStart(
   range: HistoryRange,
   nowSec: number,
   inceptionUnix?: number,
 ): number {
   const spec = bucketSpecForRange(range);
   if (range === "ALL") {
-    return inceptionUnix ?? nowSec - spec.count * spec.stepSec;
+    const anchor = inceptionUnix ?? nowSec - spec.count * spec.stepSec;
+    return Math.floor(anchor / spec.stepSec) * spec.stepSec;
   }
-  return nowSec - spec.count * spec.stepSec;
+  const gridEnd = Math.floor(nowSec / spec.stepSec) * spec.stepSec;
+  return gridEnd - (spec.count - 1) * spec.stepSec;
+}
+
+export function rangeStartUnix(
+  range: HistoryRange,
+  nowSec: number,
+  inceptionUnix?: number,
+): number {
+  return alignedRangeStart(range, nowSec, inceptionUnix);
 }
 
 export function bucketTimestamps(
@@ -43,10 +53,7 @@ export function bucketTimestamps(
   inceptionUnix?: number,
 ): number[] {
   const spec = bucketSpecForRange(range);
-  const start =
-    range === "ALL"
-      ? (inceptionUnix ?? nowSec - spec.count * spec.stepSec)
-      : nowSec - spec.count * spec.stepSec;
+  const start = alignedRangeStart(range, nowSec, inceptionUnix);
   const out: number[] = [];
   for (let i = 0; i < spec.count; i++) {
     const t = start + i * spec.stepSec;
@@ -54,6 +61,15 @@ export function bucketTimestamps(
     out.push(t);
   }
   return out;
+}
+
+/** Point label time: bucket end clamped to now (never future-dated). */
+export function bucketLabelTimestamp(
+  bucketStartSec: number,
+  stepSec: number,
+  nowSec: number,
+): number {
+  return Math.min(bucketStartSec + stepSec, nowSec);
 }
 
 export interface RawPoint {

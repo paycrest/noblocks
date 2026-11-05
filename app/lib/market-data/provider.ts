@@ -11,6 +11,7 @@ export interface HistoryReadOptions {
   deadlineMs?: number;
   stepSec?: number;
   rangeFromSec?: number;
+  nowSec?: number;
   /** When true (All range), anchor sampling at phase-1 round 1. */
   useFeedInception?: boolean;
 }

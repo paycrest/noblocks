@@ -195,7 +195,7 @@ async function main(): Promise<number> {
       },
     );
     for (const sample of samples) {
-      const bucketEnd = sample.bucketStart + spec.stepSec;
+      const bucketEnd = Math.min(sample.bucketStart + spec.stepSec, nowSec);
       const minUpdatedAt = bucketEnd - (heartbeat + slop);
       if (
         sample.answerUpdatedAt !== undefined &&

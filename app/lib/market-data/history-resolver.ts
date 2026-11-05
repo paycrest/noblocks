@@ -90,6 +90,7 @@ interface CachedPhaseBundle {
 
 const phaseBundleCache = new Map<string, CachedPhaseBundle>();
 const phaseBundleInFlight = new Map<string, Promise<CachedPhaseBundle>>();
+const phaseIndexCache = new Map<string, PhaseRoundIndex>();
 
 export type HistoryChainClient = Pick<
   PublicClient,
@@ -99,6 +100,34 @@ export type HistoryChainClient = Pick<
 export function resetPhaseTableCacheForTests(): void {
   phaseBundleCache.clear();
   phaseBundleInFlight.clear();
+  phaseIndexCache.clear();
+}
+
+function phaseIndexCacheKey(feedKey: string, phaseId: number): string {
+  return `${feedKey}:p${phaseId}`;
+}
+
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  concurrency: number,
+  fn: (item: T, index: number) => Promise<R>,
+): Promise<R[]> {
+  if (items.length === 0) return [];
+  const results = new Array<R>(items.length);
+  let nextIndex = 0;
+  const workers = Array.from(
+    { length: Math.min(concurrency, items.length) },
+    async () => {
+      while (true) {
+        const i = nextIndex;
+        nextIndex += 1;
+        if (i >= items.length) break;
+        results[i] = await fn(items[i], i);
+      }
+    },
+  );
+  await Promise.all(workers);
+  return results;
 }
 
 export const PHASE_INDEX_SAMPLES = 2048;
@@ -277,6 +306,7 @@ export function narrowTargetInterval(
     }
     target.answer = best.answer;
     target.bestUpdatedAt = best.updatedAt;
+    target.bestRoundAgg = maxAgg;
     target.lo = maxAgg + BigInt(1);
   }
 
@@ -361,12 +391,24 @@ export function canProveRoundAtOrBefore(
 
   const nextAgg = target.bestRoundAgg + BigInt(1);
   if (nextAgg > target.phaseLastRound) return true;
-  const next = probes.get(
-    encodeRoundId(target.phaseId, nextAgg).toString(),
-  );
+  const nextKey = encodeRoundId(target.phaseId, nextAgg).toString();
+  if (!probes.has(nextKey)) return false;
+  const next = probes.get(nextKey);
   if (!next?.ok || next.updatedAt <= 0) return true;
   if (next.updatedAt > target.bucketEnd) return true;
   return false;
+}
+
+export function targetIsSearchConverged(target: HistoryTarget): boolean {
+  return (
+    target.hi < target.lo &&
+    target.answer > BigInt(0) &&
+    target.bestRoundAgg > BigInt(0)
+  );
+}
+
+export function targetNeedsIntervalWiden(target: HistoryTarget): boolean {
+  return target.hi < target.lo && !targetIsSearchConverged(target);
 }
 
 export function attemptProveTarget(
@@ -392,6 +434,21 @@ export function refreshTargetBest(
   scanLo?: bigint,
   scanHi?: bigint,
 ): void {
+  if (targetIsSearchConverged(target)) {
+    const best = probes.get(
+      encodeRoundId(target.phaseId, target.bestRoundAgg).toString(),
+    );
+    if (
+      best?.ok &&
+      best.updatedAt > 0 &&
+      best.updatedAt <= target.bucketEnd
+    ) {
+      target.answer = best.answer;
+      target.bestUpdatedAt = best.updatedAt;
+      return;
+    }
+  }
+
   const lo = scanLo ?? target.lo;
   const hi = scanHi ?? target.hi;
   let best: RoundProbe | null = null;
@@ -435,10 +492,11 @@ export function initHistoryTargets(
   phases: PhaseTableRow[],
   historyStartSec: number,
   indexes: Map<number, PhaseRoundIndex>,
+  nowSec: number,
 ): HistoryTarget[] {
   const out: HistoryTarget[] = [];
   for (const bucketStart of bucketStarts) {
-    const bucketEnd = bucketStart + stepSec;
+    const bucketEnd = Math.min(bucketStart + stepSec, nowSec);
     const phase = pickPhaseForTimestamp(bucketEnd, phases);
     if (!phase || bucketEnd < historyStartSec) continue;
     const index = indexes.get(phase.phaseId);
@@ -782,23 +840,32 @@ export async function buildPhaseRoundIndex(
   closed: boolean,
 ): Promise<PhaseRoundIndex> {
   const roundIds = sampleRoundIdsForIndex(phase.phaseId, phase.lastRound);
-  const points: PhaseRoundIndexPoint[] = [];
+  const chunks: bigint[][] = [];
   for (let i = 0; i < roundIds.length; i += HISTORY_MULTICALL_CHUNK) {
-    const chunk = roundIds.slice(i, i + HISTORY_MULTICALL_CHUNK);
-    const { probes } = await fetchRoundProbes(
-      client,
-      feed,
-      chunk,
-      HISTORY_MULTICALL_CHUNK,
-    );
-    for (const probe of probes.values()) {
-      if (!probe.ok || probe.updatedAt <= 0) continue;
-      points.push({
-        round: decodeRoundId(probe.roundId).aggregatorRoundId,
-        updatedAt: probe.updatedAt,
-      });
-    }
+    chunks.push(roundIds.slice(i, i + HISTORY_MULTICALL_CHUNK));
   }
+  const chunkPoints = await mapWithConcurrency(
+    chunks,
+    HISTORY_PROBE_CONCURRENCY,
+    async (chunk) => {
+      const { probes } = await fetchRoundProbes(
+        client,
+        feed,
+        chunk,
+        HISTORY_MULTICALL_CHUNK,
+      );
+      const local: PhaseRoundIndexPoint[] = [];
+      for (const probe of probes.values()) {
+        if (!probe.ok || probe.updatedAt <= 0) continue;
+        local.push({
+          round: decodeRoundId(probe.roundId).aggregatorRoundId,
+          updatedAt: probe.updatedAt,
+        });
+      }
+      return local;
+    },
+  );
+  const points = chunkPoints.flat();
   points.sort((a, b) => {
     if (a.round < b.round) return -1;
     if (a.round > b.round) return 1;
@@ -837,17 +904,41 @@ export async function loadPhaseContext(
   const build = (async () => {
     const built = await buildPhaseTable(client, feed);
     const indexes = new Map<number, PhaseRoundIndex>();
+    const toBuild: Array<{
+      row: PhaseTableRow;
+      closed: boolean;
+      cacheKey: string;
+    }> = [];
+
     for (const row of built.rows) {
-      indexes.set(
-        row.phaseId,
-        await buildPhaseRoundIndex(
-          client,
-          feed,
-          row,
-          row.phaseId !== built.latestPhaseId,
-        ),
-      );
+      const closed = row.phaseId !== built.latestPhaseId;
+      const cacheKey = phaseIndexCacheKey(key, row.phaseId);
+      const cached = phaseIndexCache.get(cacheKey);
+      const ttl = closed ? CLOSED_PHASE_INDEX_TTL_MS : PHASE_TABLE_TTL_MS;
+      if (
+        !forceRefresh &&
+        cached &&
+        Date.now() - cached.fetchedAt < ttl
+      ) {
+        indexes.set(row.phaseId, cached);
+        continue;
+      }
+      toBuild.push({ row, closed, cacheKey });
     }
+
+    const builtIndexes = await mapWithConcurrency(
+      toBuild,
+      HISTORY_PROBE_CONCURRENCY,
+      async ({ row, closed, cacheKey }) => {
+        const index = await buildPhaseRoundIndex(client, feed, row, closed);
+        phaseIndexCache.set(cacheKey, index);
+        return { phaseId: row.phaseId, index };
+      },
+    );
+    for (const { phaseId, index } of builtIndexes) {
+      indexes.set(phaseId, index);
+    }
+
     const bundle: CachedPhaseBundle = {
       rows: built.rows,
       historyStartSec: built.historyStartSec,
@@ -906,8 +997,20 @@ export async function resolveHistoryWithFetcher(
     phases,
     historyStartSec,
     indexes,
+    nowSec,
   );
   const probeCache = new Map<string, RoundProbe>();
+
+  const queueProofRoundIds = (target: HistoryTarget, toFetch: Set<string>) => {
+    if (target.bestRoundAgg <= BigInt(0)) return;
+    toFetch.add(
+      encodeRoundId(target.phaseId, target.bestRoundAgg).toString(),
+    );
+    const nextAgg = target.bestRoundAgg + BigInt(1);
+    if (nextAgg <= target.phaseLastRound) {
+      toFetch.add(encodeRoundId(target.phaseId, nextAgg).toString());
+    }
+  };
 
   for (let iter = 0; iter < HISTORY_SEARCH_MAX_ITERATIONS; iter++) {
     if (Date.now() >= deadlineAt) break;
@@ -917,6 +1020,8 @@ export async function resolveHistoryWithFetcher(
 
     const toFetch = new Set<string>();
     for (const target of active) {
+      queueProofRoundIds(target, toFetch);
+      if (targetNeedsIntervalWiden(target)) continue;
       if (target.hi < target.lo) continue;
       const count = probeCountForInterval(target.lo, target.hi);
       for (const id of probeAggregatorRounds(
@@ -946,18 +1051,18 @@ export async function resolveHistoryWithFetcher(
       const index = indexes.get(target.phaseId);
       if (!phase || !index) continue;
 
-      if (target.hi < target.lo) {
+      if (targetNeedsIntervalWiden(target)) {
         if (target.widenSteps < 6) {
           expandTargetInterval(target, index, phase);
         }
         continue;
       }
 
-      if (target.hi - target.lo > BigInt(1)) {
+      if (target.hi >= target.lo && target.hi - target.lo > BigInt(1)) {
         narrowTargetInterval(target, probeCache);
       }
 
-      if (target.hi < target.lo) {
+      if (targetNeedsIntervalWiden(target)) {
         if (target.widenSteps < 6) {
           expandTargetInterval(target, index, phase);
         }

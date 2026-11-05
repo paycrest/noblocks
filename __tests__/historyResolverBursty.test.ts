@@ -47,6 +47,7 @@ describe("bursty phase index brackets", () => {
       [phase],
       burstyTimestamp(1),
       new Map([[PHASE, index]]),
+      NOW,
     );
     expect(targets.length).toBe(1);
     const target = targets[0];

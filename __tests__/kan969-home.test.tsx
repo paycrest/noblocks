@@ -15,8 +15,10 @@ import {
 } from "../app/lib/portfolio/home-visibility";
 import { getFeatureFlags } from "../app/lib/flags";
 import { isReferralEnabled } from "../app/utils";
-import { WalletHomeContent } from "../app/(wallet)/components/home/WalletHomeContent";
-import { ExploreCards } from "../app/(wallet)/components/home/ExploreCards";
+import {
+  ExploreCards,
+  WalletHomeContent,
+} from "../app/(wallet)/components/home/WalletHomeContent";
 
 jest.mock("../app/utils", () => {
   const actual = jest.requireActual("../app/utils");
@@ -34,9 +36,28 @@ jest.mock("../app/hooks/usePortfolio", () => ({
   usePortfolio: jest.fn(),
 }));
 
-jest.mock("../app/(wallet)/components/home/WalletActionDrawerHost", () => ({
-  WalletActionDrawerHost: () => null,
-  InviteFriendsDrawer: () => null,
+jest.mock("@/components/drawer", () => ({
+  ActionDrawer: () => null,
+}));
+
+jest.mock("@/components/TransferForm", () => ({
+  TransferForm: () => null,
+}));
+
+jest.mock("@/components/bridge/BridgeForm", () => ({
+  BridgeForm: () => null,
+}));
+
+jest.mock("@/components/wallet-mobile-modal/ReferralHubView", () => ({
+  ReferralHubView: () => null,
+}));
+
+jest.mock("@/components/CopyAddressWarningModal", () => ({
+  CopyAddressWarningModal: () => null,
+}));
+
+jest.mock("@/hooks/useWalletAddress", () => ({
+  useWalletAddress: jest.fn(() => null),
 }));
 
 jest.mock("next/image", () => ({

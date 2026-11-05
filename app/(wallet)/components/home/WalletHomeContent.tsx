@@ -1,38 +1,390 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
+import Image from "next/image";
+import Link from "next/link";
 import {
   Coins01Icon,
   MarketAnalysisIcon,
   Money03Icon,
 } from "hugeicons-react";
+import { ActionDrawer } from "@/app/components/drawer";
+import { TransferForm } from "@/app/components/TransferForm";
+import { BridgeForm } from "@/app/components/bridge/BridgeForm";
+import { ReferralHubView } from "@/app/components/wallet-mobile-modal/ReferralHubView";
+import { CopyAddressWarningModal } from "@/app/components/CopyAddressWarningModal";
+import { BalanceSkeleton } from "@/app/components/BalanceSkeleton";
 import { getFeatureFlags } from "@/app/lib/flags";
 import {
   bucketSubtitle,
+  formatPortfolioUsd,
   isPortfolioEmpty,
 } from "@/app/lib/portfolio/display";
 import {
   isEarnBucketReadOnly,
   isStocksBucketReadOnly,
   shouldShowEarnBucketRow,
+  shouldShowEarnExploreCard,
   shouldShowStocksBucketRow,
+  shouldShowStocksExploreCard,
   type WalletHomeActionId,
 } from "@/app/lib/portfolio/home-visibility";
-import { WALLET_HOME_MAX_EARN_APY_DISPLAY } from "@/app/lib/wallet-home-config";
+import {
+  WALLET_HOME_ADD_FUNDS_CARD,
+  WALLET_HOME_EXPLORE,
+  WALLET_HOME_MAX_EARN_APY_DISPLAY,
+  WALLET_HOME_SUPPORTED_ASSET_COUNT,
+  WALLET_HOME_SUPPORTED_NETWORK_COUNT,
+} from "@/app/lib/wallet-home-config";
 import { usePortfolio } from "@/app/hooks/usePortfolio";
-import { AddFundsGetStartedCard } from "./AddFundsGetStartedCard";
+import { useWalletAddress } from "@/app/hooks/useWalletAddress";
+import { classNames, isReferralEnabled } from "@/app/utils";
+import { shellFocusRingClasses, shellMinHitTargetClasses } from "../shellFocusStyles";
 import { AddFundsSplitButton } from "./AddFundsSplitButton";
 import {
   AssetBucketListSkeleton,
   AssetBucketRow,
 } from "./AssetBucketRow";
-import { BalanceHeader } from "./BalanceHeader";
-import { ExploreCards } from "./ExploreCards";
-import { HomePortfolioError } from "./HomePortfolioError";
-import {
-  InviteFriendsDrawer,
-  WalletActionDrawerHost,
-} from "./WalletActionDrawerHost";
+
+/** Primary Gray (Figma button primary-gray): light fill #121217, dark fill white. */
+const homePrimaryGrayButtonClasses =
+  "bg-black text-white transition hover:bg-black/90 dark:bg-white dark:text-black dark:hover:bg-white/90";
+
+const EXPLORE_BANNERS = {
+  stocks: "/images/wallet-home/explore-stocks-banner.png",
+  earn: "/images/wallet-home/explore-earn-banner.png",
+  invite: "/images/wallet-home/explore-invite-banner.png",
+} as const;
+
+const ACTION_TITLES: Record<WalletHomeActionId, string> = {
+  buy: "Buy",
+  sell: "Sell",
+  receive: "Receive",
+  transfer: "Transfer",
+  swap: "Swap",
+};
+
+function BalanceHeader({
+  isLoading,
+  totalUsd,
+  trailing,
+}: {
+  isLoading: boolean;
+  totalUsd: string | null;
+  trailing?: React.ReactNode;
+}) {
+  return (
+    <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+      <div className="space-y-1">
+        <p className="text-sm text-text-secondary dark:text-white/50">
+          Your balances
+        </p>
+        {isLoading ? (
+          <BalanceSkeleton className="h-10 w-36 rounded-lg" />
+        ) : (
+          <p className="text-[35px] font-semibold leading-9 tracking-[-1.05px] text-text-body dark:text-white">
+            {totalUsd != null ? formatPortfolioUsd(totalUsd) : "—"}
+          </p>
+        )}
+      </div>
+      {trailing ? <div className="shrink-0">{trailing}</div> : null}
+    </div>
+  );
+}
+
+function HomePortfolioError({
+  message = "We couldn't load your balances.",
+  onRetry,
+}: {
+  message?: string;
+  onRetry: () => void;
+}) {
+  return (
+    <div
+      role="alert"
+      className="rounded-2xl border border-border-light bg-accent-gray/40 px-4 py-3 dark:border-white/10 dark:bg-white/5"
+    >
+      <p className="text-sm text-text-body dark:text-white">{message}</p>
+      <button
+        type="button"
+        onClick={() => void onRetry()}
+        className={classNames(
+          "mt-2 text-sm font-semibold underline-offset-2 hover:underline",
+          "text-[#0065F5] dark:text-lavender-500",
+          shellFocusRingClasses,
+          "rounded-md",
+        )}
+      >
+        Try again
+      </button>
+    </div>
+  );
+}
+
+function AddFundsGetStartedCard({ onAddFunds }: { onAddFunds: () => void }) {
+  return (
+    <div className="flex flex-col gap-4 rounded-[20px] bg-accent-gray px-4 py-4 dark:bg-white/5 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+      <div className="space-y-2">
+        <h2 className="text-base font-semibold text-text-body dark:text-white">
+          {WALLET_HOME_ADD_FUNDS_CARD.title}
+        </h2>
+        <div className="flex flex-wrap items-center gap-2 text-sm text-text-secondary dark:text-white/50">
+          <Image
+            src="/images/tokens.svg"
+            alt=""
+            width={72}
+            height={24}
+            className="h-6 w-auto dark:opacity-90"
+            aria-hidden
+          />
+          <span>
+            {WALLET_HOME_ADD_FUNDS_CARD.supportLine(
+              WALLET_HOME_SUPPORTED_ASSET_COUNT,
+              WALLET_HOME_SUPPORTED_NETWORK_COUNT,
+            )}
+          </span>
+        </div>
+      </div>
+      <button
+        type="button"
+        onClick={onAddFunds}
+        className={classNames(
+          "inline-flex h-8 shrink-0 items-center justify-center rounded-xl px-4 text-sm font-semibold",
+          homePrimaryGrayButtonClasses,
+          shellMinHitTargetClasses,
+          shellFocusRingClasses,
+          "rounded-xl",
+        )}
+      >
+        Add funds
+      </button>
+    </div>
+  );
+}
+
+function ExploreCard({
+  title,
+  description,
+  bannerSrc,
+  onClick,
+  href,
+}: {
+  title: string;
+  description: string;
+  bannerSrc: string;
+  onClick?: () => void;
+  href?: string;
+}) {
+  const content = (
+    <div className="flex flex-col gap-4">
+      <div className="relative h-[127px] overflow-hidden rounded-[10px]">
+        <Image
+          src={bannerSrc}
+          alt=""
+          fill
+          className="object-cover"
+          sizes="(max-width: 768px) 80vw, 320px"
+          aria-hidden
+        />
+      </div>
+      <div className="space-y-2.5">
+        <h3 className="text-base font-semibold text-text-body dark:text-white">
+          {title}
+        </h3>
+        <p className="text-sm font-medium leading-snug text-text-secondary dark:text-white/50">
+          {description}
+        </p>
+      </div>
+    </div>
+  );
+
+  const base = classNames(
+    "flex min-w-[260px] flex-1 snap-start flex-col rounded-[20px] bg-accent-gray p-3 dark:bg-white/5",
+    shellFocusRingClasses,
+    "rounded-[20px]",
+    (onClick || href) &&
+      "cursor-pointer transition hover:bg-accent-gray/80 dark:hover:bg-white/[0.07]",
+  );
+
+  if (href) {
+    return (
+      <Link href={href} className={base}>
+        {content}
+      </Link>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={classNames(base, "text-left")}
+    >
+      {content}
+    </button>
+  );
+}
+
+function ExploreCards({ onInviteClick }: { onInviteClick?: () => void }) {
+  const flags = getFeatureFlags();
+  const showStocks = shouldShowStocksExploreCard(flags);
+  const showEarn = shouldShowEarnExploreCard(flags);
+  const showInvite = isReferralEnabled();
+
+  const cards: React.ReactNode[] = [];
+
+  if (showStocks) {
+    cards.push(
+      <ExploreCard
+        key="stocks"
+        href="/stocks"
+        title={WALLET_HOME_EXPLORE.stocks.title}
+        description={WALLET_HOME_EXPLORE.stocks.description}
+        bannerSrc={EXPLORE_BANNERS.stocks}
+      />,
+    );
+  }
+
+  if (showEarn) {
+    cards.push(
+      <ExploreCard
+        key="earn"
+        href="/earn"
+        title={WALLET_HOME_EXPLORE.earn.title(WALLET_HOME_MAX_EARN_APY_DISPLAY)}
+        description={WALLET_HOME_EXPLORE.earn.description}
+        bannerSrc={EXPLORE_BANNERS.earn}
+      />,
+    );
+  }
+
+  if (showInvite) {
+    cards.push(
+      <ExploreCard
+        key="invite"
+        title={WALLET_HOME_EXPLORE.invite.title}
+        description={WALLET_HOME_EXPLORE.invite.description}
+        bannerSrc={EXPLORE_BANNERS.invite}
+        onClick={onInviteClick}
+      />,
+    );
+  }
+
+  if (cards.length === 0) {
+    return null;
+  }
+
+  return (
+    <section className="space-y-4">
+      <h2 className="text-lg font-semibold text-text-body dark:text-white">
+        Explore
+      </h2>
+      <div className="-mx-1 flex gap-3 overflow-x-auto px-1 pb-1 snap-x snap-mandatory">
+        {cards}
+      </div>
+    </section>
+  );
+}
+
+function RampActionPlaceholder({ mode }: { mode: "buy" | "sell" }) {
+  return (
+    <p className="px-1 text-sm leading-relaxed text-text-secondary dark:text-white/60">
+      {mode === "buy"
+        ? "Buy stablecoins with local currency. Full onramp steps will appear here."
+        : "Sell crypto to your bank or mobile money. Full offramp steps will appear here."}
+    </p>
+  );
+}
+
+function WalletActionDrawerHost({
+  activeAction,
+  onClose,
+}: {
+  activeAction: WalletHomeActionId | null;
+  onClose: () => void;
+}) {
+  const walletAddress = useWalletAddress();
+  const [receiveWarningOpen, setReceiveWarningOpen] = useState(false);
+
+  const openReceive = useCallback(() => {
+    if (!walletAddress) return;
+    setReceiveWarningOpen(true);
+  }, [walletAddress]);
+
+  const renderBody = () => {
+    if (!activeAction) return null;
+    switch (activeAction) {
+      case "buy":
+        return <RampActionPlaceholder mode="buy" />;
+      case "sell":
+        return <RampActionPlaceholder mode="sell" />;
+      case "receive":
+        return (
+          <div className="space-y-3">
+            <p className="text-sm text-text-secondary dark:text-white/60">
+              Receive supported tokens to your Noblocks wallet address.
+            </p>
+            <button
+              type="button"
+              onClick={openReceive}
+              disabled={!walletAddress}
+              className="min-h-11 w-full rounded-xl bg-lavender-500 text-sm font-semibold text-white disabled:opacity-50"
+            >
+              Show deposit address
+            </button>
+          </div>
+        );
+      case "transfer":
+        return <TransferForm onClose={onClose} />;
+      case "swap":
+        return <BridgeForm onClose={onClose} onBridgeSubmit={() => {}} />;
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <>
+      <ActionDrawer
+        isOpen={activeAction != null && activeAction !== "receive"}
+        title={activeAction ? ACTION_TITLES[activeAction] : "Action"}
+        onRequestClose={onClose}
+        bodyAlign="start"
+      >
+        {renderBody()}
+      </ActionDrawer>
+      {walletAddress ? (
+        <CopyAddressWarningModal
+          isOpen={receiveWarningOpen || activeAction === "receive"}
+          onClose={() => {
+            setReceiveWarningOpen(false);
+            if (activeAction === "receive") onClose();
+          }}
+          address={walletAddress}
+        />
+      ) : null}
+    </>
+  );
+}
+
+function InviteFriendsDrawer({
+  isOpen,
+  onClose,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+}) {
+  return (
+    <ActionDrawer
+      isOpen={isOpen}
+      title="Invite friends"
+      onRequestClose={onClose}
+      bodyAlign="start"
+      showPoweredByFooter={false}
+    >
+      <ReferralHubView onBack={onClose} onClose={onClose} />
+    </ActionDrawer>
+  );
+}
 
 export function WalletHomeContent() {
   const flags = useMemo(() => getFeatureFlags(), []);
@@ -139,3 +491,6 @@ export function WalletHomeContent() {
     </div>
   );
 }
+
+/** Exported for unit tests covering Explore card shell and banner art. */
+export { ExploreCards };

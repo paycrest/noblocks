@@ -22,7 +22,10 @@ import {
   type WalletHomeActionId,
 } from "@/app/lib/portfolio/home-visibility";
 import { shellFocusRingClasses, shellMinHitTargetClasses } from "../shellFocusStyles";
-import { homePrimaryGrayButtonClasses } from "./homeButtonStyles";
+
+/** Primary Gray (Figma button primary-gray): light fill #121217, dark fill white. */
+const homePrimaryGrayButtonClasses =
+  "bg-black text-white transition hover:bg-black/90 dark:bg-white dark:text-black dark:hover:bg-white/90";
 
 export type AddFundsMenuAction = {
   id: WalletHomeActionId;

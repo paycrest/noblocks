@@ -16,9 +16,9 @@ import { isReferralEnabled } from "@/app/utils";
 import { shellFocusRingClasses } from "../shellFocusStyles";
 
 const EXPLORE_BANNERS = {
-  stocks: "/images/wallet-home/explore-stocks-banner.svg",
-  earn: "/images/wallet-home/explore-earn-banner.svg",
-  invite: "/images/wallet-home/explore-invite-banner.svg",
+  stocks: "/images/wallet-home/explore-stocks-banner.png",
+  earn: "/images/wallet-home/explore-earn-banner.png",
+  invite: "/images/wallet-home/explore-invite-banner.png",
 } as const;
 
 type ExploreCardProps = {
@@ -48,7 +48,7 @@ function ExploreCard({
           aria-hidden
         />
       </div>
-      <div className="space-y-1">
+      <div className="space-y-2.5">
         <h3 className="text-base font-semibold text-text-body dark:text-white">
           {title}
         </h3>

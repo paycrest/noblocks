@@ -39,10 +39,23 @@ export async function buildPortfolioForWallet(
 
   try {
     const fetched = await fetchPortfolioHoldings(ctx);
-    holdings = filterNonZeroHoldings(fetched.holdings);
     asOf = fetched.asOf;
     stale = fetched.stale;
-    setCachedPortfolioHoldings(key, { holdings, asOf, stale });
+
+    if (fetched.refreshFailed) {
+      const prior = getStalePortfolioHoldings(key);
+      if (prior) {
+        holdings = prior.holdings;
+        asOf = prior.asOf;
+        stale = true;
+      } else {
+        holdings = filterNonZeroHoldings(fetched.holdings);
+        stale = true;
+      }
+    } else {
+      holdings = filterNonZeroHoldings(fetched.holdings);
+      setCachedPortfolioHoldings(key, { holdings, asOf, stale });
+    }
   } catch (error) {
     console.error("[portfolio] refresh failed, using last snapshot if any:", error);
     const prior = getStalePortfolioHoldings(key);

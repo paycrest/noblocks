@@ -8,6 +8,7 @@ import {
   portfolioOverlapKey,
   shouldExcludeWalletHoldingFromUsd,
 } from "../app/lib/portfolio/overlap";
+import { portfolioMoneyDecimalPrecision } from "../app/lib/portfolio/money";
 import type {
   PortfolioBuildInputHolding,
   PortfolioPriceLookup,
@@ -40,7 +41,7 @@ describe("portfolio overlap keys", () => {
     );
   });
 
-  it("excludes wallet USD when earn position exists on same chain+symbol", () => {
+  it("excludes wallet USD only for evm-earn-source on same chain+symbol", () => {
     const holdings: PortfolioBuildInputHolding[] = [
       row({
         chain: "Base",
@@ -61,6 +62,37 @@ describe("portfolio overlap keys", () => {
     expect(
       shouldExcludeWalletHoldingFromUsd(holdings[0], exclusions),
     ).toBe(true);
+  });
+
+  it("does not exclude wallet USD for Vesu pool earn", () => {
+    const holdings: PortfolioBuildInputHolding[] = [
+      row({
+        chain: "Starknet",
+        symbol: "USDC",
+        amount: "10.000000",
+        bucket: "tokens",
+        positionId: "wallet",
+      }),
+      row({
+        chain: "Starknet",
+        symbol: "USDC",
+        amount: "90.000000",
+        bucket: "earn",
+        positionId: "0x01bc5de51365ed7fbb11ebc81cef9fd66b70050ec10fd898f0c4698765bf5803",
+      }),
+    ];
+    const exclusions = collectWalletUsdExclusionKeys(holdings);
+    expect(
+      shouldExcludeWalletHoldingFromUsd(holdings[0], exclusions),
+    ).toBe(false);
+  });
+});
+
+describe("portfolio money", () => {
+  it("uses a cloned Decimal without changing global precision", () => {
+    const before = Decimal.precision;
+    expect(portfolioMoneyDecimalPrecision()).toBe(40);
+    expect(Decimal.precision).toBe(before);
   });
 });
 
@@ -100,6 +132,23 @@ describe("buildPortfolioSummary", () => {
     expect(assertTotalMatchesBuckets(summary)).toBe(true);
   });
 
+  it("uses fallback asOf for empty stocks bucket (not unix epoch)", async () => {
+    const summary = await buildPortfolioSummary(
+      [
+        row({
+          chain: "Base",
+          symbol: "USDC",
+          amount: "1.000000",
+          bucket: "tokens",
+          positionId: "wallet",
+        }),
+      ],
+      usd1,
+    );
+    expect(summary.buckets.stocks.asOf).toBe(asOf);
+    expect(summary.buckets.stocks.asOf).not.toMatch(/^1970-01-01/);
+  });
+
   it("de-dupes earn overlap from tokens USD but keeps earn USD", async () => {
     const summary = await buildPortfolioSummary(
       [
@@ -125,6 +174,31 @@ describe("buildPortfolioSummary", () => {
     expect(summary.buckets.earn.totalUsd).toBe("100");
     expect(summary.totalUsd).toBe("100");
     expect(summary.buckets.tokens.holdings[0].usd).toBeNull();
+  });
+
+  it("counts Vesu wallet and earn USD separately", async () => {
+    const summary = await buildPortfolioSummary(
+      [
+        row({
+          chain: "Starknet",
+          symbol: "USDC",
+          amount: "10.000000",
+          bucket: "tokens",
+          positionId: "wallet",
+        }),
+        row({
+          chain: "Starknet",
+          symbol: "USDC",
+          amount: "90.000000",
+          bucket: "earn",
+          positionId: "0xpool",
+        }),
+      ],
+      usd1,
+    );
+    expect(summary.buckets.tokens.totalUsd).toBe("10");
+    expect(summary.buckets.earn.totalUsd).toBe("90");
+    expect(summary.totalUsd).toBe("100");
   });
 
   it("flags priceUnavailable and excludes row from USD totals", async () => {
@@ -188,5 +262,38 @@ describe("buildPortfolioSummary", () => {
     );
     expect(summary.buckets.tokens.stale).toBe(true);
     expect(summary.stale).toBe(true);
+  });
+
+  it("memoizes price lookup per symbol", async () => {
+    const calls: string[] = [];
+    const lookup: PortfolioPriceLookup = async (symbol) => {
+      calls.push(symbol);
+      return {
+        usdPerUnit: "1",
+        priceUnavailable: false,
+        stale: false,
+        asOf,
+      };
+    };
+    await buildPortfolioSummary(
+      [
+        row({
+          chain: "Base",
+          symbol: "USDC",
+          amount: "1",
+          bucket: "tokens",
+          positionId: "wallet",
+        }),
+        row({
+          chain: "Polygon",
+          symbol: "USDC",
+          amount: "2",
+          bucket: "tokens",
+          positionId: "wallet",
+        }),
+      ],
+      lookup,
+    );
+    expect(calls).toEqual(["USDC"]);
   });
 });

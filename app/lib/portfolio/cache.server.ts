@@ -1,5 +1,6 @@
 import "server-only";
 
+import { LRUCache } from "lru-cache";
 import type { PortfolioBuildInputHolding } from "./types";
 
 const TTL_MS = 20_000;
@@ -11,7 +12,7 @@ export type PortfolioHoldingsCacheEntry = {
   expiresAt: number;
 };
 
-const cache = new Map<string, PortfolioHoldingsCacheEntry>();
+const cache = new LRUCache<string, PortfolioHoldingsCacheEntry>({ max: 5000 });
 
 export function portfolioCacheKey(evmBalanceAddress: string): string {
   return evmBalanceAddress.trim().toLowerCase();
@@ -42,4 +43,13 @@ export function setCachedPortfolioHoldings(
 /** @internal tests */
 export function clearPortfolioHoldingsCache(): void {
   cache.clear();
+}
+
+/** @internal tests — force TTL expiry without waiting. */
+export function expirePortfolioHoldingsCache(key: string): void {
+  const entry = cache.get(key);
+  if (entry) {
+    entry.expiresAt = Date.now() - 1;
+    cache.set(key, entry);
+  }
 }

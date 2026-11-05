@@ -148,6 +148,8 @@ export interface VesuPositionSummary {
   suppliedFormatted: string;
   /** Annualized supply yield as a decimal (0.0523 = 5.23%). null if unknown. */
   supplyApy: number | null;
+  /** False when on-chain position read failed (synthetic zero position). */
+  readOk?: boolean;
 }
 
 export async function getVesuPosition(
@@ -158,6 +160,7 @@ export async function getVesuPosition(
   const ctx = buildContext(walletAddress);
 
   let positions: LendingUserPosition[] = [];
+  let readOk = true;
   try {
     positions = (await provider.getPositions?.(ctx, {
       user: fromAddress(walletAddress),
@@ -168,6 +171,7 @@ export async function getVesuPosition(
       error,
     );
     positions = [];
+    readOk = false;
   }
 
   const earn = positions.find(
@@ -181,7 +185,7 @@ export async function getVesuPosition(
   const suppliedBaseUnits = earn?.collateral.amount ?? BigInt("0");
   const suppliedFormatted = Amount.fromRaw(suppliedBaseUnits, token).toUnit();
   const supplyApy = await getSupplyApy(tokenSymbol).catch(() => null);
-  return { suppliedBaseUnits, suppliedFormatted, supplyApy };
+  return { suppliedBaseUnits, suppliedFormatted, supplyApy, readOk };
 }
 
 export async function getSupplyApy(

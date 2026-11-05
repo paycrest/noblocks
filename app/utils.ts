@@ -1282,6 +1282,11 @@ export type UnifiedWalletBalances = {
   balancesInWei?: Record<string, bigint>;
   /** Starknet parity: mirrors `balances` (display units), not an external oracle. */
   balancesUsd?: Record<string, number>;
+  /**
+   * When false, balances are a synthetic empty snapshot from a failed read.
+   * Omitted or true on successful reads (including legitimately zero balances).
+   */
+  readOk?: boolean;
 };
 
 export type FetchBalancesForChainArgs =
@@ -1314,6 +1319,7 @@ export async function fetchEvmBalancesUnifiedUncached(
     total: 0,
     balances: {},
     balancesInWei: {},
+    readOk: false,
   });
 
   if (!supportedTokens) return empty();
@@ -1454,6 +1460,7 @@ export async function fetchEvmBalancesUnifiedUncached(
       total: isNaN(totalBalance) ? 0 : totalBalance,
       balances,
       balancesInWei,
+      readOk: true,
     };
   } catch {
     return empty();
@@ -1500,6 +1507,7 @@ export async function fetchStarknetBalancesUnified(
     balances: {},
     balancesInWei: {},
     balancesUsd: {},
+    readOk: false,
   });
 
   if (!address || !tokens || tokens.length === 0) {
@@ -1569,6 +1577,7 @@ export async function fetchStarknetBalancesUnified(
       balances,
       balancesInWei,
       balancesUsd,
+      readOk: true,
     };
   } catch {
     return emptyUsd();
@@ -1624,6 +1633,7 @@ export async function fetchTronBalancesUnified(
     balances: {},
     balancesInWei: {},
     balancesUsd: {},
+    readOk: false,
   });
 
   if (!address || !tokens || tokens.length === 0) {
@@ -1709,6 +1719,7 @@ export async function fetchTronBalancesUnified(
       balances,
       balancesInWei,
       balancesUsd,
+      readOk: true,
     };
   } catch (error) {
     console.error("Error fetching Tron balances:", error);

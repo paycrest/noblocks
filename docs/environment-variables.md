@@ -441,6 +441,21 @@ CASHBACK_WALLET_ADDRESS=
 CASHBACK_WALLET_PRIVATE_KEY=
 ```
 
+### Market data (display-only prices and stats)
+
+```bash
+# CoinMarketCap Basic — server-only; empty → stats null, Chainlink price still works
+COINMARKETCAP_API_KEY=
+# Dwellir key for oracle RPC reads — separate from NEXT_PUBLIC_RPC_URL_KEY
+MARKET_DATA_RPC_KEY=
+# Split the CMC credit budget across app replicas (default 1)
+MARKET_DATA_REPLICAS=1
+# Monthly CMC credit cap with headroom (default 13500)
+MARKET_CMC_MONTHLY_BUDGET=13500
+# cNGN depeg badge when |CMC − NGN/USD| exceeds this % (default 2)
+MARKET_CNGN_DEPEG_BADGE_PCT=2
+```
+
 ## Minimal Setup for Contributors
 
 For a basic local setup without external service credentials:

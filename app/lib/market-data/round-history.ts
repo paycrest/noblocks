@@ -1,0 +1,862 @@
+import "server-only";
+
+import { decodeRoundId, encodeRoundId } from "./round-id";
+
+export const HISTORY_DEADLINE_MS = 8_000;
+export const HISTORY_MAX_RPC_CALLS = 64;
+export const HISTORY_MULTICALL_CHUNK = 32;
+export const HISTORY_SAMPLE_MULTICALL_CHUNK = 64;
+export const HISTORY_SEARCH_DEADLINE_RATIO = 0.5;
+export const HISTORY_MAX_SEARCH_ITERATIONS = 8;
+export const HISTORY_TIMELINE_PROBE_CAP = 160;
+export const HISTORY_MAX_BUCKET_END_RESOLVES = 24;
+
+export interface RoundSample {
+  roundId: bigint;
+  updatedAt: number;
+  answer: bigint;
+}
+
+export interface RoundDataResult {
+  roundId: bigint;
+  updatedAt: number;
+  answer: bigint;
+  ok: boolean;
+}
+
+export type BatchFetchRoundData = (
+  roundIds: bigint[],
+) => Promise<RoundDataResult[]>;
+
+export interface HistoryFetchBudget {
+  deadlineAtMs: number;
+  searchDeadlineAtMs: number;
+  callsLeft: number;
+}
+
+export function createHistoryBudget(
+  deadlineMs = HISTORY_DEADLINE_MS,
+): HistoryFetchBudget {
+  const now = Date.now();
+  return {
+    deadlineAtMs: now + deadlineMs,
+    searchDeadlineAtMs:
+      now + Math.floor(deadlineMs * HISTORY_SEARCH_DEADLINE_RATIO),
+    callsLeft: HISTORY_MAX_RPC_CALLS,
+  };
+}
+
+export function budgetExpired(budget: HistoryFetchBudget): boolean {
+  return Date.now() >= budget.deadlineAtMs || budget.callsLeft <= 0;
+}
+
+export function searchPhaseExpired(budget: HistoryFetchBudget): boolean {
+  return Date.now() >= budget.searchDeadlineAtMs || budget.callsLeft <= 0;
+}
+
+export function consumeBudget(
+  budget: HistoryFetchBudget,
+  n = 1,
+): boolean {
+  if (budget.callsLeft < n) {
+    budget.callsLeft = 0;
+    return false;
+  }
+  budget.callsLeft -= n;
+  return true;
+}
+
+export function rpcCallsUsed(budget: HistoryFetchBudget, initial: number): number {
+  return initial - budget.callsLeft;
+}
+
+export function probeRoundIds(
+  phaseId: number,
+  lo: bigint,
+  hi: bigint,
+  count: number,
+): bigint[] {
+  if (hi < lo) return [];
+  if (lo === hi) return [encodeRoundId(phaseId, lo)];
+  const seen = new Set<string>();
+  const out: bigint[] = [];
+  const steps = Math.max(2, count);
+  for (let i = 0; i < steps; i++) {
+    const agg =
+      lo + ((hi - lo) * BigInt(i)) / BigInt(steps - 1);
+    const id = encodeRoundId(phaseId, agg);
+    const key = id.toString();
+    if (!seen.has(key)) {
+      seen.add(key);
+      out.push(id);
+    }
+  }
+  return out;
+}
+
+/** Multicall-accelerated search within one aggregator phase. */
+export async function findRoundAtOrBefore(
+  batchFetch: BatchFetchRoundData,
+  budget: HistoryFetchBudget,
+  phaseId: number,
+  hiAggregatorRound: bigint,
+  targetSec: number,
+  loAggregatorRound: bigint = BigInt(1),
+): Promise<bigint | null> {
+  let lo = loAggregatorRound;
+  let hi = hiAggregatorRound;
+  let best: bigint | null = null;
+  let iterations = 0;
+
+  while (
+    lo <= hi &&
+    !searchPhaseExpired(budget) &&
+    iterations < HISTORY_MAX_SEARCH_ITERATIONS
+  ) {
+    iterations += 1;
+    if (!consumeBudget(budget, 1)) break;
+
+    const probes = probeRoundIds(phaseId, lo, hi, HISTORY_MULTICALL_CHUNK);
+    const rows = (await batchFetch(probes)).filter(
+      (r) => r.ok && r.updatedAt > 0,
+    );
+    if (rows.length === 0) break;
+
+    for (const row of rows) {
+      const { aggregatorRoundId } = decodeRoundId(row.roundId);
+      if (row.updatedAt <= targetSec) {
+        if (
+          !best ||
+          decodeRoundId(best).aggregatorRoundId < aggregatorRoundId
+        ) {
+          best = row.roundId;
+        }
+      }
+    }
+
+    const before = rows.filter((r) => r.updatedAt <= targetSec);
+    const after = rows.filter((r) => r.updatedAt > targetSec);
+
+    if (before.length > 0 && after.length === 0) {
+      const maxAgg = before.reduce(
+        (m, r) =>
+          decodeRoundId(r.roundId).aggregatorRoundId > m
+            ? decodeRoundId(r.roundId).aggregatorRoundId
+            : m,
+        BigInt(0),
+      );
+      lo = maxAgg + BigInt(1);
+      continue;
+    }
+
+    if (after.length > 0 && before.length === 0) {
+      const minAgg = after.reduce(
+        (m, r) =>
+          decodeRoundId(r.roundId).aggregatorRoundId < m
+            ? decodeRoundId(r.roundId).aggregatorRoundId
+            : m,
+        hi,
+      );
+      hi = minAgg - BigInt(1);
+      continue;
+    }
+
+    if (before.length > 0) {
+      const maxAgg = before.reduce(
+        (m, r) =>
+          decodeRoundId(r.roundId).aggregatorRoundId > m
+            ? decodeRoundId(r.roundId).aggregatorRoundId
+            : m,
+        BigInt(0),
+      );
+      lo = maxAgg + BigInt(1);
+    }
+    if (after.length > 0) {
+      const minAgg = after.reduce(
+        (m, r) =>
+          decodeRoundId(r.roundId).aggregatorRoundId < m
+            ? decodeRoundId(r.roundId).aggregatorRoundId
+            : m,
+        hi,
+      );
+      hi = minAgg - BigInt(1);
+    }
+
+    if (hi - lo <= BigInt(2)) break;
+  }
+
+  return best;
+}
+
+export async function findPhaseHighRound(
+  batchFetch: BatchFetchRoundData,
+  budget: HistoryFetchBudget,
+  phaseId: number,
+): Promise<bigint> {
+  let lo = BigInt(1);
+
+  if (!searchPhaseExpired(budget) && consumeBudget(budget, 1)) {
+    const row = (await batchFetch([encodeRoundId(phaseId, lo)]))[0];
+    if (!row?.ok || row.updatedAt <= 0) return BigInt(1);
+  }
+
+  let missingUpper: bigint | null = null;
+  let probeHi = lo;
+
+  while (!searchPhaseExpired(budget) && missingUpper === null) {
+    if (!consumeBudget(budget, 1)) break;
+    const next = probeHi * BigInt(2);
+    const row = (await batchFetch([encodeRoundId(phaseId, next)]))[0];
+    if (row?.ok && row.updatedAt > 0) {
+      lo = next;
+      probeHi = next;
+    } else {
+      missingUpper = next;
+    }
+  }
+
+  if (missingUpper === null) return lo;
+
+  let hi = missingUpper - BigInt(1);
+  while (lo < hi && !searchPhaseExpired(budget)) {
+    if (!consumeBudget(budget, 1)) break;
+    const mid = (lo + hi + BigInt(1)) / BigInt(2);
+    const row = (await batchFetch([encodeRoundId(phaseId, mid)]))[0];
+    if (row?.ok && row.updatedAt > 0) lo = mid;
+    else hi = mid - BigInt(1);
+  }
+
+  return lo;
+}
+
+/** Walks aggregator phases down to 1 for a global round at-or-before targetSec. */
+export async function findRoundAtOrBeforeGlobal(
+  batchFetch: BatchFetchRoundData,
+  budget: HistoryFetchBudget,
+  latestRoundId: bigint,
+  targetSec: number,
+): Promise<bigint | null> {
+  let { phaseId, aggregatorRoundId } = decodeRoundId(latestRoundId);
+
+  while (phaseId >= 1) {
+    const candidate = await findRoundAtOrBefore(
+      batchFetch,
+      budget,
+      phaseId,
+      aggregatorRoundId,
+      targetSec,
+    );
+    if (candidate) return candidate;
+
+    if (phaseId <= 1) break;
+
+    if (!searchPhaseExpired(budget) && consumeBudget(budget, 1)) {
+      const first = (await batchFetch([encodeRoundId(phaseId, BigInt(1))]))[0];
+      if (first?.ok && first.updatedAt > 0 && targetSec >= first.updatedAt) {
+        break;
+      }
+    }
+
+    phaseId -= 1;
+    aggregatorRoundId = await findPhaseHighRound(batchFetch, budget, phaseId);
+    if (aggregatorRoundId <= BigInt(0)) break;
+  }
+
+  return null;
+}
+
+export async function resolveGlobalFeedHistoryStart(
+  batchFetch: BatchFetchRoundData,
+  budget: HistoryFetchBudget,
+  latestRoundId: bigint,
+): Promise<{ historyStartSec: number; earliestRoundId: bigint } | null> {
+  const latestPhase = decodeRoundId(latestRoundId).phaseId;
+  const probes: bigint[] = [];
+  for (let phase = 1; phase <= latestPhase; phase++) {
+    probes.push(encodeRoundId(phase, BigInt(1)));
+  }
+  if (probes.length === 0) return null;
+  if (!consumeBudget(budget, 1)) return null;
+
+  const rows = await batchFetch(probes);
+  let earliest: RoundSample | null = null;
+  for (const row of rows) {
+    if (!row.ok || row.updatedAt <= 0) continue;
+    if (!earliest || row.updatedAt < earliest.updatedAt) {
+      earliest = {
+        roundId: row.roundId,
+        updatedAt: row.updatedAt,
+        answer: row.answer,
+      };
+    }
+  }
+  if (!earliest) return null;
+  return {
+    historyStartSec: earliest.updatedAt,
+    earliestRoundId: earliest.roundId,
+  };
+}
+
+export function pickRoundAtOrBeforeTime(
+  timeline: RoundSample[],
+  targetSec: number,
+): RoundSample | null {
+  if (timeline.length === 0) return null;
+  let lo = 0;
+  let hi = timeline.length - 1;
+  let best: RoundSample | null = null;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    if (timeline[mid].updatedAt <= targetSec) {
+      best = timeline[mid];
+      lo = mid + 1;
+    } else {
+      hi = mid - 1;
+    }
+  }
+  return best;
+}
+
+export interface PhaseTimeRange {
+  phaseId: number;
+  lo: bigint;
+  hi: bigint;
+  startSec: number;
+  endSec: number;
+}
+
+export async function resolvePhaseTimeRanges(
+  batchFetch: BatchFetchRoundData,
+  budget: HistoryFetchBudget,
+  windowStartRoundId: bigint,
+  latestRoundId: bigint,
+): Promise<PhaseTimeRange[]> {
+  const { phaseId: startPhase, aggregatorRoundId: startAgg } =
+    decodeRoundId(windowStartRoundId);
+  const { phaseId: endPhase, aggregatorRoundId: endAgg } =
+    decodeRoundId(latestRoundId);
+  const ranges: PhaseTimeRange[] = [];
+
+  for (let phase = startPhase; phase <= endPhase; phase++) {
+    const lo = phase === startPhase ? startAgg : BigInt(1);
+    let hi = endAgg;
+    if (phase !== endPhase) {
+      hi = await findPhaseHighRound(batchFetch, budget, phase);
+    }
+    if (hi < lo) hi = lo;
+    if (!consumeBudget(budget, 1)) break;
+    const rows = (
+      await batchFetch([encodeRoundId(phase, lo), encodeRoundId(phase, hi)])
+    ).filter((r) => r.ok && r.updatedAt > 0);
+    const loRow = rows.find(
+      (r) => decodeRoundId(r.roundId).aggregatorRoundId === lo,
+    );
+    const hiRow = rows.find(
+      (r) => decodeRoundId(r.roundId).aggregatorRoundId === hi,
+    );
+    if (!loRow || !hiRow) continue;
+    ranges.push({
+      phaseId: phase,
+      lo,
+      hi,
+      startSec: loRow.updatedAt,
+      endSec: hiRow.updatedAt,
+    });
+  }
+  return ranges.sort((a, b) => a.startSec - b.startSec);
+}
+
+export function countBucketsPerPhase(
+  bucketStarts: number[],
+  stepSec: number,
+  historyStartSec: number,
+  phaseRanges: PhaseTimeRange[],
+): Map<number, number> {
+  const counts = new Map<number, number>();
+  for (const start of bucketStarts) {
+    const end = start + stepSec;
+    if (end <= historyStartSec) continue;
+    const phase = phaseForBucketEnd(end, phaseRanges);
+    if (phase === null) continue;
+    counts.set(phase, (counts.get(phase) ?? 0) + 1);
+  }
+  return counts;
+}
+
+export function phaseForBucketEnd(
+  bucketEndSec: number,
+  phaseRanges: PhaseTimeRange[],
+): number | null {
+  for (const range of phaseRanges) {
+    if (bucketEndSec >= range.startSec && bucketEndSec <= range.endSec) {
+      return range.phaseId;
+    }
+  }
+  let best: PhaseTimeRange | null = null;
+  for (const range of phaseRanges) {
+    if (range.startSec <= bucketEndSec) best = range;
+  }
+  return best?.phaseId ?? null;
+}
+
+export function windowTimelineProbeCount(
+  fillableBucketCount: number,
+  windowRoundSpan: bigint,
+): number {
+  const span = Number(windowRoundSpan > BigInt(Number.MAX_SAFE_INTEGER)
+    ? BigInt(Number.MAX_SAFE_INTEGER)
+    : windowRoundSpan);
+  const byBuckets = Math.max(fillableBucketCount, 2);
+  const bySpan = Math.max(Math.min(span + 1, byBuckets), 2);
+  return Math.min(Math.max(byBuckets, bySpan), HISTORY_TIMELINE_PROBE_CAP);
+}
+
+export async function fetchWindowTimelineSamples(
+  batchFetch: BatchFetchRoundData,
+  budget: HistoryFetchBudget,
+  windowStartRoundId: bigint,
+  latestRoundId: bigint,
+  fillableBucketCount: number,
+  bucketStarts: number[],
+  stepSec: number,
+  historyStartSec: number,
+  phaseRanges: PhaseTimeRange[],
+): Promise<RoundSample[]> {
+  const { phaseId: startPhase, aggregatorRoundId: startAgg } =
+    decodeRoundId(windowStartRoundId);
+  const { phaseId: endPhase, aggregatorRoundId: endAgg } =
+    decodeRoundId(latestRoundId);
+
+  const fillableEnds = bucketStarts
+    .map((s) => s + stepSec)
+    .filter((e) => e > historyStartSec);
+  const windowStartSec =
+    fillableEnds.length > 0
+      ? Math.min(...fillableEnds) - stepSec
+      : historyStartSec;
+  const windowEndSec =
+    fillableEnds.length > 0 ? Math.max(...fillableEnds) : historyStartSec;
+  const windowDuration = Math.max(windowEndSec - windowStartSec, 1);
+
+  const totalProbes = windowTimelineProbeCount(
+    fillableBucketCount,
+    endAgg - startAgg,
+  );
+  const bucketsPerPhase = countBucketsPerPhase(
+    bucketStarts,
+    stepSec,
+    historyStartSec,
+    phaseRanges,
+  );
+
+  const planned: bigint[] = [];
+  for (const range of phaseRanges) {
+    if (range.phaseId < startPhase || range.phaseId > endPhase) continue;
+    const lo = range.phaseId === startPhase ? startAgg : range.lo;
+    const hi = range.phaseId === endPhase ? endAgg : range.hi;
+    const overlapStart = Math.max(
+      range.startSec,
+      windowStartSec,
+      historyStartSec,
+    );
+    const overlapEnd = Math.min(range.endSec, windowEndSec);
+    if (overlapEnd <= overlapStart) continue;
+    const timeShare = (overlapEnd - overlapStart) / windowDuration;
+    const bucketNeed = bucketsPerPhase.get(range.phaseId) ?? 0;
+    const probeCount = Math.max(
+      bucketNeed,
+      Math.ceil(totalProbes * timeShare),
+      2,
+    );
+    planned.push(
+      ...probeRoundIds(range.phaseId, lo, hi, probeCount),
+      encodeRoundId(range.phaseId, lo),
+      encodeRoundId(range.phaseId, hi),
+    );
+  }
+
+  return fetchRoundIdList(batchFetch, budget, planned, [
+    windowStartRoundId,
+    latestRoundId,
+  ]);
+}
+
+async function fetchRoundIdList(
+  batchFetch: BatchFetchRoundData,
+  budget: HistoryFetchBudget,
+  planned: bigint[],
+  ensure: bigint[],
+): Promise<RoundSample[]> {
+  const seen = new Set(planned.map((id) => id.toString()));
+  for (const id of ensure) {
+    const key = id.toString();
+    if (!seen.has(key)) {
+      seen.add(key);
+      planned.push(id);
+    }
+  }
+
+  const rounds: RoundSample[] = [];
+  for (let i = 0; i < planned.length; i += HISTORY_SAMPLE_MULTICALL_CHUNK) {
+    if (budgetExpired(budget)) break;
+    if (!consumeBudget(budget, 1)) break;
+    const chunk = planned.slice(i, i + HISTORY_SAMPLE_MULTICALL_CHUNK);
+    const rows = await batchFetch(chunk);
+    for (const row of rows) {
+      if (!row.ok || row.updatedAt <= 0) continue;
+      rounds.push({
+        roundId: row.roundId,
+        updatedAt: row.updatedAt,
+        answer: row.answer,
+      });
+    }
+  }
+  return rounds.sort((a, b) => a.updatedAt - b.updatedAt);
+}
+
+function fillableBucketEnds(
+  bucketStarts: number[],
+  stepSec: number,
+  historyStartSec: number,
+): number[] {
+  return bucketStarts
+    .map((start) => start + stepSec)
+    .filter((end) => end > historyStartSec);
+}
+
+export async function resolveBucketEndRounds(
+  batchFetch: BatchFetchRoundData,
+  budget: HistoryFetchBudget,
+  latestRoundId: bigint,
+  bucketEnds: number[],
+  timeline: RoundSample[],
+  stepSec: number,
+): Promise<RoundSample[]> {
+  const merged = new Map<string, RoundSample>();
+  for (const row of timeline) {
+    merged.set(row.roundId.toString(), row);
+  }
+
+  const sortedEnds = [...new Set(bucketEnds)].sort((a, b) => a - b);
+  let resolved = 0;
+  for (const bucketEnd of sortedEnds) {
+    if (resolved >= HISTORY_MAX_BUCKET_END_RESOLVES) break;
+    if (searchPhaseExpired(budget)) break;
+
+    const sorted = [...merged.values()].sort((a, b) => a.updatedAt - b.updatedAt);
+    const pick = pickRoundAtOrBeforeTime(sorted, bucketEnd);
+    const pickIdx = pick
+      ? sorted.findIndex((r) => r.roundId === pick.roundId)
+      : -1;
+    const next = pickIdx >= 0 ? sorted[pickIdx + 1] : sorted[0];
+    const gapOk =
+      pick &&
+      (!next ||
+        next.updatedAt > bucketEnd ||
+        next.updatedAt - pick.updatedAt <= Math.max(stepSec, 900));
+    if (gapOk && pick) continue;
+
+    const roundId = await findRoundAtOrBeforeGlobal(
+      batchFetch,
+      budget,
+      latestRoundId,
+      bucketEnd,
+    );
+    if (!roundId) continue;
+    if (merged.has(roundId.toString())) continue;
+    if (!consumeBudget(budget, 1)) break;
+    const row = (await batchFetch([roundId]))[0];
+    if (!row?.ok || row.updatedAt <= 0) continue;
+    merged.set(roundId.toString(), {
+      roundId: row.roundId,
+      updatedAt: row.updatedAt,
+      answer: row.answer,
+    });
+    resolved += 1;
+  }
+
+  return [...merged.values()].sort((a, b) => a.updatedAt - b.updatedAt);
+}
+
+export interface BucketAssignment {
+  labelT: number;
+  bucketStart: number;
+  answer: bigint;
+  source: RoundSample;
+}
+
+export function assignSamplesToBucketTimes(
+  bucketStarts: number[],
+  stepSec: number,
+  rounds: RoundSample[],
+  historyStartSec?: number,
+): BucketAssignment[] {
+  if (bucketStarts.length === 0) return [];
+  const sorted = [...rounds].sort((a, b) => a.updatedAt - b.updatedAt);
+  const out: BucketAssignment[] = [];
+  let carry: RoundSample | null = null;
+
+  for (const bucketStart of bucketStarts) {
+    const bucketEnd = bucketStart + stepSec;
+    if (historyStartSec !== undefined && bucketEnd <= historyStartSec) {
+      continue;
+    }
+    const pick = pickRoundAtOrBeforeTime(sorted, bucketEnd);
+    if (pick) {
+      carry = pick;
+      out.push({
+        labelT: bucketEnd,
+        bucketStart,
+        answer: pick.answer,
+        source: pick,
+      });
+    } else if (carry) {
+      out.push({
+        labelT: bucketEnd,
+        bucketStart,
+        answer: carry.answer,
+        source: carry,
+      });
+    } else if (sorted.length > 0) {
+      carry = sorted[0];
+      out.push({
+        labelT: bucketEnd,
+        bucketStart,
+        answer: sorted[0].answer,
+        source: sorted[0],
+      });
+    }
+  }
+  return out;
+}
+
+export function hasStaleCarryForwardPartial(
+  assignments: BucketAssignment[],
+  timeline: RoundSample[],
+): boolean {
+  if (assignments.length === 0) return false;
+  const sorted = [...timeline].sort((a, b) => a.updatedAt - b.updatedAt);
+  for (const a of assignments) {
+    const ideal = pickRoundAtOrBeforeTime(sorted, a.labelT);
+    if (!ideal) continue;
+    if (ideal.roundId === a.source.roundId) continue;
+    if (ideal.updatedAt > a.source.updatedAt && ideal.updatedAt <= a.labelT) {
+      return true;
+    }
+  }
+  return false;
+}
+
+export function fillableBucketCount(
+  bucketStarts: number[],
+  stepSec: number,
+  historyStartSec: number,
+): number {
+  return bucketStarts.filter((t) => t + stepSec > historyStartSec).length;
+}
+
+export function isHistoryPartial(
+  bucketStarts: number[],
+  stepSec: number,
+  filledCount: number,
+  rangeFromSec: number,
+  historyStartSec: number | undefined,
+  carryPartial: boolean,
+): boolean {
+  if (carryPartial) return true;
+  if (historyStartSec !== undefined && rangeFromSec + 60 < historyStartSec) {
+    return true;
+  }
+  if (historyStartSec === undefined) {
+    return filledCount < bucketStarts.length;
+  }
+  const fillable = fillableBucketCount(
+    bucketStarts,
+    stepSec,
+    historyStartSec,
+  );
+  return filledCount < fillable;
+}
+
+export async function findRangeStartRoundId(
+  batchFetch: BatchFetchRoundData,
+  budget: HistoryFetchBudget,
+  latestRoundId: bigint,
+  targetStartSec: number,
+): Promise<bigint> {
+  const hit = await findRoundAtOrBeforeGlobal(
+    batchFetch,
+    budget,
+    latestRoundId,
+    targetStartSec,
+  );
+  if (hit) return hit;
+  const global = await resolveGlobalFeedHistoryStart(
+    batchFetch,
+    budget,
+    latestRoundId,
+  );
+  return global?.earliestRoundId ?? encodeRoundId(1, BigInt(1));
+}
+
+export async function findEarliestRoundId(
+  batchFetch: BatchFetchRoundData,
+  budget: HistoryFetchBudget,
+  latestRoundId: bigint,
+): Promise<bigint> {
+  const global = await resolveGlobalFeedHistoryStart(
+    batchFetch,
+    budget,
+    latestRoundId,
+  );
+  return global?.earliestRoundId ?? latestRoundId;
+}
+
+export function estimateHistoryRpcCalls(sampleCount: number): number {
+  const fillable = Math.max(sampleCount, 2);
+  const probes = Math.min(Math.max(fillable, 64), HISTORY_TIMELINE_PROBE_CAP);
+  return (
+    1 +
+    1 +
+    3 +
+    Math.ceil(probes / HISTORY_SAMPLE_MULTICALL_CHUNK) +
+    2
+  );
+}
+
+export async function buildHistorySamples(
+  batchFetch: BatchFetchRoundData,
+  budget: HistoryFetchBudget,
+  latestRoundId: bigint,
+  bucketStarts: number[],
+  stepSec: number,
+  rangeFromSec: number,
+  useFeedInception: boolean,
+  knownGlobalStart?: { historyStartSec: number; earliestRoundId: bigint },
+): Promise<{
+  samples: Array<{ t: number; bucketStart: number; answer: bigint }>;
+  partial: boolean;
+  historyStartSec?: number;
+  rpcCalls: number;
+}> {
+  const initialCalls = budget.callsLeft;
+
+  const globalStart =
+    knownGlobalStart ??
+    (await resolveGlobalFeedHistoryStart(batchFetch, budget, latestRoundId));
+  if (!globalStart) {
+    return {
+      samples: [],
+      partial: true,
+      rpcCalls: rpcCallsUsed(budget, initialCalls),
+    };
+  }
+
+  const { historyStartSec, earliestRoundId } = globalStart;
+  const windowTargetSec = useFeedInception
+    ? rangeFromSec
+    : Math.max(rangeFromSec, historyStartSec);
+
+  const windowStartRound =
+    (await findRoundAtOrBeforeGlobal(
+      batchFetch,
+      budget,
+      latestRoundId,
+      windowTargetSec,
+    )) ?? earliestRoundId;
+
+  const fillable = fillableBucketCount(
+    bucketStarts,
+    stepSec,
+    historyStartSec,
+  );
+
+  const startDecoded = decodeRoundId(windowStartRound);
+  const endDecoded = decodeRoundId(latestRoundId);
+  let phaseRanges: PhaseTimeRange[];
+
+  if (startDecoded.phaseId === endDecoded.phaseId) {
+    const windowEndSec =
+      fillableBucketEnds(bucketStarts, stepSec, historyStartSec).at(-1) ??
+      Math.floor(Date.now() / 1000);
+    phaseRanges = [
+      {
+        phaseId: startDecoded.phaseId,
+        lo: startDecoded.aggregatorRoundId,
+        hi: endDecoded.aggregatorRoundId,
+        startSec: historyStartSec,
+        endSec: windowEndSec,
+      },
+    ];
+  } else {
+    phaseRanges = await resolvePhaseTimeRanges(
+      batchFetch,
+      budget,
+      windowStartRound,
+      latestRoundId,
+    );
+  }
+
+  let timeline = await fetchWindowTimelineSamples(
+    batchFetch,
+    budget,
+    windowStartRound,
+    latestRoundId,
+    fillable,
+    bucketStarts,
+    stepSec,
+    historyStartSec,
+    phaseRanges.length > 0
+      ? phaseRanges
+      : [
+          {
+            phaseId: endDecoded.phaseId,
+            lo: endDecoded.aggregatorRoundId,
+            hi: endDecoded.aggregatorRoundId,
+            startSec: historyStartSec,
+            endSec: Math.floor(Date.now() / 1000),
+          },
+        ],
+  );
+
+  const bucketEnds = fillableBucketEnds(
+    bucketStarts,
+    stepSec,
+    historyStartSec,
+  );
+  timeline = await resolveBucketEndRounds(
+    batchFetch,
+    budget,
+    latestRoundId,
+    bucketEnds,
+    timeline,
+    stepSec,
+  );
+
+  const assignments = assignSamplesToBucketTimes(
+    bucketStarts,
+    stepSec,
+    timeline,
+    historyStartSec,
+  );
+  const carryPartial = hasStaleCarryForwardPartial(assignments, timeline);
+  const partial = isHistoryPartial(
+    bucketStarts,
+    stepSec,
+    assignments.length,
+    rangeFromSec,
+    historyStartSec,
+    carryPartial,
+  );
+
+  return {
+    samples: assignments.map((a) => ({
+      t: a.labelT,
+      bucketStart: a.bucketStart,
+      answer: a.answer,
+    })),
+    partial,
+    historyStartSec,
+    rpcCalls: rpcCallsUsed(budget, initialCalls),
+  };
+}

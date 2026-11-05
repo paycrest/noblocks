@@ -149,3 +149,58 @@ export function getLayerswapApiKey(): string {
 export function getLayerswapApiBase(): string {
   return resolveLayerswapApiBaseUrl(process.env.LAYERSWAP_API_BASE_URL);
 }
+
+/** CoinMarketCap Basic API key (server-only). Empty → market stats omitted. */
+export function getCoinMarketCapApiKey(): string {
+  if (typeof window !== "undefined") return "";
+  return (process.env.COINMARKETCAP_API_KEY || "").trim();
+}
+
+/** Max CMC credits per month before budget guard (default 13500). */
+export function getMarketCmcMonthlyBudget(): number {
+  const raw = process.env.MARKET_CMC_MONTHLY_BUDGET;
+  const n = raw ? Number(raw) : 13500;
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : 13500;
+}
+
+/** Replica count for splitting the CMC daily budget (default 1). */
+export function getMarketDataReplicas(): number {
+  const raw = process.env.MARKET_DATA_REPLICAS;
+  const n = raw ? Number(raw) : 1;
+  return Number.isFinite(n) && n >= 1 ? Math.floor(n) : 1;
+}
+
+/** cNGN depeg badge threshold in percent (default 2). */
+export function getMarketCngnDepegBadgePct(): number {
+  const raw = process.env.MARKET_CNGN_DEPEG_BADGE_PCT;
+  const n = raw ? Number(raw) : 2;
+  return Number.isFinite(n) && n > 0 ? n : 2;
+}
+
+const PUBLIC_RPC_FALLBACK: Record<string, string> = {
+  base: "https://mainnet.base.org",
+  arbitrum: "https://arb1.arbitrum.io/rpc",
+  celo: "https://forno.celo.org",
+};
+
+const DWELLIR_HOST: Record<string, string> = {
+  base: "https://api-base-mainnet-archive.n.dwellir.com",
+  arbitrum: "https://api-arbitrum-mainnet-archive.n.dwellir.com",
+  celo: "https://api-celo-mainnet-archive.n.dwellir.com",
+};
+
+/**
+ * Server-only RPC URL for Chainlink oracle reads (separate from NEXT_PUBLIC_RPC_URL_KEY).
+ * In production, an empty key returns the public fallback only when MARKET_DATA_RPC_KEY is unset
+ * and NODE_ENV is not production — otherwise Dwellir URL still works without a key segment.
+ */
+export function getMarketDataRpcUrl(chain: "base" | "arbitrum" | "celo"): string {
+  if (typeof window !== "undefined") return "";
+  const key = (process.env.MARKET_DATA_RPC_KEY || "").trim();
+  const host = DWELLIR_HOST[chain];
+  if (key && host) return `${host}/${key}`;
+  if (process.env.NODE_ENV !== "production") {
+    return PUBLIC_RPC_FALLBACK[chain] ?? PUBLIC_RPC_FALLBACK.base;
+  }
+  return host ?? PUBLIC_RPC_FALLBACK.base;
+}

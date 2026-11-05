@@ -121,22 +121,41 @@ function HomePortfolioError({
   );
 }
 
+const SUPPORT_ASSET_ICONS = [
+  { src: "/images/wallet-home/support-usdc.svg", label: "USDC" },
+  { src: "/images/wallet-home/support-btc.svg", label: "Bitcoin" },
+  { src: "/images/wallet-home/support-eth.svg", label: "Ethereum" },
+] as const;
+
+function SupportAssetIconStack() {
+  return (
+    <div className="flex shrink-0 items-center" aria-hidden>
+      {SUPPORT_ASSET_ICONS.map((icon, index) => (
+        <Image
+          key={icon.src}
+          src={icon.src}
+          alt=""
+          width={18}
+          height={18}
+          className={classNames(
+            "size-[18px]",
+            index < SUPPORT_ASSET_ICONS.length - 1 && "-mr-1.5",
+          )}
+        />
+      ))}
+    </div>
+  );
+}
+
 function AddFundsGetStartedCard({ onAddFunds }: { onAddFunds: () => void }) {
   return (
-    <div className="flex flex-col gap-4 rounded-[20px] bg-accent-gray px-4 py-4 dark:bg-white/5 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+    <div className="flex flex-col gap-4 rounded-[20px] bg-accent-gray py-4 pl-[30px] pr-4 dark:bg-white/5 sm:h-[96px] sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:py-0">
       <div className="space-y-2">
-        <h2 className="text-base font-semibold text-text-body dark:text-white">
+        <h2 className="text-lg font-semibold leading-none text-text-body dark:text-white">
           {WALLET_HOME_ADD_FUNDS_CARD.title}
         </h2>
-        <div className="flex flex-wrap items-center gap-2 text-sm text-text-secondary dark:text-white/50">
-          <Image
-            src="/images/tokens.svg"
-            alt=""
-            width={72}
-            height={24}
-            className="h-6 w-auto dark:opacity-90"
-            aria-hidden
-          />
+        <div className="flex flex-wrap items-center gap-2 text-sm font-medium text-text-secondary dark:text-white/50">
+          <SupportAssetIconStack />
           <span>
             {WALLET_HOME_ADD_FUNDS_CARD.supportLine(
               WALLET_HOME_SUPPORTED_ASSET_COUNT,
@@ -153,7 +172,6 @@ function AddFundsGetStartedCard({ onAddFunds }: { onAddFunds: () => void }) {
           homePrimaryGrayButtonClasses,
           shellMinHitTargetClasses,
           shellFocusRingClasses,
-          "rounded-xl",
         )}
       >
         Add funds
@@ -199,9 +217,8 @@ function ExploreCard({
   );
 
   const base = classNames(
-    "flex min-w-[260px] flex-1 snap-start flex-col rounded-[20px] bg-accent-gray p-3 dark:bg-white/5",
+    "flex h-[233px] min-w-[260px] flex-1 snap-start flex-col rounded-[20px] bg-accent-gray p-3 dark:bg-white/5",
     shellFocusRingClasses,
-    "rounded-[20px]",
     (onClick || href) &&
       "cursor-pointer transition hover:bg-accent-gray/80 dark:hover:bg-white/[0.07]",
   );
@@ -409,7 +426,7 @@ export function WalletHomeContent() {
     ) : null;
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-8 pb-8">
+    <div className="mx-auto flex w-full max-w-[921px] flex-col gap-[49px] pb-8">
       <BalanceHeader
         isLoading={isLoading}
         totalUsd={showError ? null : data?.totalUsd ?? null}

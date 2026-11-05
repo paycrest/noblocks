@@ -360,6 +360,7 @@ describe("ExploreCards", () => {
       name: /Own popular stocks/i,
     });
     expect(stocksLink.className).toMatch(/rounded-\[20px\]/);
+    expect(stocksLink.className).toMatch(/h-\[233px\]/);
     expect(stocksLink.className).toMatch(/dark:bg-white\/5|bg-accent-gray/);
     expect(stocksLink.className).toMatch(/focus-visible:ring-lavender-500/);
     expect(

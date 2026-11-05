@@ -18,7 +18,7 @@ import type { PortfolioWalletContext } from "./wallet-context.server";
 export async function buildPortfolioForWallet(
   ctx: PortfolioWalletContext,
 ): Promise<PortfolioSummary> {
-  const key = portfolioCacheKey(ctx.evmBalanceAddress);
+  const key = portfolioCacheKey(ctx);
   const cachedFresh = getCachedPortfolioHoldings(key);
 
   if (cachedFresh) {

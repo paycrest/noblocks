@@ -12,10 +12,20 @@ export type PortfolioHoldingsCacheEntry = {
   expiresAt: number;
 };
 
+export type PortfolioCacheKeyInput = {
+  evmBalanceAddress: string;
+  starknetAddress: string | null;
+  tronAddress: string | null;
+};
+
 const cache = new LRUCache<string, PortfolioHoldingsCacheEntry>({ max: 5000 });
 
-export function portfolioCacheKey(evmBalanceAddress: string): string {
-  return evmBalanceAddress.trim().toLowerCase();
+/** Stable cache identity: EVM + linked Starknet/Tron wallets for this session. */
+export function portfolioCacheKey(input: PortfolioCacheKeyInput): string {
+  const evm = input.evmBalanceAddress.trim().toLowerCase();
+  const starknet = input.starknetAddress?.trim().toLowerCase() ?? "";
+  const tron = input.tronAddress?.trim() ?? "";
+  return `evm:${evm}|stk:${starknet}|trx:${tron}`;
 }
 
 export function getCachedPortfolioHoldings(

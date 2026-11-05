@@ -40,7 +40,7 @@ describe("portfolio stale cache", () => {
   });
 
   it("reuses last holdings with stale=true when refresh throws", async () => {
-    const key = portfolioCacheKey(ctx.evmBalanceAddress);
+    const key = portfolioCacheKey(ctx);
     setCachedPortfolioHoldings(key, {
       holdings: [
         {
@@ -69,7 +69,7 @@ describe("portfolio stale cache", () => {
   });
 
   it("keeps prior cache when refreshFailed would cache empty zeros", async () => {
-    const key = portfolioCacheKey(ctx.evmBalanceAddress);
+    const key = portfolioCacheKey(ctx);
     setCachedPortfolioHoldings(key, {
       holdings: [
         {

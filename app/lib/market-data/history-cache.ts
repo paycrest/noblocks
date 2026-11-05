@@ -62,6 +62,7 @@ export function getHistoryBucket(
 ): HistoryBucketPoint | null {
   const hit = bucketCache.get(key);
   if (!hit) return null;
+  if (closed && !hit.closed) return null;
   const ttl = closed ? CLOSED_BUCKET_TTL_MS : OPEN_BUCKET_TTL_MS;
   if (Date.now() - hit.fetchedAt >= ttl) return null;
   return hit.value;

@@ -23,7 +23,7 @@ export function BalanceHeader({
         {isLoading ? (
           <BalanceSkeleton className="h-10 w-36 rounded-lg" />
         ) : (
-          <p className="text-[40px] font-semibold leading-none tracking-tight text-text-body dark:text-white">
+          <p className="text-[35px] font-semibold leading-9 tracking-[-1.05px] text-text-body dark:text-white">
             {totalUsd != null ? formatPortfolioUsd(totalUsd) : "—"}
           </p>
         )}

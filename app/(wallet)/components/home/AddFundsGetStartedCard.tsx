@@ -6,6 +6,9 @@ import {
   WALLET_HOME_SUPPORTED_ASSET_COUNT,
   WALLET_HOME_SUPPORTED_NETWORK_COUNT,
 } from "@/app/lib/wallet-home-config";
+import { classNames } from "@/app/utils";
+import { shellFocusRingClasses, shellMinHitTargetClasses } from "../shellFocusStyles";
+import { homePrimaryGrayButtonClasses } from "./homeButtonStyles";
 
 type AddFundsGetStartedCardProps = {
   onAddFunds: () => void;
@@ -15,7 +18,7 @@ export function AddFundsGetStartedCard({
   onAddFunds,
 }: AddFundsGetStartedCardProps) {
   return (
-    <div className="flex flex-col gap-4 rounded-2xl bg-accent-gray px-4 py-4 dark:bg-white/5 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+    <div className="flex flex-col gap-4 rounded-[20px] bg-accent-gray px-4 py-4 dark:bg-white/5 sm:flex-row sm:items-center sm:justify-between sm:px-5">
       <div className="space-y-2">
         <h2 className="text-base font-semibold text-text-body dark:text-white">
           {WALLET_HOME_ADD_FUNDS_CARD.title}
@@ -40,7 +43,13 @@ export function AddFundsGetStartedCard({
       <button
         type="button"
         onClick={onAddFunds}
-        className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-xl bg-white px-5 text-sm font-semibold text-gray-900 transition hover:bg-white/90 dark:bg-white dark:text-gray-900"
+        className={classNames(
+          "inline-flex h-8 shrink-0 items-center justify-center rounded-xl px-4 text-sm font-semibold",
+          homePrimaryGrayButtonClasses,
+          shellMinHitTargetClasses,
+          shellFocusRingClasses,
+          "rounded-xl",
+        )}
       >
         Add funds
       </button>

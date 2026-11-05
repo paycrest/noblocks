@@ -13,12 +13,18 @@ import {
 } from "@/app/lib/wallet-home-config";
 import { classNames } from "@/app/utils";
 import { isReferralEnabled } from "@/app/utils";
+import { shellFocusRingClasses } from "../shellFocusStyles";
+
+const EXPLORE_BANNERS = {
+  stocks: "/images/wallet-home/explore-stocks-banner.svg",
+  earn: "/images/wallet-home/explore-earn-banner.svg",
+  invite: "/images/wallet-home/explore-invite-banner.svg",
+} as const;
 
 type ExploreCardProps = {
   title: string;
   description: string;
-  className: string;
-  illustration: React.ReactNode;
+  bannerSrc: string;
   onClick?: () => void;
   href?: string;
 };
@@ -26,29 +32,39 @@ type ExploreCardProps = {
 function ExploreCard({
   title,
   description,
-  className,
-  illustration,
+  bannerSrc,
   onClick,
   href,
 }: ExploreCardProps) {
   const content = (
-    <>
-      <div className="relative z-[1] max-w-[58%] space-y-2">
-        <h3 className="text-base font-semibold leading-snug text-white">
+    <div className="flex flex-col gap-4">
+      <div className="relative h-[127px] overflow-hidden rounded-[10px]">
+        <Image
+          src={bannerSrc}
+          alt=""
+          fill
+          className="object-cover"
+          sizes="(max-width: 768px) 80vw, 320px"
+          aria-hidden
+        />
+      </div>
+      <div className="space-y-1">
+        <h3 className="text-base font-semibold text-text-body dark:text-white">
           {title}
         </h3>
-        <p className="text-sm leading-snug text-white/80">{description}</p>
+        <p className="text-sm font-medium leading-snug text-text-secondary dark:text-white/50">
+          {description}
+        </p>
       </div>
-      <div className="pointer-events-none absolute bottom-0 right-0 top-0 w-[42%]">
-        {illustration}
-      </div>
-    </>
+    </div>
   );
 
   const base = classNames(
-    "relative flex min-h-[140px] min-w-[260px] flex-1 snap-start overflow-hidden rounded-2xl p-4",
-    className,
-    (onClick || href) && "cursor-pointer transition hover:brightness-105",
+    "flex min-w-[260px] flex-1 snap-start flex-col rounded-[20px] bg-accent-gray p-3 dark:bg-white/5",
+    shellFocusRingClasses,
+    "rounded-[20px]",
+    (onClick || href) &&
+      "cursor-pointer transition hover:bg-accent-gray/80 dark:hover:bg-white/[0.07]",
   );
 
   if (href) {
@@ -60,7 +76,11 @@ function ExploreCard({
   }
 
   return (
-    <button type="button" onClick={onClick} className={classNames(base, "text-left")}>
+    <button
+      type="button"
+      onClick={onClick}
+      className={classNames(base, "text-left")}
+    >
       {content}
     </button>
   );
@@ -81,24 +101,7 @@ export function ExploreCards({ onInviteClick }: { onInviteClick?: () => void }) 
         href="/stocks"
         title={WALLET_HOME_EXPLORE.stocks.title}
         description={WALLET_HOME_EXPLORE.stocks.description}
-        className="bg-[#2F6BFF]"
-        illustration={
-          <div className="flex h-full items-end justify-end gap-2 p-3 opacity-95">
-            {["/images/play-promo/hero-player-1.png", "/images/play-promo/hero-player-3.png"].map(
-              (src) => (
-                <Image
-                  key={src}
-                  src={src}
-                  alt=""
-                  width={48}
-                  height={48}
-                  className="size-12 rounded-full border-2 border-white/30 object-cover"
-                  aria-hidden
-                />
-              ),
-            )}
-          </div>
-        }
+        bannerSrc={EXPLORE_BANNERS.stocks}
       />,
     );
   }
@@ -110,17 +113,7 @@ export function ExploreCards({ onInviteClick }: { onInviteClick?: () => void }) 
         href="/earn"
         title={WALLET_HOME_EXPLORE.earn.title(WALLET_HOME_MAX_EARN_APY_DISPLAY)}
         description={WALLET_HOME_EXPLORE.earn.description}
-        className="bg-[#E85D4C]"
-        illustration={
-          <Image
-            src="/images/rates-graph-mobile.svg"
-            alt=""
-            width={120}
-            height={80}
-            className="absolute bottom-2 right-2 h-20 w-auto opacity-90 dark:invert"
-            aria-hidden
-          />
-        }
+        bannerSrc={EXPLORE_BANNERS.earn}
       />,
     );
   }
@@ -131,18 +124,8 @@ export function ExploreCards({ onInviteClick }: { onInviteClick?: () => void }) 
         key="invite"
         title={WALLET_HOME_EXPLORE.invite.title}
         description={WALLET_HOME_EXPLORE.invite.description}
-        className="bg-[#F5B800]"
+        bannerSrc={EXPLORE_BANNERS.invite}
         onClick={onInviteClick}
-        illustration={
-          <Image
-            src="/images/referral-graphic.png"
-            alt=""
-            width={140}
-            height={120}
-            className="absolute bottom-0 right-0 h-full w-auto max-w-none object-contain object-bottom"
-            aria-hidden
-          />
-        }
       />,
     );
   }

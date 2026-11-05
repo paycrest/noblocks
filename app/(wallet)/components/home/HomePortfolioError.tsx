@@ -1,5 +1,8 @@
 "use client";
 
+import { classNames } from "@/app/utils";
+import { shellFocusRingClasses } from "../shellFocusStyles";
+
 type HomePortfolioErrorProps = {
   message?: string;
   onRetry: () => void;
@@ -18,7 +21,12 @@ export function HomePortfolioError({
       <button
         type="button"
         onClick={() => void onRetry()}
-        className="mt-2 text-sm font-semibold text-lavender-800 underline-offset-2 hover:underline dark:text-lavender-500"
+        className={classNames(
+          "mt-2 text-sm font-semibold underline-offset-2 hover:underline",
+          "text-[#0065F5] dark:text-lavender-500",
+          shellFocusRingClasses,
+          "rounded-md",
+        )}
       >
         Try again
       </button>

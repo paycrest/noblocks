@@ -70,7 +70,8 @@ export function WalletHomeContent() {
         <AddFundsGetStartedCard onAddFunds={() => handleAction("buy")} />
       ) : null}
 
-      <div className="overflow-hidden rounded-2xl border border-border-light dark:border-white/10">
+      {isLoading || showContent ? (
+      <div className="overflow-hidden rounded-[20px] border border-border-light bg-accent-gray dark:border-white/10 dark:bg-white/5">
         {isLoading ? (
           <AssetBucketListSkeleton />
         ) : showContent && data ? (
@@ -121,6 +122,7 @@ export function WalletHomeContent() {
           </div>
         ) : null}
       </div>
+      ) : null}
 
       {showContent ? (
         <ExploreCards onInviteClick={() => setInviteOpen(true)} />

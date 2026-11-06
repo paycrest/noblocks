@@ -418,16 +418,20 @@ export const TransactionForm = ({
   const fetchedTokens: Token[] = allTokens[selectedNetwork.chain.name] || [];
 
   // Keep `tokenAddress` aligned with `token` + network list so preview resolves spend by address, not symbol alone.
+  // Only set when the derived address changes (avoids loops from `|| []` identity + unnecessary dirty updates).
   useEffect(() => {
-    if (!token?.trim()) {
-      setValue("tokenAddress", "", { shouldDirty: true });
-      return;
+    const list = allTokens[selectedNetwork.chain.name];
+    const next =
+      !token?.trim()
+        ? ""
+        : (list ?? [])
+            .find((t) => t.symbol.toUpperCase() === token.toUpperCase())
+            ?.address?.trim() ?? "";
+    const current = getValues("tokenAddress") ?? "";
+    if (next !== current) {
+      setValue("tokenAddress", next, { shouldDirty: true });
     }
-    const row = fetchedTokens.find(
-      (t) => t.symbol.toUpperCase() === token.toUpperCase(),
-    );
-    setValue("tokenAddress", row?.address?.trim() ?? "", { shouldDirty: true });
-  }, [token, fetchedTokens, setValue]);
+  }, [token, selectedNetwork.chain.name, allTokens, getValues, setValue]);
 
   // Precision the token leg is quoted and validated at. Derived from the
   // selected token so the amount that goes on-chain is not rounded below what

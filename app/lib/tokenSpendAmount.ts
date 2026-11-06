@@ -146,6 +146,31 @@ export function toRawAmount(amount: string, decimals: number): string {
  * Exact base units for an off-ramp spend using the token list's real decimals (viem `parseUnits`).
  * Fails closed on bad resolution, invalid amount string, or excess fractional digits.
  */
+/**
+ * Convert a numeric UI amount to base-unit string using real decimals: stable string + fraction guard + viem parseUnits.
+ * Use for transfers where the input is a `number` (same fail-closed rules as `toRawAmount`).
+ */
+export function amountNumberToBaseUnits(
+  amount: number,
+  decimals: number,
+): string {
+  if (!isValidTokenDecimals(decimals)) {
+    throw new Error("Token decimals missing or invalid for this network.");
+  }
+  const str = amountSentToDecimalString(amount);
+  if (str === "") {
+    throw new Error("Invalid amount.");
+  }
+  assertFractionWithinDecimals(str, decimals);
+  try {
+    return parseUnits(str as `${string}`, decimals).toString();
+  } catch {
+    throw new Error(
+      "Amount is invalid or has too many decimals for this token.",
+    );
+  }
+}
+
 export function buildOfframpSpendWei(
   amountSent: number | string,
   resolution: SpendTokenResolution,

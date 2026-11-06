@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { erc20Abi, parseUnits, http, encodeFunctionData, createPublicClient } from "viem";
+import { erc20Abi, http, encodeFunctionData, createPublicClient } from "viem";
 import { toast } from "sonner";
 import { getExplorerLink, getRpcUrl } from "../utils";
 import { saveTransaction } from "../api/aggregator";
@@ -26,7 +26,10 @@ import {
   readBatchNonce,
   type BatchCall,
 } from "../lib/providerBatch";
-import { isValidTokenDecimals } from "../lib/tokenSpendAmount";
+import {
+  amountNumberToBaseUnits,
+  isValidTokenDecimals,
+} from "../lib/tokenSpendAmount";
 
 interface UseSmartWalletTransferParams {
   selectedNetwork: { chain: Network["chain"] };
@@ -159,10 +162,17 @@ export function useSmartWalletTransfer({
             throw new Error("Failed to get access token");
           }
           const classHash = STARKNET_READY_ACCOUNT_CLASSHASH;
-          const amountInWei = parseUnits(
-            amount.toString(),
-            tokenDecimals,
-          ).toString();
+          let amountInWei: string;
+          try {
+            amountInWei = amountNumberToBaseUnits(amount, tokenDecimals);
+          } catch (e) {
+            const msg =
+              e instanceof Error
+                ? e.message
+                : "Amount is invalid or has too many decimals for this token.";
+            setError(msg);
+            throw new Error(msg);
+          }
           const response = await fetch("/api/starknet/transfer", {
             method: "POST",
             headers: {
@@ -280,11 +290,23 @@ export function useSmartWalletTransfer({
           throw new Error(err);
         }
 
+        let amountWei: string;
+        try {
+          amountWei = amountNumberToBaseUnits(amount, tokenData.decimals);
+        } catch (e) {
+          const msg =
+            e instanceof Error
+              ? e.message
+              : "Amount is invalid or has too many decimals for this token.";
+          setError(msg);
+          throw new Error(msg);
+        }
+
         const call: BatchCall =
           tokenData.isNative && (tokenData.address === "" || tokenData.address == null)
             ? {
                 to: recipientAddress as `0x${string}`,
-                value: parseUnits(amount.toString(), tokenData.decimals),
+                value: BigInt(amountWei),
                 data: "0x",
               }
             : (() => {
@@ -304,7 +326,7 @@ export function useSmartWalletTransfer({
                     functionName: "transfer",
                     args: [
                       recipientAddress as `0x${string}`,
-                      parseUnits(amount.toString(), tokenData.decimals),
+                      BigInt(amountWei),
                     ],
                   }),
                 };

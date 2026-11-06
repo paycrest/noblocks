@@ -1,6 +1,7 @@
 import { describe, expect, it } from "@jest/globals";
 import type { Token } from "@/app/types";
 import {
+  amountNumberToBaseUnits,
   buildOfframpSpendWei,
   resolveSpendTokenFromList,
   toRawAmount,
@@ -116,5 +117,17 @@ describe("toRawAmount", () => {
 
   it("converts 100 at 6 decimals to base units string", () => {
     expect(toRawAmount("100", 6)).toBe("100000000");
+  });
+});
+
+describe("amountNumberToBaseUnits", () => {
+  it("converts 100 at 6 decimals", () => {
+    expect(amountNumberToBaseUnits(100, 6)).toBe("100000000");
+  });
+
+  it("rejects excess fractional precision for number input (fail closed)", () => {
+    expect(() => amountNumberToBaseUnits(1.2345678, 6)).toThrow(
+      "Fractional amount exceeds the token's decimal precision.",
+    );
   });
 });

@@ -23,7 +23,10 @@ import { appendAttributionSuffix } from "@/app/lib/baseBuilderCode";
 import type { BatchCall } from "@/app/lib/providerBatch";
 import { STARKNET_READY_ACCOUNT_CLASSHASH } from "@/app/lib/config";
 import { useEmbed } from "@/app/context/EmbedContext";
-import { resolveBridgeLegToken } from "@/app/lib/tokenSpendAmount";
+import {
+  findTokenInNetworkList,
+  resolveBridgeLegToken,
+} from "@/app/lib/tokenSpendAmount";
 
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 
@@ -502,8 +505,6 @@ export function useBridgeExecute({
           const depositAddress =
             quote.depositAddress ||
             (await nearClient.getDepositAddress(quote, proxyAuth));
-          const token = from.token;
-
           // Injected EVM wallet: sign + pay the deposit transfer directly.
           if (isInjectedWallet && from.network !== "Starknet") {
             const chainId = Number(from.chainId);
@@ -578,11 +579,11 @@ export function useBridgeExecute({
               throw new Error("Selected network not found");
             }
 
-            // Use only the from-chain's tokens so symbol lookup never picks
-            // a same-symbol token from a different network (e.g. Polygon USDC vs BSC USDC).
+            // Use only the from-chain's list; resolve the row by leg address (native: empty key).
             const chainTokens = allTokens[from.network] ?? [];
-            const tokenRow = chainTokens.find(
-              (t) => t.symbol.toUpperCase() === token.toUpperCase(),
+            const tokenRow = findTokenInNetworkList(
+              chainTokens,
+              from.tokenAddress ?? "",
             );
             const resolved = tokenRow
               ? resolveBridgeLegToken(tokenRow)

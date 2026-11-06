@@ -13,6 +13,11 @@ import { buildBatchDigest, encodeExecuteBatch, readBatchNonce } from "./provider
 import { getRpcUrl } from "@/app/utils";
 import { getDelegationContractAddress } from "./config";
 import { get7702AuthorizedImplementationForAddress } from "../hooks/useEIP7702Account";
+import {
+  findTokenInNetworkList,
+  resolveBridgeLegToken,
+  toRawAmount,
+} from "@/app/lib/tokenSpendAmount";
 import { isTextileRoute } from "./bridgeFeature";
 import {
   HYPERFX_SUPPORTED_NETWORKS,
@@ -303,36 +308,7 @@ export function resolveNearAssetId(
   return null;
 }
 
-/**
- * Get token address and decimals for a given symbol+network from the tokens map.
- * Computed at call time from the live useTokens() data.
- */
-export function getTokenMeta(
-  tokenSymbol: string,
-  networkName: string,
-  allTokens: Record<string, Token[]>,
-): { address: string; decimals: number } | null {
-  const tokens = allTokens[networkName];
-  if (!tokens) return null;
-  const t = tokens.find(
-    (t) => t.symbol.toLowerCase() === tokenSymbol.toLowerCase(),
-  );
-  if (!t) return null;
-  return { address: t.address || "", decimals: t.decimals };
-}
-
-/**
- * Convert a human-readable amount to base units for the given decimals.
- */
-export function toRawAmount(amount: string, decimals: number): string {
-  // Use viem's parseUnits — the same base-unit conversion the rest of the app uses
-  // (useSmartWalletTransfer etc.) instead of a divergent hand-rolled string split.
-  try {
-    return parseUnits(amount, decimals).toString();
-  } catch {
-    return "0";
-  }
-}
+export { toRawAmount };
 
 /**
  * Total conversion fee expressed in the *receiving* token, for the single NUMERIC `fee`
@@ -1104,7 +1080,8 @@ export async function executeBatchCalls({
 
 export interface EvmBatchExecuteParams {
   chain: Network["chain"];
-  token: string;
+  /** Must match the row in `supportedTokens` — spender path is keyed by address/network, not symbol alone. */
+  tokenAddress: string;
   amount: string;
   recipientAddress: string;
   supportedTokens: Token[];
@@ -1121,7 +1098,7 @@ export interface EvmBatchExecuteParams {
  */
 export async function evmBatchExecute({
   chain,
-  token,
+  tokenAddress,
   amount,
   recipientAddress,
   supportedTokens,
@@ -1130,40 +1107,31 @@ export async function evmBatchExecute({
   signDelegationAuthorization,
   embedCode,
 }: EvmBatchExecuteParams): Promise<string> {
-  // Filter to EVM tokens only (address is empty for native or 42 chars "0x"+20bytes).
-  // Starknet/Solana tokens share symbols with EVM tokens but have 66-char addresses.
-  const tokenData = supportedTokens.find(
-    (t) =>
-      t.symbol.toUpperCase() === token.toUpperCase() &&
-      (t.address === "" || (t.address.startsWith("0x") && t.address.length === 42))
-  );
+  const tokenData = findTokenInNetworkList(supportedTokens, tokenAddress);
+  const resolved = tokenData ? resolveBridgeLegToken(tokenData) : { ok: false as const, reason: "missing" };
+  if (!resolved.ok) {
+    throw new Error("Token data not found for the selected asset.");
+  }
 
   const call: BatchCall =
-    tokenData?.isNative && tokenData?.address === ""
+    resolved.address === ""
       ? {
           to: recipientAddress as `0x${string}`,
-          value: parseUnits(amount, tokenData.decimals ?? 18),
+          value: parseUnits(amount, resolved.decimals),
           data: "0x",
         }
-      : (() => {
-          const tokenAddress = tokenData?.address as `0x${string}` | undefined;
-          const tokenDecimals = tokenData?.decimals;
-          if (!tokenAddress || tokenDecimals === undefined) {
-            throw new Error(`Token data not found for ${token}.`);
-          }
-          return {
-            to: tokenAddress,
-            value: BigInt(0),
-            data: encodeFunctionData({
-              abi: erc20Abi,
-              functionName: "transfer",
-              args: [
-                recipientAddress as `0x${string}`,
-                parseUnits(amount, tokenDecimals),
-              ],
-            }),
-          };
-        })();
+      : {
+          to: resolved.address as `0x${string}`,
+          value: BigInt(0),
+          data: encodeFunctionData({
+            abi: erc20Abi,
+            functionName: "transfer",
+            args: [
+              recipientAddress as `0x${string}`,
+              parseUnits(amount, resolved.decimals),
+            ],
+          }),
+        };
 
   return executeBatchCalls({
     chain,

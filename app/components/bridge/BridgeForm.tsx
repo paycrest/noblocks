@@ -307,7 +307,16 @@ export const BridgeForm: React.FC<BridgeFormProps> = ({
     if (!quote || !from || !to) return;
     const parsedAmount = Number(amount);
     const minResult = minOffRampTokenAmount(from.token, cngnRate);
-    const rawAmount = toRawAmount(amount, from.decimals);
+    let rawAmount: string;
+    try {
+      rawAmount = toRawAmount(amount, from.decimals);
+    } catch (e) {
+      const msg =
+        e instanceof Error ? e.message : "Unable to build amount for this token.";
+      setFailureMessage(msg);
+      setStep("failed");
+      return;
+    }
     if (!Number.isFinite(parsedAmount) || parsedAmount <= 0 || rawAmount === "0") {
       setFailureMessage("Enter a valid amount for the selected token.");
       setStep("failed");

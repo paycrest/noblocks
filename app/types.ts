@@ -54,6 +54,8 @@ export type SwapMode = "onramp" | "offramp";
 export type FormData = {
   network: string;
   token: string;
+  /** Contract/account id from the token list for the selected network (EVM/Starknet 0x…; Tron T…). Threaded so preview does not resolve by symbol only. */
+  tokenAddress: string;
   currency: string;
   institution: string;
   accountIdentifier: string;

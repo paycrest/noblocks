@@ -417,6 +417,18 @@ export const TransactionForm = ({
 
   const fetchedTokens: Token[] = allTokens[selectedNetwork.chain.name] || [];
 
+  // Keep `tokenAddress` aligned with `token` + network list so preview resolves spend by address, not symbol alone.
+  useEffect(() => {
+    if (!token?.trim()) {
+      setValue("tokenAddress", "", { shouldDirty: true });
+      return;
+    }
+    const row = fetchedTokens.find(
+      (t) => t.symbol.toUpperCase() === token.toUpperCase(),
+    );
+    setValue("tokenAddress", row?.address?.trim() ?? "", { shouldDirty: true });
+  }, [token, fetchedTokens, setValue]);
+
   // Precision the token leg is quoted and validated at. Derived from the
   // selected token so the amount that goes on-chain is not rounded below what
   // the recipient was quoted — see quoteTokenAmountForFiat.

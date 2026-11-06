@@ -26,6 +26,7 @@ import {
   readBatchNonce,
   type BatchCall,
 } from "../lib/providerBatch";
+import { isValidTokenDecimals } from "../lib/tokenSpendAmount";
 
 interface UseSmartWalletTransferParams {
   selectedNetwork: { chain: Network["chain"] };
@@ -133,7 +134,7 @@ export function useSmartWalletTransfer({
         if (selectedNetwork.chain.name === "Starknet") {
           const tokenAddress = tokenData?.address as `0x${string}` | undefined;
           const tokenDecimals = tokenData?.decimals;
-          if (!tokenAddress || tokenDecimals === undefined) {
+          if (!tokenAddress?.trim() || !isValidTokenDecimals(tokenDecimals)) {
             const err = `Token data not found for ${token}.`;
             setError(err);
             throw new Error(
@@ -266,17 +267,29 @@ export function useSmartWalletTransfer({
         }
 
         // 2) Build single transfer call
+        if (!tokenData) {
+          const err = `Token data not found for ${token}.`;
+          setError(err);
+          throw new Error(
+            `${err} Available: ${availableTokens.map((t) => t.symbol).join(", ")}`,
+          );
+        }
+        if (!isValidTokenDecimals(tokenData.decimals)) {
+          const err = `Token decimals missing or invalid for ${token}.`;
+          setError(err);
+          throw new Error(err);
+        }
+
         const call: BatchCall =
-          tokenData?.isNative && tokenData?.address === ""
+          tokenData.isNative && (tokenData.address === "" || tokenData.address == null)
             ? {
                 to: recipientAddress as `0x${string}`,
-                value: parseUnits(amount.toString(), 18),
+                value: parseUnits(amount.toString(), tokenData.decimals),
                 data: "0x",
               }
             : (() => {
-                const tokenAddress = tokenData?.address as `0x${string}` | undefined;
-                const tokenDecimals = tokenData?.decimals;
-                if (!tokenAddress || tokenDecimals === undefined) {
+                const erc20Address = tokenData.address as `0x${string}` | undefined;
+                if (!erc20Address?.trim()) {
                   const err = `Token data not found for ${token}.`;
                   setError(err);
                   throw new Error(
@@ -284,14 +297,14 @@ export function useSmartWalletTransfer({
                   );
                 }
                 return {
-                  to: tokenAddress,
+                  to: erc20Address,
                   value: BigInt(0),
                   data: encodeFunctionData({
                     abi: erc20Abi,
                     functionName: "transfer",
                     args: [
                       recipientAddress as `0x${string}`,
-                      parseUnits(amount.toString(), tokenDecimals),
+                      parseUnits(amount.toString(), tokenData.decimals),
                     ],
                   }),
                 };

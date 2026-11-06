@@ -12,6 +12,7 @@ import { useTokens } from "@/app/context";
 import { networks } from "@/app/mocks";
 import type { BridgeLeg } from "@/app/lib/bridge";
 import { isRouteSupported } from "@/app/lib/bridge";
+import { resolveBridgeLegToken } from "@/app/lib/tokenSpendAmount";
 import { BridgePicker, BridgePickerChevron } from "./BridgePicker";
 import type { BridgePickerItem } from "./BridgePicker";
 
@@ -48,6 +49,8 @@ function buildTokenLeg(
   const network = networks.find((n) => n.chain.name === networkName);
   const token = (allTokens[networkName] ?? []).find((t) => t.symbol === symbol);
   if (!network || !token) return null;
+  const resolved = resolveBridgeLegToken(token);
+  if (!resolved.ok) return null;
   return {
     network: network.chain.name,
     chainId: network.chain.id,

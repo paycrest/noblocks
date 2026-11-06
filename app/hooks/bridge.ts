@@ -23,6 +23,7 @@ import { appendAttributionSuffix } from "@/app/lib/baseBuilderCode";
 import type { BatchCall } from "@/app/lib/providerBatch";
 import { STARKNET_READY_ACCOUNT_CLASSHASH } from "@/app/lib/config";
 import { useEmbed } from "@/app/context/EmbedContext";
+import { resolveBridgeLegToken } from "@/app/lib/tokenSpendAmount";
 
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 
@@ -162,7 +163,16 @@ export function useBridgeQuote({
       ? { injectedToken }
       : { token: (await getAccessToken?.()) ?? null };
     const engine = selectEngine(from, to);
-    const rawAmount = toRawAmount(amount, from.decimals);
+    let rawAmount: string;
+    try {
+      rawAmount = toRawAmount(amount, from.decimals);
+    } catch (err) {
+      const msg =
+        err instanceof Error
+          ? err.message
+          : "Unable to build amount for this token.";
+      throw new Error(msg);
+    }
 
     if (engine === "hyperfx") {
       try {
@@ -571,10 +581,19 @@ export function useBridgeExecute({
             // Use only the from-chain's tokens so symbol lookup never picks
             // a same-symbol token from a different network (e.g. Polygon USDC vs BSC USDC).
             const chainTokens = allTokens[from.network] ?? [];
+            const tokenRow = chainTokens.find(
+              (t) => t.symbol.toUpperCase() === token.toUpperCase(),
+            );
+            const resolved = tokenRow
+              ? resolveBridgeLegToken(tokenRow)
+              : ({ ok: false as const, reason: "missing" });
+            if (!resolved.ok) {
+              throw new Error("Token data not found for the selected asset.");
+            }
 
             const evmHash = await evmBatchExecute({
               chain: chain as any,
-              token,
+              tokenAddress: resolved.address,
               // Pass the exact human string — parseFloat()→toString() loses precision for
               // long fractional amounts, sending an amount that differs from the NEAR quote.
               amount: from.amount,

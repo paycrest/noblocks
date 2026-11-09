@@ -6,15 +6,21 @@ import AppUpdatePrompt from "../app/components/AppUpdatePrompt";
 
 const mockUseStep = jest.fn();
 const mockToast = jest.fn();
+const mockToastDismiss = jest.fn();
 const mockReload = jest.fn();
 
 jest.mock("../app/context/StepContext", () => ({
   useStep: () => mockUseStep(),
 }));
 
-jest.mock("sonner", () => ({
-  toast: (...args: unknown[]) => mockToast(...args),
-}));
+jest.mock("sonner", () => {
+  const toastFn = (...args: unknown[]) => mockToast(...args);
+  return {
+    toast: Object.assign(toastFn, {
+      dismiss: (...args: unknown[]) => mockToastDismiss(...args),
+    }),
+  };
+});
 
 /** Points `document.visibilityState` at a mutable value for visibility tests. */
 function setVisibilityState(state: DocumentVisibilityState) {
@@ -156,6 +162,87 @@ describe("useAppUpdatePrompt", () => {
     });
 
     expect(mockToast).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not call /api/version when NEXT_PUBLIC_BUILD_ID is empty", async () => {
+    delete process.env.NEXT_PUBLIC_BUILD_ID;
+
+    render(<AppUpdatePrompt />);
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(global.fetch).not.toHaveBeenCalled();
+    expect(mockToast).not.toHaveBeenCalled();
+  });
+
+  it("re-shows the toast after the user dismisses it", async () => {
+    (global.fetch as jest.Mock).mockResolvedValue(
+      jsonResponse({ buildId: "server-build-xyz" }),
+    );
+
+    render(<AppUpdatePrompt />);
+
+    await waitFor(() => expect(mockToast).toHaveBeenCalledTimes(1));
+    const onDismiss = mockToast.mock.calls[0][1]?.onDismiss;
+    act(() => {
+      onDismiss?.();
+    });
+
+    await act(async () => {
+      document.dispatchEvent(new Event("visibilitychange"));
+      await Promise.resolve();
+    });
+
+    await waitFor(() => expect(mockToast).toHaveBeenCalledTimes(2));
+  });
+
+  it("dismisses the toast when leaving the form mid-transaction without reloading", async () => {
+    (global.fetch as jest.Mock).mockResolvedValue(
+      jsonResponse({ buildId: "server-build-xyz" }),
+    );
+
+    const { rerender } = render(<AppUpdatePrompt />);
+
+    await waitFor(() => expect(mockToast).toHaveBeenCalledTimes(1));
+
+    mockUseStep.mockReturnValue({ isFormStep: false });
+    rerender(<AppUpdatePrompt />);
+
+    expect(mockToastDismiss).toHaveBeenCalledWith("app-update");
+    expect(mockReload).not.toHaveBeenCalled();
+
+    mockUseStep.mockReturnValue({ isFormStep: true });
+    rerender(<AppUpdatePrompt />);
+
+    await waitFor(() => expect(mockToast).toHaveBeenCalledTimes(2));
+    expect(mockReload).not.toHaveBeenCalled();
+  });
+
+  it("does not show the toast when a stale in-flight fetch resolves off the form step", async () => {
+    let resolveFetch: (value: Response) => void;
+    const fetchPromise = new Promise<Response>((resolve) => {
+      resolveFetch = resolve;
+    });
+    (global.fetch as jest.Mock).mockReturnValue(fetchPromise);
+
+    const { rerender } = render(<AppUpdatePrompt />);
+
+    mockUseStep.mockReturnValue({ isFormStep: false });
+    rerender(<AppUpdatePrompt />);
+
+    await act(async () => {
+      resolveFetch!(jsonResponse({ buildId: "server-build-xyz" }));
+      await fetchPromise;
+    });
+
+    expect(mockToast).not.toHaveBeenCalled();
+
+    mockUseStep.mockReturnValue({ isFormStep: true });
+    rerender(<AppUpdatePrompt />);
+
+    await waitFor(() => expect(mockToast).toHaveBeenCalledTimes(1));
   });
 
   it("re-checks when the tab becomes visible", async () => {

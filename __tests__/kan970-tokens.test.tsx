@@ -598,6 +598,56 @@ describe("TokenDetailContent", () => {
     expect(legend.className).not.toMatch(/grid-cols-3/);
   });
 
+  it("renders the price chart full-bleed with a non-scaling stroke", () => {
+    useTokenMarketSnapshot.mockReturnValue({
+      data: {
+        id: "usdc",
+        price: "1",
+        change24h: { pct: "0.01", abs: "0.0001" },
+        asOf: "2026-11-05T12:00:00.000Z",
+        stale: false,
+        stats: null,
+      },
+      isLoading: false,
+      unavailable: false,
+      error: false,
+      refetch: jest.fn(),
+    });
+    useTokenMarketHistory.mockReturnValue({
+      data: {
+        id: "usdc",
+        range: "1D",
+        points: [
+          [1, "1"],
+          [2, "1.01"],
+        ],
+        stale: false,
+      },
+      isLoading: false,
+      unavailable: false,
+      error: false,
+      refetch: jest.fn(),
+    });
+
+    render(<TokenDetailContent symbol="USDC" />);
+
+    const chart = screen.getByTestId("token-price-chart");
+    expect(chart).toHaveClass("w-full", "h-[320px]");
+
+    const svg = screen.getByTestId("token-price-chart-svg");
+    expect(svg).toHaveAttribute("preserveAspectRatio", "none");
+    expect(svg).toHaveAttribute("viewBox", "0 0 640 320");
+    expect(svg).toHaveClass("w-full");
+
+    const line = svg.querySelector('path[fill="none"]');
+    expect(line).toHaveAttribute("vector-effect", "non-scaling-stroke");
+    expect(line?.getAttribute("d")).toMatch(/^M 0\.00 /);
+    expect(line?.getAttribute("d")).toMatch(/ L 640\.00 /);
+
+    const area = svg.querySelector('path[fill="url(#token-price-fill)"]');
+    expect(area?.getAttribute("d")).toMatch(/ L 640 320 L 0 320 Z$/);
+  });
+
   it("shows price and leaves PnL unavailable when change24h is missing", () => {
     useTokenMarketSnapshot.mockReturnValue({
       data: {

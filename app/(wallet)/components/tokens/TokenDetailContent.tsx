@@ -203,9 +203,11 @@ function PriceLineChart({
   return (
     <svg
       viewBox={`0 0 ${width} ${height}`}
-      className={classNames("h-[320px] w-full", className)}
+      preserveAspectRatio="none"
+      className={classNames("block h-[320px] w-full", className)}
       role="img"
       aria-label="Price chart"
+      data-testid="token-price-chart-svg"
     >
       <defs>
         <linearGradient id="token-price-fill" x1="0" y1="0" x2="0" y2="1">
@@ -223,6 +225,7 @@ function PriceLineChart({
         strokeWidth={2}
         strokeLinejoin="round"
         strokeLinecap="round"
+        vectorEffect="non-scaling-stroke"
       />
     </svg>
   );

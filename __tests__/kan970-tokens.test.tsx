@@ -11,6 +11,13 @@ import {
   sortTokenHoldingsByUsd,
 } from "../app/(wallet)/components/tokens/TokensPageContent";
 import { TokenDetailContent } from "../app/(wallet)/components/tokens/TokenDetailContent";
+import {
+  formatChartSampleDate,
+  formatTooltipUnitPrice,
+  nearestSampleIndex,
+  parseChartSamples,
+  tooltipCardPosition,
+} from "../app/(wallet)/components/tokens/TokenPriceChart";
 
 jest.mock("../app/hooks/usePortfolio", () => ({
   usePortfolio: jest.fn(),
@@ -157,6 +164,68 @@ function holding(partial: Partial<PortfolioHolding> & Pick<PortfolioHolding, "sy
     asOf: partial.asOf ?? "2026-11-05T12:00:00.000Z",
     ...partial,
   };
+}
+
+function mockTokenDetailMarket({
+  points = [
+    [1, "1"],
+    [2, "1.01"],
+  ] as Array<[number, string]>,
+  unavailable = false,
+  price = "1",
+}: {
+  points?: Array<[number, string]>;
+  unavailable?: boolean;
+  price?: string;
+} = {}) {
+  useTokenMarketSnapshot.mockReturnValue({
+    data: unavailable
+      ? null
+      : {
+          id: "usdc",
+          price,
+          change24h: { pct: "0.01", abs: "0.0001" },
+          asOf: "2026-11-05T12:00:00.000Z",
+          stale: false,
+          stats: null,
+        },
+    isLoading: false,
+    unavailable,
+    error: unavailable,
+    refetch: jest.fn(),
+  });
+  useTokenMarketHistory.mockReturnValue({
+    data: unavailable
+      ? null
+      : {
+          id: "usdc",
+          range: "1D",
+          points,
+          stale: false,
+        },
+    isLoading: false,
+    unavailable,
+    error: false,
+    refetch: jest.fn(),
+  });
+}
+
+function mockVisibleChart(width = 640, height = 320) {
+  const chart = screen.getByTestId("token-price-chart");
+  jest.spyOn(chart, "getBoundingClientRect").mockReturnValue({
+    x: 0,
+    y: 0,
+    top: 0,
+    left: 0,
+    width,
+    height,
+    right: width,
+    bottom: height,
+    toJSON() {
+      return {};
+    },
+  });
+  return chart;
 }
 
 const tokenSummary = (holdings: PortfolioHolding[]): PortfolioSummary => ({
@@ -648,6 +717,232 @@ describe("TokenDetailContent", () => {
     expect(area?.getAttribute("d")).toMatch(/ L 640 320 L 0 320 Z$/);
   });
 
+  it("scrubs the nearest real sample and shows unit price, range delta, and timestamp", () => {
+    const t0 = 1_700_000_000;
+    const t1 = t0 + 15 * 60;
+    const t2 = t0 + 30 * 60;
+    mockTokenDetailMarket({
+      points: [
+        [t0, "0.9988"],
+        [t1, "0.9991"],
+        [t2, "1.0012"],
+      ],
+    });
+
+    render(<TokenDetailContent symbol="USDC" />);
+    const chart = mockVisibleChart(640);
+
+    fireEvent.mouseMove(chart, { clientX: 0, clientY: 160 });
+    expect(screen.getByTestId("token-price-chart-tooltip-price")).toHaveTextContent(
+      "$0.9988",
+    );
+    expect(screen.getByTestId("token-price-chart-tooltip-delta")).toHaveTextContent(
+      "$0.00 (0.00%)",
+    );
+    expect(screen.getByTestId("token-price-chart-tooltip-date")).toHaveTextContent(
+      formatChartSampleDate(t0, "1D"),
+    );
+    expect(
+      screen.getByTestId("token-price-chart-tooltip-price").textContent,
+    ).not.toMatch(/USDC/);
+
+    fireEvent.mouseMove(chart, { clientX: 640, clientY: 160 });
+    expect(screen.getByTestId("token-price-chart-tooltip-price")).toHaveTextContent(
+      "$1.0012",
+    );
+    expect(screen.getByTestId("token-price-chart-tooltip-delta")).toHaveTextContent(
+      "$0.0024 (0.24%)",
+    );
+    expect(screen.getByTestId("token-price-chart-tooltip-date")).toHaveTextContent(
+      formatChartSampleDate(t2, "1D"),
+    );
+    expect(screen.getByTestId("token-price-chart-marker")).toBeInTheDocument();
+    expect(screen.getByTestId("token-price-chart-guide")).toBeInTheDocument();
+  });
+
+  it("clamps the tooltip card at the left and right chart edges", () => {
+    mockTokenDetailMarket({
+      points: [
+        [1_700_000_000, "1"],
+        [1_700_000_900, "1.01"],
+      ],
+    });
+    render(<TokenDetailContent symbol="USDC" />);
+    const chart = mockVisibleChart(640);
+
+    fireEvent.mouseMove(chart, { clientX: 0, clientY: 160 });
+    expect(screen.getByTestId("token-price-chart-tooltip")).toHaveStyle({
+      left: "0px",
+    });
+
+    fireEvent.mouseMove(chart, { clientX: 640, clientY: 160 });
+    expect(screen.getByTestId("token-price-chart-tooltip")).toHaveStyle({
+      left: "384px",
+    });
+  });
+
+  it("hides the tooltip on pointer leave, Escape, and touch end", () => {
+    mockTokenDetailMarket({
+      points: [
+        [1_700_000_000, "1"],
+        [1_700_000_900, "1.01"],
+      ],
+    });
+    render(<TokenDetailContent symbol="USDC" />);
+    const chart = mockVisibleChart(640);
+
+    fireEvent.mouseMove(chart, { clientX: 320, clientY: 160 });
+    expect(screen.getByTestId("token-price-chart-tooltip")).toBeInTheDocument();
+
+    fireEvent.mouseLeave(chart);
+    expect(
+      screen.queryByTestId("token-price-chart-tooltip"),
+    ).not.toBeInTheDocument();
+
+    fireEvent.mouseMove(chart, { clientX: 320, clientY: 160 });
+    chart.focus();
+    fireEvent.keyDown(chart, { key: "Escape" });
+    expect(
+      screen.queryByTestId("token-price-chart-tooltip"),
+    ).not.toBeInTheDocument();
+
+    fireEvent.touchStart(chart, {
+      touches: [{ clientX: 320, clientY: 160 }],
+    });
+    expect(screen.getByTestId("token-price-chart-tooltip")).toBeInTheDocument();
+    fireEvent.touchEnd(chart);
+    expect(
+      screen.queryByTestId("token-price-chart-tooltip"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("moves the selected sample with keyboard arrows", () => {
+    const t0 = 1_700_000_000;
+    mockTokenDetailMarket({
+      points: [
+        [t0, "1.00"],
+        [t0 + 900, "1.10"],
+        [t0 + 1800, "1.20"],
+      ],
+    });
+    render(<TokenDetailContent symbol="USDC" />);
+    const chart = mockVisibleChart(640);
+    chart.focus();
+
+    fireEvent.keyDown(chart, { key: "ArrowRight" });
+    expect(screen.getByTestId("token-price-chart-tooltip-price")).toHaveTextContent(
+      "$1.20",
+    );
+
+    fireEvent.keyDown(chart, { key: "ArrowLeft" });
+    expect(screen.getByTestId("token-price-chart-tooltip-price")).toHaveTextContent(
+      "$1.10",
+    );
+
+    fireEvent.keyDown(chart, { key: "Home" });
+    expect(screen.getByTestId("token-price-chart-tooltip-price")).toHaveTextContent(
+      "$1.00",
+    );
+  });
+
+  it("resets the active point when the chart range changes", async () => {
+    mockTokenDetailMarket({
+      points: [
+        [1_700_000_000, "1"],
+        [1_700_000_900, "1.01"],
+      ],
+    });
+    render(<TokenDetailContent symbol="USDC" />);
+    const chart = mockVisibleChart(640);
+    fireEvent.mouseMove(chart, { clientX: 320, clientY: 160 });
+    expect(screen.getByTestId("token-price-chart-tooltip")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "1W" }));
+    await waitFor(() => {
+      expect(
+        screen.queryByTestId("token-price-chart-tooltip"),
+      ).not.toBeInTheDocument();
+    });
+  });
+
+  it("keeps timestamps aligned after dropping invalid prices", () => {
+    const tValid = 1_700_001_800;
+    mockTokenDetailMarket({
+      points: [
+        [1_700_000_000, "1"],
+        [1_700_000_900, "not-a-price"],
+        [tValid, "1.50"],
+      ],
+    });
+    render(<TokenDetailContent symbol="USDC" />);
+    const chart = mockVisibleChart(640);
+    fireEvent.mouseMove(chart, { clientX: 640, clientY: 160 });
+    expect(screen.getByTestId("token-price-chart-tooltip-price")).toHaveTextContent(
+      "$1.50",
+    );
+    expect(screen.getByTestId("token-price-chart-tooltip-date")).toHaveTextContent(
+      formatChartSampleDate(tValid, "1D"),
+    );
+  });
+
+  it("does not show a tooltip for loading, unavailable, or single-point series", () => {
+    useTokenMarketSnapshot.mockReturnValue({
+      data: {
+        id: "usdc",
+        price: "1",
+        change24h: { pct: "0.01", abs: "0.0001" },
+        asOf: "2026-11-05T12:00:00.000Z",
+        stale: false,
+        stats: null,
+      },
+      isLoading: true,
+      unavailable: false,
+      error: false,
+      refetch: jest.fn(),
+    });
+    useTokenMarketHistory.mockReturnValue({
+      data: null,
+      isLoading: true,
+      unavailable: false,
+      error: false,
+      refetch: jest.fn(),
+    });
+    const { unmount } = render(<TokenDetailContent symbol="USDC" />);
+    fireEvent.mouseMove(screen.getByTestId("token-price-chart"), {
+      clientX: 10,
+      clientY: 10,
+    });
+    expect(screen.getByText("Loading chart…")).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("token-price-chart-tooltip"),
+    ).not.toBeInTheDocument();
+    unmount();
+
+    mockTokenDetailMarket({
+      unavailable: true,
+      points: [],
+    });
+    const second = render(<TokenDetailContent symbol="USDC" />);
+    expect(screen.getByText("Chart unavailable")).toBeInTheDocument();
+    fireEvent.mouseMove(screen.getByTestId("token-price-chart"), {
+      clientX: 10,
+      clientY: 10,
+    });
+    expect(
+      screen.queryByTestId("token-price-chart-tooltip"),
+    ).not.toBeInTheDocument();
+    second.unmount();
+
+    mockTokenDetailMarket({
+      points: [[1_700_000_000, "1"]],
+    });
+    render(<TokenDetailContent symbol="USDC" />);
+    expect(screen.getByText("Chart unavailable")).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("token-price-chart-tooltip"),
+    ).not.toBeInTheDocument();
+  });
+
   it("shows price and leaves PnL unavailable when change24h is missing", () => {
     useTokenMarketSnapshot.mockReturnValue({
       data: {
@@ -780,6 +1075,40 @@ describe("TokenDetailContent", () => {
     render(<TokenDetailContent symbol="USDC" />);
     fireEvent.click(screen.getByRole("button", { name: "Add funds" }));
     expect(screen.getByTestId("deposit-token-modal")).toBeInTheDocument();
+  });
+});
+
+describe("TokenPriceChart helpers", () => {
+  it("drops invalid prices without shifting timestamps", () => {
+    const samples = parseChartSamples([
+      [100, "1"],
+      [101, "nope"],
+      [102, "2"],
+    ]);
+    expect(samples).toHaveLength(2);
+    expect(samples[0]?.t).toBe(100);
+    expect(samples[1]?.t).toBe(102);
+    expect(samples[0]?.x).toBe(0);
+    expect(samples[1]?.x).toBe(640);
+  });
+
+  it("selects the nearest sample and clamps the tooltip card", () => {
+    expect(nearestSampleIndex(0, { left: 0, width: 640 }, 3)).toBe(0);
+    expect(nearestSampleIndex(640, { left: 0, width: 640 }, 3)).toBe(2);
+    expect(nearestSampleIndex(320, { left: 0, width: 640 }, 3)).toBe(1);
+
+    expect(tooltipCardPosition(0, 160, 640, 320).left).toBe(0);
+    expect(tooltipCardPosition(640, 160, 640, 320).left).toBe(384);
+    expect(tooltipCardPosition(0, 8, 640, 320).top).toBe(0);
+    expect(tooltipCardPosition(100, 160, 200, 320).width).toBe(200);
+  });
+
+  it("formats sub-dollar unit prices without collapsing a tiny change to $0.00", () => {
+    expect(formatTooltipUnitPrice("0.9988")).toBe("$0.9988");
+    expect(formatTooltipUnitPrice("1.0012")).toBe("$1.0012");
+    expect(formatTooltipUnitPrice("0.00004")).toBe("$0.00004");
+    expect(formatChartSampleDate(1_700_000_000, "1D")).toMatch(/Nov/);
+    expect(formatChartSampleDate(1_700_000_000, "1W")).toMatch(/2023/);
   });
 });
 

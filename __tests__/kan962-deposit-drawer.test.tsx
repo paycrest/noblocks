@@ -440,6 +440,31 @@ describe("Token-detail DepositTokenModalView", () => {
     expect(screen.getByRole("button", { name: "Continue" })).toBeEnabled();
   });
 
+  it("uses black inner tick/cross with unchanged green and red outer fills", () => {
+    render(
+      <DepositTokenModalView
+        isOpen
+        onRequestClose={jest.fn()}
+        tokenSymbol="USDC"
+        getDepositAddress={mockGetDepositAddress()}
+        preview={{ token: "USDC", chainName: "Ethereum" }}
+      />,
+    );
+
+    const okIcons = screen.getAllByTestId("deposit-ack-ok-icon");
+    const warnIcons = screen.getAllByTestId("deposit-ack-warn-icon");
+    expect(okIcons).toHaveLength(1);
+    expect(warnIcons).toHaveLength(1);
+    expect(okIcons[0]).toHaveClass(
+      "bg-[#227738]",
+      "dark:bg-[#39c65d]",
+      "text-[#2B2B2B]",
+    );
+    expect(okIcons[0]).not.toHaveClass("text-white");
+    expect(warnIcons[0]).toHaveClass("bg-[#ff1e57]", "text-[#2B2B2B]");
+    expect(warnIcons[0]).not.toHaveClass("text-white");
+  });
+
   it("keeps Continue disabled when checked but network is empty", () => {
     render(
       <DepositTokenModalView
@@ -489,5 +514,20 @@ describe("Token-detail DepositTokenModalView", () => {
     expect(
       screen.getByText("Minimum deposit value $1 USD"),
     ).toBeInTheDocument();
+
+    const okIcons = screen.getAllByTestId("deposit-ack-ok-icon");
+    const warnIcons = screen.getAllByTestId("deposit-ack-warn-icon");
+    expect(okIcons.length).toBeGreaterThan(0);
+    expect(warnIcons.length).toBeGreaterThan(0);
+    for (const icon of [...okIcons, ...warnIcons]) {
+      expect(icon).toHaveClass("text-[#2B2B2B]");
+      expect(icon).not.toHaveClass("text-white");
+    }
+    for (const icon of okIcons) {
+      expect(icon).toHaveClass("bg-[#227738]", "dark:bg-[#39c65d]");
+    }
+    for (const icon of warnIcons) {
+      expect(icon).toHaveClass("bg-[#ff1e57]");
+    }
   });
 });

@@ -501,15 +501,17 @@ function AckBullet({
     <li className="flex items-start gap-[5px]">
       {tone === "ok" ? (
         <span
-          className="mt-0.5 flex size-[15px] shrink-0 items-center justify-center rounded-full bg-[#227738] text-white dark:bg-[#39c65d]"
+          className="mt-0.5 flex size-[15px] shrink-0 items-center justify-center rounded-full bg-[#227738] text-[#2B2B2B] dark:bg-[#39c65d]"
           aria-hidden
+          data-testid="deposit-ack-ok-icon"
         >
           <Tick02Icon className="size-2.5" />
         </span>
       ) : (
         <span
-          className="mt-0.5 flex size-[15px] shrink-0 items-center justify-center rounded-full bg-[#ff1e57] text-white"
+          className="mt-0.5 flex size-[15px] shrink-0 items-center justify-center rounded-full bg-[#ff1e57] text-[#2B2B2B]"
           aria-hidden
+          data-testid="deposit-ack-warn-icon"
         >
           <Cancel01Icon className="size-2.5" />
         </span>

@@ -21,6 +21,16 @@ export function useAppUpdatePrompt() {
   const clientBuildId = getClientBuildId();
   const updatePendingRef = useRef(false);
   const toastShownRef = useRef(false);
+  const isFormStepRef = useRef(isFormStep);
+
+  useEffect(() => {
+    isFormStepRef.current = isFormStep;
+  }, [isFormStep]);
+
+  const handleToastClosed = useCallback(() => {
+    toastShownRef.current = false;
+    updatePendingRef.current = true;
+  }, []);
 
   const showUpdateToast = useCallback(() => {
     if (toastShownRef.current) return;
@@ -28,6 +38,8 @@ export function useAppUpdatePrompt() {
     toast("New version available", {
       id: APP_UPDATE_TOAST_ID,
       duration: Infinity,
+      onDismiss: handleToastClosed,
+      onAutoClose: handleToastClosed,
       action: {
         label: "Refresh",
         onClick: () => {
@@ -35,7 +47,7 @@ export function useAppUpdatePrompt() {
         },
       },
     });
-  }, []);
+  }, [handleToastClosed]);
 
   const maybeShowPending = useCallback(() => {
     if (!updatePendingRef.current || !isFormStep) return;
@@ -51,7 +63,7 @@ export function useAppUpdatePrompt() {
       const data: { buildId?: string } = await response.json();
       if (!data.buildId || data.buildId === clientBuildId) return;
 
-      if (isFormStep) {
+      if (isFormStepRef.current) {
         showUpdateToast();
       } else {
         updatePendingRef.current = true;
@@ -59,11 +71,16 @@ export function useAppUpdatePrompt() {
     } catch {
       // Ignore transient network errors; the next interval or visibility tick retries.
     }
-  }, [clientBuildId, isFormStep, showUpdateToast]);
+  }, [clientBuildId, showUpdateToast]);
 
   useEffect(() => {
+    if (!isFormStep && toastShownRef.current) {
+      toast.dismiss(APP_UPDATE_TOAST_ID);
+      toastShownRef.current = false;
+      updatePendingRef.current = true;
+    }
     maybeShowPending();
-  }, [maybeShowPending]);
+  }, [isFormStep, maybeShowPending]);
 
   useEffect(() => {
     void checkForUpdate();

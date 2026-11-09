@@ -6,9 +6,9 @@ import React, { useEffect, useRef } from "react";
 const SW_UPDATE_INTERVAL_MS = 15 * 60 * 1000;
 
 /**
- * Registers the PWA service worker. Idle tabs are nudged to look for a new
- * worker on a timer and whenever they come back into view; when an update is
- * found the user is prompted via {@link useAppUpdatePrompt} — this component
+ * Registers the PWA service worker and nudges idle tabs to re-check for a new
+ * worker on a timer and when the tab becomes visible. Service-worker updates and
+ * deploy detection ({@link useAppUpdatePrompt}) are independent; this component
  * never reloads the page automatically.
  */
 export default function PWAInstall() {

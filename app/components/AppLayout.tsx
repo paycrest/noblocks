@@ -10,6 +10,7 @@ import { Footer } from "./Footer";
 import { Navbar } from "./Navbar";
 import { LayoutWrapper } from "./LayoutWrapper";
 import PWAInstall from "./PWAInstallManager";
+import AppUpdatePrompt from "./AppUpdatePrompt";
 import NoticeBanner from "./NoticeBanner";
 import { MaintenanceNoticeModal, MaintenanceBanner } from "./MaintenanceNoticeModal";
 import {
@@ -142,6 +143,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </div>
         )}
         <BrevoChat />
+        <AppUpdatePrompt />
       </Providers>
     </SentryClientProvider>
   );

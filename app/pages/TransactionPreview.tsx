@@ -1,6 +1,6 @@
 "use client";
 import Image from "next/image";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useSearchParams } from "next/navigation";
 
@@ -66,6 +66,7 @@ import {
 import {
   buildOfframpSpendWei,
   resolveSpendTokenFromList,
+  type OfframpSpendBuild,
 } from "../lib/tokenSpendAmount";
 import { useApiAuth } from "../hooks/useApiAuth";
 
@@ -238,45 +239,99 @@ export const TransactionPreview = ({
     };
   }, [isOnramp, currency, resolveAuth]);
 
-  const fetchedTokens: Token[] = allTokens[selectedNetwork.chain.name] || [];
+  type OfframpSpendView =
+    | { kind: "onramp" }
+    | {
+        kind: "ready";
+        contractAddress: `0x${string}`;
+        spendWei: bigint;
+        decimals: number;
+      }
+    | { kind: "blocked"; message: string };
 
-  const spendResolution = resolveSpendTokenFromList({
-    tokens: fetchedTokens,
-    tokenAddress: formTokenAddress,
-  });
+  const offrampSpendView = useMemo((): OfframpSpendView => {
+    if (isOnramp) return { kind: "onramp" };
 
-  const offrampSpend = buildOfframpSpendWei(amountSent ?? 0, spendResolution);
+    const fetchedTokens: Token[] =
+      allTokens[selectedNetwork.chain.name] || [];
+    const spendResolution = resolveSpendTokenFromList({
+      tokens: fetchedTokens,
+      tokenAddress: formTokenAddress,
+    });
+    const offrampSpend = buildOfframpSpendWei(amountSent ?? 0, spendResolution);
 
-  const offrampSpendReady =
-    !isOnramp && offrampSpend.ok && spendResolution.ok;
+    if (spendResolution.ok && offrampSpend.ok) {
+      return {
+        kind: "ready",
+        contractAddress: spendResolution.address as `0x${string}`,
+        spendWei: offrampSpend.wei,
+        decimals: offrampSpend.decimals,
+      };
+    }
 
-  const tokenContractAddress = spendResolution.ok
-    ? (spendResolution.address as `0x${string}`)
-    : (zeroAddress as `0x${string}`);
-
-  const offrampSpendBlockedReason = (() => {
-    if (isOnramp) return "";
     if (!spendResolution.ok) {
       if (spendResolution.reason === "missing_token_address") {
-        return "Select a supported token so we can verify its contract on this network.";
+        return {
+          kind: "blocked",
+          message:
+            "Select a supported token so we can verify its contract on this network.",
+        };
       }
       if (spendResolution.reason === "no_matching_token") {
-        return "This token is not available on the selected network, or its address no longer matches.";
+        return {
+          kind: "blocked",
+          message:
+            "This token is not available on the selected network, or its address no longer matches.",
+        };
       }
       if (spendResolution.reason === "invalid_decimals") {
-        return "This token’s decimals are missing or invalid. Transfers are blocked until the token list is fixed.";
+        return {
+          kind: "blocked",
+          message:
+            "This token’s decimals are missing or invalid. Transfers are blocked until the token list is fixed.",
+        };
       }
-      return "Unable to prepare this transaction for the selected token.";
+      return {
+        kind: "blocked",
+        message: "Unable to prepare this transaction for the selected token.",
+      };
     }
+
     if (!offrampSpend.ok) {
-      return offrampSpend.error;
+      return { kind: "blocked", message: offrampSpend.error };
     }
-    return "";
-  })();
+    return {
+      kind: "blocked",
+      message: "Unable to prepare this transaction for the selected token.",
+    };
+  }, [isOnramp, allTokens, selectedNetwork.chain.name, formTokenAddress, amountSent]);
+
+  const offrampSpendReady = offrampSpendView.kind === "ready";
+  const offrampSpendBlockedReason =
+    offrampSpendView.kind === "blocked" ? offrampSpendView.message : "";
+
+  const tokenContractAddress =
+    offrampSpendView.kind === "ready"
+      ? offrampSpendView.contractAddress
+      : (zeroAddress as `0x${string}`);
 
   // What the gateway will actually pull (senderFee is 0 today, see prepareCreateOrderParams).
-  // Only computed when resolution + amount are valid — no parseUnits / allowance when blocked.
-  const requiredSpendWei = offrampSpendReady ? offrampSpend.wei : BigInt(0);
+  const requiredSpendWei =
+    offrampSpendView.kind === "ready" ? offrampSpendView.spendWei : BigInt(0);
+
+  const offrampSpend: OfframpSpendBuild =
+    offrampSpendView.kind === "ready"
+      ? {
+          ok: true,
+          wei: offrampSpendView.spendWei,
+          decimals: offrampSpendView.decimals,
+        }
+      : {
+          ok: false,
+          error:
+            offrampSpendBlockedReason ||
+            "Unable to prepare this transaction for the selected token.",
+        };
 
   const gatewayAddress = getGatewayContractAddress(
     selectedNetwork.chain.name,

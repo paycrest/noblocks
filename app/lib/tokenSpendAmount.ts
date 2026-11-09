@@ -91,19 +91,38 @@ export function findTokenInNetworkList(
   return supportedTokens.find((t) => addressesMatchTokenRow(t.address, key));
 }
 
-const OFFRAMP_AMOUNT_STRING_MAX_DECIMALS = 24;
+/**
+ * Expand Number.prototype.toString scientific notation (e.g. "1e-25", "1e+21")
+ * into a plain decimal string without rounding. `toLocaleString` with a capped
+ * maximumFractionDigits rounds values smaller than 1e-24 to "0", which then
+ * slips past the fraction-digit guard as zero base units.
+ */
+function expandScientificNotation(raw: string): string {
+  const match = /^([+-]?)(\d+)(?:\.(\d+))?e([+-]?\d+)$/i.exec(raw);
+  if (!match) return "";
+  const sign = match[1] === "-" ? "-" : "";
+  const intPart = match[2];
+  const fracPart = match[3] ?? "";
+  const exp = Number(match[4]);
+  const digits = intPart + fracPart;
+  const pointIndex = intPart.length + exp;
+  if (pointIndex <= 0) {
+    return `${sign}0.${"0".repeat(-pointIndex)}${digits}`;
+  }
+  if (pointIndex >= digits.length) {
+    return `${sign}${digits}${"0".repeat(pointIndex - digits.length)}`;
+  }
+  return `${sign}${digits.slice(0, pointIndex)}.${digits.slice(pointIndex)}`;
+}
 
 /**
- * Stable decimal string for `parseUnits` — avoids scientific notation from Number for typical UI amounts.
+ * Stable decimal string for `parseUnits` — expands scientific notation without rounding.
  */
 export function amountSentToDecimalString(amountSent: number): string {
   if (!Number.isFinite(amountSent)) return "";
   const raw = amountSent.toString();
   if (!/[eE]/.test(raw)) return raw;
-  return amountSent.toLocaleString("en-US", {
-    useGrouping: false,
-    maximumFractionDigits: OFFRAMP_AMOUNT_STRING_MAX_DECIMALS,
-  });
+  return expandScientificNotation(raw);
 }
 
 /** Reject amounts with more fractional digits than the token allows (fail closed — no silent rounding). */
@@ -114,7 +133,7 @@ export function assertFractionWithinDecimals(
   const trimmed = amountStr.trim();
   const dot = trimmed.indexOf(".");
   if (dot < 0) return;
-  const frac = trimmed.slice(dot + 1);
+  const frac = trimmed.slice(dot + 1).replace(/0+$/, "");
   if (frac.length > decimals) {
     throw new Error(
       "Fractional amount exceeds the token's decimal precision.",
@@ -147,15 +166,32 @@ export function toRawAmount(amount: string, decimals: number): string {
  * Fails closed on bad resolution, invalid amount string, or excess fractional digits.
  */
 /**
- * Convert a numeric UI amount to base-unit string using real decimals: stable string + fraction guard + viem parseUnits.
- * Use for transfers where the input is a `number` (same fail-closed rules as `toRawAmount`).
+ * Convert a UI amount (`number` or decimal `string`) to base units using real decimals.
+ * Same fail-closed rules as `toRawAmount` (fraction guard + viem parseUnits).
  */
 export function amountNumberToBaseUnits(
-  amount: number,
+  amount: number | string,
   decimals: number,
-): string {
+): bigint {
   if (!isValidTokenDecimals(decimals)) {
     throw new Error("Token decimals missing or invalid for this network.");
+  }
+  if (typeof amount === "string") {
+    const trimmed = amount.trim();
+    if (!trimmed) {
+      throw new Error("Invalid amount.");
+    }
+    assertFractionWithinDecimals(trimmed, decimals);
+    try {
+      return parseUnits(trimmed as `${string}`, decimals);
+    } catch {
+      throw new Error(
+        "Amount is invalid or has too many decimals for this token.",
+      );
+    }
+  }
+  if (!Number.isFinite(amount)) {
+    throw new Error("Invalid amount.");
   }
   const str = amountSentToDecimalString(amount);
   if (str === "") {
@@ -163,7 +199,7 @@ export function amountNumberToBaseUnits(
   }
   assertFractionWithinDecimals(str, decimals);
   try {
-    return parseUnits(str as `${string}`, decimals).toString();
+    return parseUnits(str as `${string}`, decimals);
   } catch {
     throw new Error(
       "Amount is invalid or has too many decimals for this token.",

@@ -74,17 +74,17 @@ describe("PWAInstall service worker update handling", () => {
     expect(reloadMock).not.toHaveBeenCalled();
   });
 
-  it("reloads immediately when a new worker takes over on the form step", () => {
+  it("never auto-reloads when a new worker takes over on the form step", () => {
     mockUseStep.mockReturnValue({ isFormStep: true });
     const sw = installServiceWorkerMock({});
 
     render(<PWAInstall />);
     fireControllerChange(sw);
 
-    expect(reloadMock).toHaveBeenCalledTimes(1);
+    expect(reloadMock).not.toHaveBeenCalled();
   });
 
-  it("defers the reload while a transaction is on screen, then reloads on return to the form", () => {
+  it("never auto-reloads when returning to the form after a worker update", () => {
     mockUseStep.mockReturnValue({ isFormStep: false });
     const sw = installServiceWorkerMock({});
 
@@ -95,7 +95,7 @@ describe("PWAInstall service worker update handling", () => {
     mockUseStep.mockReturnValue({ isFormStep: true });
     rerender(<PWAInstall />);
 
-    expect(reloadMock).toHaveBeenCalledTimes(1);
+    expect(reloadMock).not.toHaveBeenCalled();
   });
 });
 

@@ -166,16 +166,17 @@ export function useBridgeQuote({
       ? { injectedToken }
       : { token: (await getAccessToken?.()) ?? null };
     const engine = selectEngine(from, to);
-    let rawAmount: string;
-    try {
-      rawAmount = toRawAmount(amount, from.decimals);
-    } catch (err) {
-      const msg =
-        err instanceof Error
-          ? err.message
-          : "Unable to build amount for this token.";
-      throw new Error(msg);
-    }
+    const rawAmount = (() => {
+      try {
+        return toRawAmount(amount, from.decimals);
+      } catch (err) {
+        const msg =
+          err instanceof Error
+            ? err.message
+            : "Unable to build amount for this token.";
+        throw new Error(msg);
+      }
+    })();
 
     if (engine === "hyperfx") {
       try {
@@ -585,9 +586,19 @@ export function useBridgeExecute({
               chainTokens,
               from.tokenAddress ?? "",
             );
-            const resolved = tokenRow
-              ? resolveBridgeLegToken(tokenRow)
-              : ({ ok: false as const, reason: "missing" });
+            if (!tokenRow) {
+              throw new Error("Token data not found for the selected asset.");
+            }
+            if (
+              from.tokenAddress.trim() === "" &&
+              (!tokenRow.isNative ||
+                tokenRow.symbol.toUpperCase() !== from.token.toUpperCase())
+            ) {
+              throw new Error(
+                "Token contract address is missing for the selected asset.",
+              );
+            }
+            const resolved = resolveBridgeLegToken(tokenRow);
             if (!resolved.ok) {
               throw new Error("Token data not found for the selected asset.");
             }

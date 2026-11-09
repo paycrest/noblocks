@@ -2,6 +2,7 @@ import { describe, expect, it } from "@jest/globals";
 import type { Token } from "@/app/types";
 import {
   amountNumberToBaseUnits,
+  amountSentToDecimalString,
   buildOfframpSpendWei,
   resolveSpendTokenFromList,
   toRawAmount,
@@ -118,16 +119,53 @@ describe("toRawAmount", () => {
   it("converts 100 at 6 decimals to base units string", () => {
     expect(toRawAmount("100", 6)).toBe("100000000");
   });
+
+  it("allows trailing fractional zeros (same value, not excess precision)", () => {
+    expect(toRawAmount("1.1000000", 6)).toBe("1100000");
+  });
+});
+
+describe("amountSentToDecimalString", () => {
+  it("expands 1e-7 at 18 decimals without rounding to zero", () => {
+    expect(amountSentToDecimalString(1e-7)).toBe("0.0000001");
+  });
+
+  it("expands 1e21 without rounding", () => {
+    expect(amountSentToDecimalString(1e21)).toBe(
+      "1000000000000000000000",
+    );
+  });
+
+  it("passes plain decimals through", () => {
+    expect(amountSentToDecimalString(100)).toBe("100");
+    expect(amountSentToDecimalString(1.5)).toBe("1.5");
+  });
 });
 
 describe("amountNumberToBaseUnits", () => {
   it("converts 100 at 6 decimals", () => {
-    expect(amountNumberToBaseUnits(100, 6)).toBe("100000000");
+    expect(amountNumberToBaseUnits(100, 6)).toBe(100_000_000n);
   });
 
   it("rejects excess fractional precision for number input (fail closed)", () => {
     expect(() => amountNumberToBaseUnits(1.2345678, 6)).toThrow(
       "Fractional amount exceeds the token's decimal precision.",
     );
+  });
+
+  it("rejects 1e-7 at 6 decimals (fail closed, not zero base units)", () => {
+    expect(() => amountNumberToBaseUnits(1e-7, 6)).toThrow();
+  });
+
+  it("converts 1e-7 at 18 decimals", () => {
+    expect(amountNumberToBaseUnits(1e-7, 18)).toBe(100_000_000_000n);
+  });
+
+  it("rejects 1e-25 at 18 decimals (sub-minimum unit, fail closed)", () => {
+    expect(() => amountNumberToBaseUnits(1e-25, 18)).toThrow();
+  });
+
+  it("accepts string amounts like the legacy parseUnits(amount.toString()) path", () => {
+    expect(amountNumberToBaseUnits("1.5", 6)).toBe(1_500_000n);
   });
 });

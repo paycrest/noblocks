@@ -6,6 +6,7 @@ import Link from "next/link";
 import Image from "next/image";
 import Decimal from "decimal.js";
 import { ActionDrawer } from "@/app/components/drawer";
+import { DepositDrawer } from "@/app/components/deposit/DepositDrawer";
 import { TransferForm } from "@/app/components/TransferForm";
 import { BridgeForm } from "@/app/components/bridge/BridgeForm";
 import { CopyAddressWarningModal } from "@/app/components/CopyAddressWarningModal";
@@ -878,6 +879,7 @@ export function TokensPageContent() {
   const [activeAction, setActiveAction] = useState<WalletHomeActionId | null>(
     null,
   );
+  const [depositOpen, setDepositOpen] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
 
   const portfolioLoading =
@@ -930,7 +932,14 @@ export function TokensPageContent() {
         </div>
         {showContent && !isEmpty ? (
           <AddFundsSplitButton
-            onAction={(action) => setActiveAction(action)}
+            onPrimaryClick={() => {
+              setActiveAction(null);
+              setDepositOpen(true);
+            }}
+            onAction={(action) => {
+              setDepositOpen(false);
+              setActiveAction(action);
+            }}
             variant="split"
           />
         ) : null}
@@ -945,7 +954,12 @@ export function TokensPageContent() {
       ) : null}
 
       {isEmpty ? (
-        <TokensEmptyState onAddFunds={() => setActiveAction("buy")} />
+        <TokensEmptyState
+          onAddFunds={() => {
+            setActiveAction(null);
+            setDepositOpen(true);
+          }}
+        />
       ) : null}
 
       {showContent && !isEmpty ? (
@@ -984,6 +998,10 @@ export function TokensPageContent() {
         <ExploreCards onInviteClick={() => setInviteOpen(true)} />
       ) : null}
 
+      <DepositDrawer
+        isOpen={depositOpen}
+        onRequestClose={() => setDepositOpen(false)}
+      />
       <TokensFundsDrawerHost
         activeAction={activeAction}
         onClose={() => setActiveAction(null)}

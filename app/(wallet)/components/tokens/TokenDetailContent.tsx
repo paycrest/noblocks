@@ -4,6 +4,7 @@ import { Fragment, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import Decimal from "decimal.js";
 import { ActionDrawer } from "@/app/components/drawer";
+import { DepositTokenModal } from "@/app/components/deposit/DepositTokenModal";
 import { ReferralHubView } from "@/app/components/wallet-mobile-modal/ReferralHubView";
 import {
   Popover,
@@ -277,8 +278,10 @@ const DETAIL_MENU: Array<{
 
 function TokenDetailActionsMenu({
   onAction,
+  onAddFunds,
 }: {
   onAction: (action: DetailActionId) => void;
+  onAddFunds: () => void;
 }) {
   const closeRef = useRef<(() => void) | null>(null);
 
@@ -291,7 +294,7 @@ function TokenDetailActionsMenu({
             <button
               type="button"
               className={splitPrimarySegmentClasses}
-              onClick={() => onAction("receive")}
+              onClick={onAddFunds}
             >
               Add funds
             </button>
@@ -378,6 +381,7 @@ export function TokenDetailContent({ symbol }: TokenDetailContentProps) {
   const [activeAction, setActiveAction] = useState<DetailActionId | null>(
     null,
   );
+  const [depositOpen, setDepositOpen] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
 
   const marketId = resolveMarketTokenId(symbol);
@@ -447,7 +451,16 @@ export function TokenDetailContent({ symbol }: TokenDetailContentProps) {
             )}
           </div>
         </div>
-        <TokenDetailActionsMenu onAction={setActiveAction} />
+        <TokenDetailActionsMenu
+          onAddFunds={() => {
+            setActiveAction(null);
+            setDepositOpen(true);
+          }}
+          onAction={(action) => {
+            setDepositOpen(false);
+            setActiveAction(action);
+          }}
+        />
       </div>
 
       {portfolioError ? (
@@ -572,6 +585,11 @@ export function TokenDetailContent({ symbol }: TokenDetailContentProps) {
 
       <ExploreCards onInviteClick={() => setInviteOpen(true)} />
 
+      <DepositTokenModal
+        isOpen={depositOpen}
+        onRequestClose={() => setDepositOpen(false)}
+        tokenSymbol={symbol}
+      />
       <TokenActionDrawerHost
         activeAction={activeAction}
         preferredTokenSymbol={symbol}

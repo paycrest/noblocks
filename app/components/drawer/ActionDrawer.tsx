@@ -33,6 +33,7 @@ import {
 export type ActionDrawerProps = {
   isOpen: boolean;
   title: ActionDrawerTitle;
+  subtitle?: string;
   onRequestClose: () => void;
   children: ReactNode;
   bodyClassName?: string;
@@ -44,6 +45,7 @@ function DrawerPanel({
   setPanelNode,
   titleId,
   title,
+  subtitle,
   onRequestClose,
   bodyAlign,
   bodyClassName,
@@ -55,6 +57,7 @@ function DrawerPanel({
   setPanelNode: (node: HTMLElement | null) => void;
   titleId: string;
   title: ActionDrawerTitle;
+  subtitle?: string;
   onRequestClose: () => void;
   bodyAlign: "center" | "start";
   bodyClassName?: string;
@@ -63,12 +66,14 @@ function DrawerPanel({
   isModalSheet: boolean;
   className?: string;
 }) {
+  const subtitleId = subtitle ? `${titleId}-subtitle` : undefined;
   return (
     <aside
       ref={setPanelNode}
       role="dialog"
       aria-modal={isModalSheet ? "true" : "false"}
       aria-labelledby={titleId}
+      aria-describedby={subtitleId}
       {...{ [ACTION_DRAWER_PANEL_ATTR]: "" }}
       className={classNames(
         "flex w-[379px] max-w-full shrink-0 flex-col outline-none",
@@ -78,14 +83,32 @@ function DrawerPanel({
       )}
     >
       <header className="shrink-0 px-[18px] pt-3">
-        <div className="flex items-center justify-between">
-          <h2 id={titleId} className={drawerHeaderTitleClasses}>
-            {title}
-          </h2>
+        <div
+          className={classNames(
+            "flex justify-between gap-3",
+            subtitle ? "items-start" : "items-center",
+          )}
+        >
+          <div className="flex min-w-0 flex-1 flex-col">
+            <h2 id={titleId} className={drawerHeaderTitleClasses}>
+              {title}
+            </h2>
+            {subtitle ? (
+              <p
+                id={subtitleId}
+                className="text-sm font-medium leading-5 tracking-[-0.14px] text-text-secondary dark:text-white/50"
+              >
+                {subtitle}
+              </p>
+            ) : null}
+          </div>
           <button
             type="button"
             aria-label="Close"
-            className={drawerCloseButtonClasses}
+            className={classNames(
+              drawerCloseButtonClasses,
+              subtitle && "mt-2",
+            )}
             onClick={onRequestClose}
           >
             <Cancel01Icon className="size-5" aria-hidden />
@@ -148,6 +171,7 @@ function buildPlacement(): DrawerPlacement {
 export function ActionDrawer({
   isOpen,
   title,
+  subtitle,
   onRequestClose,
   children,
   bodyClassName,
@@ -241,6 +265,7 @@ export function ActionDrawer({
       setPanelNode={setPanelNode}
       titleId={titleId}
       title={title}
+      subtitle={subtitle}
       onRequestClose={onRequestClose}
       bodyAlign={bodyAlign}
       bodyClassName={bodyClassName}

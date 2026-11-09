@@ -60,6 +60,16 @@ jest.mock("@/components/drawer", () => ({
     ) : null,
 }));
 
+jest.mock("@/components/deposit/DepositDrawer", () => ({
+  DepositDrawer: ({ isOpen }: { isOpen: boolean }) =>
+    isOpen ? <div data-testid="deposit-drawer" /> : null,
+}));
+
+jest.mock("@/components/deposit/DepositTokenModal", () => ({
+  DepositTokenModal: ({ isOpen }: { isOpen: boolean }) =>
+    isOpen ? <div data-testid="deposit-token-modal" /> : null,
+}));
+
 jest.mock("@/components/TransferForm", () => ({
   TransferForm: ({
     preferredTokenSymbol,
@@ -396,6 +406,34 @@ describe("TokensPageContent", () => {
     ]);
     expect(screen.queryByRole("link", { name: /100%/ })).toBeNull();
   });
+
+  it("opens the deposit drawer from the Add funds button", () => {
+    usePortfolio.mockReturnValue({
+      data: tokenSummary([
+        holding({ symbol: "USDC", amount: "10", usd: "10", id: "c" }),
+      ]),
+      isLoading: false,
+      error: null,
+      refetch: jest.fn(),
+    });
+
+    render(<TokensPageContent />);
+    fireEvent.click(screen.getByRole("button", { name: "Add funds" }));
+    expect(screen.getByTestId("deposit-drawer")).toBeInTheDocument();
+  });
+
+  it("opens the deposit drawer from the empty-state Add funds button", () => {
+    usePortfolio.mockReturnValue({
+      data: tokenSummary([]),
+      isLoading: false,
+      error: null,
+      refetch: jest.fn(),
+    });
+
+    render(<TokensPageContent />);
+    fireEvent.click(screen.getByRole("button", { name: "Add funds" }));
+    expect(screen.getByTestId("deposit-drawer")).toBeInTheDocument();
+  });
 });
 
 describe("TokenDetailContent", () => {
@@ -671,6 +709,27 @@ describe("TokenDetailContent", () => {
       "data-preferred-token",
       "USDC",
     );
+  });
+
+  it("opens the centred Add TOKEN modal from the Add funds button", () => {
+    useTokenMarketSnapshot.mockReturnValue({
+      data: null,
+      isLoading: false,
+      unavailable: true,
+      error: true,
+      refetch: jest.fn(),
+    });
+    useTokenMarketHistory.mockReturnValue({
+      data: null,
+      isLoading: false,
+      unavailable: true,
+      error: false,
+      refetch: jest.fn(),
+    });
+
+    render(<TokenDetailContent symbol="USDC" />);
+    fireEvent.click(screen.getByRole("button", { name: "Add funds" }));
+    expect(screen.getByTestId("deposit-token-modal")).toBeInTheDocument();
   });
 });
 

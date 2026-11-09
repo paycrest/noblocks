@@ -60,6 +60,11 @@ jest.mock("@/components/drawer", () => ({
     ) : null,
 }));
 
+jest.mock("@/components/deposit/DepositDrawer", () => ({
+  DepositDrawer: ({ isOpen }: { isOpen: boolean }) =>
+    isOpen ? <div data-testid="deposit-drawer" /> : null,
+}));
+
 jest.mock("@/components/TransferForm", () => ({
   TransferForm: () => null,
 }));
@@ -398,6 +403,19 @@ describe("WalletHomeContent", () => {
     const earnRow = screen.getByText("Earn positions").closest("[data-readonly]");
     expect(earnRow).toHaveAttribute("data-readonly", "true");
     expect(screen.queryByText(/Earn up to/i)).not.toBeInTheDocument();
+  });
+
+  it("opens the deposit drawer from the Add funds button", () => {
+    usePortfolio.mockReturnValue({
+      data: loadedSummary,
+      isLoading: false,
+      error: null,
+      refetch: jest.fn(),
+    });
+
+    render(<WalletHomeContent />);
+    fireEvent.click(screen.getByRole("button", { name: "Add funds" }));
+    expect(screen.getByTestId("deposit-drawer")).toBeInTheDocument();
   });
 
   it("opens receive drawer with deposit address and copy control", () => {

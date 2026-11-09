@@ -60,6 +60,16 @@ jest.mock("@/components/drawer", () => ({
     ) : null,
 }));
 
+jest.mock("@/components/deposit/DepositDrawer", () => ({
+  DepositDrawer: ({ isOpen }: { isOpen: boolean }) =>
+    isOpen ? <div data-testid="deposit-drawer" /> : null,
+}));
+
+jest.mock("@/components/deposit/DepositTokenModal", () => ({
+  DepositTokenModal: ({ isOpen }: { isOpen: boolean }) =>
+    isOpen ? <div data-testid="deposit-token-modal" /> : null,
+}));
+
 jest.mock("@/components/TransferForm", () => ({
   TransferForm: ({
     preferredTokenSymbol,
@@ -396,6 +406,34 @@ describe("TokensPageContent", () => {
     ]);
     expect(screen.queryByRole("link", { name: /100%/ })).toBeNull();
   });
+
+  it("opens the deposit drawer from the Add funds button", () => {
+    usePortfolio.mockReturnValue({
+      data: tokenSummary([
+        holding({ symbol: "USDC", amount: "10", usd: "10", id: "c" }),
+      ]),
+      isLoading: false,
+      error: null,
+      refetch: jest.fn(),
+    });
+
+    render(<TokensPageContent />);
+    fireEvent.click(screen.getByRole("button", { name: "Add funds" }));
+    expect(screen.getByTestId("deposit-drawer")).toBeInTheDocument();
+  });
+
+  it("opens the deposit drawer from the empty-state Add funds button", () => {
+    usePortfolio.mockReturnValue({
+      data: tokenSummary([]),
+      isLoading: false,
+      error: null,
+      refetch: jest.fn(),
+    });
+
+    render(<TokensPageContent />);
+    fireEvent.click(screen.getByRole("button", { name: "Add funds" }));
+    expect(screen.getByTestId("deposit-drawer")).toBeInTheDocument();
+  });
 });
 
 describe("TokenDetailContent", () => {
@@ -560,6 +598,56 @@ describe("TokenDetailContent", () => {
     expect(legend.className).not.toMatch(/grid-cols-3/);
   });
 
+  it("renders the price chart full-bleed with a non-scaling stroke", () => {
+    useTokenMarketSnapshot.mockReturnValue({
+      data: {
+        id: "usdc",
+        price: "1",
+        change24h: { pct: "0.01", abs: "0.0001" },
+        asOf: "2026-11-05T12:00:00.000Z",
+        stale: false,
+        stats: null,
+      },
+      isLoading: false,
+      unavailable: false,
+      error: false,
+      refetch: jest.fn(),
+    });
+    useTokenMarketHistory.mockReturnValue({
+      data: {
+        id: "usdc",
+        range: "1D",
+        points: [
+          [1, "1"],
+          [2, "1.01"],
+        ],
+        stale: false,
+      },
+      isLoading: false,
+      unavailable: false,
+      error: false,
+      refetch: jest.fn(),
+    });
+
+    render(<TokenDetailContent symbol="USDC" />);
+
+    const chart = screen.getByTestId("token-price-chart");
+    expect(chart).toHaveClass("w-full", "h-[320px]");
+
+    const svg = screen.getByTestId("token-price-chart-svg");
+    expect(svg).toHaveAttribute("preserveAspectRatio", "none");
+    expect(svg).toHaveAttribute("viewBox", "0 0 640 320");
+    expect(svg).toHaveClass("w-full");
+
+    const line = svg.querySelector('path[fill="none"]');
+    expect(line).toHaveAttribute("vector-effect", "non-scaling-stroke");
+    expect(line?.getAttribute("d")).toMatch(/^M 0\.00 /);
+    expect(line?.getAttribute("d")).toMatch(/ L 640\.00 /);
+
+    const area = svg.querySelector('path[fill="url(#token-price-fill)"]');
+    expect(area?.getAttribute("d")).toMatch(/ L 640 320 L 0 320 Z$/);
+  });
+
   it("shows price and leaves PnL unavailable when change24h is missing", () => {
     useTokenMarketSnapshot.mockReturnValue({
       data: {
@@ -671,6 +759,27 @@ describe("TokenDetailContent", () => {
       "data-preferred-token",
       "USDC",
     );
+  });
+
+  it("opens the centred Add TOKEN modal from the Add funds button", () => {
+    useTokenMarketSnapshot.mockReturnValue({
+      data: null,
+      isLoading: false,
+      unavailable: true,
+      error: true,
+      refetch: jest.fn(),
+    });
+    useTokenMarketHistory.mockReturnValue({
+      data: null,
+      isLoading: false,
+      unavailable: true,
+      error: false,
+      refetch: jest.fn(),
+    });
+
+    render(<TokenDetailContent symbol="USDC" />);
+    fireEvent.click(screen.getByRole("button", { name: "Add funds" }));
+    expect(screen.getByTestId("deposit-token-modal")).toBeInTheDocument();
   });
 });
 

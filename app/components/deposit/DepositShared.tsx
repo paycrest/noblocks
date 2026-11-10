@@ -16,6 +16,7 @@ import { QRCode } from "react-qrcode-logo";
 import { PiCheck } from "react-icons/pi";
 
 import { fetchRate } from "../../api/aggregator";
+import { getCompactQrLayout } from "./depositQrSizing";
 import { AnimatedModal } from "@/app/components/AnimatedComponents";
 import { ActionSubmitButton } from "@/app/components/drawer";
 import {
@@ -716,6 +717,7 @@ export function DepositQrModal({
       ? copy.qrScanCopyToken(token, networkLower)
       : copy.qrScanCopyFunds(networkLower);
   const showBullets = layout === "compact";
+  const compactQrLayout = getCompactQrLayout(address);
 
   return (
     <AnimatedModal
@@ -776,7 +778,9 @@ export function DepositQrModal({
               // #171717, ~8px home / ~4px compact, inside the rounded clip.
               // Border-box keeps the Figma outer size; QR size is reduced so
               // the 20px/8px white quiet zone sits inside the ring instead of
-              // being painted over.
+              // being painted over. The compact symbol is snapped to whole
+              // modules (see getCompactQrLayout) so longer addresses stay
+              // scannable.
               "box-border shrink-0 overflow-hidden border-solid border-[#171717] bg-white isolate [transform:translateZ(0)]",
               layout === "compact"
                 ? "h-[140px] w-[141px] rounded-[19px] border-[4px] [clip-path:inset(0_round_19px)]"
@@ -785,8 +789,8 @@ export function DepositQrModal({
           >
             <QRCode
               value={address}
-              size={layout === "compact" ? 116 : 283}
-              quietZone={layout === "compact" ? 8 : 20}
+              size={layout === "compact" ? compactQrLayout.size : 283}
+              quietZone={layout === "compact" ? compactQrLayout.quietZone : 20}
               bgColor="#ffffff"
               fgColor="#000000"
               ecLevel="M"

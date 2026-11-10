@@ -553,8 +553,10 @@ describe("Token-detail DepositTokenModalView", () => {
     );
     expect(qrCard).not.toHaveClass("border-[8px]", "border-[1px]");
     const qr = screen.getByTestId("deposit-qr");
-    expect(qr).toHaveAttribute("data-size", "116");
-    expect(qr).toHaveAttribute("data-quiet-zone", "8");
+    // evmAddress fixture is 43 chars (QR v4, 33 modules), so the compact
+    // symbol snaps to whole 3px modules; a 42-char address keeps 116/8.
+    expect(qr).toHaveAttribute("data-size", "99");
+    expect(qr).toHaveAttribute("data-quiet-zone", "16");
 
     const okIcons = screen.getAllByTestId("deposit-ack-ok-icon");
     const warnIcons = screen.getAllByTestId("deposit-ack-warn-icon");

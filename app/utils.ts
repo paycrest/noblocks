@@ -19,6 +19,7 @@ import { mainnet } from "viem/chains";
 import { getEnsName } from "viem/actions";
 import { isValidEvmAddressCaseInsensitive } from "./lib/validation";
 import { canonicalTokenSymbol } from "./lib/token-symbol";
+import { normalizeTokenDecimals } from "./lib/tokenSpendAmount";
 import { colors } from "./mocks";
 import { fetchTokens } from "./api/aggregator";
 import { toast } from "sonner";
@@ -974,7 +975,7 @@ export function transformToken(apiToken: APIToken): Token {
   return {
     name: symbol,
     symbol,
-    decimals: apiToken.decimals,
+    decimals: normalizeTokenDecimals(apiToken.decimals),
     address: apiToken.contractAddress,
     imageUrl: `/logos/${symbol.toLowerCase()}-logo.svg`,
   };

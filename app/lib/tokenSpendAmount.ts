@@ -27,6 +27,15 @@ export function isValidTokenDecimals(d: unknown): d is number {
   return typeof d === "number" && Number.isInteger(d) && d > 0;
 }
 
+/**
+ * Coerce aggregator decimals once at the token-list boundary.
+ * 0, NaN, and non-integers stay invalid; isValidTokenDecimals fails closed.
+ * Do not default to 18.
+ */
+export function normalizeTokenDecimals(value: unknown): number {
+  return Number(value);
+}
+
 export type SpendTokenResolution =
   | { ok: true; address: string; decimals: number }
   | { ok: false; reason: string };

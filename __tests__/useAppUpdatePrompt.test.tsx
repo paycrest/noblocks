@@ -183,7 +183,10 @@ describe("useAppUpdatePrompt", () => {
     expect(mockToast).not.toHaveBeenCalled();
   });
 
-  it("re-shows the toast after the user dismisses it", async () => {
+  it("does not re-show the toast after dismiss for the same server build", async () => {
+    const setItem = jest.spyOn(Storage.prototype, "setItem");
+    jest.spyOn(Storage.prototype, "getItem").mockReturnValue(null);
+
     (global.fetch as jest.Mock).mockResolvedValue(
       jsonResponse({ buildId: "server-build-xyz" }),
     );
@@ -196,12 +199,58 @@ describe("useAppUpdatePrompt", () => {
       onDismiss?.();
     });
 
+    expect(setItem).toHaveBeenCalledWith(
+      "app-update-dismissed-build-id",
+      "server-build-xyz",
+    );
+
+    await act(async () => {
+      document.dispatchEvent(new Event("visibilitychange"));
+      await Promise.resolve();
+    });
+
+    expect(mockToast).toHaveBeenCalledTimes(1);
+
+    jest.restoreAllMocks();
+  });
+
+  it("shows the toast again after dismiss when a newer build is detected", async () => {
+    jest.spyOn(Storage.prototype, "getItem").mockReturnValue(null);
+
+    (global.fetch as jest.Mock).mockResolvedValue(
+      jsonResponse({ buildId: "server-build-xyz" }),
+    );
+
+    const { rerender } = render(<AppUpdatePrompt />);
+
+    await waitFor(() => expect(mockToast).toHaveBeenCalledTimes(1));
+    const onDismiss = mockToast.mock.calls[0][1]?.onDismiss;
+    act(() => {
+      onDismiss?.();
+    });
+
+    (global.fetch as jest.Mock).mockResolvedValue(
+      jsonResponse({ buildId: "server-build-newer" }),
+    );
+
     await act(async () => {
       document.dispatchEvent(new Event("visibilitychange"));
       await Promise.resolve();
     });
 
     await waitFor(() => expect(mockToast).toHaveBeenCalledTimes(2));
+    jest.restoreAllMocks();
+  });
+
+  it("exposes a close button on the update toast", async () => {
+    (global.fetch as jest.Mock).mockResolvedValue(
+      jsonResponse({ buildId: "server-build-xyz" }),
+    );
+
+    render(<AppUpdatePrompt />);
+
+    await waitFor(() => expect(mockToast).toHaveBeenCalledTimes(1));
+    expect(mockToast.mock.calls[0][1]?.closeButton).toBe(true);
   });
 
   it("dismisses the toast when leaving the form mid-transaction without reloading", async () => {

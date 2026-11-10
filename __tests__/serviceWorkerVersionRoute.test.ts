@@ -14,17 +14,16 @@ describe("public/sw.js /api/version", () => {
   );
 
   it("handles /api/version network-only without cache.put or caches.match", () => {
-    const networkOnlyIdx = swSource.indexOf("NETWORK_ONLY_ROUTES");
-    expect(networkOnlyIdx).toBeGreaterThan(-1);
+    expect(swSource).toMatch(/NETWORK_ONLY_ROUTES/);
+    expect(swSource).toMatch(/api\\\/version/);
 
-    const networkFirstIdx = swSource.indexOf(
-      "NETWORK_FIRST_ROUTES",
-      networkOnlyIdx,
-    );
-    expect(networkFirstIdx).toBeGreaterThan(networkOnlyIdx);
+    const handlerStart = swSource.indexOf("// Network-only:");
+    const handlerEnd = swSource.indexOf("// Network first strategy");
+    expect(handlerStart).toBeGreaterThan(-1);
+    expect(handlerEnd).toBeGreaterThan(handlerStart);
 
-    const versionBranch = swSource.slice(networkOnlyIdx, networkFirstIdx);
-    expect(versionBranch).toMatch(/\/api\/version/);
+    const versionBranch = swSource.slice(handlerStart, handlerEnd);
+    expect(versionBranch).toMatch(/NETWORK_ONLY_ROUTES\.some/);
     expect(versionBranch).toMatch(/fetch\s*\(\s*request\s*\)/);
     expect(versionBranch).not.toMatch(/cache\.put/);
     expect(versionBranch).not.toMatch(/caches\.match/);

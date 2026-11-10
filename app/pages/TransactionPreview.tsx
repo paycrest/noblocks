@@ -469,6 +469,14 @@ export const TransactionPreview = ({
   // never reaches the browser. Raw KES fields are sent; the server applies the
   // channel/businessNumber rules authoritatively.
   const prepareCreateOrderParams = async (auth: OrderAuth) => {
+    if (!offrampSpendReady || !offrampSpend.ok) {
+      throw new Error(
+        offrampSpend.ok
+          ? "Unable to prepare order: invalid token configuration."
+          : offrampSpend.error,
+      );
+    }
+
     const providerId =
       searchParams.get("provider") || searchParams.get("PROVIDER");
 
@@ -487,14 +495,6 @@ export const TransactionPreview = ({
       auth.accessToken,
       auth.injectedToken,
     );
-
-    if (!offrampSpendReady || !offrampSpend.ok) {
-      throw new Error(
-        offrampSpend.ok
-          ? "Unable to prepare order: invalid token configuration."
-          : offrampSpend.error,
-      );
-    }
 
     // Prepare transaction parameters
     const params = {

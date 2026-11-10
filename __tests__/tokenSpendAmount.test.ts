@@ -4,6 +4,7 @@ import {
   amountNumberToBaseUnits,
   amountSentToDecimalString,
   buildOfframpSpendWei,
+  resolveBridgeExecuteToken,
   resolveSpendTokenFromList,
   toRawAmount,
 } from "@/app/lib/tokenSpendAmount";
@@ -167,5 +168,87 @@ describe("amountNumberToBaseUnits", () => {
 
   it("accepts string amounts like the legacy parseUnits(amount.toString()) path", () => {
     expect(amountNumberToBaseUnits("1.5", 6)).toBe(1_500_000n);
+  });
+});
+
+describe("resolveBridgeExecuteToken", () => {
+  const usdc: Token = {
+    name: "USD Coin",
+    symbol: "USDC",
+    decimals: 6,
+    address: baseUsdcAddress,
+  };
+  const eth: Token = {
+    name: "Ethereum",
+    symbol: "ETH",
+    decimals: 18,
+    address: "",
+    isNative: true,
+  };
+
+  it("treats an empty address as native only when the list row is native and the symbol matches", () => {
+    const resolved = resolveBridgeExecuteToken([eth, usdc], "", "ETH");
+    expect(resolved.ok).toBe(true);
+    if (resolved.ok) {
+      expect(resolved.address).toBe("");
+      expect(resolved.decimals).toBe(18);
+    }
+  });
+
+  it("does not infer native from an empty address when the list has no native row", () => {
+    const resolved = resolveBridgeExecuteToken([usdc], "", "USDC");
+    expect(resolved.ok).toBe(false);
+    if (!resolved.ok) {
+      expect(resolved.message).toBe(
+        "Token contract address is missing for the selected asset.",
+      );
+    }
+  });
+
+  it("does not infer native from an empty address when the native row symbol does not match", () => {
+    const resolved = resolveBridgeExecuteToken([eth, usdc], "", "USDC");
+    expect(resolved.ok).toBe(false);
+    if (!resolved.ok) {
+      expect(resolved.message).toBe(
+        "Token contract address is missing for the selected asset.",
+      );
+    }
+  });
+
+  it("treats the zero address like an empty key, then still requires a native row", () => {
+    const zero = "0x0000000000000000000000000000000000000000";
+    const nativeOk = resolveBridgeExecuteToken([eth, usdc], zero, "ETH");
+    expect(nativeOk.ok).toBe(true);
+    if (nativeOk.ok) expect(nativeOk.address).toBe("");
+
+    const notNative = resolveBridgeExecuteToken([usdc], zero, "USDC");
+    expect(notNative.ok).toBe(false);
+  });
+
+  it("resolves an ERC-20 by contract address", () => {
+    const resolved = resolveBridgeExecuteToken(
+      [eth, usdc],
+      baseUsdcAddress,
+      "USDC",
+    );
+    expect(resolved.ok).toBe(true);
+    if (resolved.ok) {
+      expect(resolved.address).toBe(baseUsdcAddress);
+      expect(resolved.decimals).toBe(6);
+    }
+  });
+
+  it("fails closed when the address is not in the list", () => {
+    const resolved = resolveBridgeExecuteToken(
+      [eth, usdc],
+      "0x0000000000000000000000000000000000000001",
+      "USDC",
+    );
+    expect(resolved.ok).toBe(false);
+    if (!resolved.ok) {
+      expect(resolved.message).toBe(
+        "Token data not found for the selected asset.",
+      );
+    }
   });
 });

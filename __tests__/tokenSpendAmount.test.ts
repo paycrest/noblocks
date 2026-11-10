@@ -256,24 +256,34 @@ describe("resolveBridgeExecuteToken", () => {
 });
 
 describe("normalizeTokenDecimals", () => {
-  it("coerces a string '6' to number 6 so spend validation can accept it", () => {
+  it("accepts finite numbers and digit-only numeric strings for spend validation", () => {
+    expect(normalizeTokenDecimals(6)).toBe(6);
+    expect(isValidTokenDecimals(normalizeTokenDecimals(6))).toBe(true);
     expect(normalizeTokenDecimals("6")).toBe(6);
     expect(isValidTokenDecimals(normalizeTokenDecimals("6"))).toBe(true);
-  });
-
-  it("keeps 0 invalid (fail closed, do not treat as 18 decimals)", () => {
-    expect(normalizeTokenDecimals(0)).toBe(0);
-    expect(isValidTokenDecimals(normalizeTokenDecimals(0))).toBe(false);
-  });
-
-  it("keeps non-numeric values invalid", () => {
-    expect(Number.isNaN(normalizeTokenDecimals("abc"))).toBe(true);
-    expect(isValidTokenDecimals(normalizeTokenDecimals("abc"))).toBe(false);
-    expect(isValidTokenDecimals(normalizeTokenDecimals(undefined))).toBe(false);
-  });
-
-  it("passes through a real integer such as 18", () => {
     expect(normalizeTokenDecimals(18)).toBe(18);
     expect(isValidTokenDecimals(normalizeTokenDecimals(18))).toBe(true);
+  });
+
+  it("rejects zero-decimal tokens explicitly (fail closed via isValidTokenDecimals)", () => {
+    expect(normalizeTokenDecimals(0)).toBe(0);
+    expect(isValidTokenDecimals(normalizeTokenDecimals(0))).toBe(false);
+    expect(normalizeTokenDecimals("0")).toBe(0);
+    expect(isValidTokenDecimals(normalizeTokenDecimals("0"))).toBe(false);
+  });
+
+  it("rejects booleans, arrays, null, empty strings, and non-integer decimal strings", () => {
+    for (const value of [true, [6] as unknown, null, undefined, "", " "] as const) {
+      expect(Number.isNaN(normalizeTokenDecimals(value))).toBe(true);
+      expect(isValidTokenDecimals(normalizeTokenDecimals(value))).toBe(false);
+    }
+    expect(Number.isNaN(normalizeTokenDecimals("6.5"))).toBe(true);
+    expect(isValidTokenDecimals(normalizeTokenDecimals("6.5"))).toBe(false);
+    expect(Number.isNaN(normalizeTokenDecimals("abc"))).toBe(true);
+  });
+
+  it("rejects non-integer finite numbers at validation (6.5 normalized but not valid decimals)", () => {
+    expect(normalizeTokenDecimals(6.5)).toBe(6.5);
+    expect(isValidTokenDecimals(normalizeTokenDecimals(6.5))).toBe(false);
   });
 });

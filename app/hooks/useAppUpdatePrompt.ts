@@ -5,11 +5,11 @@ import { toast } from "sonner";
 
 import { useAppUpdateBlock } from "../context/AppUpdateBlockContext";
 import { useStep } from "../context/StepContext";
+import { isUnusableServerBuildId } from "../lib/buildId";
 
 const VERSION_CHECK_INTERVAL_MS = 5 * 60 * 1000;
 const APP_UPDATE_TOAST_ID = "app-update";
 const DISMISSED_BUILD_ID_STORAGE_KEY = "app-update-dismissed-build-id";
-
 function getClientBuildId(): string {
   return process.env.NEXT_PUBLIC_BUILD_ID?.trim() ?? "";
 }
@@ -112,7 +112,13 @@ export function useAppUpdatePrompt() {
       const response = await fetch("/api/version", { cache: "no-store" });
       if (!response.ok) return;
       const data: { buildId?: string } = await response.json();
-      if (!data.buildId || data.buildId === clientBuildId) return;
+      if (
+        !data.buildId ||
+        isUnusableServerBuildId(data.buildId) ||
+        data.buildId === clientBuildId
+      ) {
+        return;
+      }
       if (isDismissedServerBuild(data.buildId)) return;
 
       pendingServerBuildIdRef.current = data.buildId;

@@ -45,10 +45,25 @@ function jsonResponse(body: unknown) {
 describe("useAppUpdatePrompt", () => {
   const originalLocation = window.location;
   const CLIENT_BUILD_ID = "client-build-abc";
+  const sessionStorageMock: Record<string, string> = {};
 
   beforeEach(() => {
     jest.clearAllMocks();
+    jest.restoreAllMocks();
     jest.useRealTimers();
+    Object.keys(sessionStorageMock).forEach(
+      (key) => delete sessionStorageMock[key],
+    );
+    jest
+      .spyOn(Storage.prototype, "getItem")
+      .mockImplementation(
+        (key) => sessionStorageMock[key] ?? null,
+      );
+    jest
+      .spyOn(Storage.prototype, "setItem")
+      .mockImplementation((key, value) => {
+        sessionStorageMock[key] = String(value);
+      });
     process.env.NEXT_PUBLIC_BUILD_ID = CLIENT_BUILD_ID;
     mockUseStep.mockReturnValue({ isFormStep: true });
     mockUseAppUpdateBlock.mockReturnValue({ isSensitiveFlowActive: false });
@@ -170,6 +185,20 @@ describe("useAppUpdatePrompt", () => {
     expect(mockToast).toHaveBeenCalledTimes(1);
   });
 
+  it("ignores a server buildId of unknown so the prompt does not stick forever", async () => {
+    (global.fetch as jest.Mock).mockResolvedValue(
+      jsonResponse({ buildId: "unknown" }),
+    );
+
+    render(<AppUpdatePrompt />);
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(mockToast).not.toHaveBeenCalled();
+  });
+
   it("does not call /api/version when NEXT_PUBLIC_BUILD_ID is empty", async () => {
     delete process.env.NEXT_PUBLIC_BUILD_ID;
 
@@ -184,9 +213,6 @@ describe("useAppUpdatePrompt", () => {
   });
 
   it("does not re-show the toast after dismiss for the same server build", async () => {
-    const setItem = jest.spyOn(Storage.prototype, "setItem");
-    jest.spyOn(Storage.prototype, "getItem").mockReturnValue(null);
-
     (global.fetch as jest.Mock).mockResolvedValue(
       jsonResponse({ buildId: "server-build-xyz" }),
     );
@@ -199,8 +225,7 @@ describe("useAppUpdatePrompt", () => {
       onDismiss?.();
     });
 
-    expect(setItem).toHaveBeenCalledWith(
-      "app-update-dismissed-build-id",
+    expect(sessionStorageMock["app-update-dismissed-build-id"]).toBe(
       "server-build-xyz",
     );
 
@@ -210,13 +235,9 @@ describe("useAppUpdatePrompt", () => {
     });
 
     expect(mockToast).toHaveBeenCalledTimes(1);
-
-    jest.restoreAllMocks();
   });
 
   it("shows the toast again after dismiss when a newer build is detected", async () => {
-    jest.spyOn(Storage.prototype, "getItem").mockReturnValue(null);
-
     (global.fetch as jest.Mock).mockResolvedValue(
       jsonResponse({ buildId: "server-build-xyz" }),
     );
@@ -239,7 +260,6 @@ describe("useAppUpdatePrompt", () => {
     });
 
     await waitFor(() => expect(mockToast).toHaveBeenCalledTimes(2));
-    jest.restoreAllMocks();
   });
 
   it("exposes a close button on the update toast", async () => {

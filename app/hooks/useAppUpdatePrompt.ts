@@ -8,9 +8,35 @@ import { useStep } from "../context/StepContext";
 
 const VERSION_CHECK_INTERVAL_MS = 5 * 60 * 1000;
 const APP_UPDATE_TOAST_ID = "app-update";
+const DISMISSED_BUILD_ID_STORAGE_KEY = "app-update-dismissed-build-id";
 
 function getClientBuildId(): string {
   return process.env.NEXT_PUBLIC_BUILD_ID?.trim() ?? "";
+}
+
+/** Returns the server build id the user dismissed, if any (session-scoped). */
+function getDismissedServerBuildId(): string | null {
+  if (typeof sessionStorage === "undefined") return null;
+  try {
+    return sessionStorage.getItem(DISMISSED_BUILD_ID_STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+/** Remembers a dismissed server build so the same deploy is not nagged again. */
+function setDismissedServerBuildId(buildId: string): void {
+  if (typeof sessionStorage === "undefined") return;
+  try {
+    sessionStorage.setItem(DISMISSED_BUILD_ID_STORAGE_KEY, buildId);
+  } catch {
+    // Quota/private mode — best-effort only.
+  }
+}
+
+/** True when the user already dismissed the prompt for this server build. */
+function isDismissedServerBuild(buildId: string): boolean {
+  return getDismissedServerBuildId() === buildId;
 }
 
 /**
@@ -22,6 +48,8 @@ export function useAppUpdatePrompt() {
   const { isSensitiveFlowActive } = useAppUpdateBlock();
   const clientBuildId = getClientBuildId();
   const updatePendingRef = useRef(false);
+  const pendingServerBuildIdRef = useRef<string | null>(null);
+  const serverBuildIdRef = useRef<string | null>(null);
   const toastShownRef = useRef(false);
   const isFormStepRef = useRef(isFormStep);
   const isSensitiveFlowActiveRef = useRef(isSensitiveFlowActive);
@@ -38,15 +66,22 @@ export function useAppUpdatePrompt() {
 
   const handleToastClosed = useCallback(() => {
     toastShownRef.current = false;
-    updatePendingRef.current = true;
+    updatePendingRef.current = false;
+    const dismissedId = serverBuildIdRef.current;
+    if (dismissedId) {
+      setDismissedServerBuildId(dismissedId);
+    }
   }, []);
 
-  const showUpdateToast = useCallback(() => {
+  const showUpdateToast = useCallback((serverBuildId: string) => {
     if (toastShownRef.current) return;
+    if (isDismissedServerBuild(serverBuildId)) return;
+    serverBuildIdRef.current = serverBuildId;
     toastShownRef.current = true;
     toast("New version available", {
       id: APP_UPDATE_TOAST_ID,
       duration: Infinity,
+      closeButton: true,
       onDismiss: handleToastClosed,
       onAutoClose: handleToastClosed,
       action: {
@@ -60,8 +95,15 @@ export function useAppUpdatePrompt() {
 
   const maybeShowPending = useCallback(() => {
     if (!updatePendingRef.current || !canPromptUser) return;
+    const pendingBuildId = pendingServerBuildIdRef.current;
+    if (!pendingBuildId || isDismissedServerBuild(pendingBuildId)) {
+      updatePendingRef.current = false;
+      pendingServerBuildIdRef.current = null;
+      return;
+    }
     updatePendingRef.current = false;
-    showUpdateToast();
+    pendingServerBuildIdRef.current = null;
+    showUpdateToast(pendingBuildId);
   }, [canPromptUser, showUpdateToast]);
 
   const checkForUpdate = useCallback(async () => {
@@ -71,11 +113,14 @@ export function useAppUpdatePrompt() {
       if (!response.ok) return;
       const data: { buildId?: string } = await response.json();
       if (!data.buildId || data.buildId === clientBuildId) return;
+      if (isDismissedServerBuild(data.buildId)) return;
+
+      pendingServerBuildIdRef.current = data.buildId;
 
       const safeToPrompt =
         isFormStepRef.current && !isSensitiveFlowActiveRef.current;
       if (safeToPrompt) {
-        showUpdateToast();
+        showUpdateToast(data.buildId);
       } else {
         updatePendingRef.current = true;
       }

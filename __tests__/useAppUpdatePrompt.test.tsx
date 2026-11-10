@@ -5,12 +5,17 @@ import { act, render, waitFor } from "@testing-library/react";
 import AppUpdatePrompt from "../app/components/AppUpdatePrompt";
 
 const mockUseStep = jest.fn();
+const mockUseAppUpdateBlock = jest.fn();
 const mockToast = jest.fn();
 const mockToastDismiss = jest.fn();
 const mockReload = jest.fn();
 
 jest.mock("../app/context/StepContext", () => ({
   useStep: () => mockUseStep(),
+}));
+
+jest.mock("../app/context/AppUpdateBlockContext", () => ({
+  useAppUpdateBlock: () => mockUseAppUpdateBlock(),
 }));
 
 jest.mock("sonner", () => {
@@ -46,6 +51,7 @@ describe("useAppUpdatePrompt", () => {
     jest.useRealTimers();
     process.env.NEXT_PUBLIC_BUILD_ID = CLIENT_BUILD_ID;
     mockUseStep.mockReturnValue({ isFormStep: true });
+    mockUseAppUpdateBlock.mockReturnValue({ isSensitiveFlowActive: false });
     setVisibilityState("visible");
     Object.defineProperty(window, "location", {
       configurable: true,
@@ -243,6 +249,26 @@ describe("useAppUpdatePrompt", () => {
     rerender(<AppUpdatePrompt />);
 
     await waitFor(() => expect(mockToast).toHaveBeenCalledTimes(1));
+  });
+
+  it("does not show the toast while a bridge or transfer flow is active", async () => {
+    mockUseAppUpdateBlock.mockReturnValue({ isSensitiveFlowActive: true });
+    (global.fetch as jest.Mock).mockResolvedValue(
+      jsonResponse({ buildId: "server-build-xyz" }),
+    );
+
+    const { rerender } = render(<AppUpdatePrompt />);
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(mockToast).not.toHaveBeenCalled();
+
+    mockUseAppUpdateBlock.mockReturnValue({ isSensitiveFlowActive: false });
+    rerender(<AppUpdatePrompt />);
+
+    await waitFor(() => expect(mockToast).toHaveBeenCalledTimes(1));
+    expect(mockReload).not.toHaveBeenCalled();
   });
 
   it("re-checks when the tab becomes visible", async () => {

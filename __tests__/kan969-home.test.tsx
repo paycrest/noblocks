@@ -217,6 +217,7 @@ const mockedCopyToClipboard = copyToClipboard as jest.MockedFunction<
   typeof copyToClipboard
 >;
 const { useWalletAddress } = jest.requireMock("@/hooks/useWalletAddress");
+const { usePrivy } = jest.requireMock("@privy-io/react-auth");
 
 function openReceiveFromHome() {
   fireEvent.click(
@@ -230,6 +231,7 @@ beforeEach(() => {
   mockedCopyToClipboard.mockResolvedValue(true);
   localStorage.clear();
   useWalletAddress.mockReturnValue(null);
+  usePrivy.mockReturnValue({ ready: true, authenticated: true });
   mockedGetFeatureFlags.mockReturnValue({
     stocks: true,
     "noblocks-earn-v2": true,
@@ -341,6 +343,36 @@ describe("WalletHomeContent", () => {
 
     render(<WalletHomeContent />);
     expect(screen.queryByText("$0.00")).not.toBeInTheDocument();
+    expect(document.querySelector(".animate-pulse")).toBeTruthy();
+  });
+
+  it("shows skeletons while auth SDK is not ready without flashing a zero total", () => {
+    usePrivy.mockReturnValue({ ready: false, authenticated: false });
+    usePortfolio.mockReturnValue({
+      data: loadedSummary,
+      isLoading: false,
+      error: null,
+      refetch: jest.fn(),
+    });
+
+    render(<WalletHomeContent />);
+    expect(screen.queryByText("$1,257.94")).not.toBeInTheDocument();
+    expect(screen.queryByText("$0.00")).not.toBeInTheDocument();
+    expect(document.querySelector(".animate-pulse")).toBeTruthy();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("shows skeletons while the session is pending without signed-in totals", () => {
+    usePrivy.mockReturnValue({ ready: true, authenticated: false });
+    usePortfolio.mockReturnValue({
+      data: loadedSummary,
+      isLoading: false,
+      error: null,
+      refetch: jest.fn(),
+    });
+
+    render(<WalletHomeContent />);
+    expect(screen.queryByText("$1,257.94")).not.toBeInTheDocument();
     expect(document.querySelector(".animate-pulse")).toBeTruthy();
   });
 

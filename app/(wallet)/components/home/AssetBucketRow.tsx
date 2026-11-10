@@ -26,7 +26,7 @@ export function AssetBucketRow({
   isLoading = false,
 }: AssetBucketRowProps) {
   const trailing = isLoading ? (
-    <div className="h-5 w-16 animate-pulse rounded bg-gray-200 dark:bg-white/10" />
+    <div className="h-5 w-16 animate-pulse motion-reduce:animate-none rounded bg-gray-200 dark:bg-white/10" />
   ) : (
     <span className="flex items-center gap-1 text-sm font-semibold text-text-body dark:text-white">
       {formatPortfolioBucketUsd(totalUsd)}
@@ -82,12 +82,12 @@ export function AssetBucketListSkeleton() {
     <div className="divide-y divide-border-light dark:divide-white/10">
       {[1, 2, 3].map((key) => (
         <div key={key} className="flex items-center gap-3 px-4 py-2">
-          <div className="size-[35px] animate-pulse rounded-[10px] bg-gray-200 dark:bg-white/10" />
+          <div className="size-[35px] animate-pulse motion-reduce:animate-none rounded-[10px] bg-gray-200 dark:bg-white/10" />
           <div className="flex-1 space-y-2">
-            <div className="h-4 w-28 animate-pulse rounded bg-gray-200 dark:bg-white/10" />
-            <div className="h-3 w-36 animate-pulse rounded bg-gray-200 dark:bg-white/10" />
+            <div className="h-4 w-28 animate-pulse motion-reduce:animate-none rounded bg-gray-200 dark:bg-white/10" />
+            <div className="h-3 w-36 animate-pulse motion-reduce:animate-none rounded bg-gray-200 dark:bg-white/10" />
           </div>
-          <div className="h-4 w-12 animate-pulse rounded bg-gray-200 dark:bg-white/10" />
+          <div className="h-4 w-12 animate-pulse motion-reduce:animate-none rounded bg-gray-200 dark:bg-white/10" />
         </div>
       ))}
     </div>

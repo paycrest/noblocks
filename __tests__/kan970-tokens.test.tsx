@@ -151,6 +151,7 @@ jest.mock("../app/utils", () => {
 });
 
 const { usePortfolio } = jest.requireMock("../app/hooks/usePortfolio");
+const { usePrivy } = jest.requireMock("@privy-io/react-auth");
 const {
   useTokenMarketSnapshot,
   useTokenMarketHistory,
@@ -335,6 +336,7 @@ describe("TokensPageContent", () => {
   const originalFetch = global.fetch;
 
   beforeEach(() => {
+    usePrivy.mockReturnValue({ ready: true, authenticated: true });
     global.fetch = jest.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
       if (url.includes("/api/market/tokens/usdc")) {
@@ -375,6 +377,54 @@ describe("TokensPageContent", () => {
 
   afterEach(() => {
     global.fetch = originalFetch;
+  });
+
+  it("shows token list skeletons while portfolio is loading without a zero total", () => {
+    usePortfolio.mockReturnValue({
+      data: null,
+      isLoading: true,
+      error: null,
+      refetch: jest.fn(),
+    });
+
+    render(<TokensPageContent />);
+    expect(screen.getByText("Total token balance")).toBeInTheDocument();
+    expect(screen.queryByText("$0.00")).not.toBeInTheDocument();
+    expect(document.querySelector(".animate-pulse")).toBeTruthy();
+    expect(screen.queryByText("No tokens yet")).not.toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("shows skeletons while auth is pending and does not mount holdings", () => {
+    usePrivy.mockReturnValue({ ready: false, authenticated: false });
+    usePortfolio.mockReturnValue({
+      data: tokenSummary([
+        holding({ symbol: "USDC", amount: "10", usd: "10", id: "c" }),
+      ]),
+      isLoading: false,
+      error: null,
+      refetch: jest.fn(),
+    });
+
+    render(<TokensPageContent />);
+    expect(screen.queryByText("USDC")).not.toBeInTheDocument();
+    expect(document.querySelector(".animate-pulse")).toBeTruthy();
+  });
+
+  it("replaces skeletons with an error when the tokens fetch fails", () => {
+    const refetch = jest.fn();
+    usePortfolio.mockReturnValue({
+      data: null,
+      isLoading: false,
+      error: new Error("fail"),
+      refetch,
+    });
+
+    render(<TokensPageContent />);
+    expect(screen.getByRole("alert")).toBeInTheDocument();
+    expect(document.querySelector(".animate-pulse")).toBeFalsy();
+    fireEvent.click(screen.getByRole("button", { name: /Try again/i }));
+    expect(refetch).toHaveBeenCalled();
   });
 
   it("shows empty state when the tokens bucket has no holdings", () => {
@@ -507,6 +557,7 @@ describe("TokensPageContent", () => {
 
 describe("TokenDetailContent", () => {
   beforeEach(() => {
+    usePrivy.mockReturnValue({ ready: true, authenticated: true });
     usePortfolio.mockReturnValue({
       data: tokenSummary([
         holding({ symbol: "USDC", amount: "1000.4831", usd: "1000.48", id: "c" }),
@@ -515,6 +566,15 @@ describe("TokenDetailContent", () => {
       error: null,
       refetch: jest.fn(),
     });
+  });
+
+  it("skeletons the balance while auth is unresolved and does not reveal holdings", () => {
+    usePrivy.mockReturnValue({ ready: false, authenticated: false });
+    mockTokenDetailMarket();
+    render(<TokenDetailContent symbol="USDC" />);
+    expect(screen.queryByTestId("token-balance-amount")).not.toBeInTheDocument();
+    expect(screen.queryByText("1,000.4831")).not.toBeInTheDocument();
+    expect(document.querySelector(".animate-pulse")).toBeTruthy();
   });
 
   it("shows balance when market data is unavailable", () => {
@@ -912,7 +972,11 @@ describe("TokenDetailContent", () => {
       clientX: 10,
       clientY: 10,
     });
-    expect(screen.getByText("Loading chart…")).toBeInTheDocument();
+    expect(screen.getByTestId("token-price-chart")).toHaveAttribute(
+      "aria-busy",
+      "true",
+    );
+    expect(screen.queryByText("Loading chart…")).not.toBeInTheDocument();
     expect(
       screen.queryByTestId("token-price-chart-tooltip"),
     ).not.toBeInTheDocument();

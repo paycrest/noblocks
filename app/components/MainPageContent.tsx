@@ -7,7 +7,6 @@ import { toast } from "sonner";
 
 import {
   AnimatedPage,
-  Preloader,
   TransactionForm,
   TransactionPreview,
   MakePayment,
@@ -230,7 +229,6 @@ export function MainPageContent() {
   const { selectedNetwork, setDisplayedNetwork, setSelectedNetwork } =
     useNetwork();
 
-  const [isPageLoading, setIsPageLoading] = useState(true);
   const [isFetchingRate, setIsFetchingRate] = useState(false);
   const [isFetchingInstitutions, setIsFetchingInstitutions] = useState(false);
   const [showReferralModal, setShowReferralModal] = useState(false);
@@ -573,7 +571,6 @@ export function MainPageContent() {
     setOrderId("");
     setOnrampPaymentAccount(null);
     setActiveOrderIsOnramp(false);
-    setIsPageLoading(false);
   }, []);
 
   useEffect(
@@ -1016,13 +1013,6 @@ export function MainPageContent() {
     setCurrentStep(STEPS.FORM);
   }, [formValues, formMethods, setCurrentStep]);
 
-  // Show the form as soon as we've hydrated rather than holding the whole
-  // page behind Privy init (or, in injected mode, the full wallet handshake):
-  // the form renders fine logged-out, and auth-dependent bits (balance row,
-  // wallet pill) animate in when their providers resolve. Nothing restored
-  // on load depends on auth being settled first.
-  const showLoading = isPageLoading;
-
   const isRecipientFormOpen =
     receiveDestinationExplicitlySelected &&
     (authenticated || isInjectedWallet) &&
@@ -1118,19 +1108,15 @@ export function MainPageContent() {
 
   return (
     <div className="flex w-full flex-col">
-      {showLoading ? (
-        <Preloader isLoading={true} />
-      ) : (
-        <PageLayout
-          currentStep={currentStep}
-          transactionFormComponent={transactionFormComponent}
-          isRecipientFormOpen={isRecipientFormOpen}
-          isOnramp={swapMode === "onramp"}
-          showReferralModal={showReferralModal}
-          onReferralModalClose={handleReferralModalClose}
-          onNetworkSelected={handleNetworkSelected}
-        />
-      )}
+      <PageLayout
+        currentStep={currentStep}
+        transactionFormComponent={transactionFormComponent}
+        isRecipientFormOpen={isRecipientFormOpen}
+        isOnramp={swapMode === "onramp"}
+        showReferralModal={showReferralModal}
+        onReferralModalClose={handleReferralModalClose}
+        onNetworkSelected={handleNetworkSelected}
+      />
     </div>
   );
 }

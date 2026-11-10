@@ -12,6 +12,7 @@ import { BridgeForm } from "@/app/components/bridge/BridgeForm";
 import { CopyAddressWarningModal } from "@/app/components/CopyAddressWarningModal";
 import { ReferralHubView } from "@/app/components/wallet-mobile-modal/ReferralHubView";
 import { BalanceSkeleton } from "@/app/components/BalanceSkeleton";
+import { TokenListSkeleton } from "@/app/(wallet)/components/WalletPageSkeletons";
 import { usePortfolio } from "@/app/hooks/usePortfolio";
 import {
   useBridgeStatusTracker,
@@ -753,18 +754,6 @@ function TokenRowLink({
     <Link href={href} className={rowClasses}>
       {inner}
     </Link>
-  );
-}
-
-function TokenListSkeleton() {
-  return (
-    <div className="divide-y divide-border-light dark:divide-white/10">
-      {[0, 1, 2].map((key) => (
-        <div key={key} className="px-6 py-2">
-          <BalanceSkeleton className="h-10 w-full rounded-lg" />
-        </div>
-      ))}
-    </div>
   );
 }
 

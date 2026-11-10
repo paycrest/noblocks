@@ -496,16 +496,13 @@ export function PriceLineChart({
     return (
       <div
         className={classNames(
-          "flex h-[320px] w-full items-center justify-center rounded-xl bg-accent-gray/30 dark:bg-white/5",
+          "h-[320px] w-full rounded-xl bg-gray-200 animate-pulse motion-reduce:animate-none dark:bg-white/10",
           className,
         )}
         data-testid="token-price-chart"
         aria-busy="true"
-      >
-        <span className="text-sm text-text-secondary dark:text-white/50">
-          Loading chart…
-        </span>
-      </div>
+        aria-label="Loading"
+      />
     );
   }
 

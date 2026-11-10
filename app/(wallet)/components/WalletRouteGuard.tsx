@@ -3,13 +3,12 @@
 import { useEffect, useRef } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useLogin, usePrivy } from "@privy-io/react-auth";
-import { Preloader } from "@/app/components/Preloader";
 import {
   AUTH_RETURN_STORAGE_KEY,
   sanitizeAuthReturnPath,
 } from "@/app/lib/wallet-auth";
-import { resolveWalletRouteId } from "@/app/lib/wallet-routes";
 import { useLoginWithScrollPin } from "@/app/hooks/useLoginWithScrollPin";
+import { WalletAuthPageSkeleton } from "./WalletPageSkeletons";
 
 export function WalletRouteGuard({ children }: { children: React.ReactNode }) {
   const { ready, authenticated } = usePrivy();
@@ -43,14 +42,8 @@ export function WalletRouteGuard({ children }: { children: React.ReactNode }) {
     loginWithPin();
   }, [authenticated, loginWithPin, pathname, ready]);
 
-  const isWalletHome = resolveWalletRouteId(pathname) === "home";
-
-  if ((!ready || !authenticated) && isWalletHome) {
-    return <>{children}</>;
-  }
-
   if (!ready || !authenticated) {
-    return <Preloader isLoading variant="wallet-content" />;
+    return <WalletAuthPageSkeleton pathname={pathname} />;
   }
 
   return <>{children}</>;

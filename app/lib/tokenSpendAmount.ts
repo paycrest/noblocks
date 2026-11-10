@@ -27,13 +27,26 @@ export function isValidTokenDecimals(d: unknown): d is number {
   return typeof d === "number" && Number.isInteger(d) && d > 0;
 }
 
+const TOKEN_DECIMALS_DIGITS_ONLY = /^\d+$/;
+
 /**
  * Coerce aggregator decimals once at the token-list boundary.
- * 0, NaN, and non-integers stay invalid; isValidTokenDecimals fails closed.
+ * Only finite numbers or non-empty digit-only strings (after trim) are accepted.
+ * 0, NaN, non-integers, and other types stay invalid; isValidTokenDecimals fails closed.
  * Do not default to 18.
  */
 export function normalizeTokenDecimals(value: unknown): number {
-  return Number(value);
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : NaN;
+  }
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed || !TOKEN_DECIMALS_DIGITS_ONLY.test(trimmed)) {
+      return NaN;
+    }
+    return Number(trimmed);
+  }
+  return NaN;
 }
 
 export type SpendTokenResolution =

@@ -4,6 +4,8 @@ import {
   amountNumberToBaseUnits,
   amountSentToDecimalString,
   buildOfframpSpendWei,
+  isValidTokenDecimals,
+  normalizeTokenDecimals,
   resolveBridgeExecuteToken,
   resolveSpendTokenFromList,
   toRawAmount,
@@ -250,5 +252,28 @@ describe("resolveBridgeExecuteToken", () => {
         "Token data not found for the selected asset.",
       );
     }
+  });
+});
+
+describe("normalizeTokenDecimals", () => {
+  it("coerces a string '6' to number 6 so spend validation can accept it", () => {
+    expect(normalizeTokenDecimals("6")).toBe(6);
+    expect(isValidTokenDecimals(normalizeTokenDecimals("6"))).toBe(true);
+  });
+
+  it("keeps 0 invalid (fail closed, do not treat as 18 decimals)", () => {
+    expect(normalizeTokenDecimals(0)).toBe(0);
+    expect(isValidTokenDecimals(normalizeTokenDecimals(0))).toBe(false);
+  });
+
+  it("keeps non-numeric values invalid", () => {
+    expect(Number.isNaN(normalizeTokenDecimals("abc"))).toBe(true);
+    expect(isValidTokenDecimals(normalizeTokenDecimals("abc"))).toBe(false);
+    expect(isValidTokenDecimals(normalizeTokenDecimals(undefined))).toBe(false);
+  });
+
+  it("passes through a real integer such as 18", () => {
+    expect(normalizeTokenDecimals(18)).toBe(18);
+    expect(isValidTokenDecimals(normalizeTokenDecimals(18))).toBe(true);
   });
 });

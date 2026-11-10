@@ -23,10 +23,7 @@ import { appendAttributionSuffix } from "@/app/lib/baseBuilderCode";
 import type { BatchCall } from "@/app/lib/providerBatch";
 import { STARKNET_READY_ACCOUNT_CLASSHASH } from "@/app/lib/config";
 import { useEmbed } from "@/app/context/EmbedContext";
-import {
-  findTokenInNetworkList,
-  resolveBridgeLegToken,
-} from "@/app/lib/tokenSpendAmount";
+import { resolveBridgeExecuteToken } from "@/app/lib/tokenSpendAmount";
 
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 
@@ -508,13 +505,23 @@ export function useBridgeExecute({
             (await nearClient.getDepositAddress(quote, proxyAuth));
           // Injected EVM wallet: sign + pay the deposit transfer directly.
           if (isInjectedWallet && from.network !== "Starknet") {
+            if (!allTokens) {
+              throw new Error("Token data not found for the selected asset.");
+            }
             const chainId = Number(from.chainId);
-            const isNative =
-              !from.tokenAddress || from.tokenAddress === ZERO_ADDRESS;
+            const resolved = resolveBridgeExecuteToken(
+              allTokens[from.network] ?? [],
+              from.tokenAddress ?? "",
+              from.token,
+            );
+            if (!resolved.ok) {
+              throw new Error(resolved.message);
+            }
+            const isNative = resolved.address === "";
             const call = isNative
               ? { to: depositAddress, value: BigInt(from.rawAmount), data: "0x" }
               : {
-                  to: from.tokenAddress,
+                  to: resolved.address,
                   value: BigInt(0),
                   data: encodeFunctionData({
                     abi: erc20Abi,
@@ -582,25 +589,13 @@ export function useBridgeExecute({
 
             // Use only the from-chain's list; resolve the row by leg address (native: empty key).
             const chainTokens = allTokens[from.network] ?? [];
-            const tokenRow = findTokenInNetworkList(
+            const resolved = resolveBridgeExecuteToken(
               chainTokens,
               from.tokenAddress ?? "",
+              from.token,
             );
-            if (!tokenRow) {
-              throw new Error("Token data not found for the selected asset.");
-            }
-            if (
-              from.tokenAddress.trim() === "" &&
-              (!tokenRow.isNative ||
-                tokenRow.symbol.toUpperCase() !== from.token.toUpperCase())
-            ) {
-              throw new Error(
-                "Token contract address is missing for the selected asset.",
-              );
-            }
-            const resolved = resolveBridgeLegToken(tokenRow);
             if (!resolved.ok) {
-              throw new Error("Token data not found for the selected asset.");
+              throw new Error(resolved.message);
             }
 
             const evmHash = await evmBatchExecute({

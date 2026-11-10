@@ -200,7 +200,7 @@ describe("resolveBridgeExecuteToken", () => {
     expect(resolved.ok).toBe(false);
     if (!resolved.ok) {
       expect(resolved.message).toBe(
-        "Token contract address is missing for the selected asset.",
+        "Token data not found for the selected asset.",
       );
     }
   });

@@ -91,6 +91,52 @@ export function findTokenInNetworkList(
   return supportedTokens.find((t) => addressesMatchTokenRow(t.address, key));
 }
 
+const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
+
+/**
+ * Shared guard for injected and embedded bridge execute paths.
+ * An empty or zero address is native only when the network-list row is native
+ * and the symbol matches. Otherwise fail closed.
+ */
+export function resolveBridgeExecuteToken(
+  supportedTokens: Token[],
+  tokenAddress: string,
+  tokenSymbol: string,
+):
+  | { ok: true; address: string; decimals: number }
+  | { ok: false; message: string } {
+  const key =
+    !tokenAddress.trim() ||
+    tokenAddress.trim().toLowerCase() === ZERO_ADDRESS
+      ? ""
+      : tokenAddress;
+  const tokenRow = findTokenInNetworkList(supportedTokens, key);
+  if (!tokenRow) {
+    return {
+      ok: false,
+      message: "Token data not found for the selected asset.",
+    };
+  }
+  if (
+    key === "" &&
+    (!tokenRow.isNative ||
+      tokenRow.symbol.toUpperCase() !== tokenSymbol.toUpperCase())
+  ) {
+    return {
+      ok: false,
+      message: "Token contract address is missing for the selected asset.",
+    };
+  }
+  const resolved = resolveBridgeLegToken(tokenRow);
+  if (!resolved.ok) {
+    return {
+      ok: false,
+      message: "Token data not found for the selected asset.",
+    };
+  }
+  return resolved;
+}
+
 /**
  * Expand Number.prototype.toString scientific notation (e.g. "1e-25", "1e+21")
  * into a plain decimal string without rounding. `toLocaleString` with a capped

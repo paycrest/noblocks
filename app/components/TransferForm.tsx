@@ -32,6 +32,7 @@ import { Token, type MobileSheetView } from "../types";
 import { networks } from "../mocks";
 import { getNetworkImageUrl } from "../utils";
 import { useActualTheme } from "../hooks/useActualTheme";
+import { useRegisterAppUpdateBlockWhileMounted } from "../context/AppUpdateBlockContext";
 import Image from "next/image";
 
 export const TransferForm: React.FC<{
@@ -40,6 +41,7 @@ export const TransferForm: React.FC<{
   showBackButton?: boolean;
   setCurrentView?: React.Dispatch<React.SetStateAction<MobileSheetView>>;
 }> = ({ onClose, onSuccess, showBackButton = false, setCurrentView }) => {
+  useRegisterAppUpdateBlockWhileMounted();
   const searchParams = useSearchParams();
   const useInjectedWallet = shouldUseInjectedWallet(searchParams);
   const { selectedNetwork } = useNetwork();

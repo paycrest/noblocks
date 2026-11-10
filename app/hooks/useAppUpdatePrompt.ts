@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef } from "react";
 import { toast } from "sonner";
 
+import { useAppUpdateBlock } from "../context/AppUpdateBlockContext";
 import { useStep } from "../context/StepContext";
 
 const VERSION_CHECK_INTERVAL_MS = 5 * 60 * 1000;
@@ -18,14 +19,22 @@ function getClientBuildId(): string {
  */
 export function useAppUpdatePrompt() {
   const { isFormStep } = useStep();
+  const { isSensitiveFlowActive } = useAppUpdateBlock();
   const clientBuildId = getClientBuildId();
   const updatePendingRef = useRef(false);
   const toastShownRef = useRef(false);
   const isFormStepRef = useRef(isFormStep);
+  const isSensitiveFlowActiveRef = useRef(isSensitiveFlowActive);
+
+  const canPromptUser = isFormStep && !isSensitiveFlowActive;
 
   useEffect(() => {
     isFormStepRef.current = isFormStep;
   }, [isFormStep]);
+
+  useEffect(() => {
+    isSensitiveFlowActiveRef.current = isSensitiveFlowActive;
+  }, [isSensitiveFlowActive]);
 
   const handleToastClosed = useCallback(() => {
     toastShownRef.current = false;
@@ -50,10 +59,10 @@ export function useAppUpdatePrompt() {
   }, [handleToastClosed]);
 
   const maybeShowPending = useCallback(() => {
-    if (!updatePendingRef.current || !isFormStep) return;
+    if (!updatePendingRef.current || !canPromptUser) return;
     updatePendingRef.current = false;
     showUpdateToast();
-  }, [isFormStep, showUpdateToast]);
+  }, [canPromptUser, showUpdateToast]);
 
   const checkForUpdate = useCallback(async () => {
     if (!clientBuildId) return;
@@ -63,7 +72,9 @@ export function useAppUpdatePrompt() {
       const data: { buildId?: string } = await response.json();
       if (!data.buildId || data.buildId === clientBuildId) return;
 
-      if (isFormStepRef.current) {
+      const safeToPrompt =
+        isFormStepRef.current && !isSensitiveFlowActiveRef.current;
+      if (safeToPrompt) {
         showUpdateToast();
       } else {
         updatePendingRef.current = true;
@@ -74,13 +85,13 @@ export function useAppUpdatePrompt() {
   }, [clientBuildId, showUpdateToast]);
 
   useEffect(() => {
-    if (!isFormStep && toastShownRef.current) {
+    if (!canPromptUser && toastShownRef.current) {
       toast.dismiss(APP_UPDATE_TOAST_ID);
       toastShownRef.current = false;
       updatePendingRef.current = true;
     }
     maybeShowPending();
-  }, [isFormStep, maybeShowPending]);
+  }, [canPromptUser, maybeShowPending]);
 
   useEffect(() => {
     void checkForUpdate();

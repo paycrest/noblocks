@@ -1,3 +1,8 @@
+export {
+  AppUpdateBlockProvider,
+  useAppUpdateBlock,
+  useRegisterAppUpdateBlockWhileMounted,
+} from "./AppUpdateBlockContext";
 export { StepProvider, useStep } from "./StepContext";
 export { NetworkProvider, useNetwork } from "./NetworksContext";
 export {

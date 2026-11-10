@@ -770,17 +770,22 @@ export function DepositQrModal({
           <div
             data-testid="deposit-qr-card"
             className={classNames(
-              // White card clips to Figma radius; QR modules sit inset in the
-              // quiet zone so the rounded corner only cuts white, never eyes.
-              "shrink-0 overflow-hidden bg-white isolate [transform:translateZ(0)]",
+              // Figma QR nodes 3013:168968 (340×339 r48) and 2691:64828
+              // (141×140 r19) have no CSS stroke; the black ring is in the
+              // screenshot fill. 1:1 node screenshots measure that ring as
+              // #171717, ~8px home / ~4px compact, inside the rounded clip.
+              // Border-box keeps the Figma outer size; QR size is reduced so
+              // the 20px/8px white quiet zone sits inside the ring instead of
+              // being painted over.
+              "box-border shrink-0 overflow-hidden border-solid border-[#171717] bg-white isolate [transform:translateZ(0)]",
               layout === "compact"
-                ? "h-[140px] w-[141px] rounded-[19px] [clip-path:inset(0_round_19px)]"
-                : "h-[339px] w-[340px] rounded-[48px] [clip-path:inset(0_round_48px)]",
+                ? "h-[140px] w-[141px] rounded-[19px] border-[4px] [clip-path:inset(0_round_19px)]"
+                : "h-[339px] w-[340px] rounded-[48px] border-[8px] [clip-path:inset(0_round_48px)]",
             )}
           >
             <QRCode
               value={address}
-              size={layout === "compact" ? 125 : 300}
+              size={layout === "compact" ? 116 : 283}
               quietZone={layout === "compact" ? 8 : 20}
               bgColor="#ffffff"
               fgColor="#000000"

@@ -52,8 +52,21 @@ import {
 import { normalizeStarknetAddress } from "../app/utils";
 
 jest.mock("react-qrcode-logo", () => ({
-  QRCode: ({ value }: { value: string }) => (
-    <div data-testid="deposit-qr" data-value={value} />
+  QRCode: ({
+    value,
+    size,
+    quietZone,
+  }: {
+    value: string;
+    size?: number;
+    quietZone?: number;
+  }) => (
+    <div
+      data-testid="deposit-qr"
+      data-value={value}
+      data-size={size}
+      data-quiet-zone={quietZone}
+    />
   ),
 }));
 
@@ -388,6 +401,20 @@ describe("Home DepositDrawerView", () => {
     expect(screen.queryByText(USE_ONCE_COPY)).not.toBeInTheDocument();
     expect(screen.queryByText(/Minimum deposit value/i)).not.toBeInTheDocument();
 
+    const qrCard = screen.getByTestId("deposit-qr-card");
+    expect(qrCard).toHaveClass(
+      "h-[339px]",
+      "w-[340px]",
+      "rounded-[48px]",
+      "border-[8px]",
+      "border-solid",
+      "border-[#171717]",
+    );
+    expect(qrCard).not.toHaveClass("border", "border-[1px]");
+    const qr = screen.getByTestId("deposit-qr");
+    expect(qr).toHaveAttribute("data-size", "283");
+    expect(qr).toHaveAttribute("data-quiet-zone", "20");
+
     fireEvent.click(screen.getByRole("button", { name: "Copy" }));
     await waitFor(() => {
       expect(copyToClipboard).toHaveBeenCalledWith(evmAddress, "Address");
@@ -514,6 +541,20 @@ describe("Token-detail DepositTokenModalView", () => {
     expect(
       screen.getByText("Minimum deposit value $1 USD"),
     ).toBeInTheDocument();
+
+    const qrCard = screen.getByTestId("deposit-qr-card");
+    expect(qrCard).toHaveClass(
+      "h-[140px]",
+      "w-[141px]",
+      "rounded-[19px]",
+      "border-[4px]",
+      "border-solid",
+      "border-[#171717]",
+    );
+    expect(qrCard).not.toHaveClass("border-[8px]", "border-[1px]");
+    const qr = screen.getByTestId("deposit-qr");
+    expect(qr).toHaveAttribute("data-size", "116");
+    expect(qr).toHaveAttribute("data-quiet-zone", "8");
 
     const okIcons = screen.getAllByTestId("deposit-ack-ok-icon");
     const warnIcons = screen.getAllByTestId("deposit-ack-warn-icon");

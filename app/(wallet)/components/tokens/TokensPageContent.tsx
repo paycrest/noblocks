@@ -610,6 +610,7 @@ export function TokenActionDrawerHost({
           <TransferForm
             onClose={onClose}
             preferredTokenSymbol={preferredTokenSymbol}
+            variant="v2"
           />
         );
       case "swap":
@@ -630,10 +631,17 @@ export function TokenActionDrawerHost({
       <ActionDrawer
         isOpen={activeAction != null}
         title={
-          activeAction ? TOKEN_ACTION_TITLES[activeAction] : ("Action" as const)
+          activeAction === "transfer"
+            ? preferredTokenSymbol
+              ? `Transfer ${canonicalTokenSymbol(preferredTokenSymbol)}`
+              : "Transfer funds"
+            : activeAction
+              ? TOKEN_ACTION_TITLES[activeAction]
+              : ("Action" as const)
         }
         onRequestClose={onClose}
         bodyAlign="start"
+        showPoweredByFooter={activeAction !== "transfer"}
       >
         {renderBody()}
       </ActionDrawer>

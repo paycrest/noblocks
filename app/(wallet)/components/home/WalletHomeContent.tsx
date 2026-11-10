@@ -432,7 +432,7 @@ function WalletActionDrawerHost({
           />
         );
       case "transfer":
-        return <TransferForm onClose={onClose} />;
+        return <TransferForm onClose={onClose} variant="v2" />;
       case "swap":
         return <BridgeForm onClose={onClose} onBridgeSubmit={() => {}} />;
       default:
@@ -444,9 +444,16 @@ function WalletActionDrawerHost({
     <>
       <ActionDrawer
         isOpen={activeAction != null}
-        title={activeAction ? ACTION_TITLES[activeAction] : "Action"}
+        title={
+          activeAction === "transfer"
+            ? "Transfer funds"
+            : activeAction
+              ? ACTION_TITLES[activeAction]
+              : "Action"
+        }
         onRequestClose={onClose}
         bodyAlign="start"
+        showPoweredByFooter={activeAction !== "transfer"}
       >
         {renderBody()}
       </ActionDrawer>

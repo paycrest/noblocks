@@ -34,6 +34,33 @@ import { getNetworkImageUrl } from "../utils";
 import { useActualTheme } from "../hooks/useActualTheme";
 import { tokensEqual } from "../lib/token-symbol";
 import Image from "next/image";
+import { TransferV2Form } from "./transfer/TransferV2Form";
+import { TransferPickerModal } from "./transfer/TransferPickerModal";
+import { TransferConfirmModal } from "./transfer/TransferConfirmModal";
+import { TransferPendingModal } from "./transfer/TransferPendingModal";
+import { TransferSuccessModal } from "./transfer/TransferSuccessModal";
+import { SaveRecipientToggle } from "./transfer/SaveRecipientToggle";
+import {
+  formatTransferAmount,
+  formatTransferCtaLabel,
+  formatTransferFeeUsd,
+  formatTransferShortAddress,
+  isEvmRecipientNetwork,
+  isUsdStablecoin,
+  TRANSFER_FEE_USD,
+  useTransferRate,
+} from "./transfer/transferConfig";
+
+type TransferFormValues = {
+  amount: number;
+  token: string;
+  recipientAddress: string;
+  recipientNetwork: string;
+  recipientNetworkImageUrl: string;
+};
+
+type TransferV2View = "form" | "confirm" | "pending" | "success";
+type TransferV2Picker = "token" | "network" | null;
 
 export const TransferForm: React.FC<{
   onClose: () => void;
@@ -41,12 +68,14 @@ export const TransferForm: React.FC<{
   showBackButton?: boolean;
   setCurrentView?: React.Dispatch<React.SetStateAction<MobileSheetView>>;
   preferredTokenSymbol?: string;
+  variant?: "v1" | "v2";
 }> = ({
   onClose,
   onSuccess,
   showBackButton = false,
   setCurrentView,
   preferredTokenSymbol,
+  variant = "v1",
 }) => {
   const searchParams = useSearchParams();
   const useInjectedWallet = shouldUseInjectedWallet(searchParams);
@@ -71,13 +100,7 @@ export const TransferForm: React.FC<{
   const [isBalanceLoading, setIsBalanceLoading] = useState(false);
   const [balanceError, setBalanceError] = useState<string | null>(null);
 
-  const formMethods = useForm<{
-    amount: number;
-    token: string;
-    recipientAddress: string;
-    recipientNetwork: string;
-    recipientNetworkImageUrl: string;
-  }>({ mode: "onChange" });
+  const formMethods = useForm<TransferFormValues>({ mode: "onChange" });
   const {
     handleSubmit,
     register,
@@ -88,7 +111,28 @@ export const TransferForm: React.FC<{
     getValues,
     formState: { errors, isValid, isDirty, dirtyFields },
   } = formMethods;
-  const { token, amount, recipientNetwork, recipientNetworkImageUrl } = watch();
+  const {
+    token,
+    amount,
+    recipientAddress,
+    recipientNetwork,
+    recipientNetworkImageUrl,
+  } = watch();
+
+  // v2 flow state: which centred overlay is showing over the drawer form.
+  const [v2View, setV2View] = useState<TransferV2View>("form");
+  const [v2Picker, setV2Picker] = useState<TransferV2Picker>(null);
+  const [submittedValues, setSubmittedValues] =
+    useState<TransferFormValues | null>(null);
+  const confirmInFlightRef = useRef(false);
+  const transferStartedAtRef = useRef<number | null>(null);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [frozenElapsedSeconds, setFrozenElapsedSeconds] = useState(0);
+  const rateLabel = useTransferRate(
+    variant === "v2" ? token : undefined,
+    recipientNetwork || selectedNetwork.chain.name,
+    variant === "v2",
+  );
 
   const showRecipientAddressError =
     Boolean(errors.recipientAddress) && Boolean(dirtyFields.recipientAddress);
@@ -147,6 +191,8 @@ export const TransferForm: React.FC<{
   }, [preferredTokenSymbol, fetchedTokens, setValue]);
 
   useEffect(() => {
+    // v2 starts with no network picked, matching the Figma "Select network" field.
+    if (variant === "v2") return;
     if (!recipientNetwork) {
       setValue("recipientNetwork", selectedNetwork.chain.name);
       const networkImageUrl = getNetworkImageUrl(selectedNetwork, isDark);
@@ -173,6 +219,59 @@ export const TransferForm: React.FC<{
       onSuccess();
     }
   }, [isTransferSuccess, onSuccess]);
+
+  const wasConfirmingRef = useRef(false);
+  useEffect(() => {
+    if (variant !== "v2") return;
+    if (isConfirming) {
+      wasConfirmingRef.current = true;
+      confirmInFlightRef.current = true;
+      // Capture the submitted values before the hook resets the form on success.
+      setSubmittedValues(getValues());
+      setV2View("pending");
+      return;
+    }
+    if (wasConfirmingRef.current) {
+      wasConfirmingRef.current = false;
+      confirmInFlightRef.current = false;
+      if (isTransferSuccess) {
+        const startedAt = transferStartedAtRef.current;
+        setFrozenElapsedSeconds(
+          startedAt
+            ? Math.max(0, Math.floor((Date.now() - startedAt) / 1000))
+            : 0,
+        );
+      }
+      // Success opens the receipt; a failure returns to the review step so the
+      // user can retry (the existing hook owns the error toast).
+      setV2View(isTransferSuccess ? "success" : "confirm");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isConfirming, isTransferSuccess, variant]);
+
+  // Elapsed UI timer, started at the confirm click. Display only.
+  useEffect(() => {
+    if (variant !== "v2" || !isConfirming) return;
+    const tick = () => {
+      const startedAt = transferStartedAtRef.current;
+      setElapsedSeconds(
+        startedAt ? Math.max(0, Math.floor((Date.now() - startedAt) / 1000)) : 0,
+      );
+    };
+    tick();
+    const interval = window.setInterval(tick, 1000);
+    return () => window.clearInterval(interval);
+  }, [isConfirming, variant]);
+
+  useEffect(() => {
+    if (variant !== "v2") return;
+    if (!isTransferSuccess) return;
+    const startedAt = transferStartedAtRef.current;
+    setFrozenElapsedSeconds(
+      startedAt ? Math.max(0, Math.floor((Date.now() - startedAt) / 1000)) : 0,
+    );
+    setV2View("success");
+  }, [isTransferSuccess, variant]);
 
   // Fetch balance for the selected transfer network
   // After migration: use EOA; before: use SCW. Wait for wallet selection to settle so we don't show SCW (0) while loading.
@@ -350,7 +449,7 @@ export const TransferForm: React.FC<{
     </div>
   );
 
-  if (isTransferSuccess) {
+  if (variant === "v1" && isTransferSuccess) {
     return renderSuccessView();
   }
 
@@ -361,6 +460,250 @@ export const TransferForm: React.FC<{
   const onFormSubmit = (data: any) => {
     transfer({ ...data, resetForm: reset });
   };
+
+  const balanceFor = (symbol: string): number => {
+    const balances = transferNetworkBalance?.balances ?? {};
+    const key = Object.keys(balances).find((item) => tokensEqual(item, symbol));
+    return key ? Number(balances[key]) || 0 : 0;
+  };
+
+  const selectedToken = fetchedTokens.find((item) =>
+    tokensEqual(item.symbol, token),
+  );
+  const v2CanContinue = Boolean(
+    recipientNetwork &&
+      token &&
+      Number(amount) > 0 &&
+      isValid &&
+      isDirty &&
+      !isConfirming,
+  );
+
+  const handleV2QuickAmount = (value: number) => {
+    if (!isUsdStablecoin(token)) return;
+    setValue("amount", value, {
+      shouldValidate: true,
+      shouldDirty: true,
+    });
+  };
+
+  // Continue validates with the existing form rules, then opens the review.
+  const v2SubmitForConfirm = handleSubmit(() => {
+    setV2View("confirm");
+  });
+
+  // Only this handler calls the existing transfer function, behind the same
+  // validation the v1 form submit uses.
+  const onConfirmInvalid = () => {
+    // Validation failed after the click: release the in-flight lock and the
+    // timer, and keep the review modal open so the user can fix the form.
+    confirmInFlightRef.current = false;
+    transferStartedAtRef.current = null;
+  };
+  const submitConfirmedTransfer = handleSubmit(
+    onFormSubmit,
+    onConfirmInvalid,
+  );
+
+  const handleV2Confirm = () => {
+    if (confirmInFlightRef.current || isConfirming) return;
+    // Same guards as the v1 submit button.
+    if (!(isValid && isDirty && token && Number(amount) > 0)) return;
+    setSubmittedValues(getValues());
+    confirmInFlightRef.current = true;
+    transferStartedAtRef.current = Date.now();
+    setElapsedSeconds(0);
+    setFrozenElapsedSeconds(0);
+    void submitConfirmedTransfer();
+  };
+
+  const handleV2Back = () => {
+    confirmInFlightRef.current = false;
+    setV2View("form");
+  };
+
+  const resetV2FlowState = () => {
+    confirmInFlightRef.current = false;
+    transferStartedAtRef.current = null;
+    setElapsedSeconds(0);
+    setFrozenElapsedSeconds(0);
+    setSubmittedValues(null);
+  };
+
+  const handleV2NewPayment = () => {
+    reset();
+    resetV2FlowState();
+    setV2View("form");
+  };
+
+  const handleV2BackHome = () => {
+    reset();
+    resetV2FlowState();
+    setV2View("form");
+    onClose();
+  };
+
+  const renderV2 = () => {
+    const v2AmountField = register("amount", {
+      required: {
+        value: true,
+        message: "Amount is required",
+      },
+      disabled: !token,
+      min: {
+        value: 0.0001,
+        message: `Min. amount is 0.0001`,
+      },
+      max: {
+        value: tokenBalance,
+        message: `Max. amount is ${tokenBalance}`,
+      },
+      pattern: {
+        value: /^\d+(\.\d{1,4})?$/,
+        message: "Invalid amount",
+      },
+    });
+    const v2AddressField = register("recipientAddress", {
+      required: {
+        value: true,
+        message: "Recipient address is required",
+      },
+      validate: {
+        addressForNetwork: (value) =>
+          validateWalletAddress(
+            value,
+            recipientNetwork || selectedNetwork.chain.name,
+          ),
+      },
+    });
+
+    const confirmTokenSymbol = token ?? "";
+    const completedTokenSymbol = submittedValues?.token ?? confirmTokenSymbol;
+    const completedShortAddress = formatTransferShortAddress(
+      submittedValues?.recipientAddress,
+    );
+
+    return (
+      <>
+        <TransferV2Form
+          registerAmount={v2AmountField}
+          registerRecipientAddress={v2AddressField}
+          errors={errors}
+          showRecipientAddressError={showRecipientAddressError}
+          token={token}
+          amount={amount}
+          tokenOptions={fetchedTokens}
+          tokenBalance={tokenBalance}
+          isBalanceLoading={isBalanceLoading}
+          hasBalanceSnapshot={transferNetworkBalance !== null}
+          recipientNetwork={recipientNetwork}
+          recipientNetworks={recipientNetworks}
+          canContinue={v2CanContinue}
+          isConfirming={isConfirming}
+          rateLabel={rateLabel}
+          balanceError={balanceError}
+          onOpenNetwork={() => setV2Picker("network")}
+          onOpenToken={() => setV2Picker("token")}
+          onMax={handleBalanceMaxClick}
+          onQuickAmount={handleV2QuickAmount}
+          onContinue={() => void v2SubmitForConfirm()}
+          onSubmit={v2SubmitForConfirm}
+        />
+
+        <TransferPickerModal
+          kind="network"
+          isOpen={v2Picker === "network"}
+          onClose={() => setV2Picker(null)}
+          networks={recipientNetworks}
+          selectedName={recipientNetwork}
+          onSelectNetwork={(name) => {
+            const network = networks.find((item) => item.chain.name === name);
+            setValue("recipientNetwork", name);
+            setValue(
+              "recipientNetworkImageUrl",
+              network ? getNetworkImageUrl(network, isDark) : "",
+            );
+            setV2Picker(null);
+          }}
+        />
+
+        <TransferPickerModal
+          kind="token"
+          isOpen={v2Picker === "token"}
+          onClose={() => setV2Picker(null)}
+          tokens={fetchedTokens.map((item) => ({
+            symbol: item.symbol,
+            name: item.name,
+            imageUrl: item.imageUrl,
+            balance: balanceFor(item.symbol),
+          }))}
+          selectedSymbol={token}
+          onSelectToken={(symbol) => {
+            setValue("token", symbol);
+            setV2Picker(null);
+          }}
+        />
+
+        <TransferConfirmModal
+          isOpen={v2View === "confirm"}
+          onClose={handleV2Back}
+          onConfirm={handleV2Confirm}
+          shortAddress={formatTransferShortAddress(recipientAddress)}
+          amountLabel={formatTransferAmount(amount)}
+          tokenSymbol={confirmTokenSymbol}
+          tokenImageUrl={selectedToken?.imageUrl}
+          networkName={recipientNetwork ?? ""}
+          networkImageUrl={recipientNetworkImageUrl}
+          feeLabel={formatTransferFeeUsd(TRANSFER_FEE_USD)}
+          ctaLabel={formatTransferCtaLabel(confirmTokenSymbol, amount)}
+          isSubmitting={isConfirming}
+          saveRecipientControl={
+            isEvmRecipientNetwork(recipientNetwork) && recipientAddress ? (
+              <SaveRecipientToggle
+                walletAddress={recipientAddress}
+                networkName={recipientNetwork ?? ""}
+                networkImageUrl={recipientNetworkImageUrl}
+              />
+            ) : undefined
+          }
+        />
+
+        <TransferPendingModal
+          isOpen={v2View === "pending"}
+          onClose={() => setV2View("form")}
+          amountLabel={formatTransferAmount(submittedValues?.amount)}
+          tokenSymbol={completedTokenSymbol}
+          tokenImageUrl={
+            fetchedTokens.find((item) =>
+              tokensEqual(item.symbol, completedTokenSymbol),
+            )?.imageUrl
+          }
+          shortAddress={completedShortAddress}
+          elapsedSeconds={elapsedSeconds}
+        />
+
+        <TransferSuccessModal
+          isOpen={v2View === "success"}
+          amountLabel={formatTransferAmount(submittedValues?.amount)}
+          tokenSymbol={completedTokenSymbol}
+          tokenImageUrl={
+            fetchedTokens.find((item) =>
+              tokensEqual(item.symbol, completedTokenSymbol),
+            )?.imageUrl
+          }
+          shortAddress={completedShortAddress}
+          elapsedSeconds={frozenElapsedSeconds}
+          explorerLink={getTxExplorerLink()}
+          onBackHome={handleV2BackHome}
+          onNewPayment={handleV2NewPayment}
+        />
+      </>
+    );
+  };
+
+  if (variant === "v2") {
+    return renderV2();
+  }
 
   return (
     <>

@@ -12,6 +12,7 @@ import {
 } from "hugeicons-react";
 import { PiCheck } from "react-icons/pi";
 import { ActionDrawer } from "@/app/components/drawer";
+import { DepositDrawer } from "@/app/components/deposit/DepositDrawer";
 import { TransferForm } from "@/app/components/TransferForm";
 import { BridgeForm } from "@/app/components/bridge/BridgeForm";
 import { ReferralHubView } from "@/app/components/wallet-mobile-modal/ReferralHubView";
@@ -431,7 +432,7 @@ function WalletActionDrawerHost({
           />
         );
       case "transfer":
-        return <TransferForm onClose={onClose} />;
+        return <TransferForm onClose={onClose} variant="v2" />;
       case "swap":
         return <BridgeForm onClose={onClose} onBridgeSubmit={() => {}} />;
       default:
@@ -443,9 +444,16 @@ function WalletActionDrawerHost({
     <>
       <ActionDrawer
         isOpen={activeAction != null}
-        title={activeAction ? ACTION_TITLES[activeAction] : "Action"}
+        title={
+          activeAction === "transfer"
+            ? "Transfer funds"
+            : activeAction
+              ? ACTION_TITLES[activeAction]
+              : "Action"
+        }
         onRequestClose={onClose}
         bodyAlign="start"
+        showPoweredByFooter={activeAction !== "transfer"}
       >
         {renderBody()}
       </ActionDrawer>
@@ -490,6 +498,7 @@ export function WalletHomeContent() {
   const [activeAction, setActiveAction] = useState<WalletHomeActionId | null>(
     null,
   );
+  const [depositOpen, setDepositOpen] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
 
   const portfolioLoading =
@@ -502,12 +511,22 @@ export function WalletHomeContent() {
   const isEmpty = data != null && isPortfolioEmpty(data);
 
   const handleAction = (action: WalletHomeActionId) => {
+    setDepositOpen(false);
     setActiveAction(action);
+  };
+
+  const openDepositDrawer = () => {
+    setActiveAction(null);
+    setDepositOpen(true);
   };
 
   const addFundsControl =
     showContent && !isEmpty ? (
-      <AddFundsSplitButton onAction={handleAction} variant="split" />
+      <AddFundsSplitButton
+        onPrimaryClick={openDepositDrawer}
+        onAction={handleAction}
+        variant="split"
+      />
     ) : null;
 
   return (
@@ -521,7 +540,7 @@ export function WalletHomeContent() {
       {showError ? <HomePortfolioError onRetry={() => void refetch()} /> : null}
 
       {showContent && isEmpty ? (
-        <AddFundsGetStartedCard onAddFunds={() => handleAction("buy")} />
+        <AddFundsGetStartedCard onAddFunds={openDepositDrawer} />
       ) : null}
 
       {portfolioLoading || showContent ? (
@@ -582,6 +601,10 @@ export function WalletHomeContent() {
         <ExploreCards onInviteClick={() => setInviteOpen(true)} />
       ) : null}
 
+      <DepositDrawer
+        isOpen={depositOpen}
+        onRequestClose={() => setDepositOpen(false)}
+      />
       <WalletActionDrawerHost
         activeAction={activeAction}
         onClose={() => setActiveAction(null)}

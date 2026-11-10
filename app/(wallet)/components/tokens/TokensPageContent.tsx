@@ -6,11 +6,13 @@ import Link from "next/link";
 import Image from "next/image";
 import Decimal from "decimal.js";
 import { ActionDrawer } from "@/app/components/drawer";
+import { DepositDrawer } from "@/app/components/deposit/DepositDrawer";
 import { TransferForm } from "@/app/components/TransferForm";
 import { BridgeForm } from "@/app/components/bridge/BridgeForm";
 import { CopyAddressWarningModal } from "@/app/components/CopyAddressWarningModal";
 import { ReferralHubView } from "@/app/components/wallet-mobile-modal/ReferralHubView";
 import { BalanceSkeleton } from "@/app/components/BalanceSkeleton";
+import { TokenListSkeleton } from "@/app/(wallet)/components/WalletPageSkeletons";
 import { usePortfolio } from "@/app/hooks/usePortfolio";
 import {
   useBridgeStatusTracker,
@@ -608,6 +610,7 @@ export function TokenActionDrawerHost({
           <TransferForm
             onClose={onClose}
             preferredTokenSymbol={preferredTokenSymbol}
+            variant="v2"
           />
         );
       case "swap":
@@ -628,10 +631,17 @@ export function TokenActionDrawerHost({
       <ActionDrawer
         isOpen={activeAction != null}
         title={
-          activeAction ? TOKEN_ACTION_TITLES[activeAction] : ("Action" as const)
+          activeAction === "transfer"
+            ? preferredTokenSymbol
+              ? `Transfer ${canonicalTokenSymbol(preferredTokenSymbol)}`
+              : "Transfer funds"
+            : activeAction
+              ? TOKEN_ACTION_TITLES[activeAction]
+              : ("Action" as const)
         }
         onRequestClose={onClose}
         bodyAlign="start"
+        showPoweredByFooter={activeAction !== "transfer"}
       >
         {renderBody()}
       </ActionDrawer>
@@ -755,18 +765,6 @@ function TokenRowLink({
   );
 }
 
-function TokenListSkeleton() {
-  return (
-    <div className="divide-y divide-border-light dark:divide-white/10">
-      {[0, 1, 2].map((key) => (
-        <div key={key} className="px-6 py-2">
-          <BalanceSkeleton className="h-10 w-full rounded-lg" />
-        </div>
-      ))}
-    </div>
-  );
-}
-
 // --- Tokens list page ---
 
 const ACTION_TITLES: Record<WalletHomeActionId, string> = {
@@ -878,6 +876,7 @@ export function TokensPageContent() {
   const [activeAction, setActiveAction] = useState<WalletHomeActionId | null>(
     null,
   );
+  const [depositOpen, setDepositOpen] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
 
   const portfolioLoading =
@@ -930,7 +929,14 @@ export function TokensPageContent() {
         </div>
         {showContent && !isEmpty ? (
           <AddFundsSplitButton
-            onAction={(action) => setActiveAction(action)}
+            onPrimaryClick={() => {
+              setActiveAction(null);
+              setDepositOpen(true);
+            }}
+            onAction={(action) => {
+              setDepositOpen(false);
+              setActiveAction(action);
+            }}
             variant="split"
           />
         ) : null}
@@ -945,7 +951,12 @@ export function TokensPageContent() {
       ) : null}
 
       {isEmpty ? (
-        <TokensEmptyState onAddFunds={() => setActiveAction("buy")} />
+        <TokensEmptyState
+          onAddFunds={() => {
+            setActiveAction(null);
+            setDepositOpen(true);
+          }}
+        />
       ) : null}
 
       {showContent && !isEmpty ? (
@@ -984,6 +995,10 @@ export function TokensPageContent() {
         <ExploreCards onInviteClick={() => setInviteOpen(true)} />
       ) : null}
 
+      <DepositDrawer
+        isOpen={depositOpen}
+        onRequestClose={() => setDepositOpen(false)}
+      />
       <TokensFundsDrawerHost
         activeAction={activeAction}
         onClose={() => setActiveAction(null)}

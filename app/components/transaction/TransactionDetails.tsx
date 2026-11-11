@@ -17,7 +17,6 @@ import {
   getExplorerLink,
   formatNumberWithCommas,
   getCurrencyImageSrc,
-  getFiatFlagImageUrl,
   getCurrencySymbol,
   getNetworkImageUrl,
   shortenAddress,
@@ -25,9 +24,15 @@ import {
   mapProviderAccountToInstructions,
   ONRAMP_CLIENT_PAYMENT_SESSION_MS,
   isOnrampClientPaymentSessionExpired,
+  isNoblocksFiatCurrencyCode,
   getTransactionHistoryTypeLabel,
   formatTransactionAmountDisplay,
 } from "../../utils";
+import {
+  formatCryptoWithSymbol,
+  formatFiatWithCode,
+  formatHistoryDateTime,
+} from "../../lib/transactionHistoryFilters";
 import {
   fetchV2SenderPaymentOrderById,
   unwrapV2SenderOrderEnvelope,
@@ -93,7 +98,8 @@ function useOnrampClientPaymentSession(
 }
 
 const STATUS_COLOR_MAP: Record<string, string> = {
-  completed: "text-green-500",
+  completed: "text-[#227738] dark:text-[#39c65d]",
+  failed: "text-[#d50b3e] dark:text-[#f53d6b]",
   refunded: "text-red-500",
   refunding: "text-red-300",
   fulfilled: "text-blue-500",
@@ -101,6 +107,18 @@ const STATUS_COLOR_MAP: Record<string, string> = {
   processing: "text-yellow-500",
   expired: "text-amber-600 dark:text-amber-500",
 };
+
+function capitalizeStatus(status: string): string {
+  return status.charAt(0).toUpperCase() + status.slice(1);
+}
+
+/** Top heading amount: fiat legs keep the existing fiat formatter; crypto legs show at least 2 decimals. */
+function headingAmountDisplay(amount: number, currencyCode: string): string {
+  if (isNoblocksFiatCurrencyCode(currencyCode)) {
+    return formatTransactionAmountDisplay(amount, currencyCode);
+  }
+  return formatCryptoWithSymbol(amount, currencyCode);
+}
 
 // Helper function to get network object from network name
 const getNetworkFromName = (networkName: string): Network | null => {
@@ -186,165 +204,125 @@ export function TransactionDetails({ transaction }: TransactionDetailsProps) {
       transition={{ duration: 0.2 }}
     >
       {/* Top: Token icons, swapped amount, status */}
-      <div className="flex flex-col gap-4">
-        <div className="flex items-center gap-2">
-          <div className="flex -space-x-2">
-            {(() => {
-              if (transaction.transaction_type === "bridge") {
-                return (
-                  <>
-                    <Image
-                      src={`/logos/${transaction.from_currency.toLowerCase()}-logo.svg`}
-                      alt={transaction.from_currency}
-                      width={20}
-                      height={20}
-                      className="rounded-full border border-white dark:border-surface-canvas"
-                    />
-                    <Image
-                      src={`/logos/${transaction.to_currency.toLowerCase()}-logo.svg`}
-                      alt={transaction.to_currency}
-                      width={20}
-                      height={20}
-                      className="rounded-full border border-white dark:border-surface-canvas"
-                    />
-                  </>
-                );
-              }
-              if (transaction.transaction_type === "transfer") {
-                const networkObj = getNetworkFromName(transaction.network);
-                return (
-                  <>
-                    {networkObj && (
-                      <Image
-                        src={getNetworkImageUrl(networkObj, isDark)}
-                        alt={transaction.network}
-                        width={20}
-                        height={20}
-                        className="border border-white dark:border-surface-canvas"
-                      />
-                    )}
-                    <Image
-                      src={`/logos/${transaction.from_currency.toLowerCase()}-logo.svg`}
-                      alt={transaction.from_currency}
-                      width={20}
-                      height={20}
-                      className="rounded-full border border-white dark:border-surface-canvas"
-                    />
-                  </>
-                );
-              }
-              if (transaction.transaction_type === "credit") {
-                return (
-                  <Image
-                    src={getCurrencyImageSrc(
-                      transaction.from_currency,
-                      isDark,
-                    )}
-                    alt={transaction.from_currency}
-                    width={20}
-                    height={20}
-                    className="rounded-full border border-white dark:border-surface-canvas"
-                  />
-                );
-              }
-              if (transaction.transaction_type === "onramp") {
-                return (
-                  <>
-                    <Image
-                      src={getCurrencyImageSrc(
-                        transaction.from_currency,
-                        isDark,
-                      )}
-                      alt={transaction.from_currency}
-                      width={20}
-                      height={20}
-                      className="rounded-full border border-white dark:border-surface-canvas"
-                    />
-                    <Image
-                      src={getCurrencyImageSrc(
-                        transaction.to_currency,
-                        isDark,
-                      )}
-                      alt={transaction.to_currency}
-                      width={20}
-                      height={20}
-                      className="rounded-full border border-white dark:border-surface-canvas"
-                    />
-                  </>
-                );
-              }
+      <div className="flex flex-col items-center gap-4">
+        <div className="flex -space-x-3">
+          {(() => {
+            if (transaction.transaction_type === "bridge") {
               return (
                 <>
                   <Image
-                    src={getCurrencyImageSrc(
-                      transaction.from_currency,
-                      isDark,
-                    )}
+                    src={`/logos/${transaction.from_currency.toLowerCase()}-logo.svg`}
                     alt={transaction.from_currency}
-                    width={20}
-                    height={20}
+                    width={36}
+                    height={36}
                     className="rounded-full border border-white dark:border-surface-canvas"
                   />
                   <Image
-                    src={getFiatFlagImageUrl(transaction.to_currency)}
+                    src={`/logos/${transaction.to_currency.toLowerCase()}-logo.svg`}
                     alt={transaction.to_currency}
-                    width={20}
-                    height={20}
+                    width={36}
+                    height={36}
                     className="rounded-full border border-white dark:border-surface-canvas"
                   />
                 </>
               );
-            })()}
-          </div>
-          <div className="ml-2 text-lg font-medium leading-6 text-text-body dark:text-white/80">
-            {getTransactionHistoryTypeLabel(transaction.transaction_type)}{" "}
-            <span className={`font-semibold ${transaction.transaction_type === "credit" ? "text-green-500" : transaction.transaction_type === "transfer" ? "text-red-500" : "text-text-body dark:text-white"}`}>
-              {transaction.transaction_type === "credit" ? (
+            }
+            if (transaction.transaction_type === "transfer") {
+              const networkObj = getNetworkFromName(transaction.network);
+              return (
                 <>
-                  +{formatTransactionAmountDisplay(
-                    transaction.amount_received ?? 0,
-                    transaction.from_currency,
+                  {networkObj && (
+                    <Image
+                      src={getNetworkImageUrl(networkObj, isDark)}
+                      alt={transaction.network}
+                      width={36}
+                      height={36}
+                      className="border border-white dark:border-surface-canvas"
+                    />
                   )}
+                  <Image
+                    src={`/logos/${transaction.from_currency.toLowerCase()}-logo.svg`}
+                    alt={transaction.from_currency}
+                    width={36}
+                    height={36}
+                    className="rounded-full border border-white dark:border-surface-canvas"
+                  />
                 </>
-              ) : transaction.transaction_type === "transfer" ? (
-                <>
-                  -{formatTransactionAmountDisplay(
-                    transaction.amount_sent,
+              );
+            }
+            if (transaction.transaction_type === "credit") {
+              return (
+                <Image
+                  src={getCurrencyImageSrc(
                     transaction.from_currency,
+                    isDark,
                   )}
-                </>
-              ) : transaction.transaction_type === "onramp" ? (
-                <>
-                  {formatTransactionAmountDisplay(
-                    transaction.amount_sent ?? 0,
-                    transaction.from_currency,
-                  )}
-                </>
-              ) : (
-                <>
-                  {formatTransactionAmountDisplay(
-                    transaction.amount_sent,
-                    transaction.from_currency,
-                  )}
-                </>
-              )}
-            </span>
-          </div>
+                  alt={transaction.from_currency}
+                  width={36}
+                  height={36}
+                  className="rounded-full border border-white dark:border-surface-canvas"
+                />
+              );
+            }
+            return (
+              <Image
+                src={getCurrencyImageSrc(transaction.from_currency, isDark)}
+                alt={transaction.from_currency}
+                width={36}
+                height={36}
+                className="rounded-full border border-white dark:border-surface-canvas"
+              />
+            );
+          })()}
         </div>
-        <div className="flex items-center gap-2">
-          <span
-            className={`${
-              onrampClientSession.applies && onrampClientSession.expired
-                ? STATUS_COLOR_MAP.expired
-                : STATUS_COLOR_MAP[transaction.status] ||
-                  "text-text-secondary dark:text-white/50"
-            } text-sm`}
-          >
-            {onrampClientSession.applies && onrampClientSession.expired
-              ? "expired"
-              : transaction.status}
+        <div className="text-center text-[28px] font-medium leading-6 text-text-accent-gray dark:text-white/80">
+          {getTransactionHistoryTypeLabel(transaction.transaction_type)}{" "}
+          <span className="text-neutral-900 dark:text-white">
+            {transaction.transaction_type === "credit" ? (
+              <>
+                +{headingAmountDisplay(
+                  transaction.amount_received ?? 0,
+                  transaction.from_currency,
+                )}
+              </>
+            ) : transaction.transaction_type === "transfer" ? (
+              <>
+                -{headingAmountDisplay(
+                  transaction.amount_sent,
+                  transaction.from_currency,
+                )}
+              </>
+            ) : transaction.transaction_type === "onramp" ? (
+              <>
+                {headingAmountDisplay(
+                  transaction.amount_sent ?? 0,
+                  transaction.from_currency,
+                )}
+              </>
+            ) : (
+              <>
+                {headingAmountDisplay(
+                  transaction.amount_sent,
+                  transaction.from_currency,
+                )}
+              </>
+            )}
           </span>
         </div>
+        <span
+          className={`font-general-sans text-sm leading-5 ${
+            onrampClientSession.applies && onrampClientSession.expired
+              ? STATUS_COLOR_MAP.expired
+              : STATUS_COLOR_MAP[transaction.status] ||
+                "text-text-secondary dark:text-white/50"
+          }`}
+        >
+          {capitalizeStatus(
+            onrampClientSession.applies && onrampClientSession.expired
+              ? "expired"
+              : transaction.status,
+          )}
+        </span>
       </div>
       <Divider />
       {/* Details section 1 */}
@@ -731,9 +709,9 @@ export function TransactionDetails({ transaction }: TransactionDetailsProps) {
             label="Amount"
             value={
               <span className="text-text-accent-gray dark:text-white/80">
-                {formatTransactionAmountDisplay(
-                  transaction.amount_received ?? 0,
+                {formatFiatWithCode(
                   transaction.to_currency,
+                  transaction.amount_received ?? 0,
                 )}
               </span>
             }
@@ -749,40 +727,6 @@ export function TransactionDetails({ transaction }: TransactionDetailsProps) {
               </span>
             }
           />
-          {transaction.network && (
-            <DetailRow
-              label="Network"
-              value={
-                <div className="flex items-center gap-2">
-                  {(() => {
-                    const networkObj = getNetworkFromName(transaction.network);
-                    if (networkObj) {
-                      return (
-                        <>
-                          {getNetworkImageUrl(networkObj, isDark) && (
-                            <Image
-                              src={getNetworkImageUrl(networkObj, isDark)}
-                              alt={transaction.network}
-                              width={16}
-                              height={16}
-                            />
-                          )}
-                          <span className="text-text-accent-gray dark:text-white/80">
-                            {transaction.network}
-                          </span>
-                        </>
-                      );
-                    }
-                    return (
-                      <span className="text-text-accent-gray dark:text-white/80">
-                        {transaction.network}
-                      </span>
-                    );
-                  })()}
-                </div>
-              }
-            />
-          )}
           <DetailRow
             label="Recipient"
             value={
@@ -827,17 +771,8 @@ export function TransactionDetails({ transaction }: TransactionDetailsProps) {
         <DetailRow
           label="Date"
           value={
-            <span className="text-text-secondary dark:text-white/50">
-              {new Date(transaction.created_at).toLocaleTimeString([], {
-                hour: "2-digit",
-                minute: "2-digit",
-              })}
-              {"  "}
-              {new Date(transaction.created_at).toLocaleDateString([], {
-                day: "2-digit",
-                month: "short",
-                year: "numeric",
-              })}
+            <span className="whitespace-pre text-text-secondary dark:text-white/50">
+              {formatHistoryDateTime(new Date(transaction.created_at))}
             </span>
           }
         />
@@ -851,9 +786,11 @@ export function TransactionDetails({ transaction }: TransactionDetailsProps) {
                   : "text-text-secondary dark:text-white/50"
               }
             >
-              {onrampClientSession.applies && onrampClientSession.expired
-                ? "expired"
-                : transaction.status}
+              {capitalizeStatus(
+                onrampClientSession.applies && onrampClientSession.expired
+                  ? "expired"
+                  : transaction.status,
+              )}
             </span>
           }
         />
@@ -893,12 +830,12 @@ export function TransactionDetails({ transaction }: TransactionDetailsProps) {
               title="Download transaction receipt"
               onClick={handleGetReceipt}
               disabled={isLoading}
-              className="w-full rounded-xl bg-accent-gray py-2.5 text-sm font-medium text-text-body transition-all hover:bg-[#EBEBEF] focus:outline-none disabled:opacity-70 dark:bg-white/10 dark:text-white dark:hover:bg-white/20"
+              className="h-10 w-full rounded-xl bg-gray-100 px-3 py-2.5 font-general-sans text-sm font-medium leading-5 tracking-[-0.01em] text-neutral-900 transition-all hover:bg-[#EBEBEF] focus:outline-none disabled:opacity-70 dark:bg-white/10 dark:text-white dark:hover:bg-white/20"
             >
               {isLoading ? (
                 <div className="flex items-center justify-center gap-2">
-                  <ImSpinner className="size-5 animate-spin text-text-body dark:text-white" />
-                  <span>Generating receipt...</span>
+                  <ImSpinner className="size-4 animate-spin text-neutral-900 dark:text-white" />
+                  <span>Generating…</span>
                 </div>
               ) : (
                 "Get receipt"
@@ -1141,11 +1078,11 @@ function DetailRow({
   value: React.ReactNode;
 }) {
   return (
-    <div className="flex w-full items-center justify-between">
-      <div className="text-sm font-normal leading-5 text-text-secondary dark:text-white/50">
+    <div className="flex min-h-5 w-full items-start justify-between">
+      <div className="shrink-0 font-general-sans text-sm leading-5 tracking-[-0.01em] text-text-secondary dark:text-white/50">
         {label}
       </div>
-      <div className="max-w-[60%] break-words text-right text-sm font-normal leading-5 text-text-accent-gray dark:text-white/80">
+      <div className="max-w-[60%] break-all px-1 text-right font-general-sans text-sm leading-5 text-text-accent-gray dark:text-white/80">
         {value}
       </div>
     </div>

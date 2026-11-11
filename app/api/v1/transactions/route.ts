@@ -15,6 +15,10 @@ import {
   roundAmountForCurrency,
 } from "@/app/utils";
 import {
+  buildHistorySearchOrFilter,
+  parseHistoryQuery,
+} from "@/app/lib/transactionHistoryFilters";
+import {
   assertTransactionWalletAuthorized,
   executeSwapTransactionLimitCheck,
 } from "@/app/lib/swap-transaction-limit-server";
@@ -112,19 +116,32 @@ export const GET = withRateLimit(async (request: NextRequest) => {
       wallet_address: walletAddress,
     });
 
-    const searchParams = request.nextUrl.searchParams;
-    const page = parseInt(searchParams.get("page") || "1");
-    const limit = parseInt(searchParams.get("limit") || "20");
+    const { page, limit, types, statuses, search } = parseHistoryQuery(
+      request.nextUrl.searchParams,
+    );
     const offset = (page - 1) * limit;
+
+    let query = supabaseAdmin
+      .from("transactions")
+      .select("*", { count: "exact" })
+      .eq("wallet_address", walletAddress);
+
+    if (types.length > 0) {
+      query = query.in("transaction_type", types);
+    }
+    if (statuses.length > 0) {
+      query = query.in("status", statuses);
+    }
+    const searchOrFilter = buildHistorySearchOrFilter(search);
+    if (searchOrFilter) {
+      query = query.or(searchOrFilter);
+    }
 
     const {
       data: transactions,
       error,
       count,
-    } = await supabaseAdmin
-      .from("transactions")
-      .select("*", { count: "exact" })
-      .eq("wallet_address", walletAddress)
+    } = await query
       .order("created_at", { ascending: false })
       .range(offset, offset + limit - 1);
 

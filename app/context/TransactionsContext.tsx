@@ -25,6 +25,10 @@ import { usePrivy } from "@privy-io/react-auth";
 import { reindexSingleTransaction } from "../lib/reindex";
 import { useInjectedWallet } from "./InjectedWalletContext";
 import { useApiAuth } from "../hooks/useApiAuth";
+import {
+  serializeHistoryFilters,
+  type TransactionHistoryFilters,
+} from "../lib/transactionHistoryFilters";
 
 // Polling interval and reindex threshold (30 seconds)
 const POLLING_INTERVAL_MS = 30 * 1000;
@@ -42,6 +46,7 @@ interface TransactionsContextType {
     limit: number,
     forceRefresh?: boolean,
     injectedToken?: string | null,
+    filters?: TransactionHistoryFilters,
   ) => Promise<void>;
   refreshTransactions: () => Promise<void>;
   clearTransactions: () => void;
@@ -318,6 +323,10 @@ export function TransactionsProvider({
 
   const cacheRef = useRef(cache);
   cacheRef.current = cache;
+  const lastFiltersRef = useRef<TransactionHistoryFilters | undefined>(undefined);
+  // Identifies the most recently started fetch, so a slower, older request can't clobber
+  // state with stale data once a newer one has already landed.
+  const latestRequestIdRef = useRef(0);
 
   const fetchTransactionData = useCallback(
     async (
@@ -327,8 +336,12 @@ export function TransactionsProvider({
       limit: number,
       forceRefresh?: boolean,
       injectedToken: string | null = null,
+      filters?: TransactionHistoryFilters,
     ) => {
-      const cacheKey = `${walletAddress}-${page}-${limit}`;
+      lastFiltersRef.current = filters;
+      const requestId = ++latestRequestIdRef.current;
+      const isLatest = () => requestId === latestRequestIdRef.current;
+      const cacheKey = `${walletAddress}-${page}-${limit}-${serializeHistoryFilters(filters)}`;
       const cachedData = cacheRef.current[cacheKey];
       const now = Date.now();
       const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
@@ -339,8 +352,12 @@ export function TransactionsProvider({
         cachedData &&
         now - cachedData.timestamp < CACHE_DURATION
       ) {
-        setTransactions(cachedData.data);
-        setTotal(cachedData.total);
+        if (isLatest()) {
+          setTransactions(cachedData.data);
+          setTotal(cachedData.total);
+          // An older request may still be in flight; it no longer owns isLoading.
+          setIsLoading(false);
+        }
 
         // Trigger reconciliation in background
         reconcileTransactionStatuses(
@@ -363,11 +380,11 @@ export function TransactionsProvider({
           page,
           limit,
           injectedToken,
+          filters,
         );
         if (data.success) {
-          setTransactions(data.data.transactions);
-          setTotal(data.data.total);
-          // Update cache
+          // Cache under this request's own key regardless of staleness — a later request for
+          // the same filters/page shouldn't have to refetch just because this one lost the race.
           setCache((prev) => ({
             ...prev,
             [cacheKey]: {
@@ -376,6 +393,11 @@ export function TransactionsProvider({
               timestamp: now,
             },
           }));
+
+          if (isLatest()) {
+            setTransactions(data.data.transactions);
+            setTotal(data.data.total);
+          }
 
           // Trigger reconciliation in background
           reconcileTransactionStatuses(
@@ -394,9 +416,13 @@ export function TransactionsProvider({
         } else {
           console.error("Error fetching transactions:", error);
         }
-        setError(error as Error);
+        if (isLatest()) {
+          setError(error as Error);
+        }
       } finally {
-        setIsLoading(false);
+        if (isLatest()) {
+          setIsLoading(false);
+        }
         fetchingRef.current = false;
       }
     },
@@ -418,7 +444,8 @@ export function TransactionsProvider({
     // Must match the page size TransactionList fetches/paginates with (limit = 30),
     // otherwise refresh writes/reads a different cache key than the list path.
     const PAGE_LIMIT = 30;
-    const cacheKey = `${walletAddress}-${currentPage}-${PAGE_LIMIT}`;
+    const filters = lastFiltersRef.current;
+    const cacheKey = `${walletAddress}-${currentPage}-${PAGE_LIMIT}-${serializeHistoryFilters(filters)}`;
     if (cacheKey in cacheRef.current) {
       const next = { ...cacheRef.current };
       delete next[cacheKey];
@@ -440,6 +467,7 @@ export function TransactionsProvider({
       PAGE_LIMIT,
       true,
       injectedToken,
+      filters,
     );
   }, [historyWalletAddress, resolveAuth, currentPage, fetchTransactionData]);
 

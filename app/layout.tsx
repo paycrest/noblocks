@@ -2,6 +2,7 @@ import "./globals.css";
 import React from "react";
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
+import { generalSans } from "./fonts/general-sans";
 import Script from "next/script";
 import AppLayout from "./components/AppLayout";
 
@@ -247,7 +248,7 @@ export default function RootLayout({
         />
       </head>
       <body
-        className={`${inter.className} overflow-x-hidden`}
+        className={`${inter.className} ${generalSans.variable} overflow-x-hidden`}
         suppressHydrationWarning
       >
         <Script

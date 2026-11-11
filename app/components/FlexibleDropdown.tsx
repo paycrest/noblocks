@@ -36,6 +36,8 @@ interface FlexibleDropdownProps {
     disabled: boolean;
   }) => ReactNode;
   className?: string;
+  /** Applied to the portaled desktop menu and the mobile sheet only. Not used globally. */
+  panelClassName?: string;
   mobileTitle?: string;
   dropdownWidth?: number;
   /** When true, toggling the menu is blocked (e.g. Starknet on-ramp placeholders). */
@@ -67,6 +69,7 @@ export const FlexibleDropdown = ({
   onSelect,
   children,
   className = "",
+  panelClassName = "",
   mobileTitle = "Select option",
   dropdownWidth,
   disabled = false,
@@ -356,7 +359,7 @@ export const FlexibleDropdown = ({
       >
         {/* dropdown-sheet-panel: stable styling hook (e.g. for widget-mode
             overrides in globals.css). */}
-        <DialogPanel className="dropdown-sheet-panel w-full space-y-4 rounded-t-[30px] border border-border-light bg-white px-5 py-6 dark:border-white/5 dark:bg-surface-overlay">
+        <DialogPanel className={classNames("dropdown-sheet-panel w-full space-y-4 rounded-t-[30px] border border-border-light bg-white px-5 py-6 dark:border-white/5 dark:bg-surface-overlay", panelClassName)}>
           <div className="flex items-center justify-between">
             <DialogTitle className="text-center text-lg font-semibold text-text-body dark:text-white">
               {mobileTitle}
@@ -425,6 +428,7 @@ export const FlexibleDropdown = ({
         className={classNames(
           "mt-2 flex max-h-60 flex-col overflow-hidden rounded-xl border border-border-light bg-white shadow-xl focus:outline-none dark:border-white/10 dark:bg-neutral-800",
           className,
+          panelClassName,
         )}
       >
         {searchable ? (

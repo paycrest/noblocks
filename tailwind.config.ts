@@ -93,6 +93,7 @@ const config: Config = {
       },
       fontFamily: {
         'inter': ['"Inter"', 'system-ui', 'arial', 'sans-serif'],
+        'general-sans': ['var(--font-general-sans)', 'Inter', 'system-ui', 'sans-serif'],
       },
     },
   },

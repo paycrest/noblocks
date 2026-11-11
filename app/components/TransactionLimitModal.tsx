@@ -303,6 +303,9 @@ export default function TransactionLimitModal({
           onClose();
         }}
         lockBodyScroll
+        maxWidth="412px"
+        contentRadiusClass="max-sm:rounded-t-[20px] sm:rounded-[20px]"
+        contentClassName="border-[0.3px] border-border-light dark:border-white/10"
       >
         <KycModal
           setIsKycModalOpen={(value) => {

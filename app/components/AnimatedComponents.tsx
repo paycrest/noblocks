@@ -296,6 +296,8 @@ type AnimatedModalProps = {
   dialogPanelClassName?: string;
   /** Merged onto the inner scrollable panel (padding, background, radius). */
   contentClassName?: string;
+  /** Replaces the default panel radius. Other modals keep 30/24. */
+  contentRadiusClass?: string;
   showGradientHeader?: boolean;
   backgroundImagePath?: string;
   /**
@@ -413,6 +415,7 @@ export const AnimatedModal = ({
   maxWidth = "27.3125rem",
   dialogPanelClassName,
   contentClassName,
+  contentRadiusClass = "max-sm:rounded-t-[30px] sm:rounded-3xl",
   showGradientHeader = false,
   backgroundImagePath,
   lockBodyScroll = true,
@@ -540,7 +543,8 @@ export const AnimatedModal = ({
 
                   <div
                     className={classNames(
-                      "w-full bg-white p-5 text-sm dark:bg-surface-overlay max-sm:rounded-t-[30px] sm:rounded-3xl",
+                      "w-full bg-white p-5 text-sm dark:bg-surface-overlay",
+                      contentRadiusClass,
                       showGradientHeader ? "-mt-10" : "",
                       contentClassName ?? "",
                     )}

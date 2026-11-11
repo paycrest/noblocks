@@ -3,14 +3,21 @@
 import { Dialog, DialogPanel, DialogTitle } from "@headlessui/react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Cancel01Icon, CheckmarkCircle01Icon } from "hugeicons-react";
+import type { ReactNode } from "react";
 import { fadeInOut } from "../AnimatedComponents";
 
-const REQUIREMENTS = [
+const REQUIREMENTS: ReactNode[] = [
   "Your address must match the address you entered",
-  "Must be valid and not expired",
-  "Must clearly show your name, phone and residential address",
+  <>
+    Must be <strong className="font-medium">valid and not expired</strong>
+  </>,
+  <>
+    Must clearly show your{" "}
+    <strong className="font-medium">name, phone</strong> and{" "}
+    <strong className="font-medium">residential address</strong>
+  </>,
   "Should not be blurry",
-] as const;
+];
 
 interface DocumentRequirementsModalProps {
   isOpen: boolean;
@@ -39,7 +46,7 @@ export function DocumentRequirementsModal({
             <DialogPanel>
               <motion.div
                 {...fadeInOut}
-                className="w-full max-w-[22rem] rounded-2xl bg-white p-5 shadow-xl dark:bg-surface-overlay"
+                className="w-full max-w-[22rem] rounded-[20px] border-[0.3px] border-border-light bg-white p-5 shadow-xl dark:border-white/10 dark:bg-surface-overlay"
               >
                 <div className="flex items-center justify-between">
                   <DialogTitle className="text-sm font-normal text-neutral-900 dark:text-white">
@@ -54,7 +61,7 @@ export function DocumentRequirementsModal({
                     <Cancel01Icon className="size-4" />
                   </button>
                 </div>
-                <ul className="mt-4 space-y-3 dark:bg-white/5 rounded-xl p-4">
+                <ul className="mt-4 space-y-4 rounded-xl bg-gray-50 p-4 dark:bg-white/5">
                   {list.map((text, index) => (
                     <li
                       key={index}

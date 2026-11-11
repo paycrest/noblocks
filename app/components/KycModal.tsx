@@ -15,12 +15,7 @@ declare global {
   }
 }
 
-import {
-  CheckIcon,
-  SadFaceIcon,
-  UserDetailsIcon,
-  VerificationPendingIcon,
-} from "./ImageAssets";
+import { CheckIcon, SadFaceIcon, VerificationPendingIcon } from "./ImageAssets";
 import { DropdownItem, FlexibleDropdown } from "./FlexibleDropdown";
 import {
   ArrowDown01Icon,
@@ -31,6 +26,7 @@ import {
   PencilEdit01Icon,
   PencilEdit02Icon,
   Tick01Icon,
+  UserAccountIcon,
 } from "hugeicons-react";
 import { classNames } from "../utils";
 import { fadeInOut } from "./AnimatedComponents";
@@ -49,7 +45,7 @@ import { startSmileCameraAlertStyleFix } from "../lib/smileCameraTheme";
 import { mapReportAndAct } from "../lib/toastMappedError";
 
 const TIER3_DOCUMENT_TYPES = [
-  { value: "utility_bill", label: "Utility bill" },
+  { value: "utility_bill", label: "Electricity bill" },
 ] as const;
 
 export const STEPS = {
@@ -452,18 +448,18 @@ export const KycModal = ({
   const renderTerms = () => (
     <motion.div key="terms" {...fadeInOut} className="space-y-4">
       <div className="space-y-3">
-        <UserDetailsIcon />
+        <UserAccountIcon className="size-6 text-text-disabled dark:text-white/40" />
         <div>
-          <h2 className="text-lg font-medium dark:text-white">
-            Verify your identity in just{" "}
-            <span className="bg-gradient-to-br from-green-400 via-orange-400 to-orange-600 bg-clip-text text-transparent">
+          <h2 className="text-lg font-semibold text-text-primary dark:text-white">
+            Verify your identity in{" "}
+            <span className="bg-[linear-gradient(119.63deg,_#04FF44_45.08%,_#EAAB12_70.6%,_rgba(255,107,144,0.6)_105.17%,_#FF0087_122.94%,_#5189F9_161.1%)] bg-clip-text text-transparent">
               2 minutes
             </span>
           </h2>
         </div>
       </div>
 
-      <div className="space-y-6 rounded-2xl border border-gray-100 bg-gray-50 p-4 dark:border-white/10 dark:bg-white/5">
+      <div className="space-y-6 rounded-[20px] border-[0.3px] border-border-light bg-gray-50 p-5 dark:border-white/10 dark:bg-white/5">
         <h4 className="text-base font-medium text-neutral-800 dark:text-white/80">
           Accept terms to get started
         </h4>
@@ -520,7 +516,7 @@ export const KycModal = ({
                     window.open("/kyc-policy", "_blank");
                   }}
                 >
-                  Read full KYC Policy
+                  Read full Terms and Conditions
                 </a>
               </Label>
             </div>
@@ -528,7 +524,7 @@ export const KycModal = ({
         </Field>
       </div>
 
-      <div className="rounded-2xl border border-gray-100 p-4 dark:border-white/10">
+      <div className="rounded-[20px] border-[0.3px] border-border-light p-4 dark:border-white/10">
         <div className="flex items-start gap-2">
           <Checkbox
             checked={termsAccepted}
@@ -549,7 +545,7 @@ export const KycModal = ({
             </svg>
           </Checkbox>
           <p className="text-xs text-gray-500 dark:text-white/50">
-            By clicking &ldquo;Sign and continue&rdquo; below, you are agreeing to the terms and policies above.
+            By clicking &ldquo;sign and continue&rdquo; below, you are agreeing to the terms and policies above
           </p>
         </div>
       </div>
@@ -568,7 +564,7 @@ export const KycModal = ({
           disabled={!termsAccepted}
           onClick={handleAcceptTerms}
         >
-          Accept and continue
+          Sign and continue
         </button>
       </div>
     </motion.div>
@@ -577,9 +573,9 @@ export const KycModal = ({
   const renderIdInfo = () => (
     <motion.div key="id_info" {...fadeInOut} className="space-y-4">
       <div className="space-y-3">
-        <UserDetailsIcon />
+        <UserAccountIcon className="size-6 text-text-disabled dark:text-white/40" />
         <div>
-          <h2 className="text-lg font-medium dark:text-white">
+          <h2 className="text-lg font-semibold text-text-primary dark:text-white">
             Select your ID document
           </h2>
           <p className="text-sm text-gray-500 dark:text-white/50">
@@ -613,7 +609,7 @@ export const KycModal = ({
               <button
                 type="button"
                 onClick={toggleDropdown}
-                className="flex w-full items-center justify-between rounded-xl border border-gray-200 bg-white px-4 py-3 text-left text-gray-900 focus:outline-none focus:ring-2 focus:ring-lavender-500 dark:border-white/10 dark:bg-white/5 dark:text-white"
+                className="flex w-full items-center justify-between rounded-xl border border-border-input bg-white px-4 py-3 text-left text-gray-900 focus:outline-none focus:ring-2 focus:ring-lavender-500 dark:border-white/20 dark:bg-white/5 dark:text-white"
               >
                 <span className={selectedItem ? "" : "text-gray-400"}>
                   {selectedItem?.label || "Select a country"}
@@ -652,7 +648,7 @@ export const KycModal = ({
                 <button
                   type="button"
                   onClick={toggleDropdown}
-                  className="flex w-full items-center justify-between rounded-xl border border-gray-200 bg-white px-4 py-3 text-left text-gray-900 focus:outline-none focus:ring-2 focus:ring-lavender-500 dark:border-white/10 dark:bg-white/5 dark:text-white"
+                  className="flex w-full items-center justify-between rounded-xl border border-border-input bg-white px-4 py-3 text-left text-gray-900 focus:outline-none focus:ring-2 focus:ring-lavender-500 dark:border-white/20 dark:bg-white/5 dark:text-white"
                 >
                   <span className={selectedItem ? "" : "text-gray-400"}>
                     {selectedItem?.label || "Select ID type"}
@@ -682,7 +678,7 @@ export const KycModal = ({
               value={idNumber}
               onChange={(e) => setIdNumber(e.target.value)}
               placeholder={`Enter your ${selectedIdType.replace(/_/g, " ")} number`}
-              className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-lavender-500 dark:border-white/10 dark:bg-white/5 dark:text-white"
+              className="w-full rounded-xl border border-border-input bg-white px-4 py-3 text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-lavender-500 dark:border-white/20 dark:bg-white/5 dark:text-white"
             />
             <p className="mt-1 text-xs text-gray-500 dark:text-white/50">
               Your ID will be verified against the government database
@@ -726,7 +722,7 @@ export const KycModal = ({
     <motion.div key="capture" {...fadeInOut} className="flex flex-col py-4 max-h-[min(85vh,48rem)] supports-[height:100dvh]:max-h-[min(90dvh,48rem)]">
       <div className="space-y-3">
         <div className="flex items-center justify-between">
-        <UserDetailsIcon />
+        <UserAccountIcon className="size-6 text-text-disabled dark:text-white/40" />
         <button
         type="button"
         onClick={() => setStep(STEPS.ID_INFO)}
@@ -737,7 +733,7 @@ export const KycModal = ({
       </button>
       </div>
         <div className="space-y-2">
-          <h2 className="text-lg font-medium dark:text-white">
+          <h2 className="text-lg font-semibold text-text-primary dark:text-white">
             {needsDocCapture ? "Capture your documents" : "Take a selfie"}
           </h2>
           <p className="text-sm text-gray-500 dark:text-white/50">
@@ -793,13 +789,16 @@ export const KycModal = ({
       <Clock05Icon className="mx-auto dark:text-yellow-primary" size={40} />
 
       <div className="space-y-3 px-6 pb-2 text-center">
-        <DialogTitle className="text-lg font-semibold">
-          Tier 2 Upgrade in progress
+        <DialogTitle className="text-lg font-semibold text-text-primary dark:text-white">
+          {targetTier === 3
+            ? "Tier 3 Upgrade in progress"
+            : "Tier 2 Upgrade in progress"}
         </DialogTitle>
 
         <p className="text-gray-500 dark:text-white/50">
-          We are currently verifying your identity. You will get feedback within
-          24 hours. Kindly check back soon
+          {targetTier === 3
+            ? "We are currently verifying your proof of address. You will get feedback within 48 hours. Kindly check back soon"
+            : "We are currently verifying your identity. You will get feedback within 24 hours. Kindly check back soon"}
         </p>
       </div>
 
@@ -818,18 +817,24 @@ export const KycModal = ({
     </motion.div>
   );
 
-  const renderSuccessStatus = () => (
+  const renderSuccessStatus = () => {
+    const tier3LimitLabel = KYC_TIERS[3].limits.unlimited
+      ? "unlimited"
+      : `$${formatNumberWithCommas(KYC_TIERS[3].limits.monthly)}`;
+    const tier3SuccessBody = `You can now swap crypto of up to ${tier3LimitLabel} monthly on Noblocks`;
+    return (
     <motion.div key="success" {...fadeInOut} className="space-y-4 pt-4">
       <CheckmarkCircle01Icon className="mx-auto size-12" color="#39C65D" />
 
       <div className="space-y-3 px-6 pb-2 text-center">
-        <DialogTitle className="text-lg font-semibold">
-          Verification successful
+        <DialogTitle className="text-lg font-semibold text-text-primary dark:text-white">
+          {targetTier === 3 ? "Tier 3 upgrade successful" : "Verification successful"}
         </DialogTitle>
 
         <p className="text-gray-500 dark:text-white/50">
-          You can now start converting your stablecoin to fiat at zero fees on
-          Noblocks
+          {targetTier === 3
+            ? tier3SuccessBody
+            : "You can now continue swapping your crypto to fiats at zero fees on noblocks"}
         </p>
       </div>
 
@@ -845,7 +850,8 @@ export const KycModal = ({
         Let&apos;s go!
       </button>
     </motion.div>
-  );
+    );
+  };
 
   const getFailureHint = (reason: string | null): string => {
     if (!reason) return "Your verification couldn’t be completed. Please check all requirements and try again.";
@@ -870,7 +876,7 @@ export const KycModal = ({
       <SadFaceIcon className="mx-auto" />
 
       <div className="space-y-3 px-6 pb-2 text-center">
-        <DialogTitle className="text-lg font-semibold">
+        <DialogTitle className="text-lg font-semibold text-text-primary dark:text-white">
           Verification failed
         </DialogTitle>
 
@@ -897,12 +903,14 @@ export const KycModal = ({
   );
 
   const renderLoadingStatus = () => (
-    <motion.div
-      key="loading"
-      {...fadeInOut}
-      className="flex h-full items-center justify-center py-40"
-    >
-      <div className="h-24 w-24 animate-spin rounded-full border-4 border-t-4 border-lavender-500 border-t-white"></div>
+    <motion.div key="loading" {...fadeInOut} className="space-y-4 pt-4">
+      <div className="mx-auto size-10 animate-pulse rounded-full bg-gray-200 motion-reduce:animate-none dark:bg-white/10" />
+      <div className="space-y-3 px-6 pb-2">
+        <div className="mx-auto h-5 w-40 animate-pulse rounded bg-gray-200 motion-reduce:animate-none dark:bg-white/10" />
+        <div className="mx-auto h-4 w-full max-w-[280px] animate-pulse rounded bg-gray-200 motion-reduce:animate-none dark:bg-white/10" />
+        <div className="mx-auto h-4 w-3/4 max-w-[220px] animate-pulse rounded bg-gray-200 motion-reduce:animate-none dark:bg-white/10" />
+      </div>
+      <div className="h-11 w-full animate-pulse rounded-xl bg-gray-200 motion-reduce:animate-none dark:bg-white/10" />
     </motion.div>
   );
 
@@ -911,7 +919,7 @@ export const KycModal = ({
       <VerificationPendingIcon className="mx-auto" />
 
       <div className="space-y-3 px-6 pb-2 text-center">
-        <DialogTitle className="text-lg font-semibold">
+        <DialogTitle className="text-lg font-semibold text-text-primary dark:text-white">
           Refresh to Update KYC
         </DialogTitle>
 
@@ -932,7 +940,13 @@ export const KycModal = ({
   );
 
   // Tier 3: Address verification card (reused in Tier 3 steps)
-  const Tier3AddressCard = ({ className }: { className?: string }) => (
+  const Tier3AddressCard = ({
+    className,
+    subtitle = "Utility bill, Phone bill, Bank statement.",
+  }: {
+    className?: string;
+    subtitle?: string;
+  }) => (
     <div
       className={classNames(
         "flex items-center gap-3 rounded-2xl p-3",
@@ -947,7 +961,7 @@ export const KycModal = ({
           Address verification
         </p>
         <p className="text-xs font-light text-gray-500 dark:text-white/50">
-          Utility bill.
+          {subtitle}
         </p>
       </div>
     </div>
@@ -958,22 +972,22 @@ export const KycModal = ({
     return (
       <motion.div key="tier3_prompt" {...fadeInOut} className="space-y-4 pt-4">
         <div className="space-y-3">
-          <UserDetailsIcon />
+          <UserAccountIcon className="size-6 text-text-disabled dark:text-white/40" />
           <div className="flex items-center gap-1">
-            <h2 className="text-md font-normal dark:text-white">
-              Upgrade KYC to Tier 3
+            <h2 className="text-lg font-semibold text-text-primary dark:text-white">
+              Upgrade KYC to Tier 3 in{" "}
+              <span className="bg-[linear-gradient(119.63deg,_#04FF44_45.08%,_#EAAB12_70.6%,_rgba(255,107,144,0.6)_105.17%,_#FF0087_122.94%,_#5189F9_161.1%)] bg-clip-text text-transparent">
+                2 minutes
+              </span>
             </h2>
-            <p className="text-md bg-[linear-gradient(119.63deg,_#04FF44_45.08%,_#EAAB12_70.6%,_rgba(255,107,144,0.6)_105.17%,_#FF0087_122.94%,_#5189F9_161.1%)] bg-clip-text text-transparent">
-              in 2 minutes
-            </p>
           </div>
         </div>
-        <div className="space-y-2 rounded-lg bg-gray-50 p-4 dark:bg-white/5">
+        <div className="space-y-4 rounded-[20px] border-[0.3px] border-border-light bg-gray-50 p-5 dark:border-white/10 dark:bg-white/5">
           <div className="space-y-2">
             <p className="text-sm font-normal text-neutral-800 dark:text-white/80">
               Account limit
             </p>
-            <div className="flex flex-col items-start gap-2 rounded-3xl border border-gray-200 p-4 dark:border-white/10">
+            <div className="flex flex-col items-start gap-2 rounded-[20px] border border-border-light p-4 dark:border-white/10">
               <span className="inline-flex items-center gap-1.5 rounded-md bg-[#39C65D] px-2.5 py-1 text-xs font-medium text-black dark:bg-[#39C65D]">
                 <StarIcon className="size-4" />
                 Tier 3
@@ -992,7 +1006,7 @@ export const KycModal = ({
             <p className="text-xs font-normal text-neutral-800 dark:text-white/80">
               Key requirements
             </p>
-            <Tier3AddressCard className="border border-gray-100 bg-gray-50 dark:border-white/10 dark:bg-white/5" />
+            <Tier3AddressCard className="border border-border-light bg-white dark:border-white/10 dark:bg-white/5" />
           </div>
         </div>
         <div className="flex gap-4">
@@ -1018,18 +1032,21 @@ export const KycModal = ({
   const renderTier3Country = () => (
     <motion.div key="tier3_country" {...fadeInOut} className="space-y-4">
       <div className="space-y-3">
-        <UserDetailsIcon />
+        <UserAccountIcon className="size-6 text-text-disabled dark:text-white/40" />
         <div className="space-y-1">
-          <h2 className="text-md font-normal dark:text-white">
+          <h2 className="text-lg font-semibold text-text-primary dark:text-white">
             Get started with Tier 3 KYC Upgrade
           </h2>
           <p className="text-xs font-light text-gray-500 dark:text-white/50">
-            Fill the details below to start upgrade
+            Fill the details below to upgrade
           </p>
         </div>
       </div>
-      <div className="rounded-2xl bg-gray-50 p-2 dark:bg-[#141414]">
-        <Tier3AddressCard className="border-none bg-transparent" />
+      <div className="space-y-4 rounded-[20px] border-[0.3px] border-border-light bg-gray-50 p-2 dark:border-white/10 dark:bg-[#141414]">
+        <Tier3AddressCard
+          className="border-none bg-transparent"
+          subtitle="Utility bill & Bank statement."
+        />
         <div className="p-2">
           <label className="mb-1.5 block text-xs font-normal text-gray-700 dark:text-white/80">
             Country of Residence
@@ -1047,7 +1064,7 @@ export const KycModal = ({
               <button
                 type="button"
                 onClick={toggleDropdown}
-                className="flex w-full items-center justify-between rounded-xl border border-gray-200 bg-white px-4 py-3 text-left font-light text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#A9A9BC] dark:border-white/10 dark:bg-transparent dark:text-white/50 dark:placeholder:text-white/50"
+                className="flex w-full items-center justify-between rounded-xl border border-border-input bg-white px-4 py-3 text-left font-light text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#A9A9BC] dark:border-white/20 dark:bg-transparent dark:text-white/50 dark:placeholder:text-white/50"
               >
                 <span className={selectedItem ? "" : "text-gray-400"}>
                   {selectedItem?.label || "Enter country of residence"}
@@ -1073,7 +1090,7 @@ export const KycModal = ({
                 value={tier3HouseNumber}
                 onChange={(e) => setTier3HouseNumber(e.target.value)}
                 placeholder="Enter house number"
-                className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-left font-light text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#A9A9BC] dark:border-white/10 dark:bg-transparent dark:text-white dark:placeholder:text-white/50"
+                className="w-full rounded-xl border border-border-input bg-white px-4 py-3 text-left font-light text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#A9A9BC] dark:border-white/20 dark:bg-transparent dark:text-white dark:placeholder:text-white/50"
               />
             </div>
             <div>
@@ -1085,7 +1102,7 @@ export const KycModal = ({
                 value={tier3StreetAddress}
                 onChange={(e) => setTier3StreetAddress(e.target.value)}
                 placeholder="Enter street address"
-                className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-left font-light text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#A9A9BC] dark:border-white/10 dark:bg-transparent dark:text-white dark:placeholder:text-white/50"
+                className="w-full rounded-xl border border-border-input bg-white px-4 py-3 text-left font-light text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#A9A9BC] dark:border-white/20 dark:bg-transparent dark:text-white dark:placeholder:text-white/50"
               />
             </div>
             <div>
@@ -1097,7 +1114,7 @@ export const KycModal = ({
                 value={tier3County}
                 onChange={(e) => setTier3County(e.target.value)}
                 placeholder="Select county"
-                className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-left font-light text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#A9A9BC] dark:border-white/10 dark:bg-transparent dark:text-white dark:placeholder:text-white/50"
+                className="w-full rounded-xl border border-border-input bg-white px-4 py-3 text-left font-light text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#A9A9BC] dark:border-white/20 dark:bg-transparent dark:text-white dark:placeholder:text-white/50"
               />
             </div>
             <div>
@@ -1109,7 +1126,7 @@ export const KycModal = ({
                 value={tier3PostalCode}
                 onChange={(e) => setTier3PostalCode(e.target.value)}
                 placeholder="Enter postal code"
-                className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-left font-light text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#A9A9BC] dark:border-white/10 dark:bg-transparent dark:text-white dark:placeholder:text-white/50"
+                className="w-full rounded-xl border border-border-input bg-white px-4 py-3 text-left font-light text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#A9A9BC] dark:border-white/20 dark:bg-transparent dark:text-white dark:placeholder:text-white/50"
               />
             </div>
           </div>
@@ -1202,16 +1219,21 @@ export const KycModal = ({
           <ArrowLeft01Icon className="size-5 text-gray-500 hover:text-gray-700 dark:text-white/50 dark:hover:text-white/70" />
         </button>
         <div className="space-y-1">
-          <h2 className="text-sm font-normal dark:text-white">
+          <h2 className="text-lg font-semibold text-text-primary dark:text-white">
             Upload proof of address
           </h2>
           <p className="text-xs font-light text-gray-500 dark:text-white/50">
-            Upload a recent utility bill as proof of your residential address
+            Provide any of the document below as proof of your residential
+            address
           </p>
         </div>
-        <div className="rounded-2xl bg-gray-50 p-2 dark:bg-[#141414]">
+        <div className="space-y-2 rounded-[20px] border-[0.3px] border-border-light bg-gray-50 p-2 dark:border-white/10 dark:bg-[#141414]">
           <Tier3AddressCard className="border-none bg-transparent" />
-          <div className="p-2">
+          <button
+            type="button"
+            onClick={() => setStep(STEPS.TIER3_COUNTRY)}
+            className="w-full p-2 text-left"
+          >
             <p className="mb-1.5 flex items-center gap-1 text-xs font-light text-gray-500 dark:text-white/50">
               Current address{" "}
               <PencilEdit01Icon className="size-4 text-gray-500 hover:text-gray-700 dark:text-white/50 dark:hover:text-white/70" />
@@ -1219,7 +1241,7 @@ export const KycModal = ({
             <p className="text-xs font-extralight text-gray-500 dark:text-white/80">
               {tier3AddressDisplay !== "—" ? tier3AddressDisplay : "—"}
             </p>
-          </div>
+          </button>
           <div className="space-y-2 p-2">
             <label className="mb-1.5 text-xs font-normal text-gray-800 dark:text-white/80">
               Document type
@@ -1245,7 +1267,7 @@ export const KycModal = ({
                 <button
                   type="button"
                   onClick={toggleDropdown}
-                  className="flex w-full items-center justify-between rounded-xl border border-gray-200 bg-white px-4 py-3 text-left font-light text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#A9A9BC] dark:border-white/10 dark:bg-transparent dark:text-white/50 dark:placeholder:text-white/50"
+                  className="flex w-full items-center justify-between rounded-xl border border-border-input bg-white px-4 py-3 text-left font-light text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#A9A9BC] dark:border-white/20 dark:bg-transparent dark:text-white/50 dark:placeholder:text-white/50"
                 >
                   <span className={selectedItem ? "" : "text-gray-400"}>
                     {selectedItem?.label || "Select document type"}
@@ -1262,7 +1284,7 @@ export const KycModal = ({
           </div>
         </div>
         {tier3DocumentType && (
-          <div className="rounded-2xl bg-gray-50 p-4 dark:bg-[#141414]">
+          <div className="rounded-[20px] border-[0.3px] border-border-light bg-gray-50 p-4 dark:border-white/10 dark:bg-[#141414]">
             <div className="mb-1.5 flex items-center justify-between">
               <label className="text-xs font-normal text-gray-700 dark:text-white/70">
                 Upload {docLabel}
@@ -1320,7 +1342,7 @@ export const KycModal = ({
                   <p className="flex items-center gap-1 text-xs font-light text-gray-600 dark:text-white/70">
                     Drag and drop or{" "}
                     <label className="flex cursor-pointer items-center gap-1 text-lavender-500 hover:underline">
-                      <Folder02Icon className="size-3.5" /> browse file
+                      <Folder02Icon className="size-3.5" /> Browse File
                       <input
                         type="file"
                         accept=".jpg,.jpeg,.png,image/jpeg,image/png"
@@ -1348,7 +1370,7 @@ export const KycModal = ({
             onClick={() => setStep(STEPS.TIER3_COUNTRY)}
             className={secondaryBtnClasses}
           >
-            Back
+            Cancel
           </button>
           <button
             type="button"

@@ -54,7 +54,7 @@ const MINUTES_GRADIENT_CLASS =
 
 // Figma titles are Inter Semi Bold 18/24 / text/primary (#fff in superdark).
 const kycTitleClass =
-  "m-0 text-lg font-semibold leading-6 text-black dark:text-white";
+  "font-inter m-0 text-lg font-semibold leading-6 text-black dark:text-white";
 const kycSectionClass =
   "m-0 text-base font-medium leading-6 text-text-body dark:text-white/80";
 const kycBodyClass =
@@ -63,11 +63,11 @@ const kycMutedClass =
   "text-sm font-normal font-[400] leading-5 tracking-[-0.01em] text-text-secondary dark:text-white/50";
 const kycHeaderIconClass = "size-7 shrink-0 text-text-disabled dark:text-white/40";
 const kycLabelClass =
-  "mb-2 block text-sm font-medium leading-5 text-text-body dark:text-white/80";
+  "mb-2 block text-sm font-medium leading-5 tracking-[-0.01em] text-text-body dark:text-white/80";
 const kycInputClass =
-  "h-10 w-full rounded-xl border border-border-input bg-white px-2.5 text-sm text-text-body placeholder:text-text-placeholder focus:outline-none focus:ring-2 focus:ring-lavender-500/50 dark:border-white/20 dark:bg-transparent dark:text-white dark:placeholder:text-white/30";
+  "h-10 w-full rounded-xl border border-border-input bg-white px-2.5 text-sm tracking-[-0.01em] text-text-body placeholder:text-text-placeholder focus:outline-none focus:ring-2 focus:ring-lavender-500/50 dark:border-white/20 dark:bg-transparent dark:text-white dark:placeholder:text-white/30";
 const kycSelectTriggerClass =
-  "flex h-10 w-full items-center justify-between rounded-xl border border-border-input bg-white px-2.5 text-left text-sm text-text-body focus:outline-none focus:ring-2 focus:ring-lavender-500/50 dark:border-white/20 dark:bg-transparent dark:text-white";
+  "flex h-10 w-full items-center justify-between rounded-xl border border-border-input bg-white px-2.5 text-left text-sm tracking-[-0.01em] text-text-body focus:outline-none focus:ring-2 focus:ring-lavender-500/50 dark:border-white/20 dark:bg-transparent dark:text-white";
 const kycCanvasCardClass = "overflow-hidden rounded-2xl bg-background-neutral dark:bg-surface-canvas";
 const kycBtnType = "font-medium leading-5 tracking-[-0.01em]";
 const kycSecondary40 = `${secondaryBtnClasses} ${kycBtnType} !h-10 !min-h-10 shrink-0 px-3 dark:bg-white/10`;
@@ -803,7 +803,7 @@ export const KycModal = ({
         <button
         type="button"
         onClick={() => setStep(STEPS.ID_INFO)}
-        className="mb-3 flex flex-shrink-0 items-center gap-1.5 self-start text-sm text-text-secondary transition-colors hover:text-text-body dark:text-white/50 dark:hover:text-white"
+        className="mb-3 flex flex-shrink-0 items-center gap-1.5 self-start text-sm tracking-[-0.01em] text-text-secondary transition-colors hover:text-text-body dark:text-white/50 dark:hover:text-white"
       >
         <ArrowLeft01Icon className="size-4" />
         Back
@@ -813,7 +813,7 @@ export const KycModal = ({
           <h2 className={kycTitleClass}>
             {needsDocCapture ? "Capture your documents" : "Take a selfie"}
           </h2>
-          <p className="text-sm text-gray-500 dark:text-white/50">
+          <p className="text-sm tracking-[-0.01em] text-gray-500 dark:text-white/50">
             {needsDocCapture
               ? "Please take a selfie and capture your ID document for verification."
               : "Please take a selfie to verify your identity against your ID."}
@@ -1061,11 +1061,11 @@ export const KycModal = ({
               Account limit
             </p>
             <div className="flex flex-col items-start gap-4 rounded-3xl border border-border-light p-4 dark:border-white/10">
-              <span className="inline-flex items-center gap-1.5 rounded-lg bg-[#39C65D] px-2 py-1 text-sm font-semibold leading-5 text-[#121217]">
+              <span className="inline-flex items-center gap-1.5 rounded-lg bg-[#39C65D] px-2 py-1 text-sm font-semibold leading-5 tracking-[-0.01em] text-[#121217]">
                 <StarIcon className="size-4" color="#121217" />
                 Tier 3
               </span>
-              <p className="flex items-center gap-1 text-sm font-medium leading-6 text-black dark:text-white">
+              <p className="flex items-center gap-1 text-sm font-medium leading-6 tracking-[-0.01em] text-black dark:text-white">
                 Monthly limit
                 <InformationCircleIcon className="size-4 shrink-0 text-text-placeholder dark:text-white/30" />
               </p>
@@ -1326,7 +1326,7 @@ export const KycModal = ({
             onClick={() => setStep(STEPS.TIER3_COUNTRY)}
             className="w-full text-left"
           >
-            <p className="mb-1 flex items-center gap-1 text-sm font-normal leading-6 text-text-secondary dark:text-white/50">
+            <p className="mb-1 flex items-center gap-1 text-sm font-normal leading-6 tracking-[-0.01em] text-text-secondary dark:text-white/50">
               Current address{" "}
               <PencilEdit01Icon className="size-4 text-text-secondary hover:text-text-body dark:text-white/50 dark:hover:text-white/70" />
             </p>
@@ -1408,9 +1408,9 @@ export const KycModal = ({
               </div>
               {tier3UploadedFile ? (
                 <>
-                  <p className="flex flex-wrap items-center gap-x-1 gap-y-0.5 text-sm font-normal leading-5 text-text-body dark:text-white/80">
+                  <p className="flex flex-wrap items-center gap-x-1 gap-y-0.5 text-sm font-normal leading-5 tracking-[-0.01em] text-text-body dark:text-white/80">
                     <span className="break-all">{tier3UploadedFile.name}</span>
-                    <label className="inline-flex cursor-pointer items-center gap-1 text-sm text-lavender-500 hover:underline">
+                    <label className="inline-flex cursor-pointer items-center gap-1 text-sm tracking-[-0.01em] text-lavender-500 hover:underline">
                       <PencilEdit02Icon className="size-4 shrink-0" />
                       Change
                       <input
@@ -1439,7 +1439,7 @@ export const KycModal = ({
                 </>
               ) : (
                 <>
-                  <p className="flex items-center gap-1 text-sm font-normal leading-5 text-text-body dark:text-white/80">
+                  <p className="flex items-center gap-1 text-sm font-normal leading-5 tracking-[-0.01em] text-text-body dark:text-white/80">
                     Drag and drop or{" "}
                     <label className="flex cursor-pointer items-center gap-1 text-lavender-500 hover:underline">
                       <Folder02Icon className="size-3.5" /> Browse File
@@ -1720,7 +1720,7 @@ export const KycModal = ({
   ]);
 
   return (
-    <>
+    <div className="font-general-sans">
       <AnimatePresence mode="wait">
         {
           {
@@ -1745,6 +1745,6 @@ export const KycModal = ({
           tier3AddressDisplay !== "—" ? tier3AddressDisplay : undefined
         }
       />
-    </>
+    </div>
   );
 };

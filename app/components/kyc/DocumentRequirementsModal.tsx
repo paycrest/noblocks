@@ -49,10 +49,10 @@ export function DocumentRequirementsModal({
             <DialogPanel>
               <motion.div
                 {...fadeInOut}
-                className="w-full max-w-[412px] rounded-[20px] border-[0.3px] border-border-light bg-white p-5 shadow-xl dark:border-white/10 dark:bg-surface-overlay"
+                className="font-general-sans w-full max-w-[412px] rounded-[20px] border-[0.3px] border-border-light bg-white p-5 shadow-xl dark:border-white/10 dark:bg-surface-overlay"
               >
                 <div className="flex items-center justify-between gap-4">
-                  <DialogTitle className="text-lg font-semibold leading-6 text-text-body dark:text-white">
+                  <DialogTitle className="font-inter text-lg font-semibold leading-6 text-text-body dark:text-white">
                     Document upload requirements
                   </DialogTitle>
                   <button
@@ -68,7 +68,7 @@ export function DocumentRequirementsModal({
                   {list.map((text, index) => (
                     <li
                       key={index}
-                      className="flex items-start gap-2 text-sm font-normal leading-5 text-text-body dark:text-white/80"
+                      className="flex items-start gap-2 text-sm font-normal leading-5 tracking-[-0.01em] text-text-body dark:text-white/80"
                     >
                       <span className="flex size-7 shrink-0 items-start justify-center">
                         <svg

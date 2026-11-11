@@ -49,7 +49,7 @@ export function DocumentRequirementsModal({
             <DialogPanel className="w-full max-w-[412px]">
               <motion.div
                 {...fadeInOut}
-                className="font-general-sans w-full rounded-[20px] border-[0.3px] border-border-light bg-white p-5 shadow-xl dark:border-white/10 dark:bg-surface-overlay"
+                className="font-general-sans w-full rounded-[20px] border-[0.3px] border-border-light bg-white p-5 dark:border-white/10 dark:bg-surface-overlay"
               >
                 <div className="flex items-center justify-between gap-2.5">
                   <DialogTitle className="font-inter min-w-0 flex-1 text-lg font-semibold leading-6 text-text-body dark:text-white">

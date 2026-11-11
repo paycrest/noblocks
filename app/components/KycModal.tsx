@@ -1404,7 +1404,7 @@ export const KycModal = ({
               <button
                 type="button"
                 onClick={() => setTier3RequirementsOpen(true)}
-                className="text-sm font-medium leading-5 text-lavender-500 hover:underline"
+                className="rounded-sm text-sm font-medium leading-5 text-lavender-500 no-underline hover:no-underline focus:outline-none focus-visible:ring-2 focus-visible:ring-lavender-500/50 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-[#141414]"
               >
                 See requirements
               </button>

@@ -160,7 +160,7 @@ const KycMapPinIcon = () => (
 
 const Tier3ProgressBar =
  ({ complete }: { complete: boolean }) => (
-  <div className="h-0.5 w-full overflow-hidden bg-transparent">
+  <div className="h-0.5 w-full overflow-hidden bg-white/10">
     <div
       className="h-full bg-[#FF7D52]"
       style={{ width: complete ? "100%" : "50%" }}
@@ -318,10 +318,10 @@ export const KycModal = ({
     tier3CountryOptions.find((c) => c.name === tier3CountryCode)?.label ?? "";
   const tier3AddressDisplay =
     [
-      tier3HouseNumber,
+      tier3HouseNumber ? `No. ${tier3HouseNumber}` : "",
       tier3StreetAddress,
-      tier3County,
       tier3PostalCode,
+      tier3County,
       tier3SelectedCountryLabel,
     ]
       .filter(Boolean)
@@ -1031,13 +1031,16 @@ export const KycModal = ({
   const Tier3AddressCard = ({
     className,
     subtitle = "Utility bill, Phone bill, Bank statement.",
+    compact = false,
   }: {
     className?: string;
     subtitle?: string;
+    compact?: boolean;
   }) => (
     <div
       className={classNames(
-        "flex h-[62px] items-center gap-4 rounded-2xl px-4",
+        "flex items-center rounded-2xl",
+        compact ? "h-[38px] gap-3" : "h-[62px] gap-4 px-4",
         className || "",
       )}
     >
@@ -1120,20 +1123,19 @@ export const KycModal = ({
     <motion.div key="tier3_country" {...fadeInOut} className="space-y-4">
       <div className="space-y-3">
         <UserAccountIcon className={kycHeaderIconClass} />
-        <div className="space-y-1">
-          <h2 className={kycTitleClass}>
-            Get started with Tier 3 KYC Upgrade
-          </h2>
-          <p className={kycMutedClass}>
-            {tier3CountryCode
-              ? "Fill the details below to upgrade"
-              : "Fill the details below to start upgrade"}
-          </p>
-        </div>
+        <h2 className={kycTitleClass}>
+          Get started with Tier 3 KYC Upgrade
+        </h2>
       </div>
+      <p className={kycMutedClass}>
+        {tier3CountryCode
+          ? "Fill the details below to upgrade"
+          : "Fill the details below to start upgrade"}
+      </p>
       <div className={kycCanvasCardClass}>
-        <div className="space-y-4 p-4">
+        <div className="mb-4 space-y-4 px-4 pt-4">
           <Tier3AddressCard
+            compact
             className="border-none bg-transparent p-0"
             subtitle="Utility bill & Bank statement."
           />
@@ -1312,35 +1314,36 @@ export const KycModal = ({
       )?.label?.toLowerCase() ?? "document";
     return (
       <motion.div key="tier3_upload" {...fadeInOut} className="space-y-4">
-        <button
-          type="button"
-          onClick={() => setStep(STEPS.TIER3_COUNTRY)}
-          className="flex size-7 items-center justify-center text-text-body hover:text-text-secondary dark:text-white dark:hover:text-white/70"
-          aria-label="Back"
-        >
-          <ArrowLeft02Icon className="size-7" />
-        </button>
-        <div className="space-y-1">
+        <div className="space-y-3">
+          <button
+            type="button"
+            onClick={() => setStep(STEPS.TIER3_COUNTRY)}
+            className="flex size-7 items-center justify-center text-text-body hover:text-text-secondary dark:text-white dark:hover:text-white/70"
+            aria-label="Back"
+          >
+            <ArrowLeft02Icon className="size-7" />
+          </button>
           <h2 className={kycTitleClass}>
             Upload proof of address
           </h2>
-          <p className={kycMutedClass}>
-            Provide any of the document below as proof of your residential
-            address
-          </p>
         </div>
+        <p className={kycMutedClass}>
+          Provide any of the document below as proof of your residential
+          address
+        </p>
         <div className={kycCanvasCardClass}>
-          <div className="space-y-4 p-4">
+          <div className="mb-4 space-y-4 px-4 pt-4">
           <Tier3AddressCard
+            compact
             className="border-none bg-transparent p-0"
             subtitle="Utility bill & Bank statement."
           />
           <button
             type="button"
             onClick={() => setStep(STEPS.TIER3_COUNTRY)}
-            className="w-full text-left"
+            className="flex w-full flex-col items-start gap-2 text-left"
           >
-            <p className="mb-1 flex items-center gap-1 text-sm font-normal leading-6 text-text-secondary dark:text-white/50">
+            <p className="flex items-center gap-1 text-sm font-normal leading-6 text-text-secondary dark:text-white/50">
               Current address{" "}
               <PencilEdit01Icon className="size-4 text-text-secondary hover:text-text-body dark:text-white/50 dark:hover:text-white/70" />
             </p>
@@ -1401,7 +1404,7 @@ export const KycModal = ({
               <button
                 type="button"
                 onClick={() => setTier3RequirementsOpen(true)}
-                className="text-base font-medium leading-6 text-lavender-500 hover:underline"
+                className="text-sm font-medium leading-5 text-lavender-500 hover:underline"
               >
                 See requirements
               </button>
@@ -1409,20 +1412,17 @@ export const KycModal = ({
             <div
               onDrop={handleTier3Drop}
               onDragOver={(e) => e.preventDefault()}
-              className={classNames(
-                "flex flex-col items-start justify-center gap-2 rounded-2xl border-[1.5px] border-dashed border-white/5 bg-transparent px-4 py-3",
-                tier3UploadedFile ? "border-lavender-500/50" : "",
-              )}
+              className="flex h-[120px] flex-col items-start gap-2.5 rounded-2xl border border-dashed border-white/10 bg-transparent p-4"
             >
-              <div className="shadow-xs rounded-xl border border-white/5 bg-transparent p-2 shadow-[0_1px_2px_rgba(0,0,0,0.5)] dark:border-white/10 dark:shadow-[#A9A9BC]">
+              <div className="flex size-[34px] shrink-0 items-center justify-center rounded-lg border border-white/10 p-2">
                 {tier3UploadedFile ? (
-                  <Tick01Icon className="size-4 text-green-500" />
+                  <Tick01Icon className="size-[18px] text-[#39C65D]" />
                 ) : (
-                  <FileAddIcon className="size-4 text-black dark:text-white/50" />
+                  <FileAddIcon className="size-[18px] text-black dark:text-white/50" />
                 )}
               </div>
               {tier3UploadedFile ? (
-                <>
+                <div className="flex flex-col gap-2">
                   <p className="flex flex-wrap items-center gap-x-1 gap-y-0.5 text-sm font-normal leading-5 tracking-[-0.01em] text-text-body dark:text-white/80">
                     <span className="break-all">{tier3UploadedFile.name}</span>
                     <label className="inline-flex cursor-pointer items-center gap-1 text-sm tracking-[-0.01em] text-lavender-500 hover:underline">
@@ -1451,9 +1451,9 @@ export const KycModal = ({
                         "UNKNOWN",
                     ).toUpperCase()}
                   </p>
-                </>
+                </div>
               ) : (
-                <>
+                <div className="flex flex-col gap-2">
                   <p className="flex items-center gap-1 text-sm font-normal leading-5 tracking-[-0.01em] text-text-body dark:text-white/80">
                     Drag and drop or{" "}
                     <label className="flex cursor-pointer items-center gap-1 text-lavender-500 hover:underline">
@@ -1469,7 +1469,7 @@ export const KycModal = ({
                   <p className="text-xs font-normal leading-4 text-text-secondary dark:text-white/50">
                     JPG, JPEG, PNG allowed. 5MB Max.
                   </p>
-                </>
+                </div>
               )}
               {tier3ErrorMessage && (
                 <p className="mt-1 text-xs text-red-500 dark:text-red-400">

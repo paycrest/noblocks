@@ -14,7 +14,7 @@ import {
   drawerModalScrimClasses,
 } from "@/app/components/drawer/drawerStyles";
 
-import { TRANSFER_V2_COPY } from "./transferConfig";
+import { TRANSFER_COPY } from "./transferConfig";
 
 type Props = {
   isOpen: boolean;
@@ -121,7 +121,7 @@ export function TransferConfirmModal({
 
         <div className="flex w-full flex-col gap-4">
           <SummaryRow
-            label={TRANSFER_V2_COPY.amount}
+            label={TRANSFER_COPY.amount}
             value={`${amountLabel} ${tokenSymbol}`}
             leading={
               tokenImageUrl ? (
@@ -136,7 +136,7 @@ export function TransferConfirmModal({
             }
           />
           <SummaryRow
-            label={TRANSFER_V2_COPY.network}
+            label={TRANSFER_COPY.network}
             value={networkName}
             help
             leading={
@@ -151,9 +151,9 @@ export function TransferConfirmModal({
               ) : undefined
             }
           />
-          <SummaryRow label={TRANSFER_V2_COPY.fees} value={feeLabel} />
+          <SummaryRow label={TRANSFER_COPY.fees} value={feeLabel} />
           <SummaryRow
-            label={TRANSFER_V2_COPY.recipientRow}
+            label={TRANSFER_COPY.recipientRow}
             value={shortAddress}
           />
         </div>
@@ -175,7 +175,7 @@ export function TransferConfirmModal({
             />
           </span>
           <p className="min-w-0 flex-1 text-sm font-normal leading-5 tracking-[-0.14px] text-text-secondary dark:text-white/50">
-            {TRANSFER_V2_COPY.warning}
+            {TRANSFER_COPY.warning}
           </p>
         </div>
 
@@ -185,7 +185,7 @@ export function TransferConfirmModal({
             onClick={onClose}
             className="h-10 shrink-0 rounded-xl bg-accent-gray px-4 py-2.5 text-sm font-medium leading-5 tracking-[-0.14px] text-text-body transition-colors hover:bg-gray-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-lavender-500 dark:bg-white/10 dark:text-white dark:hover:bg-white/15"
           >
-            {TRANSFER_V2_COPY.back}
+            {TRANSFER_COPY.back}
           </button>
           <button
             type="button"

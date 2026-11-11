@@ -8,7 +8,7 @@ import React, {
   useRef,
 } from "react";
 import { usePrivy } from "@privy-io/react-auth";
-import { getKycTierLimit } from "@/app/lib/kyc-tier-limits";
+import { getKycTierLimit, MAX_KYC_TIER } from "@/app/lib/kyc-tier-limits";
 import { sharedAllowanceNote } from "@/app/lib/kyc-limit-copy";
 import { useWalletAddress } from "../hooks/useWalletAddress";
 import { useInjectedWallet } from "./InjectedWalletContext";
@@ -18,16 +18,16 @@ export interface TransactionLimits {
   unlimited?: boolean;
 }
 
-export type KYCTierLevel = 0 | 1 | 2 | 3;
+export type KYCTierLevel = 0 | 1 | 2 | 3 | 4;
 
 export interface KYCTier {
-  level: 0 | 1 | 2 | 3;
+  level: KYCTierLevel;
   name: string;
   limits: TransactionLimits;
   requirements: string[];
 }
 
-/** Product tiers: 0 = unverified (no swaps until phone), 1 = phone, 2 = ID, 3 = address. */
+/** Product tiers: 0 = unverified (no swaps until phone), 1 = phone, 2 = ID, 3 = address, 4 = business. */
 export const KYC_TIERS: Record<number, KYCTier> = {
   0: {
     level: 0,
@@ -52,6 +52,12 @@ export const KYC_TIERS: Record<number, KYCTier> = {
     name: "Address",
     limits: { ...getKycTierLimit(3) },
     requirements: ["Address verification"],
+  },
+  4: {
+    level: 4,
+    name: "Business",
+    limits: { ...getKycTierLimit(4) },
+    requirements: ["Business verification"],
   },
 };
 
@@ -332,7 +338,7 @@ export function KYCProvider({ children }: { children: React.ReactNode }) {
         if (!data.success) return false;
         const safeTier = Math.min(
           Math.max(Number(data.tier) || 0, 0),
-          3,
+          MAX_KYC_TIER,
         ) as KYCTierLevel;
         applySnapshot({
           tier: safeTier,

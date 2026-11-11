@@ -189,9 +189,9 @@ const { saveRecipient: mockSaveRecipient } = jest.requireMock(
 
 import { TransferForm } from "../app/components/TransferForm";
 
-function renderV2() {
+function renderForm() {
   const onClose = jest.fn();
-  const utils = render(<TransferForm onClose={onClose} variant="v2" />);
+  const utils = render(<TransferForm onClose={onClose} />);
   return { ...utils, onClose };
 }
 
@@ -231,9 +231,9 @@ beforeEach(() => {
   transferState.error = "";
 });
 
-describe("TransferForm v2", () => {
+describe("TransferForm", () => {
   it("opens the confirm modal from Continue and does not send", async () => {
-    renderV2();
+    renderForm();
     await fillForm();
 
     const continueButton = screen.getByRole("button", { name: "Continue" });
@@ -271,7 +271,7 @@ describe("TransferForm v2", () => {
   });
 
   it("sends exactly once from the confirm primary, with unchanged arguments", async () => {
-    renderV2();
+    renderForm();
     await fillForm();
 
     const continueButton = screen.getByRole("button", { name: "Continue" });
@@ -296,7 +296,7 @@ describe("TransferForm v2", () => {
   });
 
   it("double-clicking the confirm primary calls transfer once", async () => {
-    renderV2();
+    renderForm();
     await fillForm();
 
     const continueButton = screen.getByRole("button", { name: "Continue" });
@@ -318,7 +318,7 @@ describe("TransferForm v2", () => {
   });
 
   it("does not transfer when the amount exceeds the balance on confirm", async () => {
-    renderV2();
+    renderForm();
     await fillForm();
 
     const continueButton = screen.getByRole("button", { name: "Continue" });
@@ -337,7 +337,7 @@ describe("TransferForm v2", () => {
   });
 
   it("recovers from an invalid confirm and transfers once after the amount is fixed", async () => {
-    renderV2();
+    renderForm();
     await fillForm();
 
     const continueButton = screen.getByRole("button", { name: "Continue" });
@@ -364,7 +364,7 @@ describe("TransferForm v2", () => {
   });
 
   it("opens Create beneficiary from the save switch and saves the wallet recipient", async () => {
-    renderV2();
+    renderForm();
     await fillForm();
 
     const continueButton = screen.getByRole("button", { name: "Continue" });
@@ -400,7 +400,7 @@ describe("TransferForm v2", () => {
   });
 
   it("cancelling Create beneficiary resets the switch and leaves transfer working", async () => {
-    renderV2();
+    renderForm();
     await fillForm();
 
     const continueButton = screen.getByRole("button", { name: "Continue" });
@@ -435,7 +435,7 @@ describe("TransferForm v2", () => {
   });
 
   it("Back closes confirm and keeps the filled form", async () => {
-    renderV2();
+    renderForm();
     await fillForm();
 
     const continueButton = screen.getByRole("button", { name: "Continue" });
@@ -454,7 +454,7 @@ describe("TransferForm v2", () => {
   });
 
   it("filters the token picker and sets the selected token", async () => {
-    renderV2();
+    renderForm();
 
     fireEvent.click(screen.getByRole("button", { name: "Select token" }));
     expect(await screen.findByTestId("transfer-token-picker")).toBeInTheDocument();
@@ -479,7 +479,7 @@ describe("TransferForm v2", () => {
   });
 
   it("filters the network picker and sets the selected network", async () => {
-    renderV2();
+    renderForm();
 
     fireEvent.click(screen.getByRole("button", { name: "Select network" }));
     expect(
@@ -504,7 +504,7 @@ describe("TransferForm v2", () => {
   });
 
   it("fills quick amounts only for USD-pegged stablecoins", async () => {
-    renderV2();
+    renderForm();
 
     fireEvent.click(screen.getByRole("button", { name: "Select token" }));
     fireEvent.click(
@@ -515,7 +515,7 @@ describe("TransferForm v2", () => {
   });
 
   it("shows the pending and success modals from the hook state", async () => {
-    const { rerender, onClose } = renderV2();
+    const { rerender, onClose } = renderForm();
     await fillForm();
 
     const continueButton = screen.getByRole("button", { name: "Continue" });
@@ -527,7 +527,7 @@ describe("TransferForm v2", () => {
     await waitFor(() => expect(mockTransfer).toHaveBeenCalledTimes(1));
 
     transferState.isLoading = true;
-    rerender(<TransferForm onClose={onClose} variant="v2" />);
+    rerender(<TransferForm onClose={onClose} />);
 
     expect(
       await screen.findByText("Transferring your crypto..."),
@@ -541,7 +541,7 @@ describe("TransferForm v2", () => {
 
     transferState.isLoading = false;
     transferState.isSuccess = true;
-    rerender(<TransferForm onClose={onClose} variant="v2" />);
+    rerender(<TransferForm onClose={onClose} />);
 
     const successDialog = await screen.findByRole("dialog");
     expect(
@@ -573,15 +573,4 @@ describe("TransferForm v2", () => {
     expect(screen.queryByText("Transfer successful")).not.toBeInTheDocument();
   });
 
-  it("keeps the v1 form untouched", () => {
-    render(<TransferForm onClose={jest.fn()} />);
-
-    expect(screen.getByText("Transfer funds")).toBeInTheDocument();
-    expect(screen.getByText("Recipient wallet")).toBeInTheDocument();
-    expect(screen.getByText("Recipient network")).toBeInTheDocument();
-    expect(
-      screen.queryByText("Swap usually completes in 15 sec"),
-    ).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Continue" })).toBeInTheDocument();
-  });
 });

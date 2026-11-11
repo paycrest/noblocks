@@ -104,7 +104,9 @@ export default function TransactionLimitModal({
           <p className="text-sm font-light text-text-secondary dark:text-white/50">
             Your current monthly limit is{" "}
             <span className="font-medium text-black dark:text-white">
-              ${formatUsdAmount(currentLimits.monthly)}
+              {currentLimits.unlimited
+                ? "Unlimited"
+                : `$${formatUsdAmount(currentLimits.monthly)}`}
             </span>
             {isPooledAllowance(pooledWalletCount) && (
               <>, shared across your {pooledWalletCount} wallets</>
@@ -156,8 +158,10 @@ export default function TransactionLimitModal({
 
             <div className="w-full text-start">
               <div className="mb-2 text-2xl font-light text-text-body dark:text-white">
-                ${formatUsdAmount(transactionSummary.monthlySpent)} / $
-                {formatUsdAmount(currentLimits.monthly)}
+                ${formatUsdAmount(transactionSummary.monthlySpent)} /{" "}
+                {currentLimits.unlimited
+                  ? "Unlimited"
+                  : `$${formatUsdAmount(currentLimits.monthly)}`}
               </div>
 
               <div className="mb-4 flex h-2 w-full items-center rounded-full bg-gray-300 dark:bg-white/20">
@@ -212,8 +216,11 @@ export default function TransactionLimitModal({
             </>
           ) : (
             <>
-              You&apos;re currently at {formatKycTierDisplayLabel(tier)} with $
-              {formatUsdAmount(currentLimits.monthly)}/month.{" "}
+              You&apos;re currently at {formatKycTierDisplayLabel(tier)} with{" "}
+              {currentLimits.unlimited
+                ? "unlimited transactions"
+                : `$${formatUsdAmount(currentLimits.monthly)}/month`}
+              .{" "}
               {nextTier
                 ? `Upgrade to ${formatKycTierDisplayLabel(tier + 1)} for ${nextTier.limits.unlimited ? "unlimited transactions" : `$${formatUsdAmount(nextTier.limits.monthly)}/month`}`
                 : "You have the highest tier available"}
@@ -223,7 +230,7 @@ export default function TransactionLimitModal({
         </p>
       </div>
 
-      {tier < 3 && (
+      {nextTier && (
         <button
           type="button"
           onClick={openNextUpgrade}
@@ -233,11 +240,13 @@ export default function TransactionLimitModal({
             ? "Verify now"
             : upgradeStep === "id"
               ? "Verify ID to increase limit"
-              : "Verify address to increase limit"}
+              : upgradeStep === "address"
+                ? "Verify address to increase limit"
+                : "Business verification"}
         </button>
       )}
 
-      {tier >= 3 && (
+      {!nextTier && (
         <button
           type="button"
           onClick={onClose}

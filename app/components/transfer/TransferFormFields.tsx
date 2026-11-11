@@ -14,12 +14,12 @@ import {
   formatTransferTokenBalance,
   isUsdStablecoin,
   TRANSFER_STACK_ICONS,
-  TRANSFER_V2_COPY,
-  TRANSFER_V2_QUICK_AMOUNTS,
-  type TransferV2NetworkOption,
+  TRANSFER_COPY,
+  TRANSFER_QUICK_AMOUNTS,
+  type TransferNetworkOption,
 } from "./transferConfig";
 
-export type TransferV2Values = {
+export type TransferFormFieldValues = {
   amount: number;
   token: string;
   recipientAddress: string;
@@ -30,7 +30,7 @@ export type TransferV2Values = {
 type Props = {
   registerAmount: UseFormRegisterReturn;
   registerRecipientAddress: UseFormRegisterReturn;
-  errors: FieldErrors<TransferV2Values>;
+  errors: FieldErrors<TransferFormFieldValues>;
   showRecipientAddressError: boolean;
   token: string | undefined;
   amount: number | undefined;
@@ -39,7 +39,7 @@ type Props = {
   isBalanceLoading: boolean;
   hasBalanceSnapshot: boolean;
   recipientNetwork: string | undefined;
-  recipientNetworks: TransferV2NetworkOption[];
+  recipientNetworks: TransferNetworkOption[];
   canContinue: boolean;
   isConfirming: boolean;
   rateLabel: string | null;
@@ -52,7 +52,7 @@ type Props = {
   onSubmit: (event?: BaseSyntheticEvent) => void;
 };
 
-function NetworkLeadIcons({ selected }: { selected?: TransferV2NetworkOption }) {
+function NetworkLeadIcons({ selected }: { selected?: TransferNetworkOption }) {
   if (selected?.imageUrl) {
     return (
       <Image
@@ -85,7 +85,7 @@ function NetworkLeadIcons({ selected }: { selected?: TransferV2NetworkOption }) 
   );
 }
 
-export function TransferV2Form({
+export function TransferFormFields({
   registerAmount,
   registerRecipientAddress,
   errors,
@@ -123,20 +123,19 @@ export function TransferV2Form({
       noValidate
       className="flex w-full flex-col gap-4 text-neutral-900 dark:text-white"
       data-testid="transfer-form"
-      data-variant="v2"
     >
       {/* Recipient card */}
       <div className="w-full rounded-[20px] bg-background-neutral p-2 dark:bg-white/[0.05]">
         <div className="flex flex-col gap-4 rounded-2xl border-[0.3px] border-border-light bg-white p-4 dark:border-white/10 dark:bg-surface-canvas">
           <p className="text-base font-medium leading-6 text-text-primary dark:text-white">
-            {TRANSFER_V2_COPY.recipient}
+            {TRANSFER_COPY.recipient}
           </p>
 
           <div className="flex flex-col gap-2">
             <button
               type="button"
               aria-haspopup="dialog"
-              aria-label={TRANSFER_V2_COPY.selectNetwork}
+              aria-label={TRANSFER_COPY.selectNetwork}
               onClick={onOpenNetwork}
               className="flex h-11 w-full items-center rounded-xl border border-border-input bg-transparent px-2 text-left transition-colors hover:border-gray-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-lavender-500 dark:border-white/20 dark:hover:border-white/40"
             >
@@ -149,7 +148,7 @@ export function TransferV2Form({
                     : "text-text-placeholder dark:text-white/30",
                 )}
               >
-                {recipientNetwork || TRANSFER_V2_COPY.selectNetwork}
+                {recipientNetwork || TRANSFER_COPY.selectNetwork}
               </span>
               <ArrowDown01Icon className="size-[18px] shrink-0 text-icon-outline-secondary dark:text-white/50" />
             </button>
@@ -162,7 +161,7 @@ export function TransferV2Form({
               <input
                 type="text"
                 id="recipient-address"
-                aria-label={TRANSFER_V2_COPY.walletAddress}
+                aria-label={TRANSFER_COPY.walletAddress}
                 {...registerRecipientAddress}
                 className={classNames(
                   "h-11 w-full rounded-xl border border-border-input bg-transparent py-2.5 pl-10 pr-4 text-sm transition-all placeholder:text-text-placeholder focus-within:border-gray-400 focus:outline-none dark:border-white/20 dark:placeholder:text-white/30 dark:focus-within:border-white/40",
@@ -170,7 +169,7 @@ export function TransferV2Form({
                     ? "text-red-500 dark:text-red-500"
                     : "text-text-body dark:text-white",
                 )}
-                placeholder={TRANSFER_V2_COPY.walletAddress}
+                placeholder={TRANSFER_COPY.walletAddress}
                 maxLength={66}
               />
             </div>
@@ -191,7 +190,7 @@ export function TransferV2Form({
               htmlFor="amount"
               className="text-sm tracking-[-0.14px] text-text-secondary dark:text-white/50"
             >
-              {TRANSFER_V2_COPY.amount}
+              {TRANSFER_COPY.amount}
             </label>
             {token && (
               <div className="flex items-center gap-2">
@@ -212,7 +211,7 @@ export function TransferV2Form({
                   onClick={onMax}
                   className="text-sm font-medium text-lavender-500 transition-colors hover:text-lavender-600"
                 >
-                  {TRANSFER_V2_COPY.max}
+                  {TRANSFER_COPY.max}
                 </button>
               </div>
             )}
@@ -223,7 +222,7 @@ export function TransferV2Form({
               id="amount"
               type="number"
               step="0.0001"
-              aria-label={TRANSFER_V2_COPY.amount}
+              aria-label={TRANSFER_COPY.amount}
               {...registerAmount}
               className={classNames(
                 "min-w-0 flex-1 bg-transparent text-2xl font-medium leading-9 tracking-[-0.72px] outline-none transition-all placeholder:text-text-placeholder focus:outline-none disabled:cursor-not-allowed dark:placeholder:text-white/30",
@@ -239,8 +238,8 @@ export function TransferV2Form({
               aria-haspopup="dialog"
               aria-label={
                 selectedToken
-                  ? `${TRANSFER_V2_COPY.selectToken}, ${selectedToken.symbol}`
-                  : TRANSFER_V2_COPY.selectToken
+                  ? `${TRANSFER_COPY.selectToken}, ${selectedToken.symbol}`
+                  : TRANSFER_COPY.selectToken
               }
               onClick={onOpenToken}
               className="flex shrink-0 items-center gap-1 rounded-full bg-accent-gray p-1.5 pr-2.5 transition-colors hover:bg-gray-100 dark:bg-white/10 dark:hover:bg-white/15"
@@ -263,7 +262,7 @@ export function TransferV2Form({
               )}
               {!selectedToken && (
                 <span className="pl-1 text-sm font-medium leading-5 text-text-primary dark:text-white">
-                  {TRANSFER_V2_COPY.selectToken}
+                  {TRANSFER_COPY.selectToken}
                 </span>
               )}
               <ArrowDown01Icon className="size-4 text-icon-outline-secondary dark:text-white/50" />
@@ -272,7 +271,7 @@ export function TransferV2Form({
         </div>
 
         <div className="flex flex-wrap gap-3 px-1 pb-1 pt-3">
-          {TRANSFER_V2_QUICK_AMOUNTS.map((value) => (
+          {TRANSFER_QUICK_AMOUNTS.map((value) => (
             <button
               key={value}
               type="button"
@@ -298,14 +297,14 @@ export function TransferV2Form({
       )}
 
       <ActionSubmitButton
-        label={TRANSFER_V2_COPY.continue}
+        label={TRANSFER_COPY.continue}
         disabled={!canContinue || isConfirming}
         onClick={onContinue}
       />
 
       <div className="flex w-full items-center justify-between gap-3 text-xs leading-4 text-text-disabled dark:text-white/50">
         {rateLabel ? <span>{rateLabel}</span> : <span aria-hidden />}
-        <span>{TRANSFER_V2_COPY.swapTime}</span>
+        <span>{TRANSFER_COPY.swapTime}</span>
       </div>
     </form>
   );

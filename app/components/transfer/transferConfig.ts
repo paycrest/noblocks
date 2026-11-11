@@ -11,8 +11,8 @@ import {
   shortenAddress,
 } from "@/app/utils";
 
-/** Copy for the v2 Transfer flow. Strings match Figma frames 54/56/57. */
-export const TRANSFER_V2_COPY = {
+/** Copy for the Transfer flow. Strings match Figma frames 54/56/57. */
+export const TRANSFER_COPY = {
   recipient: "Recipient",
   selectNetwork: "Select network",
   searchNetwork: "Search network",
@@ -64,9 +64,9 @@ export const TRANSFER_V2_COPY = {
     `Yay! I just transferred ${amountLabel} ${tokenSymbol} to ${shortAddress} in ${seconds} sec on noblocks.xyz`,
 } as const;
 
-export const TRANSFER_V2_QUICK_AMOUNTS = [10, 100, 500, 1000] as const;
+export const TRANSFER_QUICK_AMOUNTS = [10, 100, 500, 1000] as const;
 
-export type TransferV2NetworkOption = {
+export type TransferNetworkOption = {
   name: string;
   imageUrl: string;
 };

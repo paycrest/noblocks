@@ -5,38 +5,41 @@ import { useTheme } from "next-themes";
 import { useState, useEffect, type ReactElement } from "react";
 import { classNames } from "../utils";
 
-type IconButtonProps = {
+const activeColorClasses = "text-text-body dark:text-white";
+const inactiveColorClasses = "text-text-secondary dark:text-white/50";
+
+type ThemeOptionProps = {
   icon?: ReactElement<any>;
   onClick: () => void;
   isActive: boolean;
-  title?: string;
+  title: string;
   children?: React.ReactNode;
-  variant?: "icon" | "text";
 };
 
-const IconButton = ({
+const ThemeOption = ({
   icon,
   onClick,
   isActive,
   title,
   children,
-  variant = "icon",
-}: IconButtonProps) => (
+}: ThemeOptionProps) => (
   <button
     type="button"
     className={classNames(
-      "flex cursor-pointer items-center justify-center rounded-full transition-colors",
-      isActive ? "bg-accent-gray dark:bg-white/10" : "",
-      variant === "icon" ? "h-9 w-9" : "h-9 px-4",
+      "flex cursor-pointer items-center justify-center transition-colors",
+      isActive ? "bg-accent-gray dark:bg-[#2c2c2c]" : "",
+      icon ? "size-[29px] rounded-md" : "h-[29px] rounded-full px-4",
     )}
     onClick={onClick}
     title={title}
+    aria-label={title}
+    aria-pressed={isActive}
   >
-    {icon || (
+    {icon ?? (
       <span
         className={classNames(
-          "text-sm font-medium text-gray-400",
-          isActive ? "dark:text-white" : "dark:text-white/50",
+          "text-sm font-medium",
+          isActive ? activeColorClasses : inactiveColorClasses,
         )}
       >
         {children}
@@ -54,24 +57,35 @@ export const ThemeSwitch = () => {
   if (!mounted) return null;
 
   return (
-    <div className="flex h-11 items-center justify-between gap-2 rounded-full dark:bg-[#202020] p-1 transition-all dark:border-white/10 max-sm:dark:bg-surface-canvas z-30 bg-[#F9FAFB]">
-      <IconButton
+    <div className="z-30 flex h-[37px] items-center gap-6 rounded-full border border-border-light bg-white p-1 transition-all dark:border-transparent dark:bg-[#141414]">
+      <ThemeOption
         onClick={() => setTheme("system")}
         isActive={theme === "system"}
         title="Switch to auto mode"
-        variant="text"
       >
         Auto
-      </IconButton>
-      <IconButton
-        icon={<Sun02Icon className="size-5 text-gray-400 dark:text-white/50" />}
+      </ThemeOption>
+      <ThemeOption
+        icon={
+          <Sun02Icon
+            className={classNames(
+              "size-5",
+              theme === "light" ? activeColorClasses : inactiveColorClasses,
+            )}
+          />
+        }
         onClick={() => setTheme("light")}
         isActive={theme === "light"}
         title="Switch to light mode"
       />
-      <IconButton
+      <ThemeOption
         icon={
-          <Moon02Icon className="size-5 text-gray-400 dark:text-white/40" />
+          <Moon02Icon
+            className={classNames(
+              "size-5",
+              theme === "dark" ? activeColorClasses : inactiveColorClasses,
+            )}
+          />
         }
         onClick={() => setTheme("dark")}
         isActive={theme === "dark"}

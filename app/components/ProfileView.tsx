@@ -1,7 +1,6 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { toast } from "sonner";
 import {
   ArrowLeft02Icon,
   ArrowRight03Icon,
@@ -14,7 +13,6 @@ import {
   WorkAlertIcon,
 } from "hugeicons-react";
 import Link from "next/link";
-import { useKYC, useInjectedWallet, useEmbed } from "../context";
 import { KYC_TIERS } from "../context/KYCContext";
 import {
   formatKycTierDisplayLabel,
@@ -33,9 +31,7 @@ import { ReferralCTA } from "./ReferralCTA";
 import { ReferralHubView } from "./wallet-mobile-modal";
 import config from "../lib/config";
 import { isPooledAllowance } from "../lib/kyc-limit-copy";
-
-// Re-import usePrivy and useLinkAccount specifically from Privy
-import { usePrivy as usePrivyAuth, useLinkAccount as useLinkAccountAuth } from "@privy-io/react-auth";
+import { useProfileViewModel } from "../hooks/useProfileViewModel";
 
 interface ProfileViewProps {
   layout: "drawer" | "sheet";
@@ -44,90 +40,30 @@ interface ProfileViewProps {
 }
 
 export default function ProfileView({ layout, onBack, onClose }: ProfileViewProps) {
-  const { user } = usePrivyAuth();
-  const { isInjectedWallet, injectedAddress, injectedReady } = useInjectedWallet();
-  const { isEmbed } = useEmbed();
   const {
+    user,
+    isInjectedWallet,
+    isEmbed,
+    walletAddress,
     tier,
     pooledWalletCount,
     transactionSummary,
-    getCurrentLimits,
+    currentLimits,
+    monthlyProgress,
+    isLoading,
+    linkEmail,
+    handleCopyAddress,
+    isAddressCopied,
+    expandedTierLevel,
+    toggleTierExpansion,
+    tiersAboveCurrent,
     refreshStatus,
-    walletAddress: kycWalletAddress,
-  } = useKYC();
+    isLimitModalOpen,
+    openLimitModal,
+    closeLimitModal,
+  } = useProfileViewModel();
 
-  // In injected/bridge mode, require a ready injected address; otherwise
-  // use KYC context address.
-  const walletAddress = isInjectedWallet
-    ? (injectedReady ? injectedAddress : null)
-    : kycWalletAddress;
-
-  const [isLimitModalOpen, setIsLimitModalOpen] = useState(false);
   const [showReferralHub, setShowReferralHub] = useState(false);
-  const [expandedTierLevel, setExpandedTierLevel] = useState<number | null>(null);
-  const [isAddressCopied, setIsAddressCopied] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-
-  const currentLimits = getCurrentLimits();
-  const monthlyLimit = currentLimits.monthly || 0;
-  const monthlyProgress =
-    monthlyLimit > 0
-      ? (transactionSummary.monthlySpent / monthlyLimit) * 100
-      : 0;
-
-  useEffect(() => {
-    setIsLoading(true);
-    refreshStatus(true).finally(() => setIsLoading(false));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const { linkEmail } = useLinkAccountAuth({
-    onSuccess: ({ user }) => {
-      toast.success(`${user.email?.address} linked successfully`);
-    },
-    onError: (error) => {
-      // Privy reports why linking failed — surface the real reason instead of
-      // blanket-claiming the email is already linked.
-      const code = String(error);
-      if (code === "exited_link_flow") return; // user closed the modal — not an error
-      toast.error("Error linking account", {
-        description:
-          code === "linked_to_another_user"
-            ? "This email is already linked to another account"
-            : "Couldn't link your email. Please try again.",
-      });
-    },
-  });
-
-  const handleCopyAddress = async () => {
-    if (!walletAddress) {
-      setIsAddressCopied(false);
-      return;
-    }
-    try {
-      await navigator.clipboard.writeText(walletAddress);
-      setIsAddressCopied(true);
-      toast.success("Address copied to clipboard");
-      setTimeout(() => setIsAddressCopied(false), 2000);
-    } catch {
-      setIsAddressCopied(false);
-      toast.error("Could not copy address", {
-        description: "Clipboard access was denied or is unavailable.",
-      });
-    }
-  };
-
-  const toggleTierExpansion = (tierLevel: number) => {
-    setExpandedTierLevel((current) =>
-      current === tierLevel ? null : tierLevel,
-    );
-  };
-
-  useEffect(() => {
-    if (tier < 1) {
-      setExpandedTierLevel(tier + 1);
-    }
-  }, [tier]);
 
   const renderSkeletonLoader = () => (
     <div className="animate-pulse space-y-4">
@@ -268,9 +204,7 @@ export default function ProfileView({ layout, onBack, onClose }: ProfileViewProp
                 {tier == 0 && tierLevel === tier + 1 && (
                   <button
                     type="button"
-                    onClick={() => {
-                      setIsLimitModalOpen(true);
-                    }}
+                    onClick={openLimitModal}
                     title={`Upgrade to ${formatKycTierDisplayLabel(tierLevel)}`}
                     className="min-h-11 w-full rounded-xl bg-lavender-600 px-4 py-2 text-center text-sm font-light text-white transition-all hover:scale-[0.98] hover:bg-lavender-700 active:scale-95 dark:bg-lavender-500 dark:hover:bg-lavender-600"
                   >
@@ -449,9 +383,7 @@ export default function ProfileView({ layout, onBack, onClose }: ProfileViewProp
                 {tier < 4 && (
                   <button
                     type="button"
-                    onClick={() => {
-                      setIsLimitModalOpen(true);
-                    }}
+                    onClick={openLimitModal}
                     title={`Upgrade to ${formatKycTierDisplayLabel(tier + 1)}`}
                     className="min-h-11 w-full rounded-xl bg-lavender-600 px-4 py-2 text-center text-sm font-light text-white transition-all hover:scale-[0.98] hover:bg-lavender-700 active:scale-95 dark:bg-lavender-500 dark:hover:bg-lavender-600"
                   >
@@ -462,16 +394,14 @@ export default function ProfileView({ layout, onBack, onClose }: ProfileViewProp
             )}
 
             {/* Tier Information */}
-            {Object.values(KYC_TIERS)
-              .filter((tierData) => tierData.level > tier)
-              .map((tierData) => (
-                <div
-                  key={tierData.level}
-                  className="rounded-[20px] border border-border-light bg-transparent dark:border-white/5"
-                >
-                  {renderTierSection(tierData.level)}
-                </div>
-              ))}
+            {tiersAboveCurrent.map((tierData) => (
+              <div
+                key={tierData.level}
+                className="rounded-[20px] border border-border-light bg-transparent dark:border-white/5"
+              >
+                {renderTierSection(tierData.level)}
+              </div>
+            ))}
 
             {/* Referrals (F-7) - hidden in embed mode */}
             {isReferralEnabled() && !isEmbed && (
@@ -495,7 +425,7 @@ export default function ProfileView({ layout, onBack, onClose }: ProfileViewProp
       <TransactionLimitModal
         isOpen={isLimitModalOpen}
         onClose={async () => {
-          setIsLimitModalOpen(false);
+          closeLimitModal();
           await refreshStatus();
         }}
       />

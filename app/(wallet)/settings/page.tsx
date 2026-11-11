@@ -1,10 +1,5 @@
-import { WalletPlaceholderPage } from "../components/WalletPlaceholderPage";
+import { SettingsPageContent } from "../components/SettingsPageContent";
 
 export default function SettingsPage() {
-  return (
-    <WalletPlaceholderPage
-      title="Settings"
-      description="App settings will appear here."
-    />
-  );
+  return <SettingsPageContent />;
 }

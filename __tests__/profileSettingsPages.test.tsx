@@ -1,0 +1,332 @@
+/// <reference types="jest" />
+
+import React from "react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import {
+  formatMonthlyLimitLine,
+  computeMonthlyProgressPercent,
+  formatTierLimitLine,
+} from "../app/hooks/useProfileViewModel";
+
+// ---------------------------------------------------------------------------
+// Shared mocks
+// ---------------------------------------------------------------------------
+
+const mockShowMfaEnrollmentModal = jest.fn();
+const mockUpdateEmail = jest.fn();
+const mockLinkEmail = jest.fn();
+const mockLogout = jest.fn(async () => {});
+const mockDisconnectWallet = jest.fn(async () => true);
+const mockExportWallet = jest.fn();
+const mockRefreshStatus = jest.fn(async () => null);
+
+let mockPrivyUser: Record<string, unknown> | null = null;
+
+jest.mock("@privy-io/react-auth", () => ({
+  usePrivy: () => ({
+    user: mockPrivyUser,
+    updateEmail: mockUpdateEmail,
+  }),
+  useLinkAccount: () => ({ linkEmail: mockLinkEmail }),
+  useLogout: () => ({ logout: mockLogout }),
+  useMfaEnrollment: () => ({
+    showMfaEnrollmentModal: mockShowMfaEnrollmentModal,
+  }),
+}));
+
+jest.mock("@/hooks/useWalletDisconnect", () => ({
+  useWalletDisconnect: () => ({ disconnectWallet: mockDisconnectWallet }),
+}));
+
+jest.mock("@/hooks/useHandleExportEmbeddedWallet", () => ({
+  useHandleExportEmbeddedWallet: () => mockExportWallet,
+}));
+
+jest.mock("sonner", () => ({
+  toast: { success: jest.fn(), error: jest.fn() },
+}));
+
+let mockIsInjectedWallet = false;
+
+jest.mock("@/context", () => ({
+  useKYC: () => mockKycState,
+  useInjectedWallet: () => ({
+    isInjectedWallet: mockIsInjectedWallet,
+    injectedAddress: undefined,
+    injectedReady: false,
+  }),
+  useEmbed: () => ({ isEmbed: false }),
+}));
+
+jest.mock("@/components/TransactionLimitModal", () => ({
+  __esModule: true,
+  default: () => null,
+}));
+
+const mockSetTheme = jest.fn();
+let mockTheme = "system";
+
+jest.mock("next-themes", () => ({
+  useTheme: () => ({ theme: mockTheme, setTheme: mockSetTheme }),
+}));
+
+type KycState = {
+  tier: 0 | 1 | 2 | 3 | 4;
+  pooledWalletCount: number;
+  transactionSummary: { monthlySpent: number; dailySpent: number; lastTransactionDate: string | null };
+  getCurrentLimits: () => { monthly: number; unlimited?: boolean };
+  refreshStatus: typeof mockRefreshStatus;
+  walletAddress: string;
+};
+
+let mockKycState: KycState;
+
+function makeKycState(overrides: Partial<KycState> = {}): KycState {
+  return {
+    tier: 0,
+    pooledWalletCount: 1,
+    transactionSummary: { monthlySpent: 0, dailySpent: 0, lastTransactionDate: null },
+    getCurrentLimits: () => ({ monthly: 0, unlimited: false }),
+    refreshStatus: mockRefreshStatus,
+    walletAddress: "0x1111111111111111111111111111111111111111",
+    ...overrides,
+  };
+}
+
+import { ProfilePageContent } from "../app/(wallet)/components/ProfilePageContent";
+import { SettingsPageContent } from "../app/(wallet)/components/SettingsPageContent";
+import { KYC_TIERS } from "../app/context/KYCContext";
+
+beforeEach(() => {
+  jest.clearAllMocks();
+  mockPrivyUser = null;
+  mockIsInjectedWallet = false;
+  mockTheme = "system";
+  // jsdom has no sendBeacon; the logout tracker falls back to fetch otherwise,
+  // and the global fetch mock (jest.setup.js) returns undefined, not a thenable.
+  (navigator as unknown as { sendBeacon: jest.Mock }).sendBeacon = jest.fn();
+});
+
+// ---------------------------------------------------------------------------
+// Pure helpers
+// ---------------------------------------------------------------------------
+
+describe("profile-limit-format", () => {
+  it("formats the monthly limit line", () => {
+    expect(formatMonthlyLimitLine(50, 100, false)).toBe("$50.00 / $100.00");
+  });
+
+  it("formats unlimited monthly limit line", () => {
+    expect(formatMonthlyLimitLine(50, 0, true)).toBe("$50.00 / Unlimited");
+  });
+
+  it("computes monthly progress percent", () => {
+    expect(computeMonthlyProgressPercent(50, 100, false)).toBe(50);
+  });
+
+  it("clamps progress at 100", () => {
+    expect(computeMonthlyProgressPercent(150, 100, false)).toBe(100);
+  });
+
+  it("reads 0 progress when unlimited or the limit is non-positive", () => {
+    expect(computeMonthlyProgressPercent(50, 100, true)).toBe(0);
+    expect(computeMonthlyProgressPercent(50, 0, false)).toBe(0);
+  });
+
+  it("formats the tier limit line", () => {
+    expect(formatTierLimitLine(50000, false)).toBe("$50,000.00 / month");
+    expect(formatTierLimitLine(0, true)).toBe("Unlimited");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Profile page
+// ---------------------------------------------------------------------------
+
+describe("ProfilePageContent", () => {
+  it("shows the Tier 0 'Verify to start swapping' CTA and no current-tier card", async () => {
+    mockKycState = makeKycState({ tier: 0 });
+    render(<ProfilePageContent />);
+
+    expect(await screen.findByText("Verify to start swapping")).toBeInTheDocument();
+    expect(screen.queryByText(/Current: Tier/)).not.toBeInTheDocument();
+  });
+
+  it("shows the current tier badge, monthly spend, and upgrade CTA for an intermediate tier", async () => {
+    mockKycState = makeKycState({
+      tier: 2,
+      transactionSummary: { monthlySpent: 4000, dailySpent: 0, lastTransactionDate: null },
+      getCurrentLimits: () => ({ monthly: 15000, unlimited: false }),
+    });
+    render(<ProfilePageContent />);
+
+    expect(await screen.findByText("Current: Tier 2")).toBeInTheDocument();
+    expect(
+      screen.getByText(formatMonthlyLimitLine(4000, 15000, false)),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Increase limit → Tier 3")).toBeInTheDocument();
+  });
+
+  it("shows Unlimited and no upgrade CTA for tier 4", async () => {
+    mockKycState = makeKycState({
+      tier: 4,
+      transactionSummary: { monthlySpent: 4000, dailySpent: 0, lastTransactionDate: null },
+      getCurrentLimits: () => ({ monthly: 0, unlimited: true }),
+    });
+    render(<ProfilePageContent />);
+
+    expect(await screen.findByText("Current: Tier 4")).toBeInTheDocument();
+    expect(screen.getByText(/Unlimited/)).toBeInTheDocument();
+    expect(screen.queryByText(/Increase limit/)).not.toBeInTheDocument();
+    // No tiers remain above 4 in KYC_TIERS, so the accordion is empty.
+    expect(screen.queryByText("See more")).not.toBeInTheDocument();
+  });
+
+  it("expands and collapses an accordion tier row with its limit line", async () => {
+    mockKycState = makeKycState({ tier: 2, getCurrentLimits: () => ({ monthly: 15000 }) });
+    render(<ProfilePageContent />);
+
+    const tier3Row = await screen.findByText("Tier 3");
+    fireEvent.click(tier3Row);
+
+    expect(await screen.findByText("Address verification")).toBeInTheDocument();
+    const tier3Limits = KYC_TIERS[3].limits;
+    expect(
+      screen.getByText(
+        formatTierLimitLine(tier3Limits.monthly, !!tier3Limits.unlimited),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText("See less")).toBeInTheDocument();
+
+    fireEvent.click(tier3Row);
+    await waitFor(() =>
+      expect(screen.queryByText("Address verification")).not.toBeInTheDocument(),
+    );
+  });
+
+  it("does not render the referral block or Noblocks Play link (no Figma counterpart)", async () => {
+    mockKycState = makeKycState({ tier: 2 });
+    render(<ProfilePageContent />);
+    await screen.findByText("Account");
+    expect(screen.queryByText("Referral CTA")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Noblocks Play rewards/)).not.toBeInTheDocument();
+  });
+
+  it("signs out on click for a non-injected wallet", async () => {
+    mockKycState = makeKycState({ tier: 1 });
+    mockIsInjectedWallet = false;
+    render(<ProfilePageContent />);
+
+    const signOut = await screen.findByText("Sign out");
+    fireEvent.click(signOut);
+
+    await waitFor(() => expect(mockLogout).toHaveBeenCalledTimes(1));
+  });
+
+  it("hides Sign out for an injected wallet", async () => {
+    mockKycState = makeKycState({ tier: 1 });
+    mockIsInjectedWallet = true;
+    render(<ProfilePageContent />);
+
+    await screen.findByText("Account");
+    expect(screen.queryByText("Sign out")).not.toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Settings page
+// ---------------------------------------------------------------------------
+
+describe("SettingsPageContent", () => {
+  it("renders all four rows for a non-injected user", () => {
+    render(<SettingsPageContent />);
+
+    expect(screen.getByText("Export wallet")).toBeInTheDocument();
+    expect(screen.getByText("Enable MFA")).toBeInTheDocument();
+    expect(screen.getByText("Theme")).toBeInTheDocument();
+    expect(screen.getByText("Linked email address")).toBeInTheDocument();
+  });
+
+  it("hides Export, MFA, and email rows for an injected wallet, keeps Theme", () => {
+    mockIsInjectedWallet = true;
+    render(<SettingsPageContent />);
+
+    expect(screen.queryByText("Export wallet")).not.toBeInTheDocument();
+    expect(screen.queryByText("Enable MFA")).not.toBeInTheDocument();
+    expect(screen.queryByText("Linked email address")).not.toBeInTheDocument();
+    expect(screen.getByText("Theme")).toBeInTheDocument();
+  });
+
+  it("calls the export hook when Export is clicked", () => {
+    render(<SettingsPageContent />);
+    fireEvent.click(screen.getByText("Export"));
+    expect(mockExportWallet).toHaveBeenCalledTimes(1);
+  });
+
+  it("opens the Transaction protection intro on Enable, and Continue hands off to Privy MFA", async () => {
+    render(<SettingsPageContent />);
+    fireEvent.click(screen.getByText("Enable"));
+
+    expect(screen.getByText("Transaction protection")).toBeInTheDocument();
+    fireEvent.click(screen.getByText("Continue"));
+
+    expect(mockShowMfaEnrollmentModal).toHaveBeenCalledTimes(1);
+    // AnimatedModal exit-animates before unmounting, so the title lingers briefly.
+    await waitFor(() =>
+      expect(screen.queryByText("Transaction protection")).not.toBeInTheDocument(),
+    );
+  });
+
+  it("closes the Transaction protection intro on Not now without opening Privy MFA", async () => {
+    render(<SettingsPageContent />);
+    fireEvent.click(screen.getByText("Enable"));
+    fireEvent.click(screen.getByText("Not now"));
+
+    expect(mockShowMfaEnrollmentModal).not.toHaveBeenCalled();
+    await waitFor(() =>
+      expect(screen.queryByText("Transaction protection")).not.toBeInTheDocument(),
+    );
+  });
+
+  it("skips the intro and opens Privy MFA directly when already enrolled", () => {
+    mockPrivyUser = { mfaMethods: ["totp"] };
+    render(<SettingsPageContent />);
+
+    expect(screen.getByText("Manage MFA")).toBeInTheDocument();
+    fireEvent.click(screen.getByText("Manage"));
+
+    expect(mockShowMfaEnrollmentModal).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText("Transaction protection")).not.toBeInTheDocument();
+  });
+
+  it("theme buttons call setTheme with the right value and reflect aria-pressed", async () => {
+    mockTheme = "dark";
+    render(<SettingsPageContent />);
+
+    const darkButton = await screen.findByTitle("Switch to dark mode");
+    expect(darkButton).toHaveAttribute("aria-pressed", "true");
+
+    const lightButton = screen.getByTitle("Switch to light mode");
+    expect(lightButton).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(lightButton);
+    expect(mockSetTheme).toHaveBeenCalledWith("light");
+
+    fireEvent.click(screen.getByTitle("Switch to auto mode"));
+    expect(mockSetTheme).toHaveBeenCalledWith("system");
+  });
+
+  it("shows Connect for an unlinked email and calls linkEmail", () => {
+    render(<SettingsPageContent />);
+    fireEvent.click(screen.getByText("Connect"));
+    expect(mockLinkEmail).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows the linked email address and Update, and calls updateEmail", () => {
+    mockPrivyUser = { email: { address: "bruce@wayne.com" } };
+    render(<SettingsPageContent />);
+
+    expect(screen.getByText("bruce@wayne.com")).toBeInTheDocument();
+    fireEvent.click(screen.getByText("Update"));
+    expect(mockUpdateEmail).toHaveBeenCalledTimes(1);
+  });
+});

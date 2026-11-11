@@ -25,6 +25,10 @@ import { usePrivy } from "@privy-io/react-auth";
 import { reindexSingleTransaction } from "../lib/reindex";
 import { useInjectedWallet } from "./InjectedWalletContext";
 import { useApiAuth } from "../hooks/useApiAuth";
+import {
+  serializeHistoryFilters,
+  type TransactionHistoryFilters,
+} from "../lib/transactionHistoryFilters";
 
 // Polling interval and reindex threshold (30 seconds)
 const POLLING_INTERVAL_MS = 30 * 1000;
@@ -42,6 +46,7 @@ interface TransactionsContextType {
     limit: number,
     forceRefresh?: boolean,
     injectedToken?: string | null,
+    filters?: TransactionHistoryFilters,
   ) => Promise<void>;
   refreshTransactions: () => Promise<void>;
   clearTransactions: () => void;
@@ -318,6 +323,7 @@ export function TransactionsProvider({
 
   const cacheRef = useRef(cache);
   cacheRef.current = cache;
+  const lastFiltersRef = useRef<TransactionHistoryFilters | undefined>(undefined);
 
   const fetchTransactionData = useCallback(
     async (
@@ -327,8 +333,10 @@ export function TransactionsProvider({
       limit: number,
       forceRefresh?: boolean,
       injectedToken: string | null = null,
+      filters?: TransactionHistoryFilters,
     ) => {
-      const cacheKey = `${walletAddress}-${page}-${limit}`;
+      lastFiltersRef.current = filters;
+      const cacheKey = `${walletAddress}-${page}-${limit}-${serializeHistoryFilters(filters)}`;
       const cachedData = cacheRef.current[cacheKey];
       const now = Date.now();
       const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
@@ -363,6 +371,7 @@ export function TransactionsProvider({
           page,
           limit,
           injectedToken,
+          filters,
         );
         if (data.success) {
           setTransactions(data.data.transactions);
@@ -418,7 +427,8 @@ export function TransactionsProvider({
     // Must match the page size TransactionList fetches/paginates with (limit = 30),
     // otherwise refresh writes/reads a different cache key than the list path.
     const PAGE_LIMIT = 30;
-    const cacheKey = `${walletAddress}-${currentPage}-${PAGE_LIMIT}`;
+    const filters = lastFiltersRef.current;
+    const cacheKey = `${walletAddress}-${currentPage}-${PAGE_LIMIT}-${serializeHistoryFilters(filters)}`;
     if (cacheKey in cacheRef.current) {
       const next = { ...cacheRef.current };
       delete next[cacheKey];
@@ -440,6 +450,7 @@ export function TransactionsProvider({
       PAGE_LIMIT,
       true,
       injectedToken,
+      filters,
     );
   }, [historyWalletAddress, resolveAuth, currentPage, fetchTransactionData]);
 

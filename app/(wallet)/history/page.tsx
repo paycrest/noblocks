@@ -1,10 +1,5 @@
-import { WalletPlaceholderPage } from "../components/WalletPlaceholderPage";
+import { HistoryPageContent } from "../components/history/HistoryPageContent";
 
 export default function HistoryPage() {
-  return (
-    <WalletPlaceholderPage
-      title="History"
-      description="Transaction history will appear here."
-    />
-  );
+  return <HistoryPageContent />;
 }

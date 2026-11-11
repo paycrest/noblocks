@@ -327,7 +327,7 @@ export const FlexibleDropdown = ({
         {item && (
           <FlagImage imageErrors={{}} setImageErrors={() => {}} item={item} />
         )}
-        <span className="text-text-body dark:text-white/80">
+        <span className="whitespace-nowrap text-text-body dark:text-white/80">
           {item.label ?? item.name}
         </span>
       </div>

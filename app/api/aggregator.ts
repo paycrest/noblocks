@@ -16,6 +16,7 @@ import type {
   OrderDetailsResponse,
   OrderDetailsData,
   TransactionStatus,
+  TransactionHistoryType,
   TransactionResponse,
   TransactionCreateInput,
   SaveTransactionResponse,
@@ -977,6 +978,11 @@ export async function fetchTransactions(
   page: number = 1,
   limit: number = 20,
   injectedToken: string | null = null,
+  filters?: {
+    types?: TransactionHistoryType[];
+    statuses?: TransactionStatus[];
+    search?: string;
+  },
 ): Promise<TransactionResponse> {
   const headers: Record<string, string> = {
     "x-wallet-address": address.toLowerCase(),
@@ -986,8 +992,12 @@ export async function fetchTransactions(
   } else if (accessToken) {
     headers.Authorization = `Bearer ${accessToken}`;
   }
+  const params = new URLSearchParams({ page: String(page), limit: String(limit) });
+  if (filters?.types?.length) params.set("types", filters.types.join(","));
+  if (filters?.statuses?.length) params.set("statuses", filters.statuses.join(","));
+  if (filters?.search) params.set("search", filters.search);
   const response = await axios.get<TransactionResponse>(
-    `/api/v1/transactions?page=${page}&limit=${limit}`,
+    `/api/v1/transactions?${params.toString()}`,
     { headers },
   );
   return response.data;

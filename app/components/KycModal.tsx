@@ -24,7 +24,6 @@ import {
   FileAddIcon,
   Folder02Icon,
   InformationCircleIcon,
-  MapPinpoint01Icon,
   PencilEdit01Icon,
   PencilEdit02Icon,
   Tick01Icon,
@@ -51,14 +50,17 @@ const TIER3_DOCUMENT_TYPES = [
 ] as const;
 
 const MINUTES_GRADIENT_CLASS =
-  "bg-[linear-gradient(119.63deg,_#04FF44_45.08%,_#EAAB12_70.6%,_rgba(255,107,144,0.6)_105.17%,_#FF0087_122.94%,_#5189F9_161.1%)] bg-clip-text text-transparent";
+  "bg-[linear-gradient(171.3deg,_#04FF44_3.65%,_#EAAB12_49.19%,_#FF6B9099_110.87%,_#FF0087_142.57%,_#5189F9_210.67%)] bg-clip-text text-transparent";
 
+// Figma titles are Inter Semi Bold 18/24 / text/primary (#fff in superdark).
 const kycTitleClass =
-  "text-lg font-semibold leading-6 text-text-body dark:text-white";
+  "m-0 text-lg font-semibold leading-6 text-black dark:text-white";
+const kycSectionClass =
+  "m-0 text-base font-medium leading-6 text-text-body dark:text-white/80";
 const kycBodyClass =
   "text-sm font-normal leading-5 tracking-[-0.01em] text-text-body dark:text-white/80";
 const kycMutedClass =
-  "text-sm font-normal leading-5 tracking-[-0.01em] text-text-secondary dark:text-white/50";
+  "text-sm font-normal font-[400] leading-5 tracking-[-0.01em] text-text-secondary dark:text-white/50";
 const kycHeaderIconClass = "size-7 shrink-0 text-text-disabled dark:text-white/40";
 const kycLabelClass =
   "mb-2 block text-sm font-medium leading-5 text-text-body dark:text-white/80";
@@ -67,18 +69,97 @@ const kycInputClass =
 const kycSelectTriggerClass =
   "flex h-10 w-full items-center justify-between rounded-xl border border-border-input bg-white px-2.5 text-left text-sm text-text-body focus:outline-none focus:ring-2 focus:ring-lavender-500/50 dark:border-white/20 dark:bg-transparent dark:text-white";
 const kycCanvasCardClass = "overflow-hidden rounded-2xl bg-background-neutral dark:bg-surface-canvas";
-const kycSecondary40 = `${secondaryBtnClasses} h-10 min-h-10 shrink-0 px-4`;
-const kycPrimary40 = `${primaryBtnClasses} h-10 min-h-10 w-full dark:disabled:bg-[#2E2E2E] dark:disabled:text-white/40`;
-const kycPrimary44 = `${primaryBtnClasses} h-11 min-h-11 w-full`;
-const kycNoThanksClass = `${secondaryBtnClasses} h-10 min-h-10 w-[100px] shrink-0 px-3`;
+const kycBtnType = "font-medium leading-5 tracking-[-0.01em]";
+const kycSecondary40 = `${secondaryBtnClasses} ${kycBtnType} !h-10 !min-h-10 shrink-0 px-3 dark:bg-white/10`;
+const kycPrimary40 = `${primaryBtnClasses} ${kycBtnType} !h-10 !min-h-10 w-full dark:disabled:bg-[#2E2E2E] dark:disabled:text-white/40`;
+const kycPrimary44 = `${primaryBtnClasses} ${kycBtnType} h-11 min-h-11 w-full`;
+const kycNoThanksClass = `${secondaryBtnClasses} ${kycBtnType} !h-10 !min-h-10 w-[100px] shrink-0 px-3 dark:bg-white/10`;
 
 const TERMS_ITEMS = [
   "I agree to the Paycrest Terms of Service and acknowledge the Privacy Policy.",
   "I confirm that the information I provide is accurate and that I will use Paycrest in compliance with applicable laws and regulations.",
   "I understand that Paycrest facilitates fiat and digital asset transactions and that transactions may be irreversible once completed.",
+
 ] as const;
 
-const Tier3ProgressBar = ({ complete }: { complete: boolean }) => (
+/** Figma checkmark-circle-02: 20px filled #39C65D circle with a cut-out check. */
+const KycFilledCheck = ({ className = "size-5" }: { className?: string }) => (
+  <svg
+    className={className}
+    width="20"
+    height="20"
+    viewBox="0 0 20 20"
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg"
+    aria-hidden="true"
+  >
+    <path
+      fillRule="evenodd"
+      clipRule="evenodd"
+      d="M10 20C4.47715 20 0 15.5229 0 10C0 4.47715 4.47715 0 10 0C15.5229 0 20 4.47715 20 10C20 15.5229 15.5229 20 10 20ZM14.4355 7.80482C14.7645 7.41014 14.7112 6.82357 14.3165 6.49467C13.9218 6.16578 13.3352 6.2191 13.0063 6.61378L9.00726 11.4127L6.93685 9.34223C6.57356 8.97898 5.98458 8.97898 5.62129 9.34223C5.25802 9.70549 5.25802 10.2945 5.62129 10.6578L8.412 13.4485C8.59684 13.6333 8.85079 13.7318 9.11191 13.72C9.37302 13.7081 9.61712 13.587 9.78437 13.3862L14.4355 7.80482Z"
+      fill="#39C65D"
+    />
+  </svg>
+);
+
+/** Figma _Base Checkbox checked: 21.3px rounded square in a 32px hit area; the check is a cut-out. */
+const KycConsentCheck = () => (
+  <svg
+    width="32"
+    height="32"
+    viewBox="0 0 32 32"
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg"
+    aria-hidden="true"
+  >
+    <path
+      fillRule="evenodd"
+      clipRule="evenodd"
+      d="M10.6654 5.33203C7.71985 5.33203 5.33203 7.71985 5.33203 10.6654V21.332C5.33203 24.2775 7.71985 26.6654 10.6654 26.6654H21.332C24.2775 26.6654 26.6654 24.2775 26.6654 21.332V10.6654C26.6654 7.71985 24.2775 5.33203 21.332 5.33203H10.6654ZM21.0257 12.278C20.6279 11.8951 19.9947 11.9076 19.6117 12.3053L14.5931 17.5163L12.4212 15.0104C12.0595 14.5931 11.4274 14.5481 11.0101 14.9098C10.5931 15.2715 10.5481 15.9027 10.9095 16.32L13.7982 19.654C13.9821 19.8661 14.247 19.9912 14.5277 19.9987C14.8084 20.0061 15.0799 19.8944 15.2747 19.6921L21.0521 13.6921C21.4352 13.2942 21.4235 12.6611 21.0257 12.278Z"
+      fill="#8B85F4"
+    />
+  </svg>
+);
+
+/** Figma map-pinpoint-02 20px, white stroke, location + nearby pin. */
+const KycMapPinIcon = () => (
+  <svg
+    width="20"
+    height="20"
+    viewBox="0 0 20 20"
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg"
+    aria-hidden="true"
+  >
+    <path
+      d="M16.666 7.49935C15.9522 4.15026 12.492 1.66602 9.16695 1.66602C6.21464 1.66602 3.40738 3.41531 2.23791 6.14907C0.0749848 11.2051 4.5102 14.6877 7.81976 17.8052C8.18117 18.1435 8.66422 18.3327 9.16695 18.3327C9.62545 18.3327 10.0676 18.1753 10.416 17.891"
+      stroke="white"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+    />
+    <path
+      d="M11.6667 7.66351C11.1563 6.81649 10.2276 6.25 9.16667 6.25C7.55584 6.25 6.25 7.55584 6.25 9.16667C6.25 10.3302 6.93127 11.3345 7.91667 11.8027"
+      stroke="white"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+    />
+    <path
+      d="M14.166 13.334H14.1735"
+      stroke="white"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <path
+      d="M14.9151 18.0425C14.7144 18.2286 14.446 18.3327 14.1668 18.3327C13.8875 18.3327 13.6192 18.2286 13.4184 18.0425C11.5799 16.3279 9.11618 14.4125 10.3177 11.6317C10.9673 10.1281 12.5268 9.16602 14.1668 9.16602C15.8068 9.16602 17.3662 10.1281 18.0158 11.6317C19.2158 14.409 16.7581 16.3338 14.9151 18.0425Z"
+      stroke="white"
+      strokeWidth="1.5"
+    />
+  </svg>
+);
+
+const Tier3ProgressBar =
+ ({ complete }: { complete: boolean }) => (
   <div className="h-0.5 w-full overflow-hidden bg-transparent">
     <div
       className="h-full bg-[#FF7D52]"
@@ -495,15 +576,15 @@ export const KycModal = ({
       </div>
 
       <div className="space-y-4 rounded-2xl border-[0.3px] border-border-light bg-background-neutral p-4 dark:border-white/10 dark:bg-white/5">
-        <h4 className="text-base font-medium leading-6 text-text-body dark:text-white/80">
+        <h4 className={kycSectionClass}>
           Accept terms to get started
         </h4>
 
         <div className="flex flex-col gap-5">
           {TERMS_ITEMS.map((item) => (
             <div key={item} className="flex items-start gap-2">
-              <span className="flex size-7 shrink-0 items-center justify-center">
-                <CheckmarkCircle01Icon className="size-5 text-[#39C65D]" />
+              <span className="flex size-7 shrink-0 items-start justify-center">
+                <KycFilledCheck />
               </span>
               <p className={kycMutedClass}>{item}</p>
             </div>
@@ -514,7 +595,7 @@ export const KycModal = ({
               href="/kyc-policy"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-sm font-normal leading-5 text-lavender-500 hover:underline"
+              className="text-sm font-normal leading-5 tracking-[-0.01em] text-lavender-500 hover:underline"
               onClick={(e) => {
                 e.stopPropagation();
                 e.preventDefault();
@@ -528,26 +609,19 @@ export const KycModal = ({
       </div>
 
       <div className="rounded-2xl border-[0.3px] border-border-light p-4 dark:border-white/10">
-        <div className="flex items-start gap-2">
+        <div className="flex items-center gap-3.5">
           <Checkbox
             checked={termsAccepted}
             onChange={(checked) => setTermsAccepted(checked)}
-            className="group mt-0 block size-8 shrink-0 cursor-pointer rounded-lg border-2 border-gray-300 bg-transparent data-[checked]:border-lavender-500 data-[checked]:bg-lavender-500 dark:border-white/30 dark:data-[checked]:border-lavender-500"
+            className="flex size-8 shrink-0 cursor-pointer items-center justify-center"
           >
-            <svg
-              className="stroke-white opacity-0 group-data-[checked]:opacity-100"
-              viewBox="0 0 14 14"
-              fill="none"
-            >
-              <path
-                d="M3 8L6 11L11 3.5"
-                strokeWidth={2}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
+            {termsAccepted ? (
+              <KycConsentCheck />
+            ) : (
+              <span className="block h-[21.3px] w-[21.3px] rounded-[5.33px] border border-border-input bg-transparent dark:border-white/30" />
+            )}
           </Checkbox>
-          <p className="text-xs font-normal leading-4 text-text-secondary dark:text-white/50">
+          <p className="text-xs font-normal font-[400] leading-4 text-text-secondary dark:text-white/50">
             By clicking &ldquo;sign and continue&rdquo; below, you are agreeing to the terms and policies above
           </p>
         </div>
@@ -789,9 +863,9 @@ export const KycModal = ({
 
   const renderPendingStatus = () => (
     <motion.div key="pending" {...fadeInOut} className="space-y-4">
-      <Clock05Icon className="mx-auto text-yellow-primary" size={40} />
-
-      <div className="space-y-3 text-center">
+      <div className="relative flex h-[186px] w-full flex-col items-center">
+        <Clock05Icon className="mt-[17px] text-yellow-primary" size={40} />
+        <div className="mt-[22px] w-full max-w-[322px] space-y-3 text-center">
         <DialogTitle className={kycTitleClass}>
           {targetTier === 3
             ? "Tier 3 Upgrade in progress"
@@ -803,6 +877,7 @@ export const KycModal = ({
             ? "We are currently verifying your proof of address. You will get feedback within 48 hours. Kindly check back soon"
             : "We are currently verifying your identity. You will get feedback within 24 hours. Kindly check back soon"}
         </p>
+        </div>
       </div>
 
       <button
@@ -825,9 +900,9 @@ export const KycModal = ({
     const tier3SuccessBody = `You can now swap crypto of up to ${tier3LimitLabel} monthly on Noblocks`;
     return (
     <motion.div key="success" {...fadeInOut} className="space-y-4">
-      <CheckmarkCircle01Icon className="mx-auto size-10" color="#39C65D" />
-
-      <div className="space-y-3 text-center">
+      <div className="relative flex h-[186px] w-full flex-col items-center">
+        <CheckmarkCircle01Icon className="mt-[17px] size-10" color="#39C65D" />
+        <div className="mt-[22px] w-full max-w-[322px] space-y-3 text-center">
         <DialogTitle className={kycTitleClass}>
           {targetTier === 3 ? "Tier 3 upgrade successful" : "Verification successful"}
         </DialogTitle>
@@ -837,6 +912,7 @@ export const KycModal = ({
             ? tier3SuccessBody
             : "You can now continue swapping your crypto to fiats at zero fees on noblocks"}
         </p>
+        </div>
       </div>
 
       <button
@@ -955,10 +1031,10 @@ export const KycModal = ({
       )}
     >
       <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-[#FF7D52]">
-        <MapPinpoint01Icon className="size-4 text-white" />
+        <KycMapPinIcon />
       </div>
       <div className="space-y-0.5">
-        <p className="text-sm font-medium leading-5 text-text-body dark:text-white/80">
+        <p className="text-sm font-medium leading-5 tracking-[-0.01em] text-text-body dark:text-white/80">
           Address verification
         </p>
         <p className="text-xs font-normal leading-4 text-text-secondary dark:text-white/50">
@@ -979,31 +1055,33 @@ export const KycModal = ({
             <span className={MINUTES_GRADIENT_CLASS}>2 minutes</span>
           </h2>
         </div>
-        <div className="space-y-2">
-          <p className="text-base font-medium leading-6 text-text-body dark:text-white/80">
-            Account limit
-          </p>
-          <div className="flex flex-col items-start gap-4 rounded-3xl border border-border-light p-4 dark:border-white/10">
-            <span className="inline-flex items-center gap-1.5 rounded-lg bg-[#39C65D] px-2 py-1 text-sm font-medium leading-5 text-[#121217]">
-              <StarIcon className="size-4" />
-              Tier 3
-            </span>
-            <p className="flex items-center gap-1 text-sm font-normal leading-6 text-text-secondary dark:text-white/50">
-              Monthly limit
-              <InformationCircleIcon className="size-4 shrink-0" />
+        <div className="space-y-4 rounded-2xl border-[0.3px] border-border-light bg-background-neutral p-4 dark:border-white/10 dark:bg-white/5">
+          <div className="space-y-4">
+            <p className={kycSectionClass}>
+              Account limit
             </p>
-            <span className="text-2xl font-medium leading-9 tracking-[-0.03em] text-text-body dark:text-white">
-              {tier3Limits.limits.unlimited
-                ? "Unlimited"
-                : `$${formatNumberWithCommas(tier3Limits.limits.monthly)}`}
-            </span>
+            <div className="flex flex-col items-start gap-4 rounded-3xl border border-border-light p-4 dark:border-white/10">
+              <span className="inline-flex items-center gap-1.5 rounded-lg bg-[#39C65D] px-2 py-1 text-sm font-semibold leading-5 text-[#121217]">
+                <StarIcon className="size-4" color="#121217" />
+                Tier 3
+              </span>
+              <p className="flex items-center gap-1 text-sm font-medium leading-6 text-black dark:text-white">
+                Monthly limit
+                <InformationCircleIcon className="size-4 shrink-0 text-text-placeholder dark:text-white/30" />
+              </p>
+              <span className="text-2xl font-medium leading-9 tracking-[-0.03em] text-black dark:text-white">
+                {tier3Limits.limits.unlimited
+                  ? "Unlimited"
+                  : `$${formatNumberWithCommas(tier3Limits.limits.monthly)}`}
+              </span>
+            </div>
           </div>
-        </div>
-        <div className="space-y-2">
-          <p className="text-base font-medium leading-6 text-text-body dark:text-white/80">
-            Key requirements
-          </p>
-          <Tier3AddressCard className="border border-border-light dark:border-white/10" />
+          <div className="space-y-2">
+            <p className={kycSectionClass}>
+              Key requirements
+            </p>
+            <Tier3AddressCard className="border border-border-light dark:border-white/10" />
+          </div>
         </div>
         <div className="flex gap-4">
           <button

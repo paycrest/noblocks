@@ -2,7 +2,7 @@
 
 import { Dialog, DialogPanel, DialogTitle } from "@headlessui/react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Cancel01Icon, CheckmarkCircle01Icon } from "hugeicons-react";
+import { Cancel01Icon } from "hugeicons-react";
 import type { ReactNode } from "react";
 import { fadeInOut } from "../AnimatedComponents";
 
@@ -70,11 +70,23 @@ export function DocumentRequirementsModal({
                       key={index}
                       className="flex items-start gap-2 text-sm font-normal leading-5 text-text-body dark:text-white/80"
                     >
-                      <span className="flex size-8 shrink-0 items-center justify-center">
-                        <CheckmarkCircle01Icon
-                          className="size-5 text-[#39C65D]"
-                          strokeWidth={2}
-                        />
+                      <span className="flex size-7 shrink-0 items-start justify-center">
+                        <svg
+                          className="size-5"
+                          width="20"
+                          height="20"
+                          viewBox="0 0 20 20"
+                          fill="none"
+                          xmlns="http://www.w3.org/2000/svg"
+                          aria-hidden="true"
+                        >
+                          <path
+                            fillRule="evenodd"
+                            clipRule="evenodd"
+                            d="M10 20C4.47715 20 0 15.5229 0 10C0 4.47715 4.47715 0 10 0C15.5229 0 20 4.47715 20 10C20 15.5229 15.5229 20 10 20ZM14.4355 7.80482C14.7645 7.41014 14.7112 6.82357 14.3165 6.49467C13.9218 6.16578 13.3352 6.2191 13.0063 6.61378L9.00726 11.4127L6.93685 9.34223C6.57356 8.97898 5.98458 8.97898 5.62129 9.34223C5.25802 9.70549 5.25802 10.2945 5.62129 10.6578L8.412 13.4485C8.59684 13.6333 8.85079 13.7318 9.11191 13.72C9.37302 13.7081 9.61712 13.587 9.78437 13.3862L14.4355 7.80482Z"
+                            fill="#39C65D"
+                          />
+                        </svg>
                       </span>
                       <span className="pt-1.5">{text}</span>
                     </li>

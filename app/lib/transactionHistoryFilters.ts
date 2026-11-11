@@ -100,10 +100,30 @@ function parseCommaList<T extends string>(
   return Array.from(seen);
 }
 
-/** Strips everything but letters/digits and caps length, so it's safe to embed in an `.ilike` filter. */
+/**
+ * Strips everything but letters/digits/`.`/`-` and caps length, so it's safe to embed in a
+ * PostgREST `.or()` filter. Excludes `_`, `%`, `*` (ilike/PostgREST wildcards) and `,()":\`
+ * plus whitespace (PostgREST filter syntax / shell metacharacters).
+ */
 export function sanitizeHistorySearch(raw: string | null | undefined): string {
   if (!raw) return "";
-  return raw.replace(/[^A-Za-z0-9]/g, "").slice(0, MAX_SEARCH_LENGTH);
+  return raw.replace(/[^A-Za-z0-9.-]/g, "").slice(0, MAX_SEARCH_LENGTH);
+}
+
+/**
+ * Builds the PostgREST `.or()` condition string for a sanitized search term, double-quoting
+ * the value in each condition so reserved PostgREST characters can never be interpreted as
+ * filter syntax. Returns null for an empty (post-sanitization) search.
+ */
+export function buildHistorySearchOrFilter(search: string): string | null {
+  const s = sanitizeHistorySearch(search);
+  if (!s) return null;
+  return [
+    `from_currency.ilike."%${s}%"`,
+    `to_currency.ilike."%${s}%"`,
+    `tx_hash.ilike."%${s}%"`,
+    `recipient->>account_identifier.ilike."%${s}%"`,
+  ].join(",");
 }
 
 /** Pure query parser shared by the API route — kept here so it's unit-testable without a request object. */

@@ -78,18 +78,16 @@ function listItemReceivedAmount(transaction: TransactionHistory): string {
   );
 }
 
-/** Left-side sent amount: fiat legs keep the existing fiat formatter; crypto legs show at least 2 decimals. */
+/** Left-side sent amount: fiat legs keep the existing fiat formatter; crypto legs show at least 2 decimals. Credit rows show the received amount, since there's nothing sent. */
 function listItemSentAmount(transaction: TransactionHistory): string {
+  const amount =
+    transaction.transaction_type === "credit"
+      ? transaction.amount_received
+      : transaction.amount_sent;
   if (isNoblocksFiatCurrencyCode(transaction.from_currency)) {
-    return formatTransactionAmountDisplay(
-      transaction.amount_sent,
-      transaction.from_currency,
-    );
+    return formatTransactionAmountDisplay(amount, transaction.from_currency);
   }
-  return formatCryptoWithSymbol(
-    transaction.amount_sent,
-    transaction.from_currency,
-  );
+  return formatCryptoWithSymbol(amount, transaction.from_currency);
 }
 
 function TransactionRowSkeleton() {
@@ -123,14 +121,16 @@ function TransactionListSkeleton() {
   );
 }
 
-function TransactionEmptyCard() {
+function TransactionEmptyCard({ filtered }: { filtered?: boolean }) {
   return (
     <div className="flex h-[252px] flex-col items-center justify-center px-5 py-12 text-center">
       <p className="font-sans text-[15px] font-semibold leading-9 tracking-[-0.03em] text-neutral-900 dark:text-white">
-        No transactions yet
+        {filtered ? "No matching transactions" : "No transactions yet"}
       </p>
       <p className="mt-[3px] max-w-[212px] font-general-sans text-sm font-medium leading-5 tracking-[-0.01em] text-text-secondary dark:text-white/50">
-        All the transactions and activity will show up here.
+        {filtered
+          ? "Try a different search or filter."
+          : "All the transactions and activity will show up here."}
       </p>
     </div>
   );
@@ -201,10 +201,6 @@ export default function TransactionList({
     return () => clearInterval(id);
   }, []);
 
-  // Track loading state without it being a reactive dep to avoid re-fetch cycles
-  const isLoadingRef = useRef(isLoading);
-  useEffect(() => { isLoadingRef.current = isLoading; }, [isLoading]);
-
   // Opening the history view is an explicit user action, so establish the injected SIWE session here
   // (one signature, cached ~1h) — same pattern as BridgeForm/KycModal. Without it an injected user
   // who lands on history before any signing sees a permanently empty list: the fetch below reads
@@ -226,29 +222,40 @@ export default function TransactionList({
     }
   }, [filtersKey, setPage]);
 
-  // Fetch transactions when wallet address, page, or filters change.
-  // Skips if another fetch is already in-flight, or the active filter has no backing type.
-  // Uses isLoading via ref (not reactive dep) to avoid ping-pong re-fetch cycles.
+  // Fetch transactions when wallet address, page, or filters change. A filter/page change while a
+  // fetch is in flight must still be issued — TransactionsContext resolves which response wins.
+  // Only the exact same request (same wallet/page/filters) already in flight is deduped, since the
+  // page-reset effect above and this effect can otherwise both fire for the same filter change.
+  const inFlightKeyRef = useRef<string | null>(null);
   useEffect(() => {
-    if (walletAddress && !noResults && !isLoadingRef.current) {
-      // Passive: opening the history list must not pop a SIWE signature request. Injected users who
-      // haven't signed yet get an empty list until a user action establishes the session.
-      void resolveAuth({ interactive: false }).then(
-        ({ accessToken, injectedToken }) => {
-          if (accessToken || injectedToken) {
-            fetchTransactions(
-              walletAddress,
-              accessToken,
-              currentPage,
-              limit,
-              false,
-              injectedToken,
-              filters,
-            );
-          }
-        },
-      );
-    }
+    if (!walletAddress || noResults) return;
+    const requestKey = `${walletAddress}-${currentPage}-${filtersKey}`;
+    if (inFlightKeyRef.current === requestKey) return;
+    inFlightKeyRef.current = requestKey;
+
+    const clearInFlight = () => {
+      if (inFlightKeyRef.current === requestKey) {
+        inFlightKeyRef.current = null;
+      }
+    };
+
+    // Passive: opening the history list must not pop a SIWE signature request. Injected users who
+    // haven't signed yet get an empty list until a user action establishes the session.
+    void resolveAuth({ interactive: false })
+      .then(({ accessToken, injectedToken }) => {
+        if (accessToken || injectedToken) {
+          return fetchTransactions(
+            walletAddress,
+            accessToken,
+            currentPage,
+            limit,
+            false,
+            injectedToken,
+            filters,
+          );
+        }
+      })
+      .finally(clearInFlight);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [walletAddress, currentPage, filtersKey, noResults, resolveAuth, fetchTransactions]);
 
@@ -323,6 +330,7 @@ export default function TransactionList({
   const showLoadingSkeleton = !noResults && isLoading && transactions.length === 0;
   const showEmptyCard = noResults || (!isLoading && transactions.length === 0 && !error);
   const showErrorCard = !noResults && !isLoading && transactions.length === 0 && !!error;
+  const isFilteredEmpty = noResults || serializeHistoryFilters(filters) !== "";
 
   return (
     <div className="flex h-full w-full flex-col">
@@ -332,7 +340,7 @@ export default function TransactionList({
         ) : showErrorCard ? (
           <TransactionErrorCard onRetry={() => void refreshTransactions()} />
         ) : showEmptyCard ? (
-          <TransactionEmptyCard />
+          <TransactionEmptyCard filtered={isFilteredEmpty} />
         ) : (
           <div className="flex flex-col gap-6">
             {groupedTransactions.map(([date, txs]) => (
@@ -425,7 +433,7 @@ export default function TransactionList({
       </div>
 
       {/* Pagination controls */}
-      {hasRows && Math.ceil(total / limit) > 1 && (
+      {(currentPage > 1 || (hasRows && Math.ceil(total / limit) > 1)) && (
         <div className="mt-6 flex flex-grow items-end justify-center gap-2">
           <button
             type="button"

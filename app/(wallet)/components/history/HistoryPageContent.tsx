@@ -99,70 +99,71 @@ export function HistoryPageContent() {
       </h1>
 
       {!isColdEmpty && (
-        <div className="mt-11 flex h-8 items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="flex h-8 w-[233px] items-center rounded-xl bg-accent-gray px-3 py-1.5 dark:bg-white/5">
-              <Search01Icon className="size-4 shrink-0 text-text-secondary/60 dark:text-white/30" />
-              <input
-                type="text"
-                aria-label="Search transactions"
-                placeholder="Search by token or address"
-                maxLength={64}
-                value={searchInput}
-                onChange={(e) => setSearchInput(e.target.value)}
-                className="w-full bg-transparent px-2 font-general-sans text-sm leading-5 tracking-[-0.01em] text-text-accent-gray placeholder:text-text-secondary focus:outline-none dark:text-white/80 dark:placeholder:text-white/30"
-              />
-            </div>
-
-            <div className="flex items-center gap-[14px]">
-              {HISTORY_FILTER_CHIPS.map((chip) => {
-                const isActive = chip === activeChip;
-                return (
-                  <button
-                    key={chip}
-                    type="button"
-                    aria-pressed={isActive}
-                    onClick={() => setActiveChip(chip)}
-                    className={classNames(
-                      "font-sans text-sm font-medium leading-5 tracking-[-0.01em] text-neutral-900 dark:text-white",
-                      isActive
-                        ? "flex h-8 items-center rounded-xl bg-gray-100 px-2 py-1.5 dark:bg-white/10"
-                        : "h-6 py-0.5 hover:opacity-80",
-                    )}
-                  >
-                    {isActive ? <span className="px-1">{chip}</span> : chip}
-                  </button>
-                );
-              })}
-            </div>
+        <div className="mt-11 flex flex-wrap items-center gap-3 md:h-8 md:flex-nowrap">
+          <div className="flex h-8 w-full items-center rounded-xl bg-accent-gray px-3 py-1.5 dark:bg-white/5 md:w-[233px]">
+            <Search01Icon className="size-4 shrink-0 text-text-secondary/60 dark:text-white/30" />
+            <input
+              type="text"
+              aria-label="Search transactions"
+              placeholder="Search by token or address"
+              maxLength={64}
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              className="w-full bg-transparent px-2 font-general-sans text-sm leading-5 tracking-[-0.01em] text-text-accent-gray placeholder:text-text-secondary focus:outline-none dark:text-white/80 dark:placeholder:text-white/30"
+            />
           </div>
 
-          <FlexibleDropdown
-            data={STATUS_DROPDOWN_ITEMS}
-            selectedItem={statusLabel}
-            onSelect={setStatusLabel}
-            dropdownWidth={180}
-            className="!max-h-none"
-            mobileTitle="Status"
-          >
-            {({ toggleDropdown, isOpen }) => (
-              <button
-                type="button"
-                onClick={toggleDropdown}
-                aria-haspopup="listbox"
-                aria-expanded={isOpen}
-                className="flex h-8 w-[120px] items-center justify-center gap-1 rounded-xl bg-gray-100 px-2 py-1.5 font-sans text-sm font-medium leading-5 tracking-[-0.01em] text-neutral-900 dark:bg-white/10 dark:text-white"
-              >
-                {statusLabel}
-                <ArrowDown01Icon
+          <div className="no-scrollbar flex min-w-0 flex-1 items-center gap-[14px] overflow-x-auto md:flex-none md:overflow-visible">
+            {HISTORY_FILTER_CHIPS.map((chip) => {
+              const isActive = chip === activeChip;
+              return (
+                <button
+                  key={chip}
+                  type="button"
+                  aria-pressed={isActive}
+                  onClick={() => setActiveChip(chip)}
                   className={classNames(
-                    "size-4 transition-transform",
-                    isOpen && "rotate-180",
+                    "shrink-0 font-sans text-sm font-medium leading-5 tracking-[-0.01em] text-neutral-900 dark:text-white",
+                    isActive
+                      ? "flex h-8 items-center rounded-xl bg-gray-100 px-2 py-1.5 dark:bg-white/10"
+                      : "h-6 py-0.5 hover:opacity-80",
                   )}
-                />
-              </button>
-            )}
-          </FlexibleDropdown>
+                >
+                  {isActive ? <span className="px-1">{chip}</span> : chip}
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="shrink-0 md:ml-auto">
+            <FlexibleDropdown
+              data={STATUS_DROPDOWN_ITEMS}
+              selectedItem={statusLabel}
+              onSelect={setStatusLabel}
+              dropdownWidth={180}
+              className="!max-h-none"
+              mobileTitle="Status"
+              nowrapOptions
+            >
+              {({ toggleDropdown, isOpen }) => (
+                <button
+                  type="button"
+                  onClick={toggleDropdown}
+                  aria-haspopup="listbox"
+                  aria-expanded={isOpen}
+                  className="flex h-8 w-[120px] items-center justify-center gap-1 rounded-xl bg-gray-100 px-2 py-1.5 font-sans text-sm font-medium leading-5 tracking-[-0.01em] text-neutral-900 dark:bg-white/10 dark:text-white"
+                >
+                  {statusLabel}
+                  <ArrowDown01Icon
+                    className={classNames(
+                      "size-4 transition-transform",
+                      isOpen && "rotate-180",
+                    )}
+                  />
+                </button>
+              )}
+            </FlexibleDropdown>
+          </div>
         </div>
       )}
 

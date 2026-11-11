@@ -1078,8 +1078,8 @@ function DetailRow({
   value: React.ReactNode;
 }) {
   return (
-    <div className="flex h-5 w-full items-center justify-between">
-      <div className="font-general-sans text-sm leading-5 tracking-[-0.01em] text-text-secondary dark:text-white/50">
+    <div className="flex min-h-5 w-full items-start justify-between">
+      <div className="shrink-0 font-general-sans text-sm leading-5 tracking-[-0.01em] text-text-secondary dark:text-white/50">
         {label}
       </div>
       <div className="max-w-[60%] break-all px-1 text-right font-general-sans text-sm leading-5 text-text-accent-gray dark:text-white/80">

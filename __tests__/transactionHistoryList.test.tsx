@@ -3,6 +3,7 @@
 import React from "react";
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import type { TransactionHistory } from "../app/types";
+import type { TransactionHistoryFilters } from "../app/lib/transactionHistoryFilters";
 
 const mockFetchTransactions = jest.fn();
 const mockRefreshTransactions = jest.fn();
@@ -159,11 +160,37 @@ describe("TransactionList", () => {
     ).toBeInTheDocument();
   });
 
-  it("shows the same empty-state card for a filter with no backing type (e.g. Earn) and skips the fetch", () => {
+  it("shows the filtered-empty copy (not the cold-empty copy) for a filter with no backing type (e.g. Earn), and skips the fetch", () => {
     render(<TransactionList noResults />);
 
-    expect(screen.getByText("No transactions yet")).toBeInTheDocument();
+    expect(screen.getByText("No matching transactions")).toBeInTheDocument();
+    expect(
+      screen.getByText("Try a different search or filter."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("No transactions yet")).not.toBeInTheDocument();
     expect(mockFetchTransactions).not.toHaveBeenCalled();
+  });
+
+  it("shows the filtered-empty copy when a status or search filter is active and returns no rows", () => {
+    const filters: TransactionHistoryFilters = {
+      statuses: ["failed"],
+      search: "nomatch",
+    };
+    render(<TransactionList filters={filters} />);
+
+    expect(screen.getByText("No matching transactions")).toBeInTheDocument();
+    expect(
+      screen.getByText("Try a different search or filter."),
+    ).toBeInTheDocument();
+  });
+
+  it("shows the cold-empty copy when there are no filters active", () => {
+    render(<TransactionList filters={{}} />);
+
+    expect(screen.getByText("No transactions yet")).toBeInTheDocument();
+    expect(
+      screen.getByText("All the transactions and activity will show up here."),
+    ).toBeInTheDocument();
   });
 
   it("keeps existing rows and offers a retry when a fetch error occurs", () => {
@@ -185,5 +212,73 @@ describe("TransactionList", () => {
     expect(retryRow).toContainElement(retryButton);
     fireEvent.click(retryButton);
     expect(mockRefreshTransactions).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows the received amount (not the sent amount) for credit rows", () => {
+    mockTransactionsState.transactions = [
+      makeTx({
+        id: "credit-row",
+        transaction_type: "credit",
+        amount_sent: 1,
+        amount_received: 42,
+      }),
+    ];
+    mockTransactionsState.total = 1;
+
+    render(<TransactionList />);
+
+    expect(screen.getByText("42.00 USDC")).toBeInTheDocument();
+    expect(screen.queryByText("1.00 USDC")).not.toBeInTheDocument();
+  });
+
+  it("keeps showing the sent amount for non-credit rows", () => {
+    mockTransactionsState.transactions = [
+      makeTx({
+        id: "transfer-row",
+        transaction_type: "transfer",
+        amount_sent: 7,
+        amount_received: 99,
+      }),
+    ];
+    mockTransactionsState.total = 1;
+
+    render(<TransactionList />);
+
+    expect(screen.getByText("7.00 USDC")).toBeInTheDocument();
+    expect(screen.queryByText("99.00 USDC")).not.toBeInTheDocument();
+  });
+
+  it("issues a fetch for a new filter even while the previous fetch is still marked loading in context", async () => {
+    mockTransactionsState.isLoading = true;
+
+    const { rerender } = render(
+      <TransactionList filters={{ search: "aaa" }} />,
+    );
+    await waitFor(() => expect(mockFetchTransactions).toHaveBeenCalledTimes(1));
+    expect(mockFetchTransactions.mock.calls[0][6]).toEqual({ search: "aaa" });
+
+    rerender(<TransactionList filters={{ search: "bbb" }} />);
+    await waitFor(() => expect(mockFetchTransactions).toHaveBeenCalledTimes(2));
+    expect(mockFetchTransactions.mock.calls[1][6]).toEqual({ search: "bbb" });
+  });
+
+  it("shows pagination with a usable previous button when the current page comes back empty", () => {
+    mockTransactionsState.transactions = [];
+    mockTransactionsState.total = 0;
+    mockTransactionsState.currentPage = 2;
+
+    render(<TransactionList />);
+
+    expect(
+      screen.getByRole("button", { name: "Go to previous page" }),
+    ).toBeEnabled();
+  });
+
+  it("hides pagination on a fresh, unfiltered page 1 with no rows", () => {
+    render(<TransactionList />);
+
+    expect(
+      screen.queryByRole("button", { name: "Go to previous page" }),
+    ).not.toBeInTheDocument();
   });
 });

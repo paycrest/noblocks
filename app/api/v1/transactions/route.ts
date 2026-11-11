@@ -14,7 +14,10 @@ import {
   parseValidTransactionAmount,
   roundAmountForCurrency,
 } from "@/app/utils";
-import { parseHistoryQuery } from "@/app/lib/transactionHistoryFilters";
+import {
+  buildHistorySearchOrFilter,
+  parseHistoryQuery,
+} from "@/app/lib/transactionHistoryFilters";
 import {
   assertTransactionWalletAuthorized,
   executeSwapTransactionLimitCheck,
@@ -129,10 +132,9 @@ export const GET = withRateLimit(async (request: NextRequest) => {
     if (statuses.length > 0) {
       query = query.in("status", statuses);
     }
-    if (search) {
-      query = query.or(
-        `from_currency.ilike.%${search}%,to_currency.ilike.%${search}%,tx_hash.ilike.%${search}%,recipient->>account_identifier.ilike.%${search}%`,
-      );
+    const searchOrFilter = buildHistorySearchOrFilter(search);
+    if (searchOrFilter) {
+      query = query.or(searchOrFilter);
     }
 
     const {

@@ -51,6 +51,8 @@ interface FlexibleDropdownProps {
   searchable?: boolean;
   /** Placeholder for the search input when `searchable` is true. */
   searchPlaceholder?: string;
+  /** When true, option labels don't wrap (e.g. short, fixed-width menus like a status filter). */
+  nowrapOptions?: boolean;
 }
 
 function resolveDefaultSelection(
@@ -76,6 +78,7 @@ export const FlexibleDropdown = ({
   enableKeyboardSearch = true,
   searchable = false,
   searchPlaceholder = "Search…",
+  nowrapOptions = false,
 }: FlexibleDropdownProps) => {
   const [selectedItem, setSelectedItem] = useState<DropdownItem | undefined>(() =>
     resolveDefaultSelection(defaultSelectedItem, data),
@@ -327,7 +330,12 @@ export const FlexibleDropdown = ({
         {item && (
           <FlagImage imageErrors={{}} setImageErrors={() => {}} item={item} />
         )}
-        <span className="whitespace-nowrap text-text-body dark:text-white/80">
+        <span
+          className={classNames(
+            "text-text-body dark:text-white/80",
+            nowrapOptions && "whitespace-nowrap",
+          )}
+        >
           {item.label ?? item.name}
         </span>
       </div>

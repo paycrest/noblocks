@@ -4,6 +4,7 @@ import {
   HISTORY_FILTER_CHIPS,
   HISTORY_FILTER_TYPES,
   HISTORY_STATUS_OPTIONS,
+  buildHistorySearchOrFilter,
   formatCryptoWithSymbol,
   formatFiatWithCode,
   formatHistoryDateTime,
@@ -65,15 +66,17 @@ describe("parseHistoryQuery", () => {
     const result = parseHistoryQuery(
       params({ search: "abc,()%*.def".padEnd(80, "x") }),
     );
-    expect(result.search).toBe(result.search.replace(/[^A-Za-z0-9]/g, ""));
+    expect(result.search).toBe(result.search.replace(/[^A-Za-z0-9.-]/g, ""));
     expect(result.search.length).toBeLessThanOrEqual(64);
-    expect(result.search.startsWith("abcdef")).toBe(true);
+    expect(result.search.startsWith("abc.def")).toBe(true);
   });
 });
 
 describe("sanitizeHistorySearch", () => {
-  it("strips punctuation and whitespace", () => {
-    expect(sanitizeHistorySearch("abc,()%*. def")).toBe("abcdef");
+  it("strips punctuation and whitespace but keeps dots and hyphens", () => {
+    expect(sanitizeHistorySearch("abc,()%*. def")).toBe("abc.def");
+    expect(sanitizeHistorySearch("USDC.e")).toBe("USDC.e");
+    expect(sanitizeHistorySearch("0xabc-1")).toBe("0xabc-1");
   });
 
   it("caps length at 64 characters", () => {
@@ -81,10 +84,71 @@ describe("sanitizeHistorySearch", () => {
     expect(sanitizeHistorySearch(long)).toHaveLength(64);
   });
 
+  it("caps length after stripping, not before", () => {
+    // 80 commas strip to "" — if the cap applied before stripping this would
+    // still be empty, but it must also never leave more than 64 chars behind.
+    const input = "a,".repeat(40) + "b".repeat(40); // 80 chars of "a," + 40 "b"s
+    const result = sanitizeHistorySearch(input);
+    expect(result).toHaveLength(64);
+    expect(result).toBe("a".repeat(40) + "b".repeat(24));
+  });
+
   it("returns empty string for null/undefined/empty input", () => {
     expect(sanitizeHistorySearch(null)).toBe("");
     expect(sanitizeHistorySearch(undefined)).toBe("");
     expect(sanitizeHistorySearch("")).toBe("");
+  });
+
+  it("neutralises PostgREST/ilike wildcard and injection characters", () => {
+    expect(sanitizeHistorySearch("a,b")).toBe("ab");
+    expect(sanitizeHistorySearch("x),wallet_address.neq.0")).toBe(
+      "xwalletaddress.neq.0",
+    );
+    expect(sanitizeHistorySearch("%")).toBe("");
+    expect(sanitizeHistorySearch("*")).toBe("");
+    expect(sanitizeHistorySearch("_")).toBe("");
+    expect(sanitizeHistorySearch('"quoted"')).toBe("quoted");
+    expect(sanitizeHistorySearch("a\\b")).toBe("ab");
+    expect(sanitizeHistorySearch("name:eq")).toBe("nameeq");
+    expect(sanitizeHistorySearch("café")).toBe("caf");
+    expect(sanitizeHistorySearch("a b\tc\nd")).toBe("abcd");
+  });
+});
+
+describe("buildHistorySearchOrFilter", () => {
+  it("returns null for an empty or fully-stripped search", () => {
+    expect(buildHistorySearchOrFilter("")).toBeNull();
+    expect(buildHistorySearchOrFilter("   ")).toBeNull();
+    expect(buildHistorySearchOrFilter("%*_")).toBeNull();
+  });
+
+  it("preserves dots and hyphens used in real token/address searches", () => {
+    expect(buildHistorySearchOrFilter("USDC.e")).toBe(
+      'from_currency.ilike."%USDC.e%",to_currency.ilike."%USDC.e%",tx_hash.ilike."%USDC.e%",recipient->>account_identifier.ilike."%USDC.e%"',
+    );
+    expect(buildHistorySearchOrFilter("0xabc-1")).toContain('"%0xabc-1%"');
+  });
+
+  it("produces exactly 4 conditions joined by 3 top-level commas", () => {
+    const result = buildHistorySearchOrFilter("USDC.e");
+    expect(result).not.toBeNull();
+    const conditions = result!.split(",");
+    expect(conditions).toHaveLength(4);
+  });
+
+  it("neutralises an injection attempt: no unquoted comma/paren escapes the quoted value, and the dangerous chars are stripped before quoting", () => {
+    const result = buildHistorySearchOrFilter('a,b),wallet_address.neq.0%_*"\\');
+    expect(result).not.toBeNull();
+    // Splitting on "," must yield exactly the 4 top-level conditions — an
+    // injected ",wallet_address.neq.0" would otherwise add a 5th.
+    expect(result!.split(",")).toHaveLength(4);
+    // The dangerous characters (quotes, wildcards, underscore, backslash) never
+    // reach the value inside the quotes.
+    for (const condition of result!.split(",")) {
+      const value = condition.match(/ilike\."%(.*)%"$/)?.[1];
+      expect(value).toBeDefined();
+      expect(value).not.toMatch(/[%_*"\\,)]/);
+    }
   });
 });
 

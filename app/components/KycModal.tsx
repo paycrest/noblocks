@@ -63,7 +63,7 @@ const kycMutedClass =
   "text-sm font-normal font-[400] leading-5 tracking-[-0.01em] text-text-secondary dark:text-white/50";
 const kycHeaderIconClass = "size-7 shrink-0 text-text-disabled dark:text-white/40";
 const kycLabelClass =
-  "mb-2 block text-sm font-medium leading-5 tracking-[-0.01em] text-text-body dark:text-white/80";
+  "mb-2 block text-sm font-medium leading-5 tracking-[-0.01em] text-text-body dark:text-white";
 const kycInputClass =
   "h-10 w-full rounded-xl border border-border-input bg-white px-2.5 text-sm tracking-[-0.01em] text-text-body placeholder:text-text-placeholder focus:outline-none focus:ring-2 focus:ring-lavender-500/50 dark:border-white/20 dark:bg-transparent dark:text-white dark:placeholder:text-white/30";
 const kycSelectTriggerClass =
@@ -580,31 +580,40 @@ export const KycModal = ({
           Accept terms to get started
         </h4>
 
-        <div className="flex flex-col gap-5">
-          {TERMS_ITEMS.map((item) => (
-            <div key={item} className="flex items-start gap-2">
-              <span className="flex size-7 shrink-0 items-start justify-center">
-                <KycFilledCheck />
-              </span>
-              <p className={kycMutedClass}>{item}</p>
-            </div>
-          ))}
-          <div className="flex items-start gap-2">
-            <span className="size-7 shrink-0" />
-            <a
-              href="/kyc-policy"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-sm font-normal leading-5 tracking-[-0.01em] text-lavender-500 hover:underline"
-              onClick={(e) => {
-                e.stopPropagation();
-                e.preventDefault();
-                window.open("/kyc-policy", "_blank");
-              }}
-            >
-              Read full Terms and Conditions
-            </a>
-          </div>
+        <div className="flex w-[335px] max-w-full flex-col gap-5">
+          {TERMS_ITEMS.map((item, index) => {
+            const isLast = index === TERMS_ITEMS.length - 1;
+            return (
+              <div key={item} className="flex w-full items-start gap-2">
+                <span className="flex size-7 shrink-0 items-start justify-center">
+                  <KycFilledCheck />
+                </span>
+                <div
+                  className={classNames(
+                    "w-[289px] max-w-[289px] shrink-0",
+                    isLast ? "flex flex-col gap-5" : "",
+                  )}
+                >
+                  <p className={kycMutedClass}>{item}</p>
+                  {isLast ? (
+                    <a
+                      href="/kyc-policy"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="block w-full text-sm font-normal leading-5 tracking-[-0.01em] text-lavender-500 hover:underline"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        window.open("/kyc-policy", "_blank");
+                      }}
+                    >
+                      Read full Terms and Conditions
+                    </a>
+                  ) : null}
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
 
@@ -621,7 +630,7 @@ export const KycModal = ({
               <span className="block h-[21.3px] w-[21.3px] rounded-[5.33px] border border-border-input bg-transparent dark:border-white/30" />
             )}
           </Checkbox>
-          <p className="text-xs font-normal font-[400] leading-4 text-text-secondary dark:text-white/50">
+          <p className="w-[289px] max-w-[289px] shrink-0 text-xs font-normal font-[400] leading-4 text-text-secondary dark:text-white/50">
             By clicking &ldquo;sign and continue&rdquo; below, you are agreeing to the terms and policies above
           </p>
         </div>
@@ -669,6 +678,7 @@ export const KycModal = ({
             Country
           </label>
           <FlexibleDropdown
+            panelClassName="font-general-sans"
             data={countries.map((c) => ({ name: c.code, label: c.name }))}
             selectedItem={selectedCountry?.code}
             onSelect={(code) => {
@@ -709,6 +719,7 @@ export const KycModal = ({
               ID Type
             </label>
             <FlexibleDropdown
+            panelClassName="font-general-sans"
               data={selectedCountry.id_types.map((t) => ({
                 name: t.type,
                 label: t.type.replace(/_/g, " "),
@@ -1026,7 +1037,7 @@ export const KycModal = ({
   }) => (
     <div
       className={classNames(
-        "flex items-center gap-3 rounded-2xl p-4",
+        "flex h-[62px] items-center gap-4 rounded-2xl px-4",
         className || "",
       )}
     >
@@ -1061,19 +1072,21 @@ export const KycModal = ({
               Account limit
             </p>
             <div className="flex flex-col items-start gap-4 rounded-3xl border border-border-light p-4 dark:border-white/10">
-              <span className="inline-flex items-center gap-1.5 rounded-lg bg-[#39C65D] px-2 py-1 text-sm font-semibold leading-5 tracking-[-0.01em] text-[#121217]">
+              <span className="inline-flex h-7 items-center rounded-lg bg-[#39C65D] px-2 py-1 text-sm font-semibold leading-5 text-[#121217]">
                 <StarIcon className="size-4" color="#121217" />
-                Tier 3
+                <span className="px-1">Tier 3</span>
               </span>
-              <p className="flex items-center gap-1 text-sm font-medium leading-6 tracking-[-0.01em] text-black dark:text-white">
-                Monthly limit
-                <InformationCircleIcon className="size-4 shrink-0 text-text-placeholder dark:text-white/30" />
-              </p>
-              <span className="text-2xl font-medium leading-9 tracking-[-0.03em] text-black dark:text-white">
-                {tier3Limits.limits.unlimited
-                  ? "Unlimited"
-                  : `$${formatNumberWithCommas(tier3Limits.limits.monthly)}`}
-              </span>
+              <div className="flex w-full flex-col items-start gap-2">
+                <p className="flex items-center gap-1 text-sm font-medium leading-6 text-black dark:text-white">
+                  Monthly limit
+                  <InformationCircleIcon className="size-4 shrink-0 text-text-placeholder dark:text-white/30" />
+                </p>
+                <span className="text-2xl font-medium leading-9 tracking-[-0.03em] text-black dark:text-white">
+                  {tier3Limits.limits.unlimited
+                    ? "Unlimited"
+                    : `$${formatNumberWithCommas(tier3Limits.limits.monthly)}`}
+                </span>
+              </div>
             </div>
           </div>
           <div className="space-y-2">
@@ -1129,6 +1142,7 @@ export const KycModal = ({
               Country of Residence
             </label>
             <FlexibleDropdown
+            panelClassName="font-general-sans"
               data={tier3CountryOptions}
               selectedItem={tier3CountryCode}
               onSelect={(code) => setTier3CountryCode(code)}
@@ -1326,7 +1340,7 @@ export const KycModal = ({
             onClick={() => setStep(STEPS.TIER3_COUNTRY)}
             className="w-full text-left"
           >
-            <p className="mb-1 flex items-center gap-1 text-sm font-normal leading-6 tracking-[-0.01em] text-text-secondary dark:text-white/50">
+            <p className="mb-1 flex items-center gap-1 text-sm font-normal leading-6 text-text-secondary dark:text-white/50">
               Current address{" "}
               <PencilEdit01Icon className="size-4 text-text-secondary hover:text-text-body dark:text-white/50 dark:hover:text-white/70" />
             </p>
@@ -1341,6 +1355,7 @@ export const KycModal = ({
               Document type
             </label>
             <FlexibleDropdown
+            panelClassName="font-general-sans"
               data={
                 TIER3_DOCUMENT_TYPES.map((d) => ({
                   name: d.value,

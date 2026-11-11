@@ -45,14 +45,14 @@ export function DocumentRequirementsModal({
       {isOpen && (
         <Dialog open={isOpen} onClose={onClose} className="relative z-[80]">
           <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" aria-hidden="true" />
-          <div className="fixed inset-0 flex items-center justify-center p-4">
-            <DialogPanel>
+          <div className="fixed inset-0 flex items-center justify-center p-4 min-[412px]:p-0">
+            <DialogPanel className="w-full max-w-[412px]">
               <motion.div
                 {...fadeInOut}
-                className="font-general-sans w-full max-w-[412px] rounded-[20px] border-[0.3px] border-border-light bg-white p-5 shadow-xl dark:border-white/10 dark:bg-surface-overlay"
+                className="font-general-sans w-full rounded-[20px] border-[0.3px] border-border-light bg-white p-5 shadow-xl dark:border-white/10 dark:bg-surface-overlay"
               >
-                <div className="flex items-center justify-between gap-4">
-                  <DialogTitle className="font-inter text-lg font-semibold leading-6 text-text-body dark:text-white">
+                <div className="flex items-center justify-between gap-2.5">
+                  <DialogTitle className="font-inter min-w-0 flex-1 text-lg font-semibold leading-6 text-text-body dark:text-white">
                     Document upload requirements
                   </DialogTitle>
                   <button
@@ -64,13 +64,13 @@ export function DocumentRequirementsModal({
                     <Cancel01Icon className="size-5" />
                   </button>
                 </div>
-                <ul className="mt-4 space-y-4 rounded-2xl bg-background-neutral p-4 dark:bg-white/5">
+                <ul className="mt-4 space-y-4 rounded-2xl border-[0.3px] border-border-light bg-background-neutral p-4 dark:border-white/10 dark:bg-white/5">
                   {list.map((text, index) => (
                     <li
                       key={index}
                       className="flex items-start gap-2 text-sm font-normal leading-5 tracking-[-0.01em] text-text-body dark:text-white/80"
                     >
-                      <span className="flex size-7 shrink-0 items-start justify-center">
+                      <span className="flex size-8 shrink-0 items-center justify-center">
                         <svg
                           className="size-5"
                           width="20"
@@ -88,7 +88,7 @@ export function DocumentRequirementsModal({
                           />
                         </svg>
                       </span>
-                      <span className="pt-1.5">{text}</span>
+                      <span className="min-w-0 flex-1">{text}</span>
                     </li>
                   ))}
                 </ul>

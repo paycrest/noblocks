@@ -23,7 +23,7 @@ import { SuccessCheckmark } from "@/app/components/drawer/SuccessCheckmark";
 import { useActualTheme } from "@/app/hooks/useActualTheme";
 import { classNames } from "@/app/utils";
 
-import { TRANSFER_V2_COPY } from "./transferConfig";
+import { TRANSFER_COPY } from "./transferConfig";
 
 type Props = {
   isOpen: boolean;
@@ -59,7 +59,7 @@ export function TransferSuccessModal({
   const isDark = useActualTheme();
 
   const timeSpentLabel = `${elapsedSeconds} second${elapsedSeconds === 1 ? "" : "s"}`;
-  const shareText = TRANSFER_V2_COPY.shareText(
+  const shareText = TRANSFER_COPY.shareText(
     amountLabel,
     tokenSymbol,
     shortAddress,
@@ -70,22 +70,22 @@ export function TransferSuccessModal({
 
   const rows: Row[] = [
     {
-      label: TRANSFER_V2_COPY.transactionStatus,
-      value: TRANSFER_V2_COPY.completed,
+      label: TRANSFER_COPY.transactionStatus,
+      value: TRANSFER_COPY.completed,
       valueClassName: drawerSuccessIconClasses,
     },
     {
-      label: TRANSFER_V2_COPY.fundStatus,
-      value: TRANSFER_V2_COPY.transferred,
+      label: TRANSFER_COPY.fundStatus,
+      value: TRANSFER_COPY.transferred,
       valueClassName: drawerSecondaryText,
     },
     {
-      label: TRANSFER_V2_COPY.timeSpent,
+      label: TRANSFER_COPY.timeSpent,
       value: timeSpentLabel,
       valueClassName: drawerSecondaryText,
     },
     {
-      label: TRANSFER_V2_COPY.onchainReceipt,
+      label: TRANSFER_COPY.onchainReceipt,
       value: explorerLink ? (
         <a
           href={explorerLink}
@@ -93,7 +93,7 @@ export function TransferSuccessModal({
           rel="noopener noreferrer"
           className="inline-flex items-center gap-1 text-lavender-500 hover:underline"
         >
-          {TRANSFER_V2_COPY.viewInExplorer}
+          {TRANSFER_COPY.viewInExplorer}
           <LinkSquare02Icon className="size-4 shrink-0" aria-hidden />
           <span className="sr-only">(opens in new tab)</span>
         </a>
@@ -153,7 +153,7 @@ export function TransferSuccessModal({
               id={titleId}
               className="w-full text-xl font-medium leading-7 text-text-body dark:text-white/80"
             >
-              {TRANSFER_V2_COPY.successTitle}
+              {TRANSFER_COPY.successTitle}
             </p>
 
             <p className="text-sm leading-5 tracking-[-0.14px] text-text-secondary dark:text-white/50">
@@ -201,22 +201,22 @@ export function TransferSuccessModal({
                 onClick={onBackHome}
                 className="rounded-xl bg-accent-gray px-2 py-1.5 text-sm font-medium leading-5 tracking-[-0.14px] text-text-body transition-colors hover:bg-gray-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-lavender-500 dark:bg-white/10 dark:text-white dark:hover:bg-white/15"
               >
-                {TRANSFER_V2_COPY.backHome}
+                {TRANSFER_COPY.backHome}
               </button>
               <button
                 type="button"
                 onClick={onNewPayment}
                 className="rounded-xl bg-lavender-500 px-2 py-1.5 text-sm font-medium leading-5 tracking-[-0.14px] text-white transition-colors hover:bg-lavender-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-lavender-500"
               >
-                {TRANSFER_V2_COPY.newPayment}
+                {TRANSFER_COPY.newPayment}
               </button>
             </div>
           </div>
 
-          {/* Share block (ported from the v1 swap success share section) */}
+          {/* Share block */}
           <div className="flex w-full flex-col gap-4">
             <p className={drawerSecondaryText}>
-              {TRANSFER_V2_COPY.helpSpreadTheWord}
+              {TRANSFER_COPY.helpSpreadTheWord}
             </p>
 
             <div className="relative flex items-center gap-2.5 overflow-hidden rounded-xl bg-background-neutral px-4 py-2 dark:bg-white/[0.05]">

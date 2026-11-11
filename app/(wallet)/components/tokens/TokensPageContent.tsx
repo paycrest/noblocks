@@ -610,7 +610,6 @@ export function TokenActionDrawerHost({
           <TransferForm
             onClose={onClose}
             preferredTokenSymbol={preferredTokenSymbol}
-            variant="v2"
           />
         );
       case "swap":

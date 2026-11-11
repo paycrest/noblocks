@@ -432,7 +432,7 @@ function WalletActionDrawerHost({
           />
         );
       case "transfer":
-        return <TransferForm onClose={onClose} variant="v2" />;
+        return <TransferForm onClose={onClose} />;
       case "swap":
         return <BridgeForm onClose={onClose} onBridgeSubmit={() => {}} />;
       default:

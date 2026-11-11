@@ -11,7 +11,7 @@ import {
 } from "@/app/components/drawer/drawerStyles";
 import { classNames } from "@/app/utils";
 
-import { TRANSFER_V2_COPY } from "./transferConfig";
+import { TRANSFER_COPY } from "./transferConfig";
 
 type Props = {
   isOpen: boolean;
@@ -73,7 +73,7 @@ export function TransferPendingModal({
             id={titleId}
             className="w-full text-xl font-medium leading-7 text-text-body dark:text-white/80"
           >
-            {TRANSFER_V2_COPY.pendingTitle}
+            {TRANSFER_COPY.pendingTitle}
           </p>
 
           <div className="flex w-full items-center gap-2">
@@ -105,7 +105,7 @@ export function TransferPendingModal({
           <hr className={classNames("w-full", drawerDashedDividerClasses)} />
 
           <p className={classNames("w-full", drawerSecondaryText)}>
-            {TRANSFER_V2_COPY.pendingNote}
+            {TRANSFER_COPY.pendingNote}
           </p>
         </div>
       </div>

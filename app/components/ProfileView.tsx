@@ -446,7 +446,7 @@ export default function ProfileView({ layout, onBack, onClose }: ProfileViewProp
                   )}
                 </div>
 
-                {tier < 3 && (
+                {tier < 4 && (
                   <button
                     type="button"
                     onClick={() => {

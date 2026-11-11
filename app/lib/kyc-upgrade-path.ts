@@ -6,14 +6,16 @@ import type { KYCTierLevel } from "@/app/context/KYCContext";
  * - Tier 1: phone verification
  * - Tier 2: government ID + selfie
  * - Tier 3: address verification
+ * - Tier 4: business verification (unlimited)
  */
-export type KycUpgradeStep = "phone" | "id" | "address";
+export type KycUpgradeStep = "phone" | "id" | "address" | "business";
 
 /** Next step to unlock the tier above the user's current one. */
 export function getKycUpgradeStep(currentTier: KYCTierLevel): KycUpgradeStep {
   if (currentTier < 1) return "phone";
   if (currentTier === 1) return "id";
-  return "address";
+  if (currentTier === 2) return "address";
+  return "business";
 }
 
 /** Smile ID / address flows in `KycModal` (tier 1 uses phone modal only). */
@@ -26,7 +28,7 @@ export function isFreeModeTier(tier: KYCTierLevel): boolean {
 }
 
 /** User has completed at least phone verification (tier 1+). */
-export function hasAssignedKycTier(tier: number): tier is KYCTierLevel & (1 | 2 | 3) {
+export function hasAssignedKycTier(tier: number): tier is KYCTierLevel & (1 | 2 | 3 | 4) {
   return tier >= 1;
 }
 

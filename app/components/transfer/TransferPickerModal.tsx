@@ -13,8 +13,8 @@ import {
   formatTransferTokenUsd,
   TRANSFER_MODAL_SCRIM,
   TRANSFER_PICKER_SHELL,
-  TRANSFER_V2_COPY,
-  type TransferV2NetworkOption,
+  TRANSFER_COPY,
+  type TransferNetworkOption,
 } from "./transferConfig";
 
 export type TransferTokenOption = {
@@ -37,7 +37,7 @@ type PickNetworkProps = {
   kind: "network";
   isOpen: boolean;
   onClose: () => void;
-  networks: TransferV2NetworkOption[];
+  networks: TransferNetworkOption[];
   selectedName?: string;
   onSelectNetwork: (name: string) => void;
 };
@@ -54,11 +54,11 @@ export function TransferPickerModal(props: TransferPickerModalProps) {
   }, [isOpen]);
 
   const title =
-    kind === "token" ? TRANSFER_V2_COPY.selectToken : TRANSFER_V2_COPY.selectNetwork;
+    kind === "token" ? TRANSFER_COPY.selectToken : TRANSFER_COPY.selectNetwork;
   const placeholder =
     kind === "token"
-      ? TRANSFER_V2_COPY.searchToken
-      : TRANSFER_V2_COPY.searchNetwork;
+      ? TRANSFER_COPY.searchToken
+      : TRANSFER_COPY.searchNetwork;
 
   const normalizedQuery = query.trim().toLowerCase();
   const filteredTokens = (

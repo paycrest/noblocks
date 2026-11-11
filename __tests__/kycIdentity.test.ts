@@ -208,7 +208,7 @@ describe("resolveIdentityScope", () => {
   it("clamps an out-of-range tier to the highest tier the limit table defines", async () => {
     queueQueries(
       ok({
-        tier: 4,
+        tier: 5,
         phone_number: PHONE,
         id_country: null,
         id_type: null,
@@ -219,7 +219,7 @@ describe("resolveIdentityScope", () => {
 
     await expect(
       resolveIdentityScope(CALLER).then((s) => s.effectiveTier),
-    ).resolves.toBe(3);
+    ).resolves.toBe(4);
   });
 
   it("throws when the profile lookup fails rather than narrowing the pool", async () => {

@@ -5,12 +5,16 @@
  * Tier 3 additionally accepts the sentinel string "unlimited" (case-insensitive) in
  * NEXT_PUBLIC_KYC_TIER_3_MONTHLY to remove the monthly cap entirely. Tiers 0–2 remain
  * numeric-only. Do NOT use 0 for unlimited — tier 0 uses 0 to mean "no swaps until phone".
+ *
+ * Tier 4 is always unlimited (no env override); its 0 here is never read as a cap, see
+ * getKycTierLimit(4).
  */
 const DEFAULT_KYC_MONTHLY_LIMITS: Record<number, number> = {
   0: 0,
   1: 0.5,
   2: 1,
-  3: 2,
+  3: 50000,
+  4: 0,
 };
 
 /**
@@ -89,16 +93,18 @@ export function getKycTierLimit(tier: number): KycTierLimit {
       };
     case 3:
       return parseTier3MonthlyLimit(process.env.NEXT_PUBLIC_KYC_TIER_3_MONTHLY);
+    case 4:
+      return { monthly: 0, unlimited: true };
     default:
       return { monthly: 0, unlimited: false };
   }
 }
 
 /**
- * Monthly USD limits per tier (0–3), numeric only. Env: NEXT_PUBLIC_KYC_TIER_{n}_MONTHLY.
+ * Monthly USD limits per tier (0–4), numeric only. Env: NEXT_PUBLIC_KYC_TIER_{n}_MONTHLY.
  *
  * Backward-compat shim for legacy callers that only need a number. An unlimited tier 3
- * collapses to `monthly: 0` here, which is indistinguishable from "no limit configured" —
+ * (and tier 4, which is always unlimited) collapses to `monthly: 0` here, which is indistinguishable from "no limit configured" —
  * consumers that must respect unlimited should call getKycTierLimit() and check `.unlimited`.
  */
 export function getKycMonthlyLimitsRecord(): Record<number, number> {
@@ -107,5 +113,6 @@ export function getKycMonthlyLimitsRecord(): Record<number, number> {
     1: getKycTierLimit(1).monthly,
     2: getKycTierLimit(2).monthly,
     3: getKycTierLimit(3).monthly,
+    4: getKycTierLimit(4).monthly,
   };
 }

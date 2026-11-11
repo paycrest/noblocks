@@ -8,7 +8,7 @@ import { saveRecipient } from "@/app/api/aggregator";
 import { classNames } from "@/app/utils";
 
 import { CreateBeneficiaryModal } from "./CreateBeneficiaryModal";
-import { TRANSFER_V2_COPY } from "./transferConfig";
+import { TRANSFER_COPY } from "./transferConfig";
 
 type Props = {
   walletAddress: string;
@@ -80,13 +80,13 @@ export function SaveRecipientToggle({
     <>
       <div className="relative flex h-5 w-full items-center">
         <p className="text-sm font-normal leading-5 tracking-[-0.14px] text-text-secondary dark:text-white/50">
-          {TRANSFER_V2_COPY.saveRecipient}
+          {TRANSFER_COPY.saveRecipient}
         </p>
         <button
           type="button"
           role="switch"
           aria-checked={enabled}
-          aria-label={TRANSFER_V2_COPY.saveRecipient}
+          aria-label={TRANSFER_COPY.saveRecipient}
           onClick={handleToggle}
           className="absolute right-0 top-1/2 flex h-[34px] w-[39px] -translate-y-1/2 items-center justify-center rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-lavender-500"
         >

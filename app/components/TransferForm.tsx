@@ -8,33 +8,20 @@ import { useNetwork } from "../context/NetworksContext";
 import { useBalance, useTokens } from "../context";
 import { useStarknet } from "../context/StarknetContext";
 import {
-  classNames,
   formatDecimalPrecision,
   fetchBalanceForNetwork,
   shouldUseInjectedWallet,
 } from "../utils";
 import { validateWalletAddress } from "../lib/validation";
 import { useSmartWalletTransfer } from "../hooks/useSmartWalletTransfer";
-import { FormDropdown } from "./FormDropdown";
-import { AnimatedComponent, slideInOut } from "./AnimatedComponents";
-import { BalanceSkeleton } from "./BalanceSkeleton";
-import { primaryBtnClasses } from "./Styles";
 import { toast } from "sonner";
-import {
-  ArrowLeft02Icon,
-  Cancel01Icon,
-  CheckmarkCircle01Icon,
-  Wallet01Icon,
-  ArrowDown01Icon,
-  InformationSquareIcon,
-} from "hugeicons-react";
+import { ArrowLeft02Icon } from "hugeicons-react";
 import { Token, type MobileSheetView } from "../types";
 import { networks } from "../mocks";
 import { getNetworkImageUrl } from "../utils";
 import { useActualTheme } from "../hooks/useActualTheme";
 import { tokensEqual } from "../lib/token-symbol";
-import Image from "next/image";
-import { TransferV2Form } from "./transfer/TransferV2Form";
+import { TransferFormFields } from "./transfer/TransferFormFields";
 import { TransferPickerModal } from "./transfer/TransferPickerModal";
 import { TransferConfirmModal } from "./transfer/TransferConfirmModal";
 import { TransferPendingModal } from "./transfer/TransferPendingModal";
@@ -59,8 +46,8 @@ type TransferFormValues = {
   recipientNetworkImageUrl: string;
 };
 
-type TransferV2View = "form" | "confirm" | "pending" | "success";
-type TransferV2Picker = "token" | "network" | null;
+type TransferStep = "form" | "confirm" | "pending" | "success";
+type TransferPickerKind = "token" | "network" | null;
 
 export const TransferForm: React.FC<{
   onClose: () => void;
@@ -68,14 +55,12 @@ export const TransferForm: React.FC<{
   showBackButton?: boolean;
   setCurrentView?: React.Dispatch<React.SetStateAction<MobileSheetView>>;
   preferredTokenSymbol?: string;
-  variant?: "v1" | "v2";
 }> = ({
   onClose,
   onSuccess,
   showBackButton = false,
   setCurrentView,
   preferredTokenSymbol,
-  variant = "v1",
 }) => {
   const searchParams = useSearchParams();
   const useInjectedWallet = shouldUseInjectedWallet(searchParams);
@@ -87,10 +72,6 @@ export const TransferForm: React.FC<{
   const { allTokens } = useTokens();
   const { walletId, publicKey, address, deployed } = useStarknet();
   const isDark = useActualTheme();
-
-  // State for network dropdown
-  const [isNetworkDropdownOpen, setIsNetworkDropdownOpen] = useState(false);
-  const networkDropdownRef = useRef<HTMLDivElement>(null);
 
   // State for transfer network balance (fetched based on selected recipient network)
   const [transferNetworkBalance, setTransferNetworkBalance] = useState<{
@@ -119,9 +100,9 @@ export const TransferForm: React.FC<{
     recipientNetworkImageUrl,
   } = watch();
 
-  // v2 flow state: which centred overlay is showing over the drawer form.
-  const [v2View, setV2View] = useState<TransferV2View>("form");
-  const [v2Picker, setV2Picker] = useState<TransferV2Picker>(null);
+  // Which centred overlay is showing over the drawer form.
+  const [transferStep, setTransferStep] = useState<TransferStep>("form");
+  const [picker, setPicker] = useState<TransferPickerKind>(null);
   const [submittedValues, setSubmittedValues] =
     useState<TransferFormValues | null>(null);
   const confirmInFlightRef = useRef(false);
@@ -129,9 +110,9 @@ export const TransferForm: React.FC<{
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [frozenElapsedSeconds, setFrozenElapsedSeconds] = useState(0);
   const rateLabel = useTransferRate(
-    variant === "v2" ? token : undefined,
+    token,
     recipientNetwork || selectedNetwork.chain.name,
-    variant === "v2",
+    true,
   );
 
   const showRecipientAddressError =
@@ -142,10 +123,6 @@ export const TransferForm: React.FC<{
     networks.find((n) => n.chain.name === recipientNetwork) || selectedNetwork;
 
   const fetchedTokens: Token[] = allTokens[transferNetwork.chain.name] || [];
-  const tokens = fetchedTokens.map((token) => ({
-    name: token.symbol,
-    imageUrl: token.imageUrl,
-  }));
   const tokenBalance = Number(transferNetworkBalance?.balances?.[token]) || 0;
 
   const recipientNetworks = networks
@@ -161,8 +138,6 @@ export const TransferForm: React.FC<{
   const {
     isLoading: isConfirming,
     isSuccess: isTransferSuccess,
-    transferAmount,
-    transferToken,
     transfer,
     getTxExplorerLink,
     error,
@@ -191,17 +166,6 @@ export const TransferForm: React.FC<{
   }, [preferredTokenSymbol, fetchedTokens, setValue]);
 
   useEffect(() => {
-    // v2 starts with no network picked, matching the Figma "Select network" field.
-    if (variant === "v2") return;
-    if (!recipientNetwork) {
-      setValue("recipientNetwork", selectedNetwork.chain.name);
-      const networkImageUrl = getNetworkImageUrl(selectedNetwork, isDark);
-      setValue("recipientNetworkImageUrl", networkImageUrl);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
     const address = getValues("recipientAddress")?.trim();
     if (address) {
       void trigger("recipientAddress");
@@ -222,13 +186,12 @@ export const TransferForm: React.FC<{
 
   const wasConfirmingRef = useRef(false);
   useEffect(() => {
-    if (variant !== "v2") return;
     if (isConfirming) {
       wasConfirmingRef.current = true;
       confirmInFlightRef.current = true;
       // Capture the submitted values before the hook resets the form on success.
       setSubmittedValues(getValues());
-      setV2View("pending");
+      setTransferStep("pending");
       return;
     }
     if (wasConfirmingRef.current) {
@@ -244,14 +207,14 @@ export const TransferForm: React.FC<{
       }
       // Success opens the receipt; a failure returns to the review step so the
       // user can retry (the existing hook owns the error toast).
-      setV2View(isTransferSuccess ? "success" : "confirm");
+      setTransferStep(isTransferSuccess ? "success" : "confirm");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isConfirming, isTransferSuccess, variant]);
+  }, [isConfirming, isTransferSuccess]);
 
   // Elapsed UI timer, started at the confirm click. Display only.
   useEffect(() => {
-    if (variant !== "v2" || !isConfirming) return;
+    if (!isConfirming) return;
     const tick = () => {
       const startedAt = transferStartedAtRef.current;
       setElapsedSeconds(
@@ -261,17 +224,16 @@ export const TransferForm: React.FC<{
     tick();
     const interval = window.setInterval(tick, 1000);
     return () => window.clearInterval(interval);
-  }, [isConfirming, variant]);
+  }, [isConfirming]);
 
   useEffect(() => {
-    if (variant !== "v2") return;
     if (!isTransferSuccess) return;
     const startedAt = transferStartedAtRef.current;
     setFrozenElapsedSeconds(
       startedAt ? Math.max(0, Math.floor((Date.now() - startedAt) / 1000)) : 0,
     );
-    setV2View("success");
-  }, [isTransferSuccess, variant]);
+    setTransferStep("success");
+  }, [isTransferSuccess]);
 
   // Fetch balance for the selected transfer network
   // After migration: use EOA; before: use SCW. Wait for wallet selection to settle so we don't show SCW (0) while loading.
@@ -342,33 +304,6 @@ export const TransferForm: React.FC<{
     starknetWalletBalance,
   ]);
 
-  // Close dropdown when clicking outside or pressing Escape
-  useEffect(() => {
-    if (!isNetworkDropdownOpen) return;
-
-    const handleClickOutside = (event: MouseEvent) => {
-      if (
-        networkDropdownRef.current &&
-        !networkDropdownRef.current.contains(event.target as Node)
-      ) {
-        setIsNetworkDropdownOpen(false);
-      }
-    };
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setIsNetworkDropdownOpen(false);
-      }
-    };
-
-    document.addEventListener("click", handleClickOutside);
-    document.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.removeEventListener("click", handleClickOutside);
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [isNetworkDropdownOpen]);
-
   const handleBalanceMaxClick = () => {
     const formattedBalance = formatDecimalPrecision(tokenBalance, 4);
     setValue("amount", formattedBalance, {
@@ -376,86 +311,6 @@ export const TransferForm: React.FC<{
       shouldDirty: true,
     });
   };
-
-  const handleFormClose = () => {
-    reset();
-    onClose();
-  };
-
-  const renderSuccessView = () => {
-    const explorerLink = getTxExplorerLink();
-    return (
-      <div className="space-y-6 pt-4">
-        <CheckmarkCircle01Icon className="mx-auto size-10" color="#39C65D" />
-        <div className="space-y-3 pb-5 text-center">
-          <h2 className="text-lg font-semibold text-text-body dark:text-white">
-            Transfer successful
-          </h2>
-          <p className="text-gray-500 dark:text-white/50">
-            {transferAmount} {transferToken} has been successfully transferred
-            to the recipient.
-          </p>
-          {explorerLink && (
-            <a
-              href={explorerLink}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mt-2 block text-center text-lavender-500 underline"
-            >
-              View in Explorer
-            </a>
-          )}
-        </div>
-        <button
-          type="button"
-          className={`${primaryBtnClasses} w-full`}
-          onClick={() => {
-            refreshBalance();
-            handleFormClose();
-          }}
-        >
-          Close
-        </button>
-      </div>
-    );
-  };
-
-  const renderBalanceSection = () => (
-    <div className="flex w-full items-center justify-between rounded-xl bg-accent-gray px-4 py-2.5 dark:bg-white/5">
-      <p className="text-text-secondary dark:text-white/50">Balance</p>
-      <div className="flex items-center gap-3">
-        {isBalanceLoading || transferNetworkBalance === null ? (
-          <BalanceSkeleton className="w-24" />
-        ) : Number(amount) >= tokenBalance ? (
-          <p className="dark:text-white/50">Maxed out</p>
-        ) : (
-          <button
-            type="button"
-            onClick={handleBalanceMaxClick}
-            className="font-medium text-lavender-500"
-          >
-            Max
-          </button>
-        )}
-        <p className="text-[10px] text-gray-300 dark:text-white/10">|</p>
-        <p className="font-medium text-neutral-900 dark:text-white/80">
-          {isBalanceLoading || transferNetworkBalance === null ? (
-            <BalanceSkeleton className="w-12" />
-          ) : (
-            `${tokenBalance} ${token}`
-          )}
-        </p>
-      </div>
-    </div>
-  );
-
-  if (variant === "v1" && isTransferSuccess) {
-    return renderSuccessView();
-  }
-
-  // Check if networks match for warning
-  const networksMatch = selectedNetwork.chain.name === recipientNetwork;
-  const showNetworkWarning = recipientNetwork && !networksMatch;
 
   const onFormSubmit = (data: any) => {
     transfer({ ...data, resetForm: reset });
@@ -470,7 +325,7 @@ export const TransferForm: React.FC<{
   const selectedToken = fetchedTokens.find((item) =>
     tokensEqual(item.symbol, token),
   );
-  const v2CanContinue = Boolean(
+  const canContinue = Boolean(
     recipientNetwork &&
       token &&
       Number(amount) > 0 &&
@@ -479,7 +334,7 @@ export const TransferForm: React.FC<{
       !isConfirming,
   );
 
-  const handleV2QuickAmount = (value: number) => {
+  const handleQuickAmount = (value: number) => {
     if (!isUsdStablecoin(token)) return;
     setValue("amount", value, {
       shouldValidate: true,
@@ -488,12 +343,12 @@ export const TransferForm: React.FC<{
   };
 
   // Continue validates with the existing form rules, then opens the review.
-  const v2SubmitForConfirm = handleSubmit(() => {
-    setV2View("confirm");
+  const submitForConfirm = handleSubmit(() => {
+    setTransferStep("confirm");
   });
 
   // Only this handler calls the existing transfer function, behind the same
-  // validation the v1 form submit uses.
+  // validation the form submit uses.
   const onConfirmInvalid = () => {
     // Validation failed after the click: release the in-flight lock and the
     // timer, and keep the review modal open so the user can fix the form.
@@ -505,9 +360,9 @@ export const TransferForm: React.FC<{
     onConfirmInvalid,
   );
 
-  const handleV2Confirm = () => {
+  const handleConfirmTransfer = () => {
     if (confirmInFlightRef.current || isConfirming) return;
-    // Same guards as the v1 submit button.
+    // Same guards as the form submit button.
     if (!(isValid && isDirty && token && Number(amount) > 0)) return;
     setSubmittedValues(getValues());
     confirmInFlightRef.current = true;
@@ -517,12 +372,12 @@ export const TransferForm: React.FC<{
     void submitConfirmedTransfer();
   };
 
-  const handleV2Back = () => {
+  const handleBackToForm = () => {
     confirmInFlightRef.current = false;
-    setV2View("form");
+    setTransferStep("form");
   };
 
-  const resetV2FlowState = () => {
+  const resetFlowState = () => {
     confirmInFlightRef.current = false;
     transferStartedAtRef.current = null;
     setElapsedSeconds(0);
@@ -530,21 +385,21 @@ export const TransferForm: React.FC<{
     setSubmittedValues(null);
   };
 
-  const handleV2NewPayment = () => {
+  const handleNewPayment = () => {
     reset();
-    resetV2FlowState();
-    setV2View("form");
+    resetFlowState();
+    setTransferStep("form");
   };
 
-  const handleV2BackHome = () => {
+  const handleBackHome = () => {
     reset();
-    resetV2FlowState();
-    setV2View("form");
+    resetFlowState();
+    setTransferStep("form");
     onClose();
   };
 
-  const renderV2 = () => {
-    const v2AmountField = register("amount", {
+  const renderForm = () => {
+    const amountField = register("amount", {
       required: {
         value: true,
         message: "Amount is required",
@@ -563,7 +418,7 @@ export const TransferForm: React.FC<{
         message: "Invalid amount",
       },
     });
-    const v2AddressField = register("recipientAddress", {
+    const addressField = register("recipientAddress", {
       required: {
         value: true,
         message: "Recipient address is required",
@@ -585,9 +440,24 @@ export const TransferForm: React.FC<{
 
     return (
       <>
-        <TransferV2Form
-          registerAmount={v2AmountField}
-          registerRecipientAddress={v2AddressField}
+        {showBackButton && setCurrentView ? (
+          <div className="mb-2 flex items-center">
+            <button
+              type="button"
+              title="Go back"
+              onClick={() => {
+                reset();
+                setCurrentView("wallet");
+              }}
+              className="rounded-lg p-2 hover:bg-gray-100 dark:hover:bg-white/10 sm:hidden"
+            >
+              <ArrowLeft02Icon className="size-5 text-outline-gray dark:text-white/50" />
+            </button>
+          </div>
+        ) : null}
+        <TransferFormFields
+          registerAmount={amountField}
+          registerRecipientAddress={addressField}
           errors={errors}
           showRecipientAddressError={showRecipientAddressError}
           token={token}
@@ -598,22 +468,22 @@ export const TransferForm: React.FC<{
           hasBalanceSnapshot={transferNetworkBalance !== null}
           recipientNetwork={recipientNetwork}
           recipientNetworks={recipientNetworks}
-          canContinue={v2CanContinue}
+          canContinue={canContinue}
           isConfirming={isConfirming}
           rateLabel={rateLabel}
           balanceError={balanceError}
-          onOpenNetwork={() => setV2Picker("network")}
-          onOpenToken={() => setV2Picker("token")}
+          onOpenNetwork={() => setPicker("network")}
+          onOpenToken={() => setPicker("token")}
           onMax={handleBalanceMaxClick}
-          onQuickAmount={handleV2QuickAmount}
-          onContinue={() => void v2SubmitForConfirm()}
-          onSubmit={v2SubmitForConfirm}
+          onQuickAmount={handleQuickAmount}
+          onContinue={() => void submitForConfirm()}
+          onSubmit={submitForConfirm}
         />
 
         <TransferPickerModal
           kind="network"
-          isOpen={v2Picker === "network"}
-          onClose={() => setV2Picker(null)}
+          isOpen={picker === "network"}
+          onClose={() => setPicker(null)}
           networks={recipientNetworks}
           selectedName={recipientNetwork}
           onSelectNetwork={(name) => {
@@ -623,14 +493,14 @@ export const TransferForm: React.FC<{
               "recipientNetworkImageUrl",
               network ? getNetworkImageUrl(network, isDark) : "",
             );
-            setV2Picker(null);
+            setPicker(null);
           }}
         />
 
         <TransferPickerModal
           kind="token"
-          isOpen={v2Picker === "token"}
-          onClose={() => setV2Picker(null)}
+          isOpen={picker === "token"}
+          onClose={() => setPicker(null)}
           tokens={fetchedTokens.map((item) => ({
             symbol: item.symbol,
             name: item.name,
@@ -640,14 +510,14 @@ export const TransferForm: React.FC<{
           selectedSymbol={token}
           onSelectToken={(symbol) => {
             setValue("token", symbol);
-            setV2Picker(null);
+            setPicker(null);
           }}
         />
 
         <TransferConfirmModal
-          isOpen={v2View === "confirm"}
-          onClose={handleV2Back}
-          onConfirm={handleV2Confirm}
+          isOpen={transferStep === "confirm"}
+          onClose={handleBackToForm}
+          onConfirm={handleConfirmTransfer}
           shortAddress={formatTransferShortAddress(recipientAddress)}
           amountLabel={formatTransferAmount(amount)}
           tokenSymbol={confirmTokenSymbol}
@@ -669,8 +539,8 @@ export const TransferForm: React.FC<{
         />
 
         <TransferPendingModal
-          isOpen={v2View === "pending"}
-          onClose={() => setV2View("form")}
+          isOpen={transferStep === "pending"}
+          onClose={() => setTransferStep("form")}
           amountLabel={formatTransferAmount(submittedValues?.amount)}
           tokenSymbol={completedTokenSymbol}
           tokenImageUrl={
@@ -683,7 +553,7 @@ export const TransferForm: React.FC<{
         />
 
         <TransferSuccessModal
-          isOpen={v2View === "success"}
+          isOpen={transferStep === "success"}
           amountLabel={formatTransferAmount(submittedValues?.amount)}
           tokenSymbol={completedTokenSymbol}
           tokenImageUrl={
@@ -694,320 +564,12 @@ export const TransferForm: React.FC<{
           shortAddress={completedShortAddress}
           elapsedSeconds={frozenElapsedSeconds}
           explorerLink={getTxExplorerLink()}
-          onBackHome={handleV2BackHome}
-          onNewPayment={handleV2NewPayment}
+          onBackHome={handleBackHome}
+          onNewPayment={handleNewPayment}
         />
       </>
     );
   };
 
-  if (variant === "v2") {
-    return renderV2();
-  }
-
-  return (
-    <>
-      <form
-        onSubmit={handleSubmit(onFormSubmit)}
-        className="z-50 w-full max-w-full space-y-4 overflow-x-hidden text-neutral-900 transition-all dark:text-white"
-        noValidate
-        data-testid="transfer-form"
-        data-preferred-token={
-          preferredTokenSymbol
-            ? watch("token") || preferredTokenSymbol
-            : undefined
-        }
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between gap-4">
-          {showBackButton && setCurrentView ? (
-            <button
-              type="button"
-              title="Go back"
-              onClick={() => {
-                reset();
-                setCurrentView("wallet");
-              }}
-              className="rounded-lg p-2 hover:bg-gray-100 dark:hover:bg-white/10 sm:hidden"
-            >
-              <ArrowLeft02Icon className="size-5 text-outline-gray dark:text-white/50" />
-            </button>
-          ) : null}
-          <h2 className="text-xl font-semibold text-text-body dark:text-white sm:flex-1">
-            Transfer funds
-          </h2>
-          <button
-            type="button"
-            aria-label="Close transfer modal"
-            onClick={handleFormClose}
-            className="hidden rounded-lg p-2 hover:bg-gray-100 dark:hover:bg-white/10 sm:block"
-          >
-            <Cancel01Icon className="size-5 text-outline-gray dark:text-white/50" />
-          </button>
-          <div className="w-10 sm:hidden" />
-        </div>
-
-        {/* Recipient wallet field */}
-        <div className="w-full max-w-full space-y-2">
-          <label
-            htmlFor="recipient-address"
-            className="text-sm font-medium text-text-secondary dark:text-white/70"
-          >
-            Recipient wallet
-          </label>
-          <div className="relative">
-            <Wallet01Icon
-              className={classNames(
-                "absolute left-3 top-3.5 size-4 text-icon-outline-secondary transition-colors dark:text-white/50",
-              )}
-            />
-            <input
-              type="text"
-              id="recipient-address"
-              {...register("recipientAddress", {
-                required: {
-                  value: true,
-                  message: "Recipient address is required",
-                },
-                validate: {
-                  addressForNetwork: (value) =>
-                    validateWalletAddress(
-                      value,
-                      recipientNetwork || selectedNetwork.chain.name,
-                    ),
-                },
-              })}
-              className={classNames(
-                "min-h-12 w-full rounded-xl border border-border-input py-3 pl-10 pr-4 text-sm transition-all placeholder:text-text-placeholder focus-within:border-gray-400 focus:outline-none disabled:cursor-not-allowed dark:border-white/20 dark:bg-black2 dark:placeholder:text-white/30 dark:focus-within:border-white/40",
-                showRecipientAddressError
-                  ? "text-red-500 dark:text-red-500"
-                  : "text-neutral-900 dark:text-white/80",
-              )}
-              placeholder="Enter recipient wallet address"
-              maxLength={66}
-            />
-          </div>
-          {showRecipientAddressError && (
-            <AnimatedComponent
-              variant={slideInOut}
-              className="text-xs text-red-500"
-            >
-              {errors.recipientAddress?.message}
-            </AnimatedComponent>
-          )}
-        </div>
-
-        {/* Recipient network field */}
-        <div className="w-full max-w-full space-y-2">
-          <label
-            htmlFor="recipient-network"
-            className="text-sm font-medium text-text-secondary dark:text-white/70"
-          >
-            Recipient network
-          </label>
-          <div className="relative w-full" ref={networkDropdownRef}>
-            <button
-              type="button"
-              onClick={() => setIsNetworkDropdownOpen(!isNetworkDropdownOpen)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault();
-                  setIsNetworkDropdownOpen(!isNetworkDropdownOpen);
-                }
-              }}
-              className="min-h-12 w-full rounded-xl border border-border-input bg-transparent px-4 py-3 text-left text-sm transition-all focus-within:border-gray-400 focus:outline-none disabled:cursor-not-allowed dark:border-white/20 dark:focus-within:border-white/40"
-              aria-haspopup="listbox"
-              aria-expanded={isNetworkDropdownOpen}
-              aria-controls="recipient-network-listbox"
-            >
-              <span
-                className={`flex items-center gap-3 ${recipientNetwork
-                  ? "text-neutral-900 dark:text-white"
-                  : "text-gray-400 dark:text-white/30"
-                  }`}
-              >
-                <img
-                  src={recipientNetworkImageUrl}
-                  alt={recipientNetwork}
-                  className="h-6 w-6"
-                />
-                {recipientNetwork || "Select network"}
-              </span>
-              <ArrowDown01Icon
-                className={`absolute right-3 top-1/2 size-4 -translate-y-1/2 text-outline-gray transition-transform dark:text-white/50 ${isNetworkDropdownOpen ? "rotate-180" : ""
-                  }`}
-              />
-            </button>
-
-            {/* Dropdown Menu */}
-            {isNetworkDropdownOpen && (
-              <div
-                id="recipient-network-listbox"
-                role="listbox"
-                className="scrollbar-hide absolute left-0 right-0 top-full z-50 mt-1 max-h-[144px] w-full overflow-y-auto overflow-x-hidden rounded-xl border border-border-input bg-white shadow-lg dark:border-white/20 dark:bg-neutral-800"
-              >
-                {recipientNetworks.map((network) => (
-                  <button
-                    key={network.name}
-                    type="button"
-                    role="option"
-                    aria-selected={recipientNetwork === network.name}
-                    onClick={() => {
-                      setValue("recipientNetwork", network.name);
-                      setValue("recipientNetworkImageUrl", network.imageUrl);
-                      setIsNetworkDropdownOpen(false);
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault();
-                        setValue("recipientNetwork", network.name);
-                        setValue("recipientNetworkImageUrl", network.imageUrl);
-                        setIsNetworkDropdownOpen(false);
-                      }
-                    }}
-                    className="flex w-full min-w-0 items-center gap-3 px-4 py-3 text-left transition-colors first:rounded-t-xl last:rounded-b-xl hover:bg-gray-50 focus:bg-gray-50 dark:hover:bg-white/5 dark:focus:bg-white/5"
-                  >
-                    <Image
-                      src={network.imageUrl}
-                      alt={network.name}
-                      className="h-6 w-6"
-                      width={24}
-                      height={24}
-                    />
-                    <span className="truncate text-sm font-medium text-neutral-900 dark:text-white">
-                      {network.name}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Amount field */}
-        <div className="w-full max-w-full space-y-2">
-          <div className="flex h-fit min-h-[94px] w-full flex-col gap-3 rounded-2xl border-[0.3px] border-border-input bg-transparent px-4 py-3 dark:border-white/20 dark:bg-black2">
-            <div className="flex justify-between gap-1">
-              <label
-                htmlFor="amount"
-                className="text-sm font-medium text-text-secondary dark:text-white/70"
-              >
-                Amount
-              </label>
-              {token && (
-                <div className="flex items-center gap-2">
-                  <Wallet01Icon
-                    size={16}
-                    className="text-icon-outline-secondary dark:text-white/50"
-                  />
-                  <span className="text-sm font-normal text-neutral-900 dark:text-white">
-                    {isBalanceLoading || transferNetworkBalance === null ? (
-                      <BalanceSkeleton className="w-12" />
-                    ) : (
-                      `${tokenBalance} ${token}`
-                    )}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={handleBalanceMaxClick}
-                    className="text-sm font-medium text-lavender-500 transition-colors hover:text-lavender-600"
-                  >
-                    Max
-                  </button>
-                </div>
-              )}
-            </div>
-
-            <div className="flex items-center justify-between gap-2">
-              <input
-                id="amount"
-                type="number"
-                step="0.0001"
-                {...register("amount", {
-                  required: {
-                    value: true,
-                    message: "Amount is required",
-                  },
-                  disabled: !token,
-                  min: {
-                    value: 0.0001,
-                    message: `Min. amount is 0.0001`,
-                  },
-                  max: {
-                    value: tokenBalance,
-                    message: `Max. amount is ${tokenBalance}`,
-                  },
-                  pattern: {
-                    value: /^\d+(\.\d{1,4})?$/,
-                    message: "Invalid amount",
-                  },
-                })}
-                className={`w-full bg-transparent text-3xl font-medium outline-none transition-all placeholder:text-gray-400 focus:outline-none disabled:cursor-not-allowed dark:placeholder:text-white/30 ${errors.amount
-                  ? "text-red-500 dark:text-red-500"
-                  : "text-neutral-900 dark:text-white"
-                  }`}
-                placeholder="0"
-                title="Enter amount to send"
-              />
-
-              <FormDropdown
-                defaultTitle="Select token"
-                data={tokens}
-                defaultSelectedItem={token || undefined}
-                isCTA={true}
-                onSelect={(selectedToken: string) =>
-                  setValue("token", selectedToken)
-                }
-                className="min-w-32"
-                dropdownWidth={192}
-              />
-            </div>
-          </div>
-          {errors.amount && (
-            <AnimatedComponent
-              variant={slideInOut}
-              className="relative left-2 top-1 text-xs text-red-500"
-            >
-              {errors.amount.message}
-            </AnimatedComponent>
-          )}
-          {balanceError && (
-            <AnimatedComponent
-              variant={slideInOut}
-              className="relative left-2 top-1 text-xs text-red-500"
-            >
-              {balanceError}
-            </AnimatedComponent>
-          )}
-        </div>
-
-        {/* Network compatibility warning */}
-        {showNetworkWarning && (
-          <div className="mb-4 flex w-full min-w-0 items-start gap-2 rounded-xl bg-warning-background/[8%] px-3 py-2 dark:bg-warning-background/[8%]">
-            <InformationSquareIcon className="mt-0.5 size-5 shrink-0 text-warning-foreground dark:text-warning-text" />
-            <p className="min-w-0 flex-1 break-words text-xs font-light leading-snug text-warning-foreground dark:text-warning-text">
-              Ensure that the recipient wallet address supports {recipientNetwork}{" "}
-              network to avoid loss of funds.
-            </p>
-          </div>
-        )}
-
-        {/* Submit button */}
-        <button
-          type="submit"
-          className={classNames(
-            "min-h-12 w-full rounded-xl px-4 py-3 text-sm font-semibold transition-all focus:outline-none focus:ring-2 focus:ring-lavender-500 focus:ring-offset-2 disabled:cursor-not-allowed dark:focus:ring-offset-neutral-900",
-            !isValid || !isDirty || isConfirming || !token || !(amount > 0)
-              ? "bg-gray-300 text-gray-500 dark:bg-white/10 dark:text-white/50"
-              : "bg-lavender-500 text-white hover:bg-lavender-600 dark:hover:bg-lavender-600",
-          )}
-          disabled={
-            !isValid || !isDirty || isConfirming || !token || !(amount > 0)
-          }
-        >
-          {isConfirming ? "Confirming..." : "Continue"}
-        </button>
-      </form>
-    </>
-  );
+  return renderForm();
 };

@@ -12,6 +12,10 @@ import { useTokens } from "@/app/context";
 import { networks } from "@/app/mocks";
 import type { BridgeLeg } from "@/app/lib/bridge";
 import { isRouteSupported } from "@/app/lib/bridge";
+import {
+  isBridgeLegTokenSelectable,
+  resolveBridgeLegToken,
+} from "@/app/lib/tokenSpendAmount";
 import { BridgePicker, BridgePickerChevron } from "./BridgePicker";
 import type { BridgePickerItem } from "./BridgePicker";
 
@@ -48,6 +52,8 @@ function buildTokenLeg(
   const network = networks.find((n) => n.chain.name === networkName);
   const token = (allTokens[networkName] ?? []).find((t) => t.symbol === symbol);
   if (!network || !token) return null;
+  const resolved = resolveBridgeLegToken(token);
+  if (!resolved.ok) return null;
   return {
     network: network.chain.name,
     chainId: network.chain.id,
@@ -102,23 +108,27 @@ export const BridgeRouteSelector: React.FC<BridgeRouteSelectorProps> = ({
 
   const fromTokenItems: BridgePickerItem[] = useMemo(
     () =>
-      (allTokens[fromNetworkName] ?? []).map((t) => ({
-        id: t.symbol,
-        label: t.symbol,
-        imgSrc: `/logos/${t.symbol.toLowerCase()}-logo.svg`,
-        sub: t.name,
-      })),
+      (allTokens[fromNetworkName] ?? [])
+        .filter((t) => isBridgeLegTokenSelectable(t))
+        .map((t) => ({
+          id: t.symbol,
+          label: t.symbol,
+          imgSrc: `/logos/${t.symbol.toLowerCase()}-logo.svg`,
+          sub: t.name,
+        })),
     [allTokens, fromNetworkName],
   );
 
   const toTokenItems: BridgePickerItem[] = useMemo(
     () =>
-      (allTokens[toNetworkName] ?? []).map((t) => ({
-        id: t.symbol,
-        label: t.symbol,
-        imgSrc: `/logos/${t.symbol.toLowerCase()}-logo.svg`,
-        sub: t.name,
-      })),
+      (allTokens[toNetworkName] ?? [])
+        .filter((t) => isBridgeLegTokenSelectable(t))
+        .map((t) => ({
+          id: t.symbol,
+          label: t.symbol,
+          imgSrc: `/logos/${t.symbol.toLowerCase()}-logo.svg`,
+          sub: t.name,
+        })),
     [allTokens, toNetworkName],
   );
 

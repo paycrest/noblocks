@@ -54,6 +54,8 @@ export type SwapMode = "onramp" | "offramp";
 export type FormData = {
   network: string;
   token: string;
+  /** Contract/account id from the token list for the selected network (EVM/Starknet 0x…; Tron T…). Threaded so preview does not resolve by symbol only. */
+  tokenAddress: string;
   currency: string;
   institution: string;
   accountIdentifier: string;
@@ -552,7 +554,6 @@ export type Config = {
   noticeBannerText?: string; // Optional, for dynamic notice banner text
   brevoConversationsId: string; // Brevo chat widget ID
   brevoConversationsGroupId?: string; // Brevo chat widget group ID for routing
-  blockfestEndDate: string; // BlockFest campaign end date
   /** World Cup footer Lottie end date (paired with fantasyEnabled). */
   worldcupFooterEndDate: string;
   maintenanceEnabled: boolean; // Maintenance notice modal + banner toggle

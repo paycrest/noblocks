@@ -12,10 +12,6 @@ export {
 export { RocketStatusProvider, useRocketStatus } from "./RocketStatusContext";
 export { TransactionsProvider, useTransactions } from "./TransactionsContext";
 export { TokensProvider, useTokens } from "./TokensContext";
-export {
-  BlockFestModalProvider,
-  useBlockFestModal,
-} from "./BlockFestModalContext";
 export { KYCProvider, useKYC } from "./KYCContext";
 export {
   MigrationStatusProvider,

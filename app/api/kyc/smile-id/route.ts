@@ -34,6 +34,13 @@ function isSupportedCountryIdType(country: string, idType: string): boolean {
 
 type SmileFailureCategory = "database" | "quality" | "liveness" | "mismatch" | "general";
 
+/**
+ * Retry budget for the attempt-refund compare-and-swap. Only concurrent tier 2
+ * submissions for the same wallet contend here, so losing three times in a row
+ * means something is wrong rather than busy.
+ */
+const REFUND_CAS_MAX_TRIES = 3;
+
 // Only matches clear infrastructure signals — NOT normal verification failures like
 // "ID Not Verified" or "Unable to Verify" (which are meaningful SmileID outcomes).
 function classifySmileIdFailure(resultText: string): SmileFailureCategory {
@@ -288,6 +295,91 @@ export async function POST(request: NextRequest) {
       attemptsRemaining: Math.max(0, MAX_ATTEMPTS - (Number(newAttemptCount) || 0)),
     };
 
+    /**
+     * Quota to report when a refund happened but its result is unknown — only
+     * ever an estimate, since a concurrent run may have moved the counter.
+     */
+    const attemptsRemainingAfterRefund = Math.max(
+      0,
+      MAX_ATTEMPTS - Math.max(0, Number(newAttemptCount) - 1),
+    );
+
+    const reportRefundFailure = (
+      reason: string,
+      providerCode: string | null,
+      detail: string,
+    ) => {
+      report.failed({
+        ...idContext,
+        ...attemptContext,
+        stage: "attempt_restore",
+        reason,
+        provider: "supabase",
+        providerCode,
+        detail,
+        tierFrom,
+      });
+    };
+
+    /**
+     * The try is reserved above so a concurrent run can't slip past the cap,
+     * but only a verdict Smile ID reached about the user should actually spend
+     * it. Every exit between here and that verdict therefore has to give it
+     * back — a submission that never reached the provider must not cost a try,
+     * or an outage walks the user into a lockout only support can clear.
+     *
+     * The decrement has to be *relative*. Writing `newAttemptCount - 1` would
+     * be an absolute write of the count this request saw when it reserved, so
+     * a request that reserved afterwards would have its reservation erased and
+     * get a try back that was already spent on a billed verdict — which is the
+     * cap this reservation exists to protect. supabase-js cannot express
+     * `attempts = attempts - 1`, so this is a compare-and-swap: write only
+     * while the counter still reads what was just observed, and re-read when
+     * another writer got there first.
+     *
+     * Returns the quota the user is left holding.
+     */
+    const refundAttempt = async (): Promise<number> => {
+      for (let i = 0; i < REFUND_CAS_MAX_TRIES; i++) {
+        const { data: row, error: readError } = await supabaseAdmin
+          .from("user_kyc_profiles")
+          .select("attempts")
+          .eq("wallet_address", walletAddress)
+          .maybeSingle();
+
+        if (readError) {
+          reportRefundFailure("supabase_error", readError.code, readError.message);
+          return attemptsRemainingAfterRefund;
+        }
+
+        const observed = Number(row?.attempts) || 0;
+        // Already back at zero: nothing reserved to give back.
+        if (observed === 0) return MAX_ATTEMPTS;
+
+        const { data: updated, error: writeError } = await supabaseAdmin
+          .from("user_kyc_profiles")
+          .update({ attempts: observed - 1 })
+          .eq("wallet_address", walletAddress)
+          .eq("attempts", observed)
+          .select("attempts");
+
+        if (writeError) {
+          reportRefundFailure("supabase_error", writeError.code, writeError.message);
+          return attemptsRemainingAfterRefund;
+        }
+        if (updated && updated.length > 0) {
+          return Math.max(0, MAX_ATTEMPTS - (observed - 1));
+        }
+        // Lost the race: another writer moved the counter between the read and
+        // the write. Re-read and try again.
+      }
+
+      // Contended past the retry budget. The user keeps a try they should have
+      // been refunded — silent to them, and only visible here.
+      reportRefundFailure("refund_contended", null, "CAS retries exhausted");
+      return attemptsRemainingAfterRefund;
+    };
+
     // Use server utility to submit SmileID job
     type SmileIdResultType = {
       job_complete: boolean;
@@ -310,9 +402,13 @@ export async function POST(request: NextRequest) {
       user_id = result.user_id;
     } catch (err) {
       if (err instanceof SmileIdValidationError) {
+        // Rejected before Smile ID ever adjudicated anything, so the try is
+        // given back — the user can correct the ID details and resubmit.
+        const attemptsRemaining = await refundAttempt();
         report.rejected({
           ...idContext,
           ...attemptContext,
+          attemptsRemaining,
           stage: "provider_submit",
           reason: "id_info_validation_failed",
           detail: err.message,
@@ -325,10 +421,14 @@ export async function POST(request: NextRequest) {
         );
       }
       // Misconfiguration and Smile ID transport failures both land here, and
-      // both look identical to the user ("verification failed").
+      // both look identical to the user ("verification failed"). Neither is
+      // the user's doing, so the try is given back: three of these in a row
+      // used to exhaust the quota without a single verification being run.
+      const attemptsRemaining = await refundAttempt();
       report.failed({
         ...idContext,
         ...attemptContext,
+        attemptsRemaining,
         stage: "provider_submit",
         reason: "provider_request_failed",
         detail: err instanceof Error ? err.message : String(err),
@@ -370,18 +470,21 @@ export async function POST(request: NextRequest) {
 
       const isInfrastructureFailure = category === "database";
 
+      // Infrastructure outages should not count against the user's attempt quota
+      // regardless of job type (Job Type 1, 5, or 6). Restore the counter that
+      // was reserved above so they can retry freely. Refunded before the line
+      // below is built so it can report the quota the refund actually left.
+      const attemptsRemaining = isInfrastructureFailure
+        ? await refundAttempt()
+        : attemptContext.attemptsRemaining;
+
       // The line support reads. `detail` is Smile ID's own ResultText — the
       // actual reason the upgrade failed — and the category decides whether
       // this is a user-facing rejection or an outage worth paging on.
       const outcomeContext = {
         ...idContext,
         ...attemptContext,
-        // The refund below restores the try, so report what the user can
-        // actually retry with rather than the pre-refund count. If the refund
-        // itself fails it gets its own line.
-        attemptsRemaining: isInfrastructureFailure
-          ? Math.max(0, MAX_ATTEMPTS - Math.max(0, newAttemptCount - 1))
-          : attemptContext.attemptsRemaining,
+        attemptsRemaining,
         stage: "provider_verify",
         detail: errorMessage,
         failureCategory: category,
@@ -395,30 +498,6 @@ export async function POST(request: NextRequest) {
         report.failed({ ...outcomeContext, reason: "provider_unavailable" });
       } else {
         report.rejected({ ...outcomeContext, reason: "provider_rejected" });
-      }
-
-      // Infrastructure outages should not count against the user's attempt quota
-      // regardless of job type (Job Type 1, 5, or 6). Restore the counter that
-      // was incremented above so they can retry freely.
-      if (isInfrastructureFailure) {
-        const { error: restoreError } = await supabaseAdmin
-          .from("user_kyc_profiles")
-          .update({ attempts: Math.max(0, newAttemptCount - 1) })
-          .eq("wallet_address", walletAddress);
-        if (restoreError) {
-          // The user keeps a try they should have been refunded — silent to
-          // them, and only visible here.
-          report.failed({
-            ...idContext,
-            ...attemptContext,
-            stage: "attempt_restore",
-            reason: "supabase_error",
-            provider: "supabase",
-            providerCode: restoreError.code,
-            detail: restoreError.message,
-            tierFrom,
-          });
-        }
       }
 
       // Notify on genuine verification failures only — infrastructure ("database")

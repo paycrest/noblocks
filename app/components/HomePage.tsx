@@ -15,7 +15,6 @@ import {
 import WalkthroughVideo from "./WalkthroughVideo";
 import { ScrollArrowLine, ScrollArrowHead } from "./ImageAssets";
 import { getBannerPadding } from "../utils";
-import { BlockFestBanner } from "./blockfest";
 
 const crimsonPro = Crimson_Pro({
   subsets: ["latin"],
@@ -29,7 +28,6 @@ interface HomePageProps {
   isRecipientFormOpen: boolean;
   /** On-ramp tab: cash → stablecoins hero copy. */
   isOnramp: boolean;
-  showBlockFestBanner?: boolean;
 }
 
 const heroLineVariants = {
@@ -50,7 +48,6 @@ function HomePageComponent({
   transactionFormComponent,
   isRecipientFormOpen,
   isOnramp,
-  showBlockFestBanner = false,
 }: HomePageProps) {
   const handleScrollToForm = () => {
     const formElement = document.getElementById("hero");
@@ -110,7 +107,6 @@ function HomePageComponent({
             animate="animate"
             transition={{ duration: 0.8, ease: "easeOut", delay: 0.6 }}
           >
-            {showBlockFestBanner && <BlockFestBanner />}
             <div className="mt-4">{transactionFormComponent}</div>
           </motion.div>
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { erc20Abi, parseUnits, http, encodeFunctionData, createPublicClient } from "viem";
+import { erc20Abi, http, encodeFunctionData, createPublicClient } from "viem";
 import { toast } from "sonner";
 import { getExplorerLink, getRpcUrl } from "../utils";
 import { saveTransaction } from "../api/aggregator";
@@ -26,6 +26,10 @@ import {
   readBatchNonce,
   type BatchCall,
 } from "../lib/providerBatch";
+import {
+  amountNumberToBaseUnits,
+  isValidTokenDecimals,
+} from "../lib/tokenSpendAmount";
 
 /**
  * The transfer request got no usable answer (network failure, gateway timeout),
@@ -112,7 +116,7 @@ interface UseSmartWalletTransferParams {
 }
 
 interface TransferArgs {
-  amount: number;
+  amount: number | string;
   token: string;
   recipientAddress: string;
   resetForm?: () => void;
@@ -202,7 +206,7 @@ export function useSmartWalletTransfer({
         if (selectedNetwork.chain.name === "Starknet") {
           const tokenAddress = tokenData?.address as `0x${string}` | undefined;
           const tokenDecimals = tokenData?.decimals;
-          if (!tokenAddress || tokenDecimals === undefined) {
+          if (!tokenAddress?.trim() || !isValidTokenDecimals(tokenDecimals)) {
             const err = `Token data not found for ${token}.`;
             setError(err);
             throw new Error(
@@ -226,13 +230,25 @@ export function useSmartWalletTransfer({
           if (!accessToken) {
             throw new Error("Failed to get access token");
           }
+          const amountInWei = (() => {
+            try {
+              return amountNumberToBaseUnits(amount, tokenDecimals).toString();
+            } catch (e) {
+              const msg =
+                e instanceof Error
+                  ? e.message
+                  : "Amount is invalid or has too many decimals for this token.";
+              setError(msg);
+              throw new Error(msg);
+            }
+          })();
           const snHash = await requestStarknetTransfer({
             accessToken,
             walletId: starknetWallet.walletId,
             publicKey: starknetWallet.publicKey,
             address: starknetWallet.address,
             tokenAddress,
-            amount: parseUnits(amount.toString(), tokenDecimals).toString(),
+            amount: amountInWei,
             recipientAddress,
           });
           setTxHash(snHash);
@@ -317,17 +333,42 @@ export function useSmartWalletTransfer({
         }
 
         // 2) Build single transfer call
+        const isNativeTransfer =
+          tokenData?.isNative &&
+          (tokenData?.address === "" || tokenData?.address == null);
+        const spendDecimals = isNativeTransfer
+          ? chain.nativeCurrency.decimals
+          : tokenData?.decimals;
+
+        if (!isValidTokenDecimals(spendDecimals)) {
+          const err = `Token decimals missing or invalid for ${token}.`;
+          setError(err);
+          throw new Error(err);
+        }
+
+        const amountWei = (() => {
+          try {
+            return amountNumberToBaseUnits(amount, spendDecimals);
+          } catch (e) {
+            const msg =
+              e instanceof Error
+                ? e.message
+                : "Amount is invalid or has too many decimals for this token.";
+            setError(msg);
+            throw new Error(msg);
+          }
+        })();
+
         const call: BatchCall =
-          tokenData?.isNative && tokenData?.address === ""
+          isNativeTransfer
             ? {
                 to: recipientAddress as `0x${string}`,
-                value: parseUnits(amount.toString(), 18),
+                value: amountWei,
                 data: "0x",
               }
             : (() => {
-                const tokenAddress = tokenData?.address as `0x${string}` | undefined;
-                const tokenDecimals = tokenData?.decimals;
-                if (!tokenAddress || tokenDecimals === undefined) {
+                const erc20Address = tokenData?.address as `0x${string}` | undefined;
+                if (!erc20Address?.trim()) {
                   const err = `Token data not found for ${token}.`;
                   setError(err);
                   throw new Error(
@@ -335,15 +376,12 @@ export function useSmartWalletTransfer({
                   );
                 }
                 return {
-                  to: tokenAddress,
+                  to: erc20Address,
                   value: BigInt(0),
                   data: encodeFunctionData({
                     abi: erc20Abi,
                     functionName: "transfer",
-                    args: [
-                      recipientAddress as `0x${string}`,
-                      parseUnits(amount.toString(), tokenDecimals),
-                    ],
+                    args: [recipientAddress as `0x${string}`, amountWei],
                   }),
                 };
               })();
@@ -494,7 +532,7 @@ export function useSmartWalletTransfer({
     }: {
       txHash: string;
       recipientAddress: string;
-      amount: number;
+      amount: number | string;
       token: string;
     }) => {
       try {
@@ -505,14 +543,16 @@ export function useSmartWalletTransfer({
         if (!user || !from) return;
         const accessToken = await getAccessToken();
         if (!accessToken) return;
+        const amountRecorded =
+          typeof amount === "number" ? amount : Number(amount);
         const transaction = {
           walletAddress: from,
           transactionType: "transfer" as const,
           network: selectedNetwork.chain.name,
           fromCurrency: token,
           toCurrency: token,
-          amountSent: amount,
-          amountReceived: amount,
+          amountSent: amountRecorded,
+          amountReceived: amountRecorded,
           fee: 0,
           txHash,
           recipient: {

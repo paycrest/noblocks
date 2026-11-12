@@ -19,6 +19,7 @@ import { mainnet } from "viem/chains";
 import { getEnsName } from "viem/actions";
 import { isValidEvmAddressCaseInsensitive } from "./lib/validation";
 import { canonicalTokenSymbol } from "./lib/token-symbol";
+import { normalizeTokenDecimals } from "./lib/tokenSpendAmount";
 import { colors } from "./mocks";
 import { fetchTokens } from "./api/aggregator";
 import { toast } from "sonner";
@@ -974,7 +975,7 @@ export function transformToken(apiToken: APIToken): Token {
   return {
     name: symbol,
     symbol,
-    decimals: apiToken.decimals,
+    decimals: normalizeTokenDecimals(apiToken.decimals),
     address: apiToken.contractAddress,
     imageUrl: `/logos/${symbol.toLowerCase()}-logo.svg`,
   };
@@ -2617,17 +2618,6 @@ export function formatDecimalPrecision(
   return truncated;
 }
 
-// BlockFest utilities
-export const BLOCKFEST_END_DATE = new Date(config.blockfestEndDate);
-
-/**
- * Check if BlockFest campaign is currently active
- * @returns true if campaign is active, false if expired
- */
-export const isBlockFestActive = (): boolean => {
-  return Date.now() <= BLOCKFEST_END_DATE.getTime();
-};
-
 export const WORLDCUP_FOOTER_END_DATE = new Date(config.worldcupFooterEndDate);
 
 /** World Cup footer Lottie: live Play acquisition only (not post-campaign). */
@@ -2637,22 +2627,6 @@ export const isWorldcupFooterActive = (): boolean => {
     !config.fantasyCampaignEnded &&
     Date.now() <= WORLDCUP_FOOTER_END_DATE.getTime()
   );
-};
-
-/**
- * Check if BlockFest campaign has expired
- * @returns true if campaign has expired, false if still active
- */
-export const isBlockFestExpired = (): boolean => {
-  return Date.now() > BLOCKFEST_END_DATE.getTime();
-};
-
-/**
- * Get time remaining until BlockFest campaign ends
- * @returns milliseconds remaining (0 if expired)
- */
-export const getBlockFestTimeRemaining = (): number => {
-  return Math.max(0, BLOCKFEST_END_DATE.getTime() - Date.now());
 };
 
 /**

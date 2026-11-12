@@ -11,8 +11,6 @@ const PENDING_REFERRAL_CODE_KEY = "pendingReferralCode";
 
 function normalize(raw: string | null | undefined): string | null {
   const code = raw?.trim().toUpperCase();
-  // BlockFest links use ?ref=blockfest — it doesn't match the NBxxxx format,
-  // so the pattern check keeps the two flows apart.
   return code && REFERRAL_CODE_PATTERN.test(code) ? code : null;
 }
 

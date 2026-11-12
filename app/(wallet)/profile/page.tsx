@@ -1,10 +1,5 @@
-import { WalletPlaceholderPage } from "../components/WalletPlaceholderPage";
+import { ProfilePageContent } from "../components/ProfilePageContent";
 
 export default function ProfilePage() {
-  return (
-    <WalletPlaceholderPage
-      title="Profile"
-      description="Profile settings will appear here."
-    />
-  );
+  return <ProfilePageContent />;
 }

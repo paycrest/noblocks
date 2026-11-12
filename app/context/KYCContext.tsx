@@ -90,6 +90,12 @@ export interface KYCStatusSnapshot {
    * gating UIs should refresh before treating the user as unverified.
    */
   hasLoadedStatus: boolean;
+  /**
+   * True once a transaction-summary fetch for the CURRENT wallet actually succeeded. While
+   * false, transactionSummary is the reset default (all zeros), which must read as "unknown",
+   * not "no spend" — gating UIs should show a loading state instead of a fabricated $0.00.
+   */
+  hasLoadedTransactionSummary: boolean;
   phoneNumber: string | null;
   fullName: string | null;
   transactionSummary: UserTransactionSummary;
@@ -101,6 +107,7 @@ interface KYCContextType {
   isPhoneVerified: boolean;
   identityHasVerifiedPhone: boolean;
   hasLoadedStatus: boolean;
+  hasLoadedTransactionSummary: boolean;
   phoneNumber: string | null;
   fullName: string | null;
   walletAddress: string | undefined;
@@ -127,6 +134,7 @@ function createEmptySnapshot(): KYCStatusSnapshot {
     isPhoneVerified: false,
     identityHasVerifiedPhone: false,
     hasLoadedStatus: false,
+    hasLoadedTransactionSummary: false,
     phoneNumber: null,
     fullName: null,
     transactionSummary: { ...EMPTY_TX_SUMMARY },
@@ -159,6 +167,11 @@ export function KYCProvider({ children }: { children: React.ReactNode }) {
   const walletAddressRef = useRef(walletAddress);
   walletAddressRef.current = walletAddress;
 
+  // Bumped on every wallet-change reset so a fetch started for an earlier wallet session
+  // can be told apart from a fetch for the SAME address started after a reconnect — the
+  // address-snapshot checks alone can't tell those two apart.
+  const walletSessionRef = useRef(0);
+
   const fetchGuardsRef = useRef<Record<string, string>>({});
   const lastFetchTimeRef = useRef<number>(0);
   const refreshInFlightRef = useRef<Promise<KYCStatusSnapshot | null> | null>(
@@ -174,6 +187,8 @@ export function KYCProvider({ children }: { children: React.ReactNode }) {
   const [identityHasVerifiedPhone, setIdentityHasVerifiedPhone] =
     useState(false);
   const [hasLoadedStatus, setHasLoadedStatus] = useState(false);
+  const [hasLoadedTransactionSummary, setHasLoadedTransactionSummary] =
+    useState(false);
   const [phoneNumber, setPhoneNumber] = useState<string | null>(null);
   const [fullName, setFullName] = useState<string | null>(null);
   const [transactionSummary, setTransactionSummary] =
@@ -191,6 +206,9 @@ export function KYCProvider({ children }: { children: React.ReactNode }) {
         latestSnapshotRef.current.identityHasVerifiedPhone,
       hasLoadedStatus:
         partial.hasLoadedStatus ?? latestSnapshotRef.current.hasLoadedStatus,
+      hasLoadedTransactionSummary:
+        partial.hasLoadedTransactionSummary ??
+        latestSnapshotRef.current.hasLoadedTransactionSummary,
       phoneNumber:
         partial.phoneNumber !== undefined
           ? partial.phoneNumber
@@ -208,6 +226,7 @@ export function KYCProvider({ children }: { children: React.ReactNode }) {
     setIsPhoneVerified(next.isPhoneVerified);
     setIdentityHasVerifiedPhone(next.identityHasVerifiedPhone);
     setHasLoadedStatus(next.hasLoadedStatus);
+    setHasLoadedTransactionSummary(next.hasLoadedTransactionSummary);
     setPhoneNumber(next.phoneNumber);
     setFullName(next.fullName);
     setTransactionSummary(next.transactionSummary);
@@ -254,18 +273,23 @@ export function KYCProvider({ children }: { children: React.ReactNode }) {
   );
 
   const fetchTransactionSummary = useCallback(
-    async (options?: { force?: boolean }): Promise<boolean> => {
+    async (options?: { force?: boolean; session?: number }): Promise<boolean> => {
       const snapshot = walletAddress;
       if (!snapshot) return false;
       const guards = fetchGuardsRef.current;
       const key = `${snapshot}_tx`;
       if (!options?.force && guards[key] === "fetching") return false;
       guards[key] = "fetching";
+      const session = options?.session;
+      // Same address can mean a stale run (A disconnected, then A reconnected while the
+      // old fetch was still in flight) — the session check catches that, the address
+      // check alone would not.
+      const isStale = () =>
+        walletAddressRef.current?.toLowerCase() !== snapshot.toLowerCase() ||
+        (session !== undefined && walletSessionRef.current !== session);
       try {
         const authHeaders = await buildKycAuthHeaders();
-        if (
-          walletAddressRef.current?.toLowerCase() !== snapshot.toLowerCase()
-        ) {
+        if (isStale()) {
           return false;
         }
         if (!authHeaders) return false;
@@ -273,20 +297,17 @@ export function KYCProvider({ children }: { children: React.ReactNode }) {
         const response = await fetch(`/api/kyc/transaction-summary`, {
           headers: authHeaders,
         });
-        if (
-          walletAddressRef.current?.toLowerCase() !== snapshot.toLowerCase()
-        ) {
+        if (isStale()) {
           return false;
         }
         if (!response.ok) return false;
         const data = await response.json();
-        if (
-          walletAddressRef.current?.toLowerCase() !== snapshot.toLowerCase()
-        ) {
+        if (isStale()) {
           return false;
         }
         if (!data.success) return false;
         applySnapshot({
+          hasLoadedTransactionSummary: true,
           transactionSummary: {
             dailySpent: data.dailySpent,
             monthlySpent: data.monthlySpent,
@@ -304,18 +325,20 @@ export function KYCProvider({ children }: { children: React.ReactNode }) {
   );
 
   const fetchKYCStatus = useCallback(
-    async (options?: { force?: boolean }): Promise<boolean> => {
+    async (options?: { force?: boolean; session?: number }): Promise<boolean> => {
       const snapshot = walletAddress;
       if (!snapshot) return false;
       const guards = fetchGuardsRef.current;
       const key = `${snapshot}_kyc`;
       if (!options?.force && guards[key] === "fetching") return false;
       guards[key] = "fetching";
+      const session = options?.session;
+      const isStale = () =>
+        walletAddressRef.current?.toLowerCase() !== snapshot.toLowerCase() ||
+        (session !== undefined && walletSessionRef.current !== session);
       try {
         const authHeaders = await buildKycAuthHeaders();
-        if (
-          walletAddressRef.current?.toLowerCase() !== snapshot.toLowerCase()
-        ) {
+        if (isStale()) {
           return false;
         }
         if (!authHeaders) return false;
@@ -323,16 +346,12 @@ export function KYCProvider({ children }: { children: React.ReactNode }) {
         const response = await fetch(`/api/kyc/status`, {
           headers: authHeaders,
         });
-        if (
-          walletAddressRef.current?.toLowerCase() !== snapshot.toLowerCase()
-        ) {
+        if (isStale()) {
           return false;
         }
         if (!response.ok) return false;
         const data = await response.json();
-        if (
-          walletAddressRef.current?.toLowerCase() !== snapshot.toLowerCase()
-        ) {
+        if (isStale()) {
           return false;
         }
         if (!data.success) return false;
@@ -373,12 +392,19 @@ export function KYCProvider({ children }: { children: React.ReactNode }) {
         return latestSnapshotRef.current;
       }
 
+      // Captured now, before any chaining behind an in-flight refresh — a forced refresh
+      // queued behind one must keep the session that was active when it was CALLED, not
+      // whatever is active once it finally runs (a disconnect/reconnect in between would
+      // otherwise hand it the new session and let it silently clobber that session's data).
+      const session = walletSessionRef.current;
+
       const run = async (): Promise<KYCStatusSnapshot | null> => {
+        if (walletSessionRef.current !== session) return null;
         const guards = fetchGuardsRef.current;
         delete guards[`${guardKey}_kyc`];
         delete guards[`${guardKey}_tx`];
 
-        const fetchOpts = { force: true as const };
+        const fetchOpts = { force: true as const, session };
         const [kycOk] = await Promise.all([
           fetchKYCStatus(fetchOpts),
           fetchTransactionSummary(fetchOpts),
@@ -386,8 +412,10 @@ export function KYCProvider({ children }: { children: React.ReactNode }) {
 
         // Only a successful status fetch counts as fresh. Stamping on failure would serve
         // the reset (tier-0) snapshot for the whole staleness window — verified users would
-        // transiently read as unverified and get re-prompted for phone verification.
-        if (kycOk) {
+        // transiently read as unverified and get re-prompted for phone verification. A wallet
+        // session that has since moved on must not stamp either — this run's data no longer
+        // applies to the current wallet.
+        if (kycOk && walletSessionRef.current === session) {
           lastFetchTimeRef.current = Date.now();
         }
         return latestSnapshotRef.current;
@@ -431,24 +459,28 @@ export function KYCProvider({ children }: { children: React.ReactNode }) {
   );
 
   useEffect(() => {
+    walletSessionRef.current += 1;
+    const empty = createEmptySnapshot();
+    latestSnapshotRef.current = empty;
+    setTier(empty.tier);
+    setPooledWalletCount(empty.pooledWalletCount);
+    setIsPhoneVerified(empty.isPhoneVerified);
+    setIdentityHasVerifiedPhone(empty.identityHasVerifiedPhone);
+    setHasLoadedStatus(empty.hasLoadedStatus);
+    setHasLoadedTransactionSummary(empty.hasLoadedTransactionSummary);
+    setPhoneNumber(empty.phoneNumber);
+    setFullName(empty.fullName);
+    setTransactionSummary({ ...EMPTY_TX_SUMMARY });
+    fetchGuardsRef.current = {};
+    lastFetchTimeRef.current = 0;
+    // Detach any refresh still in flight for the PREVIOUS wallet. A forced refresh chains
+    // onto whatever is in flight, so leaving it attached would make this wallet's status
+    // wait on an unrelated (and untimed) fetch before it even starts. The run's own
+    // ownership check means the detached promise can't clobber this wallet's state.
+    refreshInFlightRef.current = null;
+    // No wallet (e.g. disconnect, or injected mode before the address resolves) just
+    // clears to the empty snapshot above — there's nothing to refresh for.
     if (walletAddress) {
-      const empty = createEmptySnapshot();
-      latestSnapshotRef.current = empty;
-      setTier(empty.tier);
-      setPooledWalletCount(empty.pooledWalletCount);
-      setIsPhoneVerified(empty.isPhoneVerified);
-      setIdentityHasVerifiedPhone(empty.identityHasVerifiedPhone);
-      setHasLoadedStatus(empty.hasLoadedStatus);
-      setPhoneNumber(empty.phoneNumber);
-      setFullName(empty.fullName);
-      setTransactionSummary({ ...EMPTY_TX_SUMMARY });
-      fetchGuardsRef.current = {};
-      lastFetchTimeRef.current = 0;
-      // Detach any refresh still in flight for the PREVIOUS wallet. A forced refresh chains
-      // onto whatever is in flight, so leaving it attached would make this wallet's status
-      // wait on an unrelated (and untimed) fetch before it even starts. The run's own
-      // ownership check means the detached promise can't clobber this wallet's state.
-      refreshInFlightRef.current = null;
       void refreshStatus(true);
     }
   }, [walletAddress, refreshStatus]);
@@ -461,6 +493,7 @@ export function KYCProvider({ children }: { children: React.ReactNode }) {
         isPhoneVerified,
         identityHasVerifiedPhone,
         hasLoadedStatus,
+        hasLoadedTransactionSummary,
         phoneNumber,
         fullName,
         walletAddress,

@@ -1,7 +1,6 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { toast } from "sonner";
 import {
   ArrowLeft02Icon,
   ArrowRight03Icon,
@@ -14,7 +13,6 @@ import {
   WorkAlertIcon,
 } from "hugeicons-react";
 import Link from "next/link";
-import { useKYC, useInjectedWallet, useEmbed } from "../context";
 import { KYC_TIERS } from "../context/KYCContext";
 import {
   formatKycTierDisplayLabel,
@@ -33,9 +31,7 @@ import { ReferralCTA } from "./ReferralCTA";
 import { ReferralHubView } from "./wallet-mobile-modal";
 import config from "../lib/config";
 import { isPooledAllowance } from "../lib/kyc-limit-copy";
-
-// Re-import usePrivy and useLinkAccount specifically from Privy
-import { usePrivy as usePrivyAuth, useLinkAccount as useLinkAccountAuth } from "@privy-io/react-auth";
+import { useProfileViewModel } from "../hooks/useProfileViewModel";
 
 interface ProfileViewProps {
   layout: "drawer" | "sheet";
@@ -43,91 +39,52 @@ interface ProfileViewProps {
   onClose?: () => void; // Used for "drawer" layout to close the drawer
 }
 
+/** Current-tier card skeleton: standalone (while only KYC status is still loading) or nested in renderSkeletonLoader (full view). */
+function TierCardSkeleton() {
+  return (
+    <div
+      className="space-y-4 rounded-[20px] border border-border-light bg-transparent p-4 dark:border-white/5"
+      aria-busy="true"
+      aria-label="Loading tier status"
+    >
+      <div className="h-6 w-28 rounded-lg bg-gray-200 dark:bg-white/10"></div>
+      <div className="space-y-3">
+        <div className="h-4 w-24 rounded bg-gray-200 dark:bg-white/10"></div>
+        <div className="h-8 w-full rounded bg-gray-200 dark:bg-white/10"></div>
+        <div className="h-2 w-full rounded-full bg-gray-200 dark:bg-white/10"></div>
+      </div>
+      <div className="h-11 w-full rounded-xl bg-gray-200 dark:bg-white/10"></div>
+    </div>
+  );
+}
+
 export default function ProfileView({ layout, onBack, onClose }: ProfileViewProps) {
-  const { user } = usePrivyAuth();
-  const { isInjectedWallet, injectedAddress, injectedReady } = useInjectedWallet();
-  const { isEmbed } = useEmbed();
   const {
+    user,
+    isInjectedWallet,
+    isEmbed,
+    walletAddress,
     tier,
     pooledWalletCount,
     transactionSummary,
-    getCurrentLimits,
+    currentLimits,
+    monthlyProgress,
+    isLoading,
+    isKycStatusLoading,
+    linkEmail,
+    handleCopyAddress,
+    isAddressCopied,
+    isTransactionSummaryLoading,
+    expandedTierLevel,
+    toggleTierExpansion,
+    tiersAboveCurrent,
     refreshStatus,
-    walletAddress: kycWalletAddress,
-  } = useKYC();
+    isLimitModalOpen,
+    openLimitModal,
+    closeLimitModal,
+  } = useProfileViewModel();
 
-  // In injected/bridge mode, require a ready injected address; otherwise
-  // use KYC context address.
-  const walletAddress = isInjectedWallet
-    ? (injectedReady ? injectedAddress : null)
-    : kycWalletAddress;
-
-  const [isLimitModalOpen, setIsLimitModalOpen] = useState(false);
   const [showReferralHub, setShowReferralHub] = useState(false);
-  const [expandedTierLevel, setExpandedTierLevel] = useState<number | null>(null);
-  const [isAddressCopied, setIsAddressCopied] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-
-  const currentLimits = getCurrentLimits();
-  const monthlyLimit = currentLimits.monthly || 0;
-  const monthlyProgress =
-    monthlyLimit > 0
-      ? (transactionSummary.monthlySpent / monthlyLimit) * 100
-      : 0;
-
-  useEffect(() => {
-    setIsLoading(true);
-    refreshStatus(true).finally(() => setIsLoading(false));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const { linkEmail } = useLinkAccountAuth({
-    onSuccess: ({ user }) => {
-      toast.success(`${user.email?.address} linked successfully`);
-    },
-    onError: (error) => {
-      // Privy reports why linking failed — surface the real reason instead of
-      // blanket-claiming the email is already linked.
-      const code = String(error);
-      if (code === "exited_link_flow") return; // user closed the modal — not an error
-      toast.error("Error linking account", {
-        description:
-          code === "linked_to_another_user"
-            ? "This email is already linked to another account"
-            : "Couldn't link your email. Please try again.",
-      });
-    },
-  });
-
-  const handleCopyAddress = async () => {
-    if (!walletAddress) {
-      setIsAddressCopied(false);
-      return;
-    }
-    try {
-      await navigator.clipboard.writeText(walletAddress);
-      setIsAddressCopied(true);
-      toast.success("Address copied to clipboard");
-      setTimeout(() => setIsAddressCopied(false), 2000);
-    } catch {
-      setIsAddressCopied(false);
-      toast.error("Could not copy address", {
-        description: "Clipboard access was denied or is unavailable.",
-      });
-    }
-  };
-
-  const toggleTierExpansion = (tierLevel: number) => {
-    setExpandedTierLevel((current) =>
-      current === tierLevel ? null : tierLevel,
-    );
-  };
-
-  useEffect(() => {
-    if (tier < 1) {
-      setExpandedTierLevel(tier + 1);
-    }
-  }, [tier]);
 
   const renderSkeletonLoader = () => (
     <div className="animate-pulse space-y-4">
@@ -141,15 +98,7 @@ export default function ProfileView({ layout, onBack, onClose }: ProfileViewProp
           </div>
         </div>
       </div>
-      <div className="space-y-4 rounded-[20px] border border-border-light bg-transparent p-4 dark:border-white/5">
-        <div className="h-6 w-28 rounded-lg bg-gray-200 dark:bg-white/10"></div>
-        <div className="space-y-3">
-          <div className="h-4 w-24 rounded bg-gray-200 dark:bg-white/10"></div>
-          <div className="h-8 w-full rounded bg-gray-200 dark:bg-white/10"></div>
-          <div className="h-2 w-full rounded-full bg-gray-200 dark:bg-white/10"></div>
-        </div>
-        <div className="h-11 w-full rounded-xl bg-gray-200 dark:bg-white/10"></div>
-      </div>
+      <TierCardSkeleton />
       {[1, 2].map((i) => (
         <div
           key={i}
@@ -268,9 +217,7 @@ export default function ProfileView({ layout, onBack, onClose }: ProfileViewProp
                 {tier == 0 && tierLevel === tier + 1 && (
                   <button
                     type="button"
-                    onClick={() => {
-                      setIsLimitModalOpen(true);
-                    }}
+                    onClick={openLimitModal}
                     title={`Upgrade to ${formatKycTierDisplayLabel(tierLevel)}`}
                     className="min-h-11 w-full rounded-xl bg-lavender-600 px-4 py-2 text-center text-sm font-light text-white transition-all hover:scale-[0.98] hover:bg-lavender-700 active:scale-95 dark:bg-lavender-500 dark:hover:bg-lavender-600"
                   >
@@ -397,81 +344,96 @@ export default function ProfileView({ layout, onBack, onClose }: ProfileViewProp
               </div>
             </div>
 
-            {/* Current tier status */}
-            {hasAssignedKycTier(tier) && (
-              <div className="space-y-4 rounded-[20px] border border-border-light bg-transparent p-4 dark:border-white/5">
-                <div className="flex w-[137px] items-center gap-2 rounded-lg bg-[#39C65D] px-3 py-1.5 dark:bg-[#39C65D]">
-                  <StarIcon
-                    className="text-white dark:text-black"
-                    size={16}
-                  />
-                  <span className="text-xs font-medium text-white dark:text-black">
-                    Current: {formatKycTierDisplayLabel(tier)}
-                  </span>
-                </div>
-
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-light text-text-secondary dark:text-white/70">
-                      Monthly limit
-                    </span>
-                    <InformationCircleIcon className="size-4 text-outline-gray dark:text-white/50" />
-                  </div>
-
-                  {/* Explains spend this wallet did not make. Hidden at one wallet so
-                      users without a shared allowance see the original layout. */}
-                  {isPooledAllowance(pooledWalletCount) && (
-                    <p className="text-xs font-light text-text-secondary dark:text-white/50">
-                      Shared across your {pooledWalletCount} wallets
-                    </p>
-                  )}
-
-                  <div className="text-2xl font-light text-text-body dark:text-white">
-                    ${formatUsdAmount(transactionSummary.monthlySpent)}{" "}
-                    /{" "}
-                    {currentLimits.unlimited
-                      ? "Unlimited"
-                      : `$${formatUsdAmount(currentLimits.monthly)}`}
-                  </div>
-
-                  {!currentLimits.unlimited && (
-                    <div className="flex h-2 w-full items-center rounded-full bg-gray-300 dark:bg-white/10">
-                      <div
-                        className="h-2.5 rounded-full bg-gradient-to-r from-lavender-300 to-lavender-600 transition-all duration-500 dark:from-lavender-400 dark:to-lavender-600"
-                        style={{
-                          width: `${Math.min(monthlyProgress, 100)}%`,
-                        }}
+            {isKycStatusLoading ? (
+              // Retries are exhausted but KYC status never loaded — show the
+              // tier-card skeleton instead of a fabricated tier 0 / $0.00.
+              <TierCardSkeleton />
+            ) : (
+              <>
+                {/* Current tier status */}
+                {hasAssignedKycTier(tier) && (
+                  <div className="space-y-4 rounded-[20px] border border-border-light bg-transparent p-4 dark:border-white/5">
+                    <div className="flex w-[137px] items-center gap-2 rounded-lg bg-[#39C65D] px-3 py-1.5 dark:bg-[#39C65D]">
+                      <StarIcon
+                        className="text-white dark:text-black"
+                        size={16}
                       />
+                      <span className="text-xs font-medium text-white dark:text-black">
+                        Current: {formatKycTierDisplayLabel(tier)}
+                      </span>
                     </div>
-                  )}
-                </div>
 
-                {tier < 4 && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsLimitModalOpen(true);
-                    }}
-                    title={`Upgrade to ${formatKycTierDisplayLabel(tier + 1)}`}
-                    className="min-h-11 w-full rounded-xl bg-lavender-600 px-4 py-2 text-center text-sm font-light text-white transition-all hover:scale-[0.98] hover:bg-lavender-700 active:scale-95 dark:bg-lavender-500 dark:hover:bg-lavender-600"
-                  >
-                    Increase limit → {formatKycTierDisplayLabel(tier + 1)}
-                  </button>
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-light text-text-secondary dark:text-white/70">
+                          Monthly limit
+                        </span>
+                        <InformationCircleIcon className="size-4 text-outline-gray dark:text-white/50" />
+                      </div>
+
+                      {/* Explains spend this wallet did not make. Hidden at one wallet so
+                          users without a shared allowance see the original layout. */}
+                      {isPooledAllowance(pooledWalletCount) && (
+                        <p className="text-xs font-light text-text-secondary dark:text-white/50">
+                          Shared across your {pooledWalletCount} wallets
+                        </p>
+                      )}
+
+                      {isTransactionSummaryLoading ? (
+                        <>
+                          <div className="h-8 w-full animate-pulse rounded bg-gray-200 dark:bg-white/10" />
+                          {!currentLimits.unlimited && (
+                            <div className="h-2 w-full animate-pulse rounded-full bg-gray-200 dark:bg-white/10" />
+                          )}
+                        </>
+                      ) : (
+                        <>
+                          <div className="text-2xl font-light text-text-body dark:text-white">
+                            ${formatUsdAmount(transactionSummary.monthlySpent)}{" "}
+                            /{" "}
+                            {currentLimits.unlimited
+                              ? "Unlimited"
+                              : `$${formatUsdAmount(currentLimits.monthly)}`}
+                          </div>
+
+                          {!currentLimits.unlimited && (
+                            <div className="flex h-2 w-full items-center rounded-full bg-gray-300 dark:bg-white/10">
+                              <div
+                                className="h-2.5 rounded-full bg-gradient-to-r from-lavender-300 to-lavender-600 transition-all duration-500 dark:from-lavender-400 dark:to-lavender-600"
+                                style={{
+                                  width: `${Math.min(monthlyProgress, 100)}%`,
+                                }}
+                              />
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+
+                    {tier < 4 && (
+                      <button
+                        type="button"
+                        onClick={openLimitModal}
+                        title={`Upgrade to ${formatKycTierDisplayLabel(tier + 1)}`}
+                        className="min-h-11 w-full rounded-xl bg-lavender-600 px-4 py-2 text-center text-sm font-light text-white transition-all hover:scale-[0.98] hover:bg-lavender-700 active:scale-95 dark:bg-lavender-500 dark:hover:bg-lavender-600"
+                      >
+                        Increase limit → {formatKycTierDisplayLabel(tier + 1)}
+                      </button>
+                    )}
+                  </div>
                 )}
-              </div>
-            )}
 
-            {/* Tier Information */}
-            {Object.values(KYC_TIERS)
-              .filter((tierData) => tierData.level > tier)
-              .map((tierData) => (
-                <div
-                  key={tierData.level}
-                  className="rounded-[20px] border border-border-light bg-transparent dark:border-white/5"
-                >
-                  {renderTierSection(tierData.level)}
-                </div>
-              ))}
+                {/* Tier Information */}
+                {tiersAboveCurrent.map((tierData) => (
+                  <div
+                    key={tierData.level}
+                    className="rounded-[20px] border border-border-light bg-transparent dark:border-white/5"
+                  >
+                    {renderTierSection(tierData.level)}
+                  </div>
+                ))}
+              </>
+            )}
 
             {/* Referrals (F-7) - hidden in embed mode */}
             {isReferralEnabled() && !isEmbed && (
@@ -495,7 +457,7 @@ export default function ProfileView({ layout, onBack, onClose }: ProfileViewProp
       <TransactionLimitModal
         isOpen={isLimitModalOpen}
         onClose={async () => {
-          setIsLimitModalOpen(false);
+          closeLimitModal();
           await refreshStatus();
         }}
       />

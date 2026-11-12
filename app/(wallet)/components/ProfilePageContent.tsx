@@ -102,10 +102,20 @@ function useAccountLogout(walletAddress: string | null | undefined) {
 
       clearUserSessionData(user?.id, walletAddress ?? user?.wallet?.address);
 
-      localStorage.removeItem(`starknet_walletId_${user?.id}`);
-      localStorage.removeItem(`starknet_address_${user?.id}`);
-      localStorage.removeItem(`starknet_publicKey_${user?.id}`);
-      localStorage.removeItem(`starknet_deployed_${user?.id}`);
+      // Isolated per-key, like clearUserSessionData: a storage error on one
+      // key (e.g. private browsing) must not skip the Privy logout() below.
+      for (const key of [
+        `starknet_walletId_${user?.id}`,
+        `starknet_address_${user?.id}`,
+        `starknet_publicKey_${user?.id}`,
+        `starknet_deployed_${user?.id}`,
+      ]) {
+        try {
+          localStorage.removeItem(key);
+        } catch {
+          // Ignore storage errors (e.g. private browsing)
+        }
+      }
 
       await logout();
 
@@ -262,6 +272,7 @@ export function ProfilePageContent() {
     currentLimits,
     monthlyProgress,
     isLoading,
+    isTransactionSummaryLoading,
     linkEmail,
     handleCopyAddress,
     isAddressCopied,
@@ -376,21 +387,32 @@ export function ProfilePageContent() {
                     </p>
                   )}
 
-                  <div className="font-general-sans text-2xl font-medium leading-9 tracking-[-0.72px] text-text-body dark:text-white">
-                    {formatMonthlyLimitLine(
-                      transactionSummary.monthlySpent,
-                      currentLimits.monthly,
-                      !!currentLimits.unlimited,
-                    )}
-                  </div>
+                  {isTransactionSummaryLoading ? (
+                    <>
+                      <div className={classNames("h-8 w-full rounded", pulseBar)} />
+                      {!currentLimits.unlimited && (
+                        <div className={classNames("h-2 w-full rounded-full", pulseBar)} />
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <div className="font-general-sans text-2xl font-medium leading-9 tracking-[-0.72px] text-text-body dark:text-white">
+                        {formatMonthlyLimitLine(
+                          transactionSummary.monthlySpent,
+                          currentLimits.monthly,
+                          !!currentLimits.unlimited,
+                        )}
+                      </div>
 
-                  {!currentLimits.unlimited && (
-                    <div className="flex h-2 w-full items-center rounded-full bg-border-light dark:bg-white/10">
-                      <div
-                        className="h-2 rounded-full bg-lavender-500 transition-all duration-500"
-                        style={{ width: `${monthlyProgress}%` }}
-                      />
-                    </div>
+                      {!currentLimits.unlimited && (
+                        <div className="flex h-2 w-full items-center rounded-full bg-border-light dark:bg-white/10">
+                          <div
+                            className="h-2 rounded-full bg-lavender-500 transition-all duration-500"
+                            style={{ width: `${monthlyProgress}%` }}
+                          />
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
 

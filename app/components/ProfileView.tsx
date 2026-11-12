@@ -54,6 +54,7 @@ export default function ProfileView({ layout, onBack, onClose }: ProfileViewProp
     linkEmail,
     handleCopyAddress,
     isAddressCopied,
+    isTransactionSummaryLoading,
     expandedTierLevel,
     toggleTierExpansion,
     tiersAboveCurrent,
@@ -360,23 +361,34 @@ export default function ProfileView({ layout, onBack, onClose }: ProfileViewProp
                     </p>
                   )}
 
-                  <div className="text-2xl font-light text-text-body dark:text-white">
-                    ${formatUsdAmount(transactionSummary.monthlySpent)}{" "}
-                    /{" "}
-                    {currentLimits.unlimited
-                      ? "Unlimited"
-                      : `$${formatUsdAmount(currentLimits.monthly)}`}
-                  </div>
+                  {isTransactionSummaryLoading ? (
+                    <>
+                      <div className="h-8 w-full animate-pulse rounded bg-gray-200 dark:bg-white/10" />
+                      {!currentLimits.unlimited && (
+                        <div className="h-2 w-full animate-pulse rounded-full bg-gray-200 dark:bg-white/10" />
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <div className="text-2xl font-light text-text-body dark:text-white">
+                        ${formatUsdAmount(transactionSummary.monthlySpent)}{" "}
+                        /{" "}
+                        {currentLimits.unlimited
+                          ? "Unlimited"
+                          : `$${formatUsdAmount(currentLimits.monthly)}`}
+                      </div>
 
-                  {!currentLimits.unlimited && (
-                    <div className="flex h-2 w-full items-center rounded-full bg-gray-300 dark:bg-white/10">
-                      <div
-                        className="h-2.5 rounded-full bg-gradient-to-r from-lavender-300 to-lavender-600 transition-all duration-500 dark:from-lavender-400 dark:to-lavender-600"
-                        style={{
-                          width: `${Math.min(monthlyProgress, 100)}%`,
-                        }}
-                      />
-                    </div>
+                      {!currentLimits.unlimited && (
+                        <div className="flex h-2 w-full items-center rounded-full bg-gray-300 dark:bg-white/10">
+                          <div
+                            className="h-2.5 rounded-full bg-gradient-to-r from-lavender-300 to-lavender-600 transition-all duration-500 dark:from-lavender-400 dark:to-lavender-600"
+                            style={{
+                              width: `${Math.min(monthlyProgress, 100)}%`,
+                            }}
+                          />
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
 

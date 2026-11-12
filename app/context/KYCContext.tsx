@@ -90,6 +90,12 @@ export interface KYCStatusSnapshot {
    * gating UIs should refresh before treating the user as unverified.
    */
   hasLoadedStatus: boolean;
+  /**
+   * True once a transaction-summary fetch for the CURRENT wallet actually succeeded. While
+   * false, transactionSummary is the reset default (all zeros), which must read as "unknown",
+   * not "no spend" — gating UIs should show a loading state instead of a fabricated $0.00.
+   */
+  hasLoadedTransactionSummary: boolean;
   phoneNumber: string | null;
   fullName: string | null;
   transactionSummary: UserTransactionSummary;
@@ -101,6 +107,7 @@ interface KYCContextType {
   isPhoneVerified: boolean;
   identityHasVerifiedPhone: boolean;
   hasLoadedStatus: boolean;
+  hasLoadedTransactionSummary: boolean;
   phoneNumber: string | null;
   fullName: string | null;
   walletAddress: string | undefined;
@@ -127,6 +134,7 @@ function createEmptySnapshot(): KYCStatusSnapshot {
     isPhoneVerified: false,
     identityHasVerifiedPhone: false,
     hasLoadedStatus: false,
+    hasLoadedTransactionSummary: false,
     phoneNumber: null,
     fullName: null,
     transactionSummary: { ...EMPTY_TX_SUMMARY },
@@ -174,6 +182,8 @@ export function KYCProvider({ children }: { children: React.ReactNode }) {
   const [identityHasVerifiedPhone, setIdentityHasVerifiedPhone] =
     useState(false);
   const [hasLoadedStatus, setHasLoadedStatus] = useState(false);
+  const [hasLoadedTransactionSummary, setHasLoadedTransactionSummary] =
+    useState(false);
   const [phoneNumber, setPhoneNumber] = useState<string | null>(null);
   const [fullName, setFullName] = useState<string | null>(null);
   const [transactionSummary, setTransactionSummary] =
@@ -191,6 +201,9 @@ export function KYCProvider({ children }: { children: React.ReactNode }) {
         latestSnapshotRef.current.identityHasVerifiedPhone,
       hasLoadedStatus:
         partial.hasLoadedStatus ?? latestSnapshotRef.current.hasLoadedStatus,
+      hasLoadedTransactionSummary:
+        partial.hasLoadedTransactionSummary ??
+        latestSnapshotRef.current.hasLoadedTransactionSummary,
       phoneNumber:
         partial.phoneNumber !== undefined
           ? partial.phoneNumber
@@ -208,6 +221,7 @@ export function KYCProvider({ children }: { children: React.ReactNode }) {
     setIsPhoneVerified(next.isPhoneVerified);
     setIdentityHasVerifiedPhone(next.identityHasVerifiedPhone);
     setHasLoadedStatus(next.hasLoadedStatus);
+    setHasLoadedTransactionSummary(next.hasLoadedTransactionSummary);
     setPhoneNumber(next.phoneNumber);
     setFullName(next.fullName);
     setTransactionSummary(next.transactionSummary);
@@ -287,6 +301,7 @@ export function KYCProvider({ children }: { children: React.ReactNode }) {
         }
         if (!data.success) return false;
         applySnapshot({
+          hasLoadedTransactionSummary: true,
           transactionSummary: {
             dailySpent: data.dailySpent,
             monthlySpent: data.monthlySpent,
@@ -439,6 +454,7 @@ export function KYCProvider({ children }: { children: React.ReactNode }) {
       setIsPhoneVerified(empty.isPhoneVerified);
       setIdentityHasVerifiedPhone(empty.identityHasVerifiedPhone);
       setHasLoadedStatus(empty.hasLoadedStatus);
+      setHasLoadedTransactionSummary(empty.hasLoadedTransactionSummary);
       setPhoneNumber(empty.phoneNumber);
       setFullName(empty.fullName);
       setTransactionSummary({ ...EMPTY_TX_SUMMARY });
@@ -461,6 +477,7 @@ export function KYCProvider({ children }: { children: React.ReactNode }) {
         isPhoneVerified,
         identityHasVerifiedPhone,
         hasLoadedStatus,
+        hasLoadedTransactionSummary,
         phoneNumber,
         fullName,
         walletAddress,

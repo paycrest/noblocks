@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   usePrivy as usePrivyAuth,
@@ -38,6 +38,9 @@ export function formatTierLimitLine(
   return unlimited ? "Unlimited" : `$${formatUsdAmount(monthlyLimit)} / month`;
 }
 
+/** Bounded backoff for the quiet retry after a failed status/summary fetch. */
+const RETRY_DELAYS_MS = [2000, 4000, 8000];
+
 /**
  * Shared Profile data/state: KYC tier, limits, account/email linking, and the
  * tier-accordion expand state. Consumed by both the drawer/sheet ProfileView
@@ -51,6 +54,8 @@ export function useProfileViewModel() {
     tier,
     pooledWalletCount,
     transactionSummary,
+    hasLoadedStatus,
+    hasLoadedTransactionSummary,
     getCurrentLimits,
     refreshStatus,
     walletAddress: kycWalletAddress,
@@ -65,7 +70,9 @@ export function useProfileViewModel() {
   const [isLimitModalOpen, setIsLimitModalOpen] = useState(false);
   const [expandedTierLevel, setExpandedTierLevel] = useState<number | null>(null);
   const [isAddressCopied, setIsAddressCopied] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
+  const [retryTick, setRetryTick] = useState(0);
+  const [initialRefreshSettled, setInitialRefreshSettled] = useState(false);
+  const retryCountRef = useRef(0);
 
   const currentLimits = getCurrentLimits();
   const monthlyLimit = currentLimits.monthly || 0;
@@ -75,11 +82,49 @@ export function useProfileViewModel() {
     !!currentLimits.unlimited,
   );
 
+  // The page/drawer must keep showing the skeleton while status is unknown —
+  // including after a failed fetch — rather than rendering the reset
+  // snapshot (tier 0, $0.00 spend) as if it were real data.
+  const isLoading = !hasLoadedStatus;
+  const isTransactionSummaryLoading = !hasLoadedTransactionSummary;
+
   useEffect(() => {
-    setIsLoading(true);
-    refreshStatus(true).finally(() => setIsLoading(false));
+    let isMounted = true;
+    void refreshStatus(true).finally(() => {
+      if (isMounted) setInitialRefreshSettled(true);
+    });
+    return () => {
+      isMounted = false;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Quiet automatic retry: if status or the transaction summary failed to
+  // load, retry a bounded number of times with backoff so a transient
+  // failure doesn't leave the page on the skeleton forever. No new UI.
+  // Waits for the initial refresh to settle first so it doesn't burn a
+  // retry slot while that fetch is still in flight, and only counts a
+  // retry once its timer actually fires (not merely scheduled).
+  useEffect(() => {
+    if (!initialRefreshSettled) return;
+    if (hasLoadedStatus && hasLoadedTransactionSummary) {
+      retryCountRef.current = 0;
+      return;
+    }
+    if (retryCountRef.current >= RETRY_DELAYS_MS.length) return;
+    const delay = RETRY_DELAYS_MS[retryCountRef.current];
+    const timeoutId = setTimeout(() => {
+      retryCountRef.current += 1;
+      void refreshStatus(true).finally(() => setRetryTick((t) => t + 1));
+    }, delay);
+    return () => clearTimeout(timeoutId);
+  }, [
+    initialRefreshSettled,
+    hasLoadedStatus,
+    hasLoadedTransactionSummary,
+    retryTick,
+    refreshStatus,
+  ]);
 
   const { linkEmail } = useLinkAccountAuth({
     onSuccess: ({ user }) => {
@@ -144,6 +189,7 @@ export function useProfileViewModel() {
     currentLimits,
     monthlyProgress,
     isLoading,
+    isTransactionSummaryLoading,
     refreshStatus,
     linkEmail,
     handleCopyAddress,

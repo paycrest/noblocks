@@ -1,7 +1,7 @@
 /// <reference types="jest" />
 
 import React from "react";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import {
   formatMonthlyLimitLine,
   computeMonthlyProgressPercent,
@@ -74,6 +74,8 @@ type KycState = {
   tier: 0 | 1 | 2 | 3 | 4;
   pooledWalletCount: number;
   transactionSummary: { monthlySpent: number; dailySpent: number; lastTransactionDate: string | null };
+  hasLoadedStatus: boolean;
+  hasLoadedTransactionSummary: boolean;
   getCurrentLimits: () => { monthly: number; unlimited?: boolean };
   refreshStatus: typeof mockRefreshStatus;
   walletAddress: string;
@@ -86,6 +88,8 @@ function makeKycState(overrides: Partial<KycState> = {}): KycState {
     tier: 0,
     pooledWalletCount: 1,
     transactionSummary: { monthlySpent: 0, dailySpent: 0, lastTransactionDate: null },
+    hasLoadedStatus: true,
+    hasLoadedTransactionSummary: true,
     getCurrentLimits: () => ({ monthly: 0, unlimited: false }),
     refreshStatus: mockRefreshStatus,
     walletAddress: "0x1111111111111111111111111111111111111111",
@@ -230,6 +234,147 @@ describe("ProfilePageContent", () => {
 
     await screen.findByText("Account");
     expect(screen.queryByText("Sign out")).not.toBeInTheDocument();
+  });
+
+  it("still calls logout() when a localStorage.removeItem call throws", async () => {
+    mockKycState = makeKycState({ tier: 1 });
+    mockIsInjectedWallet = false;
+    const removeItemMock = window.localStorage.removeItem as jest.Mock;
+    removeItemMock.mockImplementation(() => {
+      throw new Error("storage disabled");
+    });
+
+    render(<ProfilePageContent />);
+    const signOut = await screen.findByText("Sign out");
+    fireEvent.click(signOut);
+
+    await waitFor(() => expect(mockLogout).toHaveBeenCalledTimes(1));
+
+    removeItemMock.mockReset();
+  });
+
+  it("shows the skeleton (aria-busy) and no tier-0 CTA while status has not loaded", async () => {
+    mockKycState = makeKycState({
+      tier: 0,
+      hasLoadedStatus: false,
+      hasLoadedTransactionSummary: false,
+    });
+    render(<ProfilePageContent />);
+
+    expect(await screen.findByLabelText("Loading")).toBeInTheDocument();
+    expect(screen.queryByText("Verify to start swapping")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Current: Tier/)).not.toBeInTheDocument();
+  });
+
+  it("shows a skeleton in place of the amount/progress bar while the summary hasn't loaded, then the real amount once it has", async () => {
+    mockKycState = makeKycState({
+      tier: 2,
+      hasLoadedStatus: true,
+      hasLoadedTransactionSummary: false,
+      getCurrentLimits: () => ({ monthly: 15000, unlimited: false }),
+    });
+    const { rerender } = render(<ProfilePageContent />);
+
+    await screen.findByText("Current: Tier 2");
+    expect(screen.queryByText(/\$0\.00/)).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(formatMonthlyLimitLine(0, 15000, false)),
+    ).not.toBeInTheDocument();
+
+    mockKycState = makeKycState({
+      tier: 2,
+      transactionSummary: { monthlySpent: 4000, dailySpent: 0, lastTransactionDate: null },
+      hasLoadedStatus: true,
+      hasLoadedTransactionSummary: true,
+      getCurrentLimits: () => ({ monthly: 15000, unlimited: false }),
+    });
+    rerender(<ProfilePageContent />);
+
+    expect(
+      await screen.findByText(formatMonthlyLimitLine(4000, 15000, false)),
+    ).toBeInTheDocument();
+  });
+
+  describe("quiet retry", () => {
+    beforeEach(() => {
+      jest.useFakeTimers();
+    });
+
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+
+    it("does not start the retry cycle until the initial refresh settles", async () => {
+      mockKycState = makeKycState({
+        hasLoadedStatus: false,
+        hasLoadedTransactionSummary: false,
+      });
+      let resolveInitial: (() => void) | undefined;
+      mockRefreshStatus.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveInitial = () => resolve(null);
+          }),
+      );
+
+      render(<ProfilePageContent />);
+      await waitFor(() => expect(mockRefreshStatus).toHaveBeenCalledTimes(1));
+
+      // Initial refresh is still in flight — advancing well past the first
+      // retry delay must not consume a retry slot.
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(10000);
+      });
+      expect(mockRefreshStatus).toHaveBeenCalledTimes(1);
+
+      // Only once the initial refresh settles can the retry cycle begin.
+      await act(async () => {
+        resolveInitial?.();
+        await Promise.resolve();
+      });
+
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(2000);
+      });
+      expect(mockRefreshStatus).toHaveBeenCalledTimes(2);
+    });
+
+    it("retries refreshStatus with backoff after a failure, and stops after the bound", async () => {
+      mockKycState = makeKycState({
+        hasLoadedStatus: false,
+        hasLoadedTransactionSummary: false,
+      });
+      render(<ProfilePageContent />);
+
+      await waitFor(() => expect(mockRefreshStatus).toHaveBeenCalledTimes(1));
+
+      // Let the initial refresh's `finally` settle before the retry cycle
+      // can start.
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(0);
+      });
+
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(2000);
+      });
+      expect(mockRefreshStatus).toHaveBeenCalledTimes(2);
+
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(4000);
+      });
+      expect(mockRefreshStatus).toHaveBeenCalledTimes(3);
+
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(8000);
+      });
+      expect(mockRefreshStatus).toHaveBeenCalledTimes(4);
+
+      // Bound reached — no further retries even after waiting much longer.
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(60000);
+      });
+      expect(mockRefreshStatus).toHaveBeenCalledTimes(4);
+    });
   });
 });
 

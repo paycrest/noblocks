@@ -255,7 +255,7 @@ describe("TransferForm", () => {
     expect(within(confirmDialog).getByText("Fees")).toBeInTheDocument();
     expect(within(confirmDialog).getByText("$0")).toBeInTheDocument();
     expect(
-      within(confirmDialog).getByText("Save recipient to contacts"),
+      await within(confirmDialog).findByText("Save recipient to contacts"),
     ).toBeInTheDocument();
     const dividers = confirmDialog.querySelectorAll("hr");
     expect(dividers).toHaveLength(2);

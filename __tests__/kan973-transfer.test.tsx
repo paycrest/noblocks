@@ -490,7 +490,7 @@ describe("TransferForm — save beneficiary already-saved check (AC6)", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("keeps an in-flight saved-recipient fetch alive through pending to the receipt (CodeRabbit fix)", async () => {
+  it("hides the confirm toggle and the receipt offer while the saved-recipient check is in flight, and keeps them hidden once it resolves already-saved (CodeRabbit fix)", async () => {
     let resolveFetch: (value: unknown[]) => void = () => {};
     mockFetchSavedRecipients.mockImplementation(
       () =>
@@ -509,6 +509,13 @@ describe("TransferForm — save beneficiary already-saved check (AC6)", () => {
       expect(mockFetchSavedRecipients).toHaveBeenCalledTimes(1),
     );
 
+    // Still loading — the confirm toggle must not appear yet (it could be
+    // submitted before the in-flight response reveals this address is
+    // already saved).
+    expect(
+      screen.queryByRole("switch", { name: "Save recipient to contacts" }),
+    ).not.toBeInTheDocument();
+
     // Confirm and reach the receipt before the fetch resolves.
     fireEvent.click(
       await screen.findByRole("button", { name: "Transfer $100" }),
@@ -522,14 +529,13 @@ describe("TransferForm — save beneficiary already-saved check (AC6)", () => {
     rerender(<TransferForm onClose={onClose} />);
 
     const successDialog = await screen.findByRole("dialog");
+    // Still loading — the receipt offer must not appear either.
     expect(
-      within(successDialog).getByRole("button", { name: "Save beneficiary" }),
-    ).toBeInTheDocument();
+      within(successDialog).queryByRole("button", { name: "Save beneficiary" }),
+    ).not.toBeInTheDocument();
 
     // The fetch resolves after reaching the receipt, showing the address was
-    // already saved elsewhere — the receipt must drop the stale offer
-    // instead of discarding this result (it would, pre-fix, since confirming
-    // before the fetch resolved cancelled it).
+    // already saved elsewhere — the offer must stay hidden.
     resolveFetch([
       {
         id: "1",
@@ -538,12 +544,52 @@ describe("TransferForm — save beneficiary already-saved check (AC6)", () => {
         name: "Ada",
       },
     ]);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(
+      within(successDialog).queryByRole("button", { name: "Save beneficiary" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows the receipt offer once an in-flight saved-recipient check resolves with no match (CodeRabbit fix)", async () => {
+    let resolveFetch: (value: unknown[]) => void = () => {};
+    mockFetchSavedRecipients.mockImplementation(
+      () =>
+        new Promise<unknown[]>((resolve) => {
+          resolveFetch = resolve;
+        }),
+    );
+
+    const { rerender, onClose } = renderForm();
+    await fillForm();
+
+    const continueButton = screen.getByRole("button", { name: "Continue" });
+    await waitFor(() => expect(continueButton).toBeEnabled());
+    fireEvent.click(continueButton);
+    await waitFor(() =>
+      expect(mockFetchSavedRecipients).toHaveBeenCalledTimes(1),
+    );
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Transfer $100" }),
+    );
+    await waitFor(() => expect(mockTransfer).toHaveBeenCalledTimes(1));
+
+    transferState.isLoading = true;
+    rerender(<TransferForm onClose={onClose} />);
+    transferState.isLoading = false;
+    transferState.isSuccess = true;
+    rerender(<TransferForm onClose={onClose} />);
+
+    const successDialog = await screen.findByRole("dialog");
+    expect(
+      within(successDialog).queryByRole("button", { name: "Save beneficiary" }),
+    ).not.toBeInTheDocument();
+
+    resolveFetch([]);
     await waitFor(() =>
       expect(
-        within(successDialog).queryByRole("button", {
-          name: "Save beneficiary",
-        }),
-      ).not.toBeInTheDocument(),
+        within(successDialog).getByRole("button", { name: "Save beneficiary" }),
+      ).toBeInTheDocument(),
     );
   });
 
@@ -581,8 +627,15 @@ describe("TransferForm — save beneficiary already-saved check (AC6)", () => {
     fireEvent.click(continueButton);
 
     // The toggle is offered again for the new, unsaved address B.
+    // A new confirmation session refetches saved recipients; wait for that
+    // check to settle (the control is hidden while it is in flight).
+    await waitFor(() =>
+      expect(mockFetchSavedRecipients).toHaveBeenCalledTimes(2),
+    );
     expect(
-      await screen.findByRole("switch", { name: "Save recipient to contacts" }),
+      await screen.findByRole("switch", {
+        name: "Save recipient to contacts",
+      }),
     ).toBeInTheDocument();
 
     fireEvent.click(
@@ -599,6 +652,52 @@ describe("TransferForm — save beneficiary already-saved check (AC6)", () => {
     const successDialog = await screen.findByRole("dialog");
     expect(
       within(successDialog).getByRole("button", { name: "Save beneficiary" }),
+    ).toBeInTheDocument();
+  });
+
+  it("a failed fetch on a new confirmation is not masked by a stale successful already-saved result (CodeRabbit fix)", async () => {
+    mockFetchSavedRecipients.mockResolvedValueOnce([
+      {
+        id: "1",
+        type: "wallet",
+        walletAddress: RECIPIENT.toUpperCase(),
+        name: "Ada",
+      },
+    ]);
+
+    renderForm();
+    await fillForm();
+
+    let continueButton = screen.getByRole("button", { name: "Continue" });
+    await waitFor(() => expect(continueButton).toBeEnabled());
+    fireEvent.click(continueButton);
+
+    await waitFor(() =>
+      expect(mockFetchSavedRecipients).toHaveBeenCalledTimes(1),
+    );
+    // Already saved — the toggle is hidden.
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("switch", { name: "Save recipient to contacts" }),
+      ).not.toBeInTheDocument(),
+    );
+
+    // Back to the form and reopen confirm — a new session starts, and this
+    // time the fetch fails.
+    fireEvent.click(screen.getByRole("button", { name: "Back" }));
+    mockFetchSavedRecipients.mockRejectedValueOnce(new Error("network error"));
+
+    continueButton = screen.getByRole("button", { name: "Continue" });
+    await waitFor(() => expect(continueButton).toBeEnabled());
+    fireEvent.click(continueButton);
+    await waitFor(() =>
+      expect(mockFetchSavedRecipients).toHaveBeenCalledTimes(2),
+    );
+
+    // The stale "already saved" result from the first confirmation must not
+    // keep the toggle hidden now that this confirmation's fetch failed.
+    expect(
+      await screen.findByRole("switch", { name: "Save recipient to contacts" }),
     ).toBeInTheDocument();
   });
 });
@@ -650,8 +749,9 @@ describe("TransferForm — Home full-page chrome (KAN-973)", () => {
     ).not.toBeInTheDocument();
     expect(screen.getByTestId("transfer-confirm-primary")).toBeInTheDocument();
     // Home confirm uses the checkbox bar, not the token-detail switch.
+    // Wait for the saved-recipient check to settle (hidden while loading).
     expect(
-      screen.getByRole("checkbox", { name: "Save recipients to contacts" }),
+      await screen.findByRole("checkbox", { name: "Save recipients to contacts" }),
     ).toBeInTheDocument();
     expect(
       screen.queryByRole("switch", { name: "Save recipient to contacts" }),
@@ -899,6 +999,202 @@ describe("TransferSuccessModal / TransferSuccessCompactModal — stale justSaved
     expect(
       screen.getByRole("button", { name: "Save beneficiary" }),
     ).toBeInTheDocument();
+  });
+
+  it("TransferSuccessCompactModal: isSaving resets on close so a later receipt's Save button isn't stuck disabled, and an old save resolving doesn't clear a newer save's busy state", async () => {
+    let resolveFirstSave: (value: unknown) => void = () => {};
+    let resolveSecondSave: (value: unknown) => void = () => {};
+    mockSaveRecipient
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveFirstSave = resolve;
+          }),
+      )
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveSecondSave = resolve;
+          }),
+      );
+
+    const baseProps = {
+      amountLabel: "100",
+      tokenSymbol: "USDC",
+      onClose: jest.fn(),
+      offerSaveBeneficiary: true,
+    };
+
+    const { rerender } = render(
+      <TransferSuccessCompactModal
+        {...baseProps}
+        isOpen
+        recipientAddress={RECIPIENT}
+      />,
+    );
+
+    let successDialog = screen.getByRole("dialog");
+    fireEvent.click(
+      within(successDialog).getByRole("button", { name: "Save beneficiary" }),
+    );
+    let dialogs = screen.getAllByRole("dialog");
+    let saveDialog = dialogs[dialogs.length - 1];
+    fireEvent.change(
+      within(saveDialog).getByPlaceholderText("Enter beneficiary name"),
+      { target: { value: "Ada" } },
+    );
+    fireEvent.click(
+      within(saveDialog).getByRole("button", { name: "Save beneficiary" }),
+    );
+    await waitFor(() => expect(mockSaveRecipient).toHaveBeenCalledTimes(1));
+
+    // Close the receipt while the first save is still in flight.
+    rerender(
+      <TransferSuccessCompactModal
+        {...baseProps}
+        isOpen={false}
+        recipientAddress={RECIPIENT}
+      />,
+    );
+
+    // A new receipt opens for a different, unsaved recipient.
+    rerender(
+      <TransferSuccessCompactModal
+        {...baseProps}
+        isOpen
+        recipientAddress={OTHER_RECIPIENT}
+      />,
+    );
+
+    successDialog = screen.getByRole("dialog");
+    fireEvent.click(
+      within(successDialog).getByRole("button", { name: "Save beneficiary" }),
+    );
+    dialogs = screen.getAllByRole("dialog");
+    saveDialog = dialogs[dialogs.length - 1];
+    fireEvent.change(
+      within(saveDialog).getByPlaceholderText("Enter beneficiary name"),
+      { target: { value: "Bob" } },
+    );
+
+    // isSaving was reset when the old receipt closed — Save must be enabled.
+    expect(
+      within(saveDialog).getByRole("button", { name: "Save beneficiary" }),
+    ).toBeEnabled();
+
+    // Start the new save — it is now in flight (busy).
+    fireEvent.click(
+      within(saveDialog).getByRole("button", { name: "Save beneficiary" }),
+    );
+    expect(
+      within(saveDialog).getByRole("button", { name: "Save beneficiary" }),
+    ).toBeDisabled();
+
+    // The OLD save completes now. Its `finally` must not clear the NEW
+    // save's busy state.
+    resolveFirstSave(true);
+    await waitFor(() => expect(mockToast.success).toHaveBeenCalledTimes(1));
+    expect(
+      within(saveDialog).getByRole("button", { name: "Save beneficiary" }),
+    ).toBeDisabled();
+
+    // The new save completes — its own busy state clears normally.
+    resolveSecondSave(true);
+    await waitFor(() => expect(mockToast.success).toHaveBeenCalledTimes(2));
+  });
+
+  it("TransferSuccessModal: isSaving resets on close so a later receipt's Save button isn't stuck disabled, and an old save resolving doesn't clear a newer save's busy state", async () => {
+    let resolveFirstSave: (value: unknown) => void = () => {};
+    let resolveSecondSave: (value: unknown) => void = () => {};
+    mockSaveRecipient
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveFirstSave = resolve;
+          }),
+      )
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveSecondSave = resolve;
+          }),
+      );
+
+    const baseProps = {
+      amountLabel: "100",
+      tokenSymbol: "USDC",
+      shortAddress: "0x7a3...91f4",
+      elapsedSeconds: 5,
+      onBackHome: jest.fn(),
+      onNewPayment: jest.fn(),
+      offerSaveBeneficiary: true,
+    };
+
+    const { rerender } = render(
+      <TransferSuccessModal {...baseProps} isOpen recipientAddress={RECIPIENT} />,
+    );
+
+    let successDialog = screen.getByRole("dialog");
+    fireEvent.click(
+      within(successDialog).getByRole("button", { name: "Save beneficiary" }),
+    );
+    let dialogs = screen.getAllByRole("dialog");
+    let saveDialog = dialogs[dialogs.length - 1];
+    fireEvent.change(
+      within(saveDialog).getByPlaceholderText("Enter beneficiary name"),
+      { target: { value: "Ada" } },
+    );
+    fireEvent.click(
+      within(saveDialog).getByRole("button", { name: "Save beneficiary" }),
+    );
+    await waitFor(() => expect(mockSaveRecipient).toHaveBeenCalledTimes(1));
+
+    rerender(
+      <TransferSuccessModal
+        {...baseProps}
+        isOpen={false}
+        recipientAddress={RECIPIENT}
+      />,
+    );
+
+    rerender(
+      <TransferSuccessModal
+        {...baseProps}
+        isOpen
+        recipientAddress={OTHER_RECIPIENT}
+      />,
+    );
+
+    successDialog = screen.getByRole("dialog");
+    fireEvent.click(
+      within(successDialog).getByRole("button", { name: "Save beneficiary" }),
+    );
+    dialogs = screen.getAllByRole("dialog");
+    saveDialog = dialogs[dialogs.length - 1];
+    fireEvent.change(
+      within(saveDialog).getByPlaceholderText("Enter beneficiary name"),
+      { target: { value: "Bob" } },
+    );
+
+    expect(
+      within(saveDialog).getByRole("button", { name: "Save beneficiary" }),
+    ).toBeEnabled();
+
+    fireEvent.click(
+      within(saveDialog).getByRole("button", { name: "Save beneficiary" }),
+    );
+    expect(
+      within(saveDialog).getByRole("button", { name: "Save beneficiary" }),
+    ).toBeDisabled();
+
+    resolveFirstSave(true);
+    await waitFor(() => expect(mockToast.success).toHaveBeenCalledTimes(1));
+    expect(
+      within(saveDialog).getByRole("button", { name: "Save beneficiary" }),
+    ).toBeDisabled();
+
+    resolveSecondSave(true);
+    await waitFor(() => expect(mockToast.success).toHaveBeenCalledTimes(2));
   });
 });
 

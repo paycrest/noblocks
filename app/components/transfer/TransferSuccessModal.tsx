@@ -92,12 +92,14 @@ export function TransferSuccessModal({
   const sessionRef = useRef(0);
 
   // Reset once the receipt closes, so the next completed transfer re-evaluates
-  // `offerSaveBeneficiary` fresh instead of carrying over a stale "saved" flag.
+  // `offerSaveBeneficiary` fresh instead of carrying over a stale "saved" flag
+  // or an in-flight save's busy state.
   useEffect(() => {
     if (!isOpen) {
       sessionRef.current += 1;
       setIsSaveModalOpen(false);
       setJustSaved(false);
+      setIsSaving(false);
     }
   }, [isOpen]);
 
@@ -126,7 +128,12 @@ export function TransferSuccessModal({
           : "Could not save this recipient. Try again.",
       );
     } finally {
-      setIsSaving(false);
+      // Only clear busy state for the request this session still owns — an
+      // older save completing after the receipt moved on must not clear a
+      // newer save's in-flight state.
+      if (sessionRef.current === session) {
+        setIsSaving(false);
+      }
     }
   };
 

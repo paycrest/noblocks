@@ -136,12 +136,20 @@ export const TransferForm: React.FC<{
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [frozenElapsedSeconds, setFrozenElapsedSeconds] = useState(0);
   // Saved recipients, fetched once per confirm-step open, to hide the "Save
-  // recipient" controls for an address already saved (KAN-973 AC6). A failed
-  // fetch leaves this null, which `isAddressAlreadySaved` treats as "not
-  // saved" — keep showing the controls rather than inventing an error state.
+  // recipient" controls for an address already saved (KAN-973 AC6). Gated by
+  // `savedRecipientsStatus` below: the controls only render once this check
+  // has settled (loaded or failed), so an in-flight fetch from a *different*
+  // session can't be mistaken for "not saved".
   const [savedRecipients, setSavedRecipients] = useState<
     RecipientDetailsWithId[] | null
   >(null);
+  // idle: no confirm opened yet. loading: fetch in flight for the current
+  // session — controls stay hidden. loaded/failed: settled — a failed fetch
+  // leaves `savedRecipients` null, which `isAddressAlreadySaved` treats as
+  // "not saved", so the controls show rather than inventing an error state.
+  const [savedRecipientsStatus, setSavedRecipientsStatus] = useState<
+    "idle" | "loading" | "loaded" | "failed"
+  >("idle");
   // The address saved during this flow (via the confirm-step toggle), not a
   // flow-wide boolean — so saving address A then transferring to a different
   // address B still offers "Save beneficiary" for B.
@@ -232,19 +240,34 @@ export const TransferForm: React.FC<{
     if (transferStep !== "confirm") return;
     savedRecipientsSessionRef.current += 1;
     const session = savedRecipientsSessionRef.current;
+    // Starting a new session: drop any prior session's result so it can't
+    // keep the Save controls hidden if this session's fetch fails.
+    setSavedRecipients(null);
+    setSavedRecipientsStatus("loading");
     void (async () => {
       try {
         const accessToken = await getAccessTokenRef.current();
-        if (!accessToken) return;
+        if (!accessToken) {
+          // No token: treat like a failed check rather than leaving the
+          // controls hidden on "loading" forever.
+          if (savedRecipientsSessionRef.current === session) {
+            setSavedRecipientsStatus("failed");
+          }
+          return;
+        }
         const list = await fetchSavedRecipients(accessToken);
         // A newer confirm open (or a reset) invalidates this session — a
         // transition to "pending"/"success" within the same flow does not.
         if (savedRecipientsSessionRef.current === session) {
           setSavedRecipients(list);
+          setSavedRecipientsStatus("loaded");
         }
       } catch {
-        // Fetch failure: leave savedRecipients as-is, so the Save controls
+        // Fetch failure: leave savedRecipients null, so the Save controls
         // keep showing rather than surfacing a new error state.
+        if (savedRecipientsSessionRef.current === session) {
+          setSavedRecipientsStatus("failed");
+        }
       }
     })();
   }, [transferStep]);
@@ -456,6 +479,7 @@ export const TransferForm: React.FC<{
     setSubmittedValues(null);
     setSavedThisFlowAddress(null);
     setSavedRecipients(null);
+    setSavedRecipientsStatus("idle");
     savedRecipientsSessionRef.current += 1;
   };
 
@@ -511,6 +535,10 @@ export const TransferForm: React.FC<{
     const completedShortAddress = formatTransferShortAddress(
       submittedValues?.recipientAddress,
     );
+    // Offer saving only once the check has settled — an in-flight fetch
+    // must not be mistaken for "not saved" (CodeRabbit fix).
+    const canOfferSavedRecipientCheck =
+      savedRecipientsStatus === "loaded" || savedRecipientsStatus === "failed";
     const isRecipientAlreadySaved = isAddressAlreadySaved(
       savedRecipients,
       recipientAddress,
@@ -526,6 +554,7 @@ export const TransferForm: React.FC<{
     const offerSaveBeneficiaryOnReceipt =
       isEvmRecipientNetwork(submittedValues?.recipientNetwork) &&
       Boolean(submittedValues?.recipientAddress) &&
+      canOfferSavedRecipientCheck &&
       !isCompletedRecipientAlreadySaved &&
       !isSubmittedRecipientSavedThisFlow;
 
@@ -537,6 +566,7 @@ export const TransferForm: React.FC<{
     const saveRecipientControl =
       isEvmRecipientNetwork(recipientNetwork) &&
       recipientAddress &&
+      canOfferSavedRecipientCheck &&
       !isRecipientAlreadySaved &&
       !isRecipientSavedThisFlow ? (
         <SaveRecipientToggle

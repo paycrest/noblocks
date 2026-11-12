@@ -1,6 +1,6 @@
 "use client";
 import Image from "next/image";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useSearchParams } from "next/navigation";
 
@@ -43,7 +43,6 @@ import {
   decodeEventLog,
   encodeFunctionData,
   zeroAddress,
-  parseUnits,
   erc20Abi,
   createPublicClient,
   http,
@@ -64,6 +63,11 @@ import {
   gatewayApprovalAmount,
   needsGatewayApproval,
 } from "../lib/erc20Allowance";
+import {
+  buildOfframpSpendWei,
+  resolveSpendTokenFromList,
+  type OfframpSpendBuild,
+} from "../lib/tokenSpendAmount";
 import { useApiAuth } from "../hooks/useApiAuth";
 
 import {
@@ -146,6 +150,7 @@ export const TransactionPreview = ({
     amountSent,
     amountReceived,
     token,
+    tokenAddress: formTokenAddress,
     currency,
     institution,
     recipientName,
@@ -234,23 +239,99 @@ export const TransactionPreview = ({
     };
   }, [isOnramp, currency, resolveAuth]);
 
-  const fetchedTokens: Token[] = allTokens[selectedNetwork.chain.name] || [];
+  type OfframpSpendView =
+    | { kind: "onramp" }
+    | {
+        kind: "ready";
+        contractAddress: `0x${string}`;
+        spendWei: bigint;
+        decimals: number;
+      }
+    | { kind: "blocked"; message: string };
 
-  const tokenAddress = fetchedTokens.find(
-    (t) => t.symbol.toUpperCase() === token.toUpperCase(),
-  )?.address as `0x${string}`;
+  const offrampSpendView = useMemo((): OfframpSpendView => {
+    if (isOnramp) return { kind: "onramp" };
 
-  const tokenDecimals = fetchedTokens.find(
-    (t) => t.symbol.toUpperCase() === token.toUpperCase(),
-  )?.decimals;
+    const fetchedTokens: Token[] =
+      allTokens[selectedNetwork.chain.name] || [];
+    const spendResolution = resolveSpendTokenFromList({
+      tokens: fetchedTokens,
+      tokenAddress: formTokenAddress,
+    });
+    const offrampSpend = buildOfframpSpendWei(amountSent ?? 0, spendResolution);
+
+    if (spendResolution.ok && offrampSpend.ok) {
+      return {
+        kind: "ready",
+        contractAddress: spendResolution.address as `0x${string}`,
+        spendWei: offrampSpend.wei,
+        decimals: offrampSpend.decimals,
+      };
+    }
+
+    if (!spendResolution.ok) {
+      if (spendResolution.reason === "missing_token_address") {
+        return {
+          kind: "blocked",
+          message:
+            "Select a supported token so we can verify its contract on this network.",
+        };
+      }
+      if (spendResolution.reason === "no_matching_token") {
+        return {
+          kind: "blocked",
+          message:
+            "This token is not available on the selected network, or its address no longer matches.",
+        };
+      }
+      if (spendResolution.reason === "invalid_decimals") {
+        return {
+          kind: "blocked",
+          message:
+            "This token’s decimals are missing or invalid. Transfers are blocked until the token list is fixed.",
+        };
+      }
+      return {
+        kind: "blocked",
+        message: "Unable to prepare this transaction for the selected token.",
+      };
+    }
+
+    if (!offrampSpend.ok) {
+      return { kind: "blocked", message: offrampSpend.error };
+    }
+    return {
+      kind: "blocked",
+      message: "Unable to prepare this transaction for the selected token.",
+    };
+  }, [isOnramp, allTokens, selectedNetwork.chain.name, formTokenAddress, amountSent]);
+
+  const offrampSpendReady = offrampSpendView.kind === "ready";
+  const offrampSpendBlockedReason =
+    offrampSpendView.kind === "blocked" ? offrampSpendView.message : "";
+
+  const tokenContractAddress =
+    offrampSpendView.kind === "ready"
+      ? offrampSpendView.contractAddress
+      : (zeroAddress as `0x${string}`);
 
   // What the gateway will actually pull (senderFee is 0 today, see prepareCreateOrderParams).
-  // Lifted out of prepareCreateOrderParams so the allowance read can reuse it without that
-  // function's network round-trip for the aggregator public key.
-  const requiredSpendWei = parseUnits(
-    (amountSent ?? 0).toString(),
-    tokenDecimals ?? 18,
-  );
+  const requiredSpendWei =
+    offrampSpendView.kind === "ready" ? offrampSpendView.spendWei : BigInt(0);
+
+  const offrampSpend: OfframpSpendBuild =
+    offrampSpendView.kind === "ready"
+      ? {
+          ok: true,
+          wei: offrampSpendView.spendWei,
+          decimals: offrampSpendView.decimals,
+        }
+      : {
+          ok: false,
+          error:
+            offrampSpendBlockedReason ||
+            "Unable to prepare this transaction for the selected token.",
+        };
 
   const gatewayAddress = getGatewayContractAddress(
     selectedNetwork.chain.name,
@@ -282,7 +363,8 @@ export const TransactionPreview = ({
       isOnramp ||
       isStarknetSelected ||
       isTronSelected ||
-      !injectedReady
+      !injectedReady ||
+      !offrampSpendReady
     ) {
       return;
     }
@@ -291,7 +373,7 @@ export const TransactionPreview = ({
       const mustApprove = await needsGatewayApproval({
         chain: selectedNetwork.chain,
         rpcUrl: getRpcUrl(selectedNetwork.chain.name),
-        token: tokenAddress,
+        token: tokenContractAddress,
         owner: injectedAddress ?? undefined,
         spender: gatewayAddress,
         required: requiredSpendWei,
@@ -309,7 +391,8 @@ export const TransactionPreview = ({
     injectedReady,
     injectedAddress,
     selectedNetwork.chain,
-    tokenAddress,
+    tokenContractAddress,
+    offrampSpendReady,
     gatewayAddress,
     requiredSpendWei,
   ]);
@@ -386,6 +469,14 @@ export const TransactionPreview = ({
   // never reaches the browser. Raw KES fields are sent; the server applies the
   // channel/businessNumber rules authoritatively.
   const prepareCreateOrderParams = async (auth: OrderAuth) => {
+    if (!offrampSpendReady || !offrampSpend.ok) {
+      throw new Error(
+        offrampSpend.ok
+          ? "Unable to prepare order: invalid token configuration."
+          : offrampSpend.error,
+      );
+    }
+
     const providerId =
       searchParams.get("provider") || searchParams.get("PROVIDER");
 
@@ -407,8 +498,8 @@ export const TransactionPreview = ({
 
     // Prepare transaction parameters
     const params = {
-      token: tokenAddress,
-      amount: parseUnits(amountSent.toString(), tokenDecimals ?? 18),
+      token: tokenContractAddress,
+      amount: offrampSpend.wei,
       rate: packRate(rate),
       senderFeeRecipient: zeroAddress,
       senderFee: BigInt(0),
@@ -453,7 +544,7 @@ export const TransactionPreview = ({
           body: JSON.stringify({
             walletId: starknetWalletId,
             publicKey: starknetPublicKey,
-            tokenAddress,
+            tokenAddress: tokenContractAddress,
             gatewayAddress: getGatewayContractAddress("Starknet"),
             amount: params.amount.toString(),
             rate: params.rate.toString(),
@@ -514,7 +605,7 @@ export const TransactionPreview = ({
         const mustApprove = await needsGatewayApproval({
           chain: selectedNetwork.chain,
           rpcUrl: getRpcUrl(selectedNetwork.chain.name),
-          token: tokenAddress,
+          token: tokenContractAddress,
           owner: injectedAddress ?? undefined,
           spender: gatewayAddress,
           required: requiredSpend,
@@ -533,7 +624,7 @@ export const TransactionPreview = ({
             params: [
               {
                 from: injectedAddress,
-                to: tokenAddress,
+                to: tokenContractAddress,
                 data: appendAttributionSuffix(
                   selectedNetwork.chain.id,
                   approvalData,
@@ -650,14 +741,14 @@ export const TransactionPreview = ({
         const mustApprove = await needsGatewayApproval({
           chain,
           rpcUrl,
-          token: tokenAddress,
+          token: tokenContractAddress,
           owner: accountAddress,
           spender: gatewayAddress,
           required: requiredSpend,
         });
 
         const approveCall: BatchCall = {
-          to: tokenAddress as `0x${string}`,
+          to: tokenContractAddress,
           value: BigInt(0),
           data: encodeFunctionData({
             abi: erc20Abi,
@@ -771,7 +862,7 @@ export const TransactionPreview = ({
         const mustApprove = await needsGatewayApproval({
           chain: selectedNetwork.chain,
           rpcUrl: getRpcUrl(selectedNetwork.chain.name),
-          token: tokenAddress,
+          token: tokenContractAddress,
           owner: client.account?.address ?? activeWallet?.address,
           spender: gatewayAddress,
           required: requiredSpend,
@@ -784,7 +875,7 @@ export const TransactionPreview = ({
             ...(mustApprove
               ? [
                   {
-                    to: tokenAddress,
+                    to: tokenContractAddress,
                     // Privy's dataSuffix plugin already appends BASE_BUILDER_CODE_SUFFIX,
                     // but the aggregator parser reads the LAST suffix from calldata.
                     // So we append the multi-code suffix here, which will be parsed
@@ -1202,6 +1293,15 @@ export const TransactionPreview = ({
   const getOrderId = () => {
     const MAX_POLL_DURATION_MS = 120_000;
 
+    if (!offrampSpendReady || !offrampSpend.ok) {
+      return Promise.reject(
+        new Error(
+          offrampSpendBlockedReason ||
+            "Unable to confirm order: token amount could not be computed.",
+        ),
+      );
+    }
+
     return new Promise<void>((resolve, reject) => {
       let intervalId: NodeJS.Timeout;
       let timeoutId: NodeJS.Timeout;
@@ -1244,8 +1344,8 @@ export const TransactionPreview = ({
             eventName: "OrderCreated",
             args: {
               sender: activeWallet.address as `0x${string}`,
-              token: tokenAddress,
-              amount: parseUnits(amountSent.toString(), tokenDecimals ?? 18),
+              token: tokenContractAddress,
+              amount: offrampSpend.wei,
             },
             fromBlock,
             toBlock,
@@ -1364,6 +1464,15 @@ export const TransactionPreview = ({
           details may attract a refund fee
         </p>
       </div>
+
+      {!isOnramp && offrampSpendBlockedReason && (
+        <div
+          className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800 dark:border-red-900/40 dark:bg-red-950/40 dark:text-red-200"
+          role="alert"
+        >
+          {offrampSpendBlockedReason}
+        </div>
+      )}
 
       {isOnramp && (
         <>
@@ -1535,7 +1644,8 @@ export const TransactionPreview = ({
           disabled={
             isConfirming ||
             isPollingOrderId ||
-            (isOnramp && !refundAccount)
+            (isOnramp && !refundAccount) ||
+            (!isOnramp && !offrampSpendReady)
           }
         >
           {isConfirming || isPollingOrderId ? (

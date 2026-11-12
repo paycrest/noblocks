@@ -23,6 +23,7 @@ import { appendAttributionSuffix } from "@/app/lib/baseBuilderCode";
 import type { BatchCall } from "@/app/lib/providerBatch";
 import { STARKNET_READY_ACCOUNT_CLASSHASH } from "@/app/lib/config";
 import { useEmbed } from "@/app/context/EmbedContext";
+import { resolveBridgeExecuteToken } from "@/app/lib/tokenSpendAmount";
 
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 
@@ -162,7 +163,17 @@ export function useBridgeQuote({
       ? { injectedToken }
       : { token: (await getAccessToken?.()) ?? null };
     const engine = selectEngine(from, to);
-    const rawAmount = toRawAmount(amount, from.decimals);
+    const rawAmount = (() => {
+      try {
+        return toRawAmount(amount, from.decimals);
+      } catch (err) {
+        const msg =
+          err instanceof Error
+            ? err.message
+            : "Unable to build amount for this token.";
+        throw new Error(msg);
+      }
+    })();
 
     if (engine === "hyperfx") {
       try {
@@ -492,17 +503,25 @@ export function useBridgeExecute({
           const depositAddress =
             quote.depositAddress ||
             (await nearClient.getDepositAddress(quote, proxyAuth));
-          const token = from.token;
-
           // Injected EVM wallet: sign + pay the deposit transfer directly.
           if (isInjectedWallet && from.network !== "Starknet") {
+            if (!allTokens) {
+              throw new Error("Token data not found for the selected asset.");
+            }
             const chainId = Number(from.chainId);
-            const isNative =
-              !from.tokenAddress || from.tokenAddress === ZERO_ADDRESS;
+            const resolved = resolveBridgeExecuteToken(
+              allTokens[from.network] ?? [],
+              from.tokenAddress ?? "",
+              from.token,
+            );
+            if (!resolved.ok) {
+              throw new Error(resolved.message);
+            }
+            const isNative = resolved.address === "";
             const call = isNative
               ? { to: depositAddress, value: BigInt(from.rawAmount), data: "0x" }
               : {
-                  to: from.tokenAddress,
+                  to: resolved.address,
                   value: BigInt(0),
                   data: encodeFunctionData({
                     abi: erc20Abi,
@@ -568,13 +587,20 @@ export function useBridgeExecute({
               throw new Error("Selected network not found");
             }
 
-            // Use only the from-chain's tokens so symbol lookup never picks
-            // a same-symbol token from a different network (e.g. Polygon USDC vs BSC USDC).
+            // Use only the from-chain's list; resolve the row by leg address (native: empty key).
             const chainTokens = allTokens[from.network] ?? [];
+            const resolved = resolveBridgeExecuteToken(
+              chainTokens,
+              from.tokenAddress ?? "",
+              from.token,
+            );
+            if (!resolved.ok) {
+              throw new Error(resolved.message);
+            }
 
             const evmHash = await evmBatchExecute({
               chain: chain as any,
-              token,
+              tokenAddress: resolved.address,
               // Pass the exact human string — parseFloat()→toString() loses precision for
               // long fractional amounts, sending an amount that differs from the NEAR quote.
               amount: from.amount,

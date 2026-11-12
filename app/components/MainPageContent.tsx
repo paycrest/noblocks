@@ -277,6 +277,7 @@ export function MainPageContent() {
     mode: "onChange",
     defaultValues: {
       token: "",
+      tokenAddress: "",
       amountSent: 0,
       amountReceived: 0,
       // Tab default: valid `side` overrides; else Starknet first paint → off-ramp (see initialSwapModeForHomeForm).

@@ -267,14 +267,15 @@ jest.mock("../app/components/CopyAddressWarningModal", () => ({
   CopyAddressWarningModal: () => null,
 }));
 
-import { SwapForm, type SwapFormProps } from "../app/components/swap/SwapForm";
 import {
+  SwapForm,
+  type SwapFormProps,
   SWAP_COPY,
   buildSwapLeg,
   canSubmitSwap,
   formatSwapRateLabel,
   noSwapRailAvailable,
-} from "../app/components/swap/swapConfig";
+} from "../app/components/swap/SwapForm";
 import { TransferPendingModal } from "../app/components/transfer/TransferPendingModal";
 import { TRANSFER_COPY } from "../app/components/transfer/transferConfig";
 import { isWalletHomeActionVisible } from "../app/lib/portfolio/home-visibility";

@@ -1,48 +1,1008 @@
 "use client";
 
-import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import React, {
+  useMemo,
+  useId,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+
 import { usePrivy, useWallets } from "@privy-io/react-auth";
-import { ArrowDataTransferVerticalIcon, Loading03Icon } from "hugeicons-react";
-import { useWalletAddress } from "@/app/hooks/useWalletAddress";
+import {
+  ArrowDown01Icon,
+  Wallet01Icon,
+  ArrowRight02Icon,
+  Cancel01Icon,
+  InformationSquareIcon,
+  ArrowDown02Icon,
+  CheckmarkCircle01Icon,
+  SadDizzyIcon,
+  ArrowDataTransferVerticalIcon,
+  Loading03Icon,
+} from "hugeicons-react";
+
+import { saveTransaction } from "@/app/api/aggregator";
+import { AnimatedModal } from "@/app/components/AnimatedComponents";
+import {
+  BridgePicker,
+  type BridgePickerItem,
+} from "@/app/components/bridge/BridgePicker";
+import {
+  drawerCloseButtonClasses,
+  drawerDividerClasses,
+  drawerModalTitleClasses,
+  drawerDashedDividerClasses,
+  drawerSuccessIconClasses,
+  drawerModalScrimClasses,
+} from "@/app/components/drawer/drawerStyles";
+import { TransferPendingModal } from "@/app/components/transfer/TransferPendingModal";
+import { useBalance, useTokens, useInjectedWallet } from "@/app/context";
 import { useNetwork } from "@/app/context/NetworksContext";
 import { useStarknet } from "@/app/context/StarknetContext";
-import { useBalance, useTokens, useInjectedWallet } from "@/app/context";
-import { useBridgeQuote, useBridgeExecute, useBridgeStatus } from "@/app/hooks/bridge";
+import {
+  useBridgeQuote,
+  useBridgeExecute,
+  useBridgeStatus,
+} from "@/app/hooks/bridge";
+import type { BridgeSubmitInfo } from "@/app/hooks/useBridgeStatusTracker";
+import { useDelegationContractAuth } from "@/app/hooks/useEIP7702Account";
+import { useWalletAddress } from "@/app/hooks/useWalletAddress";
 import {
   engineFromQuote,
   toRawAmount,
   bridgeFeeInReceivingToken,
   bridgeInstitutionLabel,
+  type BridgeLeg,
+  type BridgeQuote,
+  type BridgeEngine,
 } from "@/app/lib/bridge";
-import type { BridgeLeg, BridgeEngine } from "@/app/lib/bridge";
-import type { BridgeSubmitInfo } from "@/app/hooks/useBridgeStatusTracker";
-import { useDelegationContractAuth } from "@/app/hooks/useEIP7702Account";
-import {
-  classNames,
-  formatDecimalPrecision,
-  formatTokenAmount,
-  getExplorerLink,
-} from "@/app/utils";
-import { saveTransaction } from "@/app/api/aggregator";
-import { networks } from "@/app/mocks";
 import { mapReportAndAct } from "@/app/lib/toastMappedError";
 import { tokensEqual } from "@/app/lib/token-symbol";
-import { AnimatedModal } from "@/app/components/AnimatedComponents";
-import { TransferPendingModal } from "@/app/components/transfer/TransferPendingModal";
-import { drawerModalScrimClasses } from "@/app/components/drawer/drawerStyles";
-import type { BridgePickerItem } from "@/app/components/bridge/BridgePicker";
-import { SwapAmountCard } from "./SwapAmountCard";
-import { SwapNetworkCard } from "./SwapNetworkCard";
-import { SwapQuoteCard } from "./SwapQuoteCard";
-import { SwapReviewContent } from "./SwapReviewContent";
-import { SwapResultContent, type SwapResultRow } from "./SwapResultContent";
+import { networks } from "@/app/mocks";
+import type { Token } from "@/app/types";
 import {
-  SWAP_COPY,
-  buildSwapLeg,
-  canSubmitSwap,
-  noSwapRailAvailable,
-  formatSwapRateLabel,
-} from "./swapConfig";
+  formatTokenAmount,
+  classNames,
+  formatDecimalPrecision,
+  getExplorerLink,
+} from "@/app/utils";
+
+export const SWAP_COPY = {
+  subtitle: "Swap tokens on any network",
+  from: "From",
+  to: "to",
+  sell: "Sell",
+  receive: "Receive",
+  selectToken: "Select token",
+  selectNetwork: "Select network",
+  reviewCta: "Review swap",
+  swapCta: "Swap",
+  reviewTitle: "Review swap",
+  youPay: "You pay",
+  exchangeRate: "Exchange rate",
+  receiveAtLeast: "Receive at least",
+  fee: "Fee",
+  fees: "Fees",
+  warning:
+    "Swaps cannot be reversed. Check the transaction details above before confirming.",
+  successTitle: "Swap successful",
+  completeTitle: "Swap Complete",
+  transactionStatus: "Transaction status",
+  completed: "Completed",
+  fundStatus: "Fund status",
+  swapped: "Swapped",
+  timeSpent: "Time spent",
+  transactionFee: "Transaction fee",
+  date: "Date",
+  viewInExplorer: "View in explorer",
+  viewOnExplorer: "View on explorer",
+  failedTitle: "Swap failed",
+  failedMessage: "Please try again.",
+  tryAgain: "Try again",
+  close: "Close",
+  done: "Done",
+  pendingTitle: "Swapping your tokens...",
+  pendingNote:
+    "You can leave this screen, we will proceed to completing your swap",
+  etaFallback: "Swap usually completes in 15 sec",
+  noRail: "No swap route is available for this pair at this time.",
+} as const;
+
+/** Builds a same-network BridgeLeg from a chosen token symbol, mirroring
+ * BridgeRouteSelector's buildTokenLeg — UI-level lookup only, no money logic. */
+export function buildSwapLeg(
+  networkName: string | null,
+  symbol: string | null,
+  allTokens: Record<string, Token[]>,
+): BridgeLeg | null {
+  if (!networkName || !symbol) return null;
+  const network = networks.find((n) => n.chain.name === networkName);
+  const token = (allTokens[networkName] ?? []).find((t) =>
+    tokensEqual(t.symbol, symbol),
+  );
+  if (!network || !token) return null;
+  return {
+    network: network.chain.name,
+    chainId: network.chain.id,
+    token: token.symbol,
+    tokenAddress: token.address,
+    decimals: token.decimals,
+    amount: "0",
+    rawAmount: "0",
+  };
+}
+
+/** Disables Review/Swap whenever there is no valid, current quote. No
+ * min-amount or cNGN-rate logic — that is Convert-specific and does not
+ * apply to this UI. */
+export function canSubmitSwap(params: {
+  from: BridgeLeg | null;
+  to: BridgeLeg | null;
+  parsedAmount: number;
+  quote: BridgeQuote | null;
+  quoteLoading: boolean;
+  quoteError: unknown;
+  isQuoteExpired: boolean;
+  hasInsufficientBalance: boolean;
+}): boolean {
+  const {
+    from,
+    to,
+    parsedAmount,
+    quote,
+    quoteLoading,
+    quoteError,
+    isQuoteExpired,
+    hasInsufficientBalance,
+  } = params;
+  return (
+    !!from &&
+    !!to &&
+    Number.isFinite(parsedAmount) &&
+    parsedAmount > 0 &&
+    !hasInsufficientBalance &&
+    !isQuoteExpired &&
+    !!quote &&
+    !quoteLoading &&
+    !quoteError
+  );
+}
+
+/** True only when a quote attempt actually ran and came back with no route —
+ * mirrors BridgeForm's noRailAvailable so an unauthenticated/not-ready query
+ * (which also leaves quote null) isn't shown as a dead route. */
+export function noSwapRailAvailable(params: {
+  from: BridgeLeg | null;
+  to: BridgeLeg | null;
+  parsedAmount: number;
+  quote: BridgeQuote | null;
+  quoteFetched: boolean;
+  quoteLoading: boolean;
+  quoteError: unknown;
+  hasInsufficientBalance: boolean;
+}): boolean {
+  const {
+    from,
+    to,
+    parsedAmount,
+    quote,
+    quoteFetched,
+    quoteLoading,
+    quoteError,
+    hasInsufficientBalance,
+  } = params;
+  return (
+    !hasInsufficientBalance &&
+    quoteFetched &&
+    !quoteLoading &&
+    !quoteError &&
+    quote === null &&
+    !!from &&
+    !!to &&
+    Number.isFinite(parsedAmount) &&
+    parsedAmount > 0
+  );
+}
+
+/** "1 {from} ~ {rate} {to}" live-rate label for the footer / quote card. */
+export function formatSwapRateLabel(
+  fromSymbol: string | undefined,
+  toSymbol: string | undefined,
+  amountIn: string,
+  amountOut: string,
+): string | null {
+  if (!fromSymbol || !toSymbol) return null;
+  const inNum = parseFloat(amountIn);
+  const outNum = parseFloat(amountOut);
+  if (!Number.isFinite(inNum) || inNum <= 0 || !Number.isFinite(outNum)) {
+    return null;
+  }
+  const rate = outNum / inNum;
+  return `1 ${fromSymbol} ~ ${formatTokenAmount(rate)} ${toSymbol}`;
+}
+
+/** Figma tokenSelect: accent/gray-bolder pill (#f7f7f8 / white 10% superdark),
+ * 6px padding around a 24px icon, General Sans Medium 14 symbol, 16px chevron. */
+const tokenPillClasses =
+  "flex shrink-0 items-center gap-0 rounded-full bg-accent-gray transition-all hover:bg-gray-100 active:scale-95 dark:bg-white/10 dark:hover:bg-white/15";
+
+/** Amount: Figma draws the empty "0" in General Sans Medium (placeholder
+ * colour) and the filled value per entry point — Inter Medium on Home
+ * (frame 70), General Sans Medium on the token page (frame 63). Both 24/36,
+ * tracking -0.72. */
+const amountBaseClasses =
+  "min-w-0 text-2xl font-medium leading-9 tracking-[-0.72px]";
+
+interface SwapAmountCardProps {
+  testId: string;
+  label: string;
+  tokenItems: BridgePickerItem[];
+  selectedSymbol?: string;
+  onSelectToken: (symbol: string) => void;
+  /** Editable amount (From card). Omit for a read-only quote display (to card). */
+  amount?: string;
+  onAmountChange?: (value: string) => void;
+  /** Read-only display value — used for the "to" card, driven by the live quote. */
+  displayAmount?: string;
+  balanceLabel?: string;
+  onMax?: () => void;
+  hasError?: boolean;
+  /** "home" = frames 69/70, "token" = frames 59/63. */
+  variant?: "home" | "token";
+}
+
+export function SwapAmountCard({
+  testId,
+  label,
+  tokenItems,
+  selectedSymbol,
+  onSelectToken,
+  amount,
+  onAmountChange,
+  displayAmount,
+  balanceLabel,
+  onMax,
+  hasError = false,
+  variant = "home",
+}: SwapAmountCardProps) {
+  const isReadOnly = onAmountChange == null;
+  const filledFont = variant === "home" ? "font-inter" : "font-general-sans";
+
+  return (
+    <div
+      className="flex w-full flex-col gap-3.5 rounded-2xl bg-white px-4 py-3 dark:bg-surface-canvas"
+      data-testid={testId}
+    >
+      <div className="flex items-center justify-between gap-3">
+        <p className="whitespace-nowrap font-general-sans text-sm font-normal leading-5 tracking-[-0.14px] text-text-secondary dark:text-white/50">
+          {label}
+        </p>
+        {!isReadOnly && selectedSymbol ? (
+          <div className="flex shrink-0 items-center gap-2">
+            {balanceLabel ? (
+              <span className="flex items-center gap-1.5 whitespace-nowrap font-general-sans text-sm font-normal leading-5 tracking-[-0.14px] text-black dark:text-white">
+                <Wallet01Icon
+                  className="size-4 shrink-0 text-icon-outline-secondary dark:text-white/50"
+                  strokeWidth={1.5}
+                  aria-hidden
+                />
+                {balanceLabel}
+              </span>
+            ) : null}
+            {onMax ? (
+              <button
+                type="button"
+                onClick={onMax}
+                className="whitespace-nowrap font-general-sans text-sm font-medium leading-5 tracking-[-0.14px] text-lavender-500 transition-colors hover:text-lavender-600"
+              >
+                Max
+              </button>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
+
+      <div className="flex items-center justify-between gap-2">
+        {isReadOnly ? (
+          <span
+            className={classNames(
+              amountBaseClasses,
+              "truncate",
+              displayAmount
+                ? `${filledFont} text-black dark:text-white`
+                : "font-general-sans text-text-placeholder dark:text-white/30",
+            )}
+          >
+            {displayAmount ? formatTokenAmount(displayAmount) : "0"}
+          </span>
+        ) : (
+          <input
+            type="text"
+            inputMode="decimal"
+            value={amount}
+            onChange={(e) => onAmountChange?.(e.target.value)}
+            placeholder="0"
+            aria-label={`${label} amount`}
+            className={classNames(
+              amountBaseClasses,
+              "flex-1 bg-transparent outline-none placeholder:font-general-sans placeholder:text-text-placeholder dark:placeholder:text-white/30",
+              amount ? filledFont : "font-general-sans",
+              hasError
+                ? "text-text-accent-red dark:text-accent-red"
+                : "text-black dark:text-white",
+            )}
+          />
+        )}
+
+        <BridgePicker
+          title={`Select ${label.toLowerCase()} token`}
+          items={tokenItems}
+          selectedId={selectedSymbol}
+          onSelect={onSelectToken}
+          menuWidth={240}
+          trigger={({ isOpen, toggle }) => (
+            <button
+              type="button"
+              onClick={toggle}
+              aria-expanded={isOpen}
+              aria-label={
+                selectedSymbol
+                  ? `${selectedSymbol} token`
+                  : SWAP_COPY.selectToken
+              }
+              className={classNames(
+                tokenPillClasses,
+                // Home's empty pill is 8px padded (frame 69); token page keeps 6px (frame 59).
+                !selectedSymbol && variant === "home" ? "p-2" : "p-1.5",
+              )}
+            >
+              {selectedSymbol ? (
+                <img
+                  src={`/logos/${selectedSymbol.toLowerCase()}-logo.svg`}
+                  alt=""
+                  className="size-6 shrink-0 rounded-full"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).style.display = "none";
+                  }}
+                />
+              ) : null}
+              <span
+                className={classNames(
+                  "whitespace-nowrap px-1 text-sm font-medium leading-5 text-black dark:text-white",
+                  selectedSymbol
+                    ? "font-general-sans tracking-[-0.14px]"
+                    : "font-inter",
+                )}
+              >
+                {selectedSymbol || SWAP_COPY.selectToken}
+              </span>
+              <ArrowDown01Icon
+                strokeWidth={1.5}
+                aria-hidden
+                className={classNames(
+                  "size-4 shrink-0 transition-transform",
+                  selectedSymbol || variant === "token"
+                    ? "text-icon-outline-secondary dark:text-white/50"
+                    : "text-black dark:text-white",
+                  isOpen && "rotate-180",
+                )}
+              />
+            </button>
+          )}
+        />
+      </div>
+    </div>
+  );
+}
+
+function getNetworkImgSrc(network: (typeof networks)[0]): string {
+  return typeof network.imageUrl === "string"
+    ? network.imageUrl
+    : (network.imageUrl as { light: string; dark: string }).dark;
+}
+
+interface SwapNetworkCardProps {
+  selectedNetworkName: string | null;
+  onSelect: (name: string) => void;
+}
+
+/** Figma frame 69/70: "Select network" heading over a full-width 44px input,
+ * sitting inside the same 20px-radius shell as the From/to cards. */
+export function SwapNetworkCard({
+  selectedNetworkName,
+  onSelect,
+}: SwapNetworkCardProps) {
+  const items: BridgePickerItem[] = useMemo(
+    () =>
+      networks.map((n) => ({
+        id: n.chain.name,
+        label: n.chain.name,
+        imgSrc: getNetworkImgSrc(n),
+      })),
+    [],
+  );
+  const selectedNetwork = networks.find(
+    (n) => n.chain.name === selectedNetworkName,
+  );
+  const previewNetworks = networks.slice(0, 3);
+
+  return (
+    <div
+      className="flex w-full flex-col justify-end gap-4 rounded-2xl border-[0.3px] border-border-light bg-white p-4 dark:border-white/10 dark:bg-surface-canvas"
+      data-testid="swap-network-card"
+    >
+      <p className="whitespace-nowrap font-general-sans text-base font-medium leading-6 text-black dark:text-white">
+        {SWAP_COPY.selectNetwork}
+      </p>
+      <BridgePicker
+        title="Select network"
+        items={items}
+        selectedId={selectedNetworkName ?? undefined}
+        onSelect={onSelect}
+        menuWidth={294}
+        trigger={({ isOpen, toggle }) => (
+          <button
+            type="button"
+            onClick={toggle}
+            aria-expanded={isOpen}
+            aria-label={SWAP_COPY.selectNetwork}
+            className={classNames(
+              "flex h-11 w-full items-center rounded-xl border border-border-input bg-white px-2 py-2.5 text-left shadow-[0px_0px_1px_rgba(18,18,23,0.02)] transition-colors hover:border-gray-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-lavender-500 dark:border-white/20 dark:bg-transparent dark:hover:border-white/40",
+            )}
+          >
+            {selectedNetwork ? (
+              <span className="flex shrink-0 items-center pl-1">
+                <img
+                  src={getNetworkImgSrc(selectedNetwork)}
+                  alt=""
+                  className="size-[18px] shrink-0 rounded-full"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).style.display = "none";
+                  }}
+                />
+              </span>
+            ) : (
+              <span className="flex shrink-0 items-center pl-1" aria-hidden>
+                {previewNetworks.map((n, i) => (
+                  <img
+                    key={n.chain.name}
+                    src={getNetworkImgSrc(n)}
+                    alt=""
+                    className={classNames(
+                      "size-[18px] shrink-0 rounded-full",
+                      i < previewNetworks.length - 1 && "-mr-1.5",
+                    )}
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).style.display = "none";
+                    }}
+                  />
+                ))}
+              </span>
+            )}
+            <span
+              className={classNames(
+                "min-w-0 flex-1 truncate px-2 font-inter text-sm font-normal leading-6",
+                selectedNetworkName
+                  ? "text-black opacity-80 dark:text-white"
+                  : "text-text-placeholder dark:text-white/30",
+              )}
+            >
+              {selectedNetworkName ?? SWAP_COPY.selectNetwork}
+            </span>
+            <span className="flex shrink-0 pr-1">
+              <ArrowDown01Icon
+                className={classNames(
+                  "size-[18px] shrink-0 text-icon-outline-secondary transition-transform dark:text-white/50",
+                  isOpen && "rotate-180",
+                )}
+                strokeWidth={1.5}
+                aria-hidden
+              />
+            </span>
+          </button>
+        )}
+      />
+    </div>
+  );
+}
+
+interface SwapQuoteCardProps {
+  rateLabel: string;
+  receiveLabel: string;
+  feeLabel: string;
+}
+
+const labelClasses =
+  "font-inter text-xs font-medium leading-5 tracking-[-0.12px] text-text-secondary dark:text-white/50";
+
+/** Figma frame 70 quote summary — only rendered when a live quote exists. */
+export function SwapQuoteCard({
+  rateLabel,
+  receiveLabel,
+  feeLabel,
+}: SwapQuoteCardProps) {
+  return (
+    <div
+      className="flex w-full flex-col gap-4 rounded-xl border-[0.3px] border-border-light bg-background-neutral p-5 dark:border-white/10 dark:bg-white/[0.05]"
+      data-testid="swap-quote-card"
+    >
+      <div className="flex items-center justify-between gap-3 whitespace-nowrap">
+        <span className={labelClasses}>{SWAP_COPY.exchangeRate}</span>
+        <span className="font-inter text-xs font-medium leading-6 text-black dark:text-white">
+          {rateLabel}
+        </span>
+      </div>
+      <div className="flex items-center justify-between gap-3 whitespace-nowrap">
+        <span className={labelClasses}>{SWAP_COPY.receiveAtLeast}</span>
+        <span className="font-inter text-sm font-medium leading-5 tracking-[-0.14px] text-text-body dark:text-white/80">
+          {receiveLabel}
+        </span>
+      </div>
+      <div className="flex items-center justify-between gap-3 whitespace-nowrap">
+        <span className={labelClasses}>{SWAP_COPY.fee}</span>
+        <span className="font-inter text-sm font-medium leading-5 tracking-[-0.14px] text-text-body dark:text-white/80">
+          {feeLabel}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+interface TokenPillProps {
+  symbol: string;
+  amount: string;
+}
+
+/** Frame 96/98 pills: 24px token icon + amount only (no symbol), Inter Medium 14/20. */
+export function SwapTokenAmountPill({ symbol, amount }: TokenPillProps) {
+  return (
+    <div className="flex shrink-0 items-center rounded-full bg-accent-gray p-1.5 dark:bg-white/10">
+      <img
+        src={`/logos/${symbol.toLowerCase()}-logo.svg`}
+        alt=""
+        className="size-6 shrink-0 rounded-full"
+        onError={(e) => {
+          (e.target as HTMLImageElement).style.display = "none";
+        }}
+      />
+      <span className="whitespace-nowrap px-1 font-inter text-sm font-medium leading-5 text-black dark:text-white">
+        {formatTokenAmount(amount)}
+      </span>
+    </div>
+  );
+}
+
+/** From → To pill pair with the 16px right arrow, 10px gaps (frame 96/98). */
+export function SwapPillPair({
+  fromSymbol,
+  fromAmount,
+  toSymbol,
+  toAmount,
+}: {
+  fromSymbol: string;
+  fromAmount: string;
+  toSymbol: string;
+  toAmount: string;
+}) {
+  return (
+    <div className="flex items-center justify-center gap-2.5">
+      <SwapTokenAmountPill symbol={fromSymbol} amount={fromAmount} />
+      <ArrowRight02Icon
+        className="size-4 shrink-0 text-icon-outline-secondary dark:text-white/50"
+        strokeWidth={1.5}
+        aria-hidden
+      />
+      <SwapTokenAmountPill symbol={toSymbol} amount={toAmount} />
+    </div>
+  );
+}
+
+const rowLabelClasses =
+  "whitespace-nowrap font-inter text-sm font-normal leading-5 tracking-[-0.14px] text-text-secondary dark:text-white/50";
+const rowValueClasses =
+  "whitespace-nowrap text-right font-inter text-sm font-medium leading-5 tracking-[-0.14px] text-text-body dark:text-white/80";
+
+export interface SwapReviewContentProps {
+  titleId?: string;
+  onClose: () => void;
+  onConfirm: () => void;
+  fromSymbol: string;
+  fromAmount: string;
+  toSymbol: string;
+  toAmount: string;
+  feeLabel: string;
+  isSubmitting?: boolean;
+}
+
+/** Frame 96 (selectCurrency 385×404): 20px padding, 28px between every
+ * section — title row, pills, You pay / Fees, divider, warning, Swap CTA. */
+export function SwapReviewContent({
+  titleId,
+  onClose,
+  onConfirm,
+  fromSymbol,
+  fromAmount,
+  toSymbol,
+  toAmount,
+  feeLabel,
+  isSubmitting = false,
+}: SwapReviewContentProps) {
+  const fallbackId = useId();
+  const resolvedTitleId = titleId ?? fallbackId;
+
+  return (
+    <div
+      className="flex w-full flex-col gap-7"
+      data-testid="swap-review-content"
+    >
+      <div className="flex items-start justify-between">
+        <h2
+          id={resolvedTitleId}
+          className={classNames("font-general-sans", drawerModalTitleClasses)}
+        >
+          {SWAP_COPY.reviewTitle}
+        </h2>
+        <button
+          type="button"
+          aria-label="Close"
+          className={drawerCloseButtonClasses}
+          onClick={onClose}
+        >
+          <Cancel01Icon className="size-5" strokeWidth={2} aria-hidden />
+        </button>
+      </div>
+
+      <SwapPillPair
+        fromSymbol={fromSymbol}
+        fromAmount={fromAmount}
+        toSymbol={toSymbol}
+        toAmount={toAmount}
+      />
+
+      <div className="flex w-full flex-col gap-4">
+        <div className="flex w-full items-center justify-between gap-3">
+          <span className={rowLabelClasses}>{SWAP_COPY.youPay}</span>
+          <span className="flex min-w-0 items-center justify-end gap-1">
+            {fromSymbol ? (
+              <img
+                src={`/logos/${fromSymbol.toLowerCase()}-logo.svg`}
+                alt=""
+                className="size-3.5 shrink-0 rounded-full"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).style.display = "none";
+                }}
+              />
+            ) : null}
+            <span className={rowValueClasses}>
+              {formatTokenAmount(fromAmount)} {fromSymbol}
+            </span>
+          </span>
+        </div>
+        <div className="flex w-full items-center justify-between gap-3">
+          <span className={rowLabelClasses}>{SWAP_COPY.fees}</span>
+          <span className={rowValueClasses}>{feeLabel}</span>
+        </div>
+      </div>
+
+      <hr className={classNames("w-full border-t", drawerDividerClasses)} />
+
+      <div className="flex w-full gap-2.5 overflow-hidden rounded-xl border-[0.3px] border-border-light bg-background-neutral p-3 dark:border-white/10 dark:bg-white/5">
+        <span className="flex shrink-0 items-start py-0.5">
+          <InformationSquareIcon
+            className="size-4 shrink-0 text-icon-outline-secondary dark:text-white/50"
+            strokeWidth={1.5}
+            aria-hidden
+          />
+        </span>
+        <p className="min-w-0 flex-1 font-inter text-sm font-normal leading-5 text-text-secondary dark:text-white/50">
+          {SWAP_COPY.warning}
+        </p>
+      </div>
+
+      <button
+        type="button"
+        data-testid="swap-review-confirm"
+        onClick={onConfirm}
+        disabled={isSubmitting}
+        className="flex h-10 w-full items-center justify-center rounded-xl bg-lavender-500 px-3 py-2.5 font-general-sans text-sm font-medium leading-5 tracking-[-0.14px] text-white transition-colors hover:bg-lavender-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-lavender-500 disabled:cursor-not-allowed disabled:bg-border-input dark:disabled:bg-[#2e2e2e] dark:disabled:text-white/50"
+      >
+        {isSubmitting ? "Swapping…" : SWAP_COPY.swapCta}
+      </button>
+    </div>
+  );
+}
+
+export interface SwapResultRow {
+  label: string;
+  value: React.ReactNode;
+  valueClassName?: string;
+}
+
+export interface SwapResultContentProps {
+  titleId?: string;
+  status: "success" | "failed";
+  title: string;
+  fromSymbol: string;
+  fromAmount: string;
+  toSymbol: string;
+  toAmount: string;
+  rows: SwapResultRow[];
+  failureMessage?: string | null;
+  explorerLink?: string;
+  onPrimary: () => void;
+  primaryLabel: string;
+  /** Home (frame 98): centered modal, View in explorer text link + gray Close.
+   * Token page (frame 65): in-drawer receipt card with stacked amounts and
+   * View on explorer / Done footer buttons. */
+  presentation?: "overlay" | "inline";
+}
+
+/** Figma checkmark-circle-01, 40px, #227738 / #39C65D, 2px rendered stroke. */
+function SuccessIcon() {
+  return (
+    <CheckmarkCircle01Icon
+      className={classNames("size-10 shrink-0", drawerSuccessIconClasses)}
+      strokeWidth={1.2}
+      aria-hidden
+    />
+  );
+}
+
+function FailedIcon() {
+  return (
+    <div className="flex size-16 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30">
+      <SadDizzyIcon className="size-8 text-red-500 dark:text-red-400" />
+    </div>
+  );
+}
+
+const grayButtonClasses =
+  "flex w-full items-center justify-center rounded-xl bg-accent-gray px-3 font-general-sans text-sm font-medium leading-5 tracking-[-0.14px] text-black transition-colors hover:bg-gray-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-lavender-500 dark:bg-white/10 dark:text-white dark:hover:bg-white/15";
+
+const lavenderButtonClasses =
+  "flex w-full items-center justify-center rounded-xl bg-lavender-500 px-3 font-general-sans text-sm font-medium leading-5 tracking-[-0.14px] text-white transition-colors hover:bg-lavender-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-lavender-500";
+
+/** Frame 98 — Home "Swap successful" modal body (the modal shell supplies
+ * 34px top / 20px side+bottom padding and the 32px radius). */
+function OverlayResult({
+  resolvedTitleId,
+  status,
+  title,
+  fromSymbol,
+  fromAmount,
+  toSymbol,
+  toAmount,
+  rows,
+  failureMessage,
+  explorerLink,
+  onPrimary,
+  primaryLabel,
+}: SwapResultContentProps & { resolvedTitleId: string }) {
+  const isSuccess = status === "success";
+  return (
+    <div
+      className="flex w-full flex-col items-center gap-5 text-center"
+      data-testid={isSuccess ? "swap-success-content" : "swap-failed-content"}
+    >
+      {isSuccess ? <SuccessIcon /> : <FailedIcon />}
+
+      <div className="flex w-full flex-col items-center gap-4">
+        <p
+          id={resolvedTitleId}
+          className="w-full font-general-sans text-xl font-medium leading-7 text-text-body dark:text-white/80"
+        >
+          {title}
+        </p>
+        {isSuccess ? (
+          <SwapPillPair
+            fromSymbol={fromSymbol}
+            fromAmount={fromAmount}
+            toSymbol={toSymbol}
+            toAmount={toAmount}
+          />
+        ) : (
+          <p className="max-w-sm font-general-sans text-sm leading-5 text-text-secondary dark:text-white/50">
+            {failureMessage ?? SWAP_COPY.failedMessage}
+          </p>
+        )}
+      </div>
+
+      {isSuccess ? (
+        <>
+          <div className="flex w-full flex-col items-center gap-4">
+            <hr
+              className={classNames(
+                "w-full border-t",
+                drawerDashedDividerClasses,
+              )}
+            />
+            <dl className="flex w-[275px] max-w-full gap-[19px] overflow-hidden font-general-sans text-sm font-normal leading-5 tracking-[-0.14px]">
+              <div className="flex min-w-0 flex-1 flex-col items-start gap-4 whitespace-nowrap text-text-secondary dark:text-white/50">
+                {rows.map((row) => (
+                  <dt key={row.label}>{row.label}</dt>
+                ))}
+              </div>
+              <div className="flex min-w-0 flex-1 flex-col items-end gap-4 text-right">
+                {rows.map((row) => (
+                  <dd
+                    key={row.label}
+                    className={classNames(
+                      "whitespace-nowrap",
+                      row.valueClassName ??
+                        "text-text-secondary dark:text-white/50",
+                    )}
+                  >
+                    {row.value}
+                  </dd>
+                ))}
+              </div>
+            </dl>
+            <hr
+              className={classNames(
+                "w-full border-t",
+                drawerDashedDividerClasses,
+              )}
+            />
+          </div>
+          {explorerLink ? (
+            <a
+              href={explorerLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full font-general-sans text-sm font-normal leading-5 tracking-[-0.14px] text-lavender-500 hover:underline"
+            >
+              {SWAP_COPY.viewInExplorer}
+              <span className="sr-only">(opens in new tab)</span>
+            </a>
+          ) : null}
+        </>
+      ) : null}
+
+      <button
+        type="button"
+        onClick={onPrimary}
+        className={classNames(
+          isSuccess ? grayButtonClasses : lavenderButtonClasses,
+          "h-[42px] py-1.5",
+        )}
+      >
+        {primaryLabel}
+      </button>
+    </div>
+  );
+}
+
+/** Frame 65 — token-page "Swap Complete" receipt inside the drawer body. */
+function InlineResult({
+  resolvedTitleId,
+  status,
+  title,
+  fromSymbol,
+  fromAmount,
+  toSymbol,
+  toAmount,
+  rows,
+  failureMessage,
+  explorerLink,
+  onPrimary,
+  primaryLabel,
+}: SwapResultContentProps & { resolvedTitleId: string }) {
+  const isSuccess = status === "success";
+  return (
+    <div
+      className="flex w-full flex-col gap-[42px] rounded-[24px] border border-border-light bg-white px-6 py-11 dark:border-white/[0.04] dark:bg-surface-overlay"
+      data-testid={isSuccess ? "swap-success-content" : "swap-failed-content"}
+    >
+      <div className="flex w-full flex-col items-center gap-[31px]">
+        <div className="flex flex-col items-center gap-[3px]">
+          {isSuccess ? <SuccessIcon /> : <FailedIcon />}
+          <p
+            id={resolvedTitleId}
+            className="whitespace-nowrap text-center font-inter text-[19px] font-medium leading-9 tracking-[-0.19px] text-black dark:text-white"
+          >
+            {title}
+          </p>
+        </div>
+
+        {isSuccess ? (
+          <>
+            <div className="flex w-full flex-col items-start gap-2 overflow-hidden rounded-[20px] bg-background-neutral p-[18px] dark:bg-white/5">
+              {[
+                { symbol: fromSymbol, amount: fromAmount },
+                { symbol: toSymbol, amount: toAmount },
+              ].map((leg, i) => (
+                <React.Fragment key={`${leg.symbol}-${i}`}>
+                  {i === 1 ? (
+                    <ArrowDown02Icon
+                      className="size-5 shrink-0 text-icon-outline-secondary dark:text-white/50"
+                      strokeWidth={1.5}
+                      aria-hidden
+                    />
+                  ) : null}
+                  <div className="flex w-full min-w-0 items-center gap-2.5">
+                    <img
+                      src={`/logos/${leg.symbol.toLowerCase()}-logo.svg`}
+                      alt=""
+                      className="size-6 shrink-0 rounded-full"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).style.display = "none";
+                      }}
+                    />
+                    <span className="truncate font-general-sans text-2xl font-medium leading-9 tracking-[-0.72px] text-black dark:text-white">
+                      {formatTokenAmount(leg.amount)} {leg.symbol}
+                    </span>
+                  </div>
+                </React.Fragment>
+              ))}
+            </div>
+
+            {rows.length > 0 ? (
+              <div className="flex w-full flex-col rounded-2xl border border-border-light py-4 dark:border-white/10">
+                <dl className="flex w-full flex-col gap-4 px-4">
+                  {rows.map((row) => (
+                    <div
+                      key={row.label}
+                      className="flex items-center justify-between gap-3"
+                    >
+                      <dt className="whitespace-nowrap font-inter text-xs font-normal text-icon-outline-secondary dark:text-white/50">
+                        {row.label}
+                      </dt>
+                      <dd
+                        className={classNames(
+                          "whitespace-nowrap text-right font-inter text-sm font-medium",
+                          row.valueClassName ?? "text-black dark:text-white",
+                        )}
+                      >
+                        {row.value}
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
+              </div>
+            ) : null}
+          </>
+        ) : (
+          <p className="max-w-sm text-center font-general-sans text-sm leading-5 text-text-secondary dark:text-white/50">
+            {failureMessage ?? SWAP_COPY.failedMessage}
+          </p>
+        )}
+      </div>
+
+      <div className="flex w-full gap-[15px]">
+        {explorerLink ? (
+          <a
+            href={explorerLink}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={classNames(grayButtonClasses, "h-10 flex-1 py-2.5")}
+          >
+            {SWAP_COPY.viewOnExplorer}
+            <span className="sr-only">(opens in new tab)</span>
+          </a>
+        ) : null}
+        <button
+          type="button"
+          onClick={onPrimary}
+          className={classNames(lavenderButtonClasses, "h-10 flex-1 py-2.5")}
+        >
+          {primaryLabel}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+export function SwapResultContent(props: SwapResultContentProps) {
+  const fallbackId = useId();
+  const resolvedTitleId = props.titleId ?? fallbackId;
+  return (props.presentation ?? "overlay") === "overlay" ? (
+    <OverlayResult {...props} resolvedTitleId={resolvedTitleId} />
+  ) : (
+    <InlineResult {...props} resolvedTitleId={resolvedTitleId} />
+  );
+}
 
 export interface SwapFormProps {
   onClose: () => void;
@@ -206,7 +1166,9 @@ export const SwapForm: React.FC<SwapFormProps> = ({
   useEffect(() => {
     if (!preferredTokenSymbol || fromSymbol || !networkName) return;
     const tokenList = allTokens[networkName] ?? [];
-    const match = tokenList.find((t) => tokensEqual(t.symbol, preferredTokenSymbol));
+    const match = tokenList.find((t) =>
+      tokensEqual(t.symbol, preferredTokenSymbol),
+    );
     if (!match) return;
     setFromSymbol(match.symbol);
   }, [preferredTokenSymbol, fromSymbol, networkName, allTokens]);
@@ -243,7 +1205,9 @@ export const SwapForm: React.FC<SwapFormProps> = ({
 
   const fromBalanceEntry = useMemo(() => {
     if (!from) return null;
-    return crossChainBalances.find((b) => b.network.chain.name === from.network);
+    return crossChainBalances.find(
+      (b) => b.network.chain.name === from.network,
+    );
   }, [from, crossChainBalances]);
 
   const isFromBalanceKnown = useMemo(() => {
@@ -275,13 +1239,18 @@ export const SwapForm: React.FC<SwapFormProps> = ({
   const embeddedWallet = wallets.find((w) => w.walletClientType === "privy");
   const evmAddress = isInjectedWallet
     ? injectedReady
-      ? injectedAddress ?? ""
+      ? (injectedAddress ?? "")
       : ""
-    : embeddedWallet?.address ?? "";
+    : (embeddedWallet?.address ?? "");
   const starknetAddress = starknet.address ?? "";
 
   const walletAdapter = useMemo(() => {
-    if (isInjectedWallet && injectedReady && injectedAddress && injectedProvider) {
+    if (
+      isInjectedWallet &&
+      injectedReady &&
+      injectedAddress &&
+      injectedProvider
+    ) {
       return {
         switchChain: async (chainId: number) => {
           const chainIdHex = `0x${chainId.toString(16)}`;
@@ -297,12 +1266,19 @@ export const SwapForm: React.FC<SwapFormProps> = ({
     if (embeddedWallet) {
       return {
         switchChain: embeddedWallet.switchChain.bind(embeddedWallet),
-        getEthereumProvider: embeddedWallet.getEthereumProvider.bind(embeddedWallet),
+        getEthereumProvider:
+          embeddedWallet.getEthereumProvider.bind(embeddedWallet),
         address: embeddedWallet.address,
       };
     }
     return undefined;
-  }, [isInjectedWallet, injectedReady, injectedAddress, injectedProvider, embeddedWallet]);
+  }, [
+    isInjectedWallet,
+    injectedReady,
+    injectedAddress,
+    injectedProvider,
+    embeddedWallet,
+  ]);
 
   const {
     quote,
@@ -342,10 +1318,13 @@ export const SwapForm: React.FC<SwapFormProps> = ({
     allTokens,
     signDelegationAuthorization,
     isInjectedWallet: isInjectedWallet && injectedReady,
-    injectedProvider: isInjectedWallet && injectedReady ? injectedProvider : null,
+    injectedProvider:
+      isInjectedWallet && injectedReady ? injectedProvider : null,
     injectedAddress: isInjectedWallet && injectedReady ? injectedAddress : null,
     getInjectedToken:
-      isInjectedWallet && injectedReady ? getInjectedTokenInteractive : undefined,
+      isInjectedWallet && injectedReady
+        ? getInjectedTokenInteractive
+        : undefined,
   });
 
   const { result: bridgeStatus } = useBridgeStatus({
@@ -377,7 +1356,9 @@ export const SwapForm: React.FC<SwapFormProps> = ({
     const tick = () => {
       const startedAt = startedAtRef.current;
       setElapsedSeconds(
-        startedAt ? Math.max(0, Math.floor((Date.now() - startedAt) / 1000)) : 0,
+        startedAt
+          ? Math.max(0, Math.floor((Date.now() - startedAt) / 1000))
+          : 0,
       );
     };
     tick();
@@ -457,7 +1438,11 @@ export const SwapForm: React.FC<SwapFormProps> = ({
   const handleConfirm = async () => {
     if (!quote || !from || !to) return;
     const rawAmount = toRawAmount(amount, from.decimals);
-    if (!Number.isFinite(parsedAmount) || parsedAmount <= 0 || rawAmount === "0") {
+    if (
+      !Number.isFinite(parsedAmount) ||
+      parsedAmount <= 0 ||
+      rawAmount === "0"
+    ) {
       setFailureMessage("Enter a valid amount for the selected token.");
       setStep("failed");
       return;
@@ -554,7 +1539,10 @@ export const SwapForm: React.FC<SwapFormProps> = ({
 
   const formBody = (
     <div
-      className={classNames("flex w-full flex-col", showNetworkPicker ? "gap-3" : "gap-2")}
+      className={classNames(
+        "flex w-full flex-col",
+        showNetworkPicker ? "gap-3" : "gap-2",
+      )}
       data-testid="swap-form-body"
     >
       {/* Frame 1000003092: one 20px-radius shell holding the (token-page)
@@ -602,7 +1590,9 @@ export const SwapForm: React.FC<SwapFormProps> = ({
           type="button"
           onClick={handleFlip}
           disabled={quoteLoading}
-          aria-label={quoteLoading ? "Loading quote" : "Flip from and to tokens"}
+          aria-label={
+            quoteLoading ? "Loading quote" : "Flip from and to tokens"
+          }
           aria-busy={quoteLoading}
           className={classNames(
             "absolute left-[calc(50%-1px)] top-[130px] z-10 flex size-6 -translate-x-1/2 items-center justify-center rounded-lg border-4 border-background-neutral bg-white p-0.5 dark:border-[#202020] dark:bg-surface-canvas",
@@ -654,7 +1644,12 @@ export const SwapForm: React.FC<SwapFormProps> = ({
         />
       ) : null}
 
-      <div className={classNames("flex w-full flex-col", showNetworkPicker ? "gap-5" : "gap-2")}>
+      <div
+        className={classNames(
+          "flex w-full flex-col",
+          showNetworkPicker ? "gap-5" : "gap-2",
+        )}
+      >
         <button
           type="button"
           data-testid="swap-submit-cta"
@@ -670,12 +1665,16 @@ export const SwapForm: React.FC<SwapFormProps> = ({
 
         {/* btmSec: two 4px-padded tags joined by a 0.3px fading rule. */}
         <div className="flex w-full items-center gap-1 overflow-hidden py-2 font-general-sans text-xs font-normal leading-4 text-text-disabled dark:text-white/30">
-          <span className="shrink-0 whitespace-nowrap py-1">{rateLabel ?? ""}</span>
+          <span className="shrink-0 whitespace-nowrap py-1">
+            {rateLabel ?? ""}
+          </span>
           <span
             aria-hidden
             className="h-[0.3px] min-w-px flex-1 bg-gradient-to-r from-transparent to-border-light dark:to-white/10"
           />
-          <span className="shrink-0 whitespace-nowrap py-1 pl-1">{SWAP_COPY.etaFallback}</span>
+          <span className="shrink-0 whitespace-nowrap py-1 pl-1">
+            {SWAP_COPY.etaFallback}
+          </span>
         </div>
       </div>
     </div>
@@ -691,7 +1690,9 @@ export const SwapForm: React.FC<SwapFormProps> = ({
     <TransferPendingModal
       isOpen={isPending}
       onClose={resetToForm}
-      amountLabel={pendingFromAmount ? formatTokenAmount(pendingFromAmount) : ""}
+      amountLabel={
+        pendingFromAmount ? formatTokenAmount(pendingFromAmount) : ""
+      }
       tokenSymbol={pendingFromSymbol}
       tokenImageUrl={
         pendingFromSymbol
@@ -760,7 +1761,11 @@ export const SwapForm: React.FC<SwapFormProps> = ({
     <SwapResultContent
       titleId={resultTitleId}
       status="success"
-      title={successPresentation === "overlay" ? SWAP_COPY.successTitle : SWAP_COPY.completeTitle}
+      title={
+        successPresentation === "overlay"
+          ? SWAP_COPY.successTitle
+          : SWAP_COPY.completeTitle
+      }
       fromSymbol={resultInfo?.fromToken ?? ""}
       fromAmount={resultInfo?.amountSent ?? ""}
       toSymbol={resultInfo?.toToken ?? ""}
@@ -772,7 +1777,9 @@ export const SwapForm: React.FC<SwapFormProps> = ({
       }
       explorerLink={explorerLink || undefined}
       onPrimary={handleResultDone}
-      primaryLabel={successPresentation === "overlay" ? SWAP_COPY.close : SWAP_COPY.done}
+      primaryLabel={
+        successPresentation === "overlay" ? SWAP_COPY.close : SWAP_COPY.done
+      }
       presentation={successPresentation}
     />
   );
@@ -814,7 +1821,9 @@ export const SwapForm: React.FC<SwapFormProps> = ({
           toSymbol={to?.token ?? ""}
           toAmount={quote?.amountOut ?? ""}
           feeLabel={
-            quote ? `${bridgeFeeInReceivingToken(quote)} ${to?.token ?? ""}` : "—"
+            quote
+              ? `${bridgeFeeInReceivingToken(quote)} ${to?.token ?? ""}`
+              : "—"
           }
           isSubmitting={isFinalizing}
         />

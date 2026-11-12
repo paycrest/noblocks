@@ -14,8 +14,7 @@ import {
 import { PiCheck } from "react-icons/pi";
 import { ActionDrawer } from "@/app/components/drawer";
 import { DepositDrawer } from "@/app/components/deposit/DepositDrawer";
-import { SwapForm } from "@/app/components/swap/SwapForm";
-import { SWAP_COPY } from "@/app/components/swap/swapConfig";
+import { SwapForm, SWAP_COPY } from "@/app/components/swap/SwapForm";
 import { ReferralHubView } from "@/app/components/wallet-mobile-modal/ReferralHubView";
 import { CopyAddressWarningModal } from "@/app/components/CopyAddressWarningModal";
 import { BalanceSkeleton } from "@/app/components/BalanceSkeleton";

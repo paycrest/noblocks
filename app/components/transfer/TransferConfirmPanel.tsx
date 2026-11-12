@@ -163,7 +163,7 @@ export function TransferConfirmPanel({
   return (
     <div className={classNames("flex w-full flex-col", isPage ? "gap-6" : "gap-4")}>
       <div className="flex items-start justify-between gap-3">
-        <div className="flex min-w-0 flex-col gap-1">
+        <div className={classNames("flex min-w-0 flex-col", isPage ? "gap-4" : "gap-1")}>
           {isPage ? (
             <p
               id={titleId}
@@ -243,7 +243,7 @@ export function TransferConfirmPanel({
 
       <hr
         className={classNames(
-          "w-full",
+          "m-0 w-full",
           isPage
             ? "border-dashed border-border-light dark:border-white/10"
             : "border-border-light dark:border-white/10",

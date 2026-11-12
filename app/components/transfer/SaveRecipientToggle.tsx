@@ -98,7 +98,7 @@ export function SaveRecipientToggle({
           aria-checked={enabled}
           aria-label={label}
           onClick={handleToggle}
-          className="flex h-11 w-full items-center gap-2 rounded-xl bg-background-neutral px-3 dark:bg-white/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-lavender-500"
+          className="flex h-12 w-full items-center gap-2 rounded-xl bg-background-neutral px-3 dark:bg-white/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-lavender-500"
         >
           <span
             className={classNames(

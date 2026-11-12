@@ -9,7 +9,7 @@ export function TransferPageContent() {
   const router = useRouter();
 
   return (
-    <div className="mx-auto w-full max-w-[483px] pb-8">
+    <div className="-mt-6 mx-auto w-full max-w-[483px] pb-8">
       <TransferForm
         chrome="page"
         onClose={() => router.push("/")}

@@ -547,7 +547,7 @@ export const TransferForm: React.FC<{
           </div>
         ) : null}
         {showInlineConfirm ? (
-          <div className="mx-auto flex w-full max-w-[417px] flex-col gap-6">
+          <div className="flex w-full max-w-[417px] flex-col gap-6 pt-[81px]">
             <TransferConfirmPanel
               chrome="page"
               onClose={handleBackToForm}
@@ -567,7 +567,7 @@ export const TransferForm: React.FC<{
             />
           </div>
         ) : formHeader ? (
-          <div className="flex w-full flex-col gap-[49px]">
+          <div className="flex w-full flex-col gap-[49px] pt-[46px]">
             {formHeader}
             <TransferFormFields
             registerAmount={amountField}

@@ -92,23 +92,22 @@ export function useProfileViewModel() {
   const isKycStatusLoading = !hasLoadedStatus;
   const isTransactionSummaryLoading = !hasLoadedTransactionSummary;
 
+  // A new wallet gets its own full retry budget and its own initial-refresh gate — wallet A
+  // exhausting its retries (or still having its initial refresh in flight) must not leave
+  // wallet B with none, nor block B's retry effect from ever scheduling. The cancelled flag
+  // means a completion from an earlier wallet can't settle the gate for the current one.
   useEffect(() => {
     let isMounted = true;
+    retryCountRef.current = 0;
+    setRetriesExhausted(false);
+    setInitialRefreshSettled(false);
     void refreshStatus(true).finally(() => {
       if (isMounted) setInitialRefreshSettled(true);
     });
     return () => {
       isMounted = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // A new wallet gets its own full retry budget — wallet A exhausting its
-  // retries must not leave wallet B with none.
-  useEffect(() => {
-    retryCountRef.current = 0;
-    setRetriesExhausted(false);
-  }, [walletAddress]);
+  }, [walletAddress, refreshStatus]);
 
   // Quiet automatic retry: if status or the transaction summary failed to
   // load, retry a bounded number of times with backoff so a transient

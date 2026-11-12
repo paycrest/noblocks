@@ -437,6 +437,51 @@ describe("ProfilePageContent", () => {
       expect(mockRefreshStatus).toHaveBeenCalledTimes(7);
     });
 
+    it("restarts the initial-refresh gate for a new wallet whose predecessor never settled", async () => {
+      mockKycState = makeKycState({
+        walletAddress: "0x1111111111111111111111111111111111111111",
+        tier: 0,
+        hasLoadedStatus: false,
+        hasLoadedTransactionSummary: false,
+      });
+      // Wallet A's initial refresh never resolves.
+      mockRefreshStatus.mockImplementationOnce(() => new Promise(() => {}));
+      const { rerender } = render(<ProfilePageContent />);
+      await waitFor(() => expect(mockRefreshStatus).toHaveBeenCalledTimes(1));
+
+      // Switch to wallet B, whose initial refresh settles (fails) promptly.
+      mockKycState = makeKycState({
+        walletAddress: "0x2222222222222222222222222222222222222222",
+        tier: 0,
+        hasLoadedStatus: false,
+        hasLoadedTransactionSummary: false,
+      });
+      rerender(<ProfilePageContent />);
+      await waitFor(() => expect(mockRefreshStatus).toHaveBeenCalledTimes(2));
+
+      // B's retry effect must schedule its own retries even though A's initial
+      // refresh is still (permanently) in flight.
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(0);
+      });
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(2000);
+      });
+      expect(mockRefreshStatus).toHaveBeenCalledTimes(3);
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(4000);
+      });
+      expect(mockRefreshStatus).toHaveBeenCalledTimes(4);
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(8000);
+      });
+      expect(mockRefreshStatus).toHaveBeenCalledTimes(5);
+
+      const signOut = await screen.findByText("Sign out");
+      expect(signOut).toBeEnabled();
+      expect(screen.getByTitle("Copy wallet address")).toBeInTheDocument();
+    });
+
     it("shows Account actions once retries are exhausted without fabricating tier data (ProfilePageContent)", async () => {
       mockKycState = makeKycState({
         tier: 0,

@@ -30,6 +30,8 @@ type Props = {
   ctaLabel: string;
   isSubmitting?: boolean;
   saveRecipientControl?: ReactNode;
+  /** Bridge quote's arrival-time row — shown only when a bridge quote is in play. */
+  arrivalTimeLabel?: string | null;
 };
 
 const rowLabelClasses =
@@ -86,6 +88,7 @@ export function TransferConfirmModal({
   ctaLabel,
   isSubmitting,
   saveRecipientControl,
+  arrivalTimeLabel,
 }: Props) {
   const titleId = useId();
 
@@ -152,6 +155,12 @@ export function TransferConfirmModal({
             }
           />
           <SummaryRow label={TRANSFER_COPY.fees} value={feeLabel} />
+          {arrivalTimeLabel ? (
+            <SummaryRow
+              label={TRANSFER_COPY.arrivalTime}
+              value={arrivalTimeLabel}
+            />
+          ) : null}
           <SummaryRow
             label={TRANSFER_COPY.recipientRow}
             value={shortAddress}

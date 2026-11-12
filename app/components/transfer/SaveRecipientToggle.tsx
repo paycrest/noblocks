@@ -14,6 +14,8 @@ type Props = {
   walletAddress: string;
   networkName: string;
   networkImageUrl?: string;
+  /** Called after a successful save, so the caller can e.g. hide the receipt's own offer. */
+  onSaved?: () => void;
 };
 
 /**
@@ -25,6 +27,7 @@ export function SaveRecipientToggle({
   walletAddress,
   networkName,
   networkImageUrl,
+  onSaved,
 }: Props) {
   const { getAccessToken } = usePrivy();
   const [enabled, setEnabled] = useState(false);
@@ -63,6 +66,7 @@ export function SaveRecipientToggle({
       setIsModalOpen(false);
       setEnabled(true);
       toast.success("Recipient saved");
+      onSaved?.();
     } catch (error) {
       setIsModalOpen(false);
       setEnabled(false);

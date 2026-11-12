@@ -3,10 +3,13 @@
 import { useEffect, useState } from "react";
 
 import { fetchRate } from "@/app/api/aggregator";
+import { bridgeFeeInReceivingToken, type BridgeQuote } from "@/app/lib/bridge";
 import { toAggregatorToken } from "@/app/lib/token-symbol";
+import type { RecipientDetailsWithId } from "@/app/types";
 import {
   formatDecimalPrecision,
   formatRateForDisplay,
+  formatTokenAmount,
   normalizeNetworkForRateFetch,
   shortenAddress,
 } from "@/app/utils";
@@ -27,6 +30,7 @@ export const TRANSFER_COPY = {
   confirmTitle: (shortAddress: string) => `Confirm transfer to ${shortAddress}`,
   network: "Network",
   fees: "Fees",
+  arrivalTime: "Arrival time",
   recipientRow: "Recipient",
   warning:
     "Transfers cannot be reversed. Check the transaction details above before confirming.",
@@ -238,3 +242,54 @@ export const TRANSFER_STACK_ICONS = [
   { src: "/deposit/network-stack-solana.svg", key: "solana" },
   { src: "/deposit/network-stack-ethereum.svg", key: "ethereum" },
 ] as const;
+
+/**
+ * Confirm-row arrival-time label for a fetched bridge quote. Only NEAR and
+ * LI.FI quotes can occur for a genuinely cross-network pair (HyperFX/Textile
+ * are same-chain-only — see `isHyperfxRoute`/`isTextileRoute` in
+ * `app/lib/bridge.ts`), but every quote kind is handled for completeness.
+ */
+export function formatArrivalTime(quote: BridgeQuote | null | undefined): string | null {
+  if (!quote) return null;
+  if (quote.kind === "near-deposit") {
+    return quote.timeEstimate || null;
+  }
+  if (quote.kind === "lifi-tx") {
+    const seconds = parseInt(String(quote.estimate.executionDuration), 10);
+    if (!Number.isFinite(seconds) || seconds <= 0) return null;
+    return `~${Math.ceil(seconds / 60)} min`;
+  }
+  return null;
+}
+
+/** Confirm-row fee label for a fetched bridge quote, in the receiving token. */
+export function formatBridgeFeeLabel(
+  quote: BridgeQuote | null | undefined,
+  receivingTokenSymbol: string,
+): string | null {
+  if (!quote) return null;
+  const fee = bridgeFeeInReceivingToken(quote);
+  if (!Number.isFinite(fee)) return null;
+  return `${formatTokenAmount(fee)} ${receivingTokenSymbol}`.trim();
+}
+
+/**
+ * True when `address` already matches a saved wallet-type recipient.
+ * `RecipientDetails` has no network field for `type: "wallet"` (see
+ * app/types.ts), so this is address-only, matching how `saveRecipient` itself
+ * stores it. A missing/failed `savedRecipients` list resolves to "not saved"
+ * so the UI keeps offering Save rather than hiding it on an unknown state.
+ */
+export function isAddressAlreadySaved(
+  savedRecipients: RecipientDetailsWithId[] | null | undefined,
+  address: string | null | undefined,
+): boolean {
+  if (!savedRecipients || !address) return false;
+  const normalized = address.trim().toLowerCase();
+  if (!normalized) return false;
+  return savedRecipients.some(
+    (recipient) =>
+      recipient.type === "wallet" &&
+      recipient.walletAddress.trim().toLowerCase() === normalized,
+  );
+}

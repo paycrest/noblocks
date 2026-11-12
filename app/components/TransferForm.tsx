@@ -14,9 +14,10 @@ import {
 } from "../utils";
 import { validateWalletAddress } from "../lib/validation";
 import { useSmartWalletTransfer } from "../hooks/useSmartWalletTransfer";
+import { fetchSavedRecipients } from "../api/aggregator";
 import { toast } from "sonner";
 import { ArrowLeft02Icon } from "hugeicons-react";
-import { Token, type MobileSheetView } from "../types";
+import { Token, type MobileSheetView, type RecipientDetailsWithId } from "../types";
 import { networks } from "../mocks";
 import { getNetworkImageUrl } from "../utils";
 import { useActualTheme } from "../hooks/useActualTheme";
@@ -32,6 +33,7 @@ import {
   formatTransferCtaLabel,
   formatTransferFeeUsd,
   formatTransferShortAddress,
+  isAddressAlreadySaved,
   isEvmRecipientNetwork,
   isUsdStablecoin,
   TRANSFER_FEE_USD,
@@ -109,6 +111,14 @@ export const TransferForm: React.FC<{
   const transferStartedAtRef = useRef<number | null>(null);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [frozenElapsedSeconds, setFrozenElapsedSeconds] = useState(0);
+  // Saved recipients, fetched once per confirm-step open, to hide the "Save
+  // recipient" controls for an address already saved (KAN-973 AC6). A failed
+  // fetch leaves this null, which `isAddressAlreadySaved` treats as "not
+  // saved" — keep showing the controls rather than inventing an error state.
+  const [savedRecipients, setSavedRecipients] = useState<
+    RecipientDetailsWithId[] | null
+  >(null);
+  const [savedThisFlow, setSavedThisFlow] = useState(false);
   const rateLabel = useTransferRate(
     token,
     recipientNetwork || selectedNetwork.chain.name,
@@ -177,6 +187,36 @@ export const TransferForm: React.FC<{
       toast.error(error);
     }
   }, [error]);
+
+  // Refetch saved recipients each time the confirm step opens, so the
+  // already-saved check (AC6) reflects any beneficiary saved elsewhere since
+  // the form was last opened. No polling — one fetch per confirm open.
+  // `getAccessToken` is read via a ref, not a dependency: Privy returns a new
+  // closure identity on every render, so depending on it directly re-runs the
+  // effect (and its setState) every render — an infinite fetch loop.
+  const getAccessTokenRef = useRef(getAccessToken);
+  useEffect(() => {
+    getAccessTokenRef.current = getAccessToken;
+  }, [getAccessToken]);
+
+  useEffect(() => {
+    if (transferStep !== "confirm") return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const accessToken = await getAccessTokenRef.current();
+        if (!accessToken) return;
+        const list = await fetchSavedRecipients(accessToken);
+        if (!cancelled) setSavedRecipients(list);
+      } catch {
+        // Fetch failure: leave savedRecipients as-is, so the Save controls
+        // keep showing rather than surfacing a new error state.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [transferStep]);
 
   useEffect(() => {
     if (isTransferSuccess && onSuccess) {
@@ -383,6 +423,8 @@ export const TransferForm: React.FC<{
     setElapsedSeconds(0);
     setFrozenElapsedSeconds(0);
     setSubmittedValues(null);
+    setSavedThisFlow(false);
+    setSavedRecipients(null);
   };
 
   const handleNewPayment = () => {
@@ -437,6 +479,19 @@ export const TransferForm: React.FC<{
     const completedShortAddress = formatTransferShortAddress(
       submittedValues?.recipientAddress,
     );
+    const isRecipientAlreadySaved = isAddressAlreadySaved(
+      savedRecipients,
+      recipientAddress,
+    );
+    const isCompletedRecipientAlreadySaved = isAddressAlreadySaved(
+      savedRecipients,
+      submittedValues?.recipientAddress,
+    );
+    const offerSaveBeneficiaryOnReceipt =
+      isEvmRecipientNetwork(submittedValues?.recipientNetwork) &&
+      Boolean(submittedValues?.recipientAddress) &&
+      !isCompletedRecipientAlreadySaved &&
+      !savedThisFlow;
 
     return (
       <>
@@ -528,11 +583,14 @@ export const TransferForm: React.FC<{
           ctaLabel={formatTransferCtaLabel(confirmTokenSymbol, amount)}
           isSubmitting={isConfirming}
           saveRecipientControl={
-            isEvmRecipientNetwork(recipientNetwork) && recipientAddress ? (
+            isEvmRecipientNetwork(recipientNetwork) &&
+            recipientAddress &&
+            !isRecipientAlreadySaved ? (
               <SaveRecipientToggle
                 walletAddress={recipientAddress}
                 networkName={recipientNetwork ?? ""}
                 networkImageUrl={recipientNetworkImageUrl}
+                onSaved={() => setSavedThisFlow(true)}
               />
             ) : undefined
           }
@@ -566,6 +624,10 @@ export const TransferForm: React.FC<{
           explorerLink={getTxExplorerLink()}
           onBackHome={handleBackHome}
           onNewPayment={handleNewPayment}
+          offerSaveBeneficiary={offerSaveBeneficiaryOnReceipt}
+          recipientAddress={submittedValues?.recipientAddress}
+          recipientNetworkName={submittedValues?.recipientNetwork}
+          recipientNetworkImageUrl={submittedValues?.recipientNetworkImageUrl}
         />
       </>
     );

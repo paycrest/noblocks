@@ -122,6 +122,7 @@ jest.mock("@/lib/validation", () => ({
 jest.mock("../app/api/aggregator", () => ({
   fetchRate: jest.fn(() => Promise.reject(new Error("no rate"))),
   saveRecipient: jest.fn(async () => true),
+  fetchSavedRecipients: jest.fn(async () => []),
 }));
 
 jest.mock("../app/utils", () => {

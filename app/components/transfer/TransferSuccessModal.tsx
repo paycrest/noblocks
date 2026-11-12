@@ -1,9 +1,12 @@
 "use client";
 
-import { Fragment, useId, type ReactNode } from "react";
+import { Fragment, useEffect, useId, useState, type ReactNode } from "react";
 import Image from "next/image";
+import { usePrivy } from "@privy-io/react-auth";
 import { LinkSquare02Icon } from "hugeicons-react";
+import { toast } from "sonner";
 
+import { saveRecipient } from "@/app/api/aggregator";
 import { AnimatedModal } from "@/app/components/AnimatedComponents";
 import {
   FarcasterIconDarkTheme,
@@ -23,6 +26,7 @@ import { SuccessCheckmark } from "@/app/components/drawer/SuccessCheckmark";
 import { useActualTheme } from "@/app/hooks/useActualTheme";
 import { classNames } from "@/app/utils";
 
+import { CreateBeneficiaryModal } from "./CreateBeneficiaryModal";
 import { TRANSFER_COPY } from "./transferConfig";
 
 type Props = {
@@ -35,6 +39,16 @@ type Props = {
   explorerLink?: string;
   onBackHome: () => void;
   onNewPayment: () => void;
+  /**
+   * Offers "Save beneficiary" on the receipt — not in Figma (frame 2691:76684
+   * has no such row), added per KAN-973 AC6. Only passed true when the
+   * recipient is an EVM address not already saved, and not saved earlier in
+   * this same flow via the confirm-step toggle.
+   */
+  offerSaveBeneficiary?: boolean;
+  recipientAddress?: string;
+  recipientNetworkName?: string;
+  recipientNetworkImageUrl?: string;
 };
 
 type Row = {
@@ -54,9 +68,52 @@ export function TransferSuccessModal({
   explorerLink,
   onBackHome,
   onNewPayment,
+  offerSaveBeneficiary,
+  recipientAddress,
+  recipientNetworkName,
+  recipientNetworkImageUrl,
 }: Props) {
   const titleId = useId();
   const isDark = useActualTheme();
+  const { getAccessToken } = usePrivy();
+  const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [justSaved, setJustSaved] = useState(false);
+
+  // Reset once the receipt closes, so the next completed transfer re-evaluates
+  // `offerSaveBeneficiary` fresh instead of carrying over a stale "saved" flag.
+  useEffect(() => {
+    if (!isOpen) {
+      setIsSaveModalOpen(false);
+      setJustSaved(false);
+    }
+  }, [isOpen]);
+
+  const handleSaveBeneficiary = async (name: string) => {
+    if (!recipientAddress || !name) return;
+    setIsSaving(true);
+    try {
+      const accessToken = await getAccessToken();
+      if (!accessToken) {
+        throw new Error("Sign in to save this recipient.");
+      }
+      await saveRecipient(
+        { type: "wallet", walletAddress: recipientAddress, name },
+        accessToken,
+      );
+      setIsSaveModalOpen(false);
+      setJustSaved(true);
+      toast.success("Recipient saved");
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Could not save this recipient. Try again.",
+      );
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   const timeSpentLabel = `${elapsedSeconds} second${elapsedSeconds === 1 ? "" : "s"}`;
   const shareText = TRANSFER_COPY.shareText(
@@ -210,6 +267,15 @@ export function TransferSuccessModal({
               >
                 {TRANSFER_COPY.newPayment}
               </button>
+              {offerSaveBeneficiary && !justSaved ? (
+                <button
+                  type="button"
+                  onClick={() => setIsSaveModalOpen(true)}
+                  className="rounded-xl bg-accent-gray px-2 py-1.5 text-sm font-medium leading-5 tracking-[-0.14px] text-text-body transition-colors hover:bg-gray-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-lavender-500 dark:bg-white/10 dark:text-white dark:hover:bg-white/15"
+                >
+                  {TRANSFER_COPY.saveBeneficiary}
+                </button>
+              ) : null}
             </div>
           </div>
 
@@ -260,6 +326,18 @@ export function TransferSuccessModal({
           </div>
         </div>
       </div>
+
+      {recipientAddress ? (
+        <CreateBeneficiaryModal
+          isOpen={isSaveModalOpen}
+          onClose={() => setIsSaveModalOpen(false)}
+          onSave={(name) => void handleSaveBeneficiary(name)}
+          walletAddress={recipientAddress}
+          networkName={recipientNetworkName ?? ""}
+          networkImageUrl={recipientNetworkImageUrl}
+          isSaving={isSaving}
+        />
+      ) : null}
     </AnimatedModal>
   );
 }

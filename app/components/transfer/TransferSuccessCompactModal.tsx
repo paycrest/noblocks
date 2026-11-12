@@ -2,7 +2,6 @@
 
 import { useEffect, useId, useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
-import { LinkSquare02Icon } from "hugeicons-react";
 import { toast } from "sonner";
 
 import { saveRecipient } from "@/app/api/aggregator";
@@ -97,56 +96,51 @@ export function TransferSuccessCompactModal({
       ariaLabelledBy={titleId}
       scrimClassName={drawerModalScrimClasses}
     >
-      <div className="flex w-full flex-col gap-6">
-        <div className="flex flex-col gap-4">
-          <SuccessCheckmark size={40} strokeWidth={2} />
+      <div className="flex w-full flex-col items-center gap-4 text-center">
+        <SuccessCheckmark size={40} strokeWidth={2} />
 
-          <p
-            id={titleId}
-            className="w-full text-xl font-medium leading-7 text-text-body dark:text-white/80"
+        <p
+          id={titleId}
+          className="w-full font-general-sans text-xl font-medium leading-7 text-text-primary dark:text-white"
+        >
+          {TRANSFER_COPY.successTitle}
+        </p>
+
+        <p className="font-general-sans text-sm font-medium leading-5 tracking-[-0.14px] text-text-secondary dark:text-white/50">
+          <span className="text-text-primary dark:text-white">
+            {amountLabel} {tokenSymbol}
+          </span>{" "}
+          has been successfully transferred to the recipient.
+        </p>
+
+        {explorerLink ? (
+          <a
+            href={explorerLink}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-general-sans text-sm font-medium leading-5 tracking-[-0.14px] text-lavender-500"
           >
-            {TRANSFER_COPY.successTitle}
-          </p>
+            {TRANSFER_COPY.viewInExplorer}
+            <span className="sr-only">(opens in new tab)</span>
+          </a>
+        ) : null}
 
-          <p className="text-sm leading-5 tracking-[-0.14px] text-text-secondary dark:text-white/50">
-            <span className="font-medium text-text-primary dark:text-white">
-              {amountLabel} {tokenSymbol}
-            </span>{" "}
-            has been successfully transferred to the recipient.
-          </p>
-
-          {explorerLink ? (
-            <a
-              href={explorerLink}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 self-start text-sm font-medium leading-5 tracking-[-0.14px] text-lavender-500 hover:underline"
-            >
-              {TRANSFER_COPY.viewInExplorer}
-              <LinkSquare02Icon className="size-4 shrink-0" aria-hidden />
-              <span className="sr-only">(opens in new tab)</span>
-            </a>
-          ) : null}
-        </div>
-
-        <div className="flex flex-col items-center gap-3">
+        <button
+          type="button"
+          onClick={onClose}
+          className={drawerSecondaryButtonClasses}
+        >
+          Close
+        </button>
+        {offerSaveBeneficiary && !justSaved ? (
           <button
             type="button"
-            onClick={onClose}
-            className={drawerSecondaryButtonClasses}
+            onClick={() => setIsSaveModalOpen(true)}
+            className="font-general-sans text-sm font-medium leading-5 tracking-[-0.14px] text-lavender-500 transition-colors hover:text-lavender-600"
           >
-            Close
+            {TRANSFER_COPY.saveBeneficiary}
           </button>
-          {offerSaveBeneficiary && !justSaved ? (
-            <button
-              type="button"
-              onClick={() => setIsSaveModalOpen(true)}
-              className="text-sm font-medium leading-5 tracking-[-0.14px] text-lavender-500 transition-colors hover:text-lavender-600"
-            >
-              {TRANSFER_COPY.saveBeneficiary}
-            </button>
-          ) : null}
-        </div>
+        ) : null}
       </div>
 
       {recipientAddress ? (

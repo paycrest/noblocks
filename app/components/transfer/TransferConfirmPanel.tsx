@@ -9,6 +9,7 @@ import {
 } from "hugeicons-react";
 
 import { drawerCloseButtonClasses } from "@/app/components/drawer/drawerStyles";
+import { classNames } from "@/app/utils";
 
 import { TRANSFER_COPY } from "./transferConfig";
 
@@ -32,6 +33,13 @@ type Props = {
   subtitle?: string;
   /** The top-right X — only the token-detail overlay has one; the Home page confirm uses Back instead. */
   showCloseButton?: boolean;
+  /**
+   * Host chrome: "page" is the Home in-page confirm (Figma 2620:130748) —
+   * single-line title, dashed divider, warning below the actions.
+   * "drawer" is the token-detail overlay (2691:73762) — wrapped title, warning
+   * above the actions. Defaults to "drawer" so existing callers stay as-is.
+   */
+  chrome?: "drawer" | "page";
 };
 
 const rowLabelClasses =
@@ -73,6 +81,63 @@ function SummaryRow({
   );
 }
 
+function WarningCard() {
+  return (
+    <div className="flex w-full gap-[10px] rounded-xl border-[0.3px] border-border-light bg-background-neutral p-3 dark:border-white/10 dark:bg-white/5">
+      <span className="flex items-start py-0.5">
+        <InformationSquareIcon
+          className="size-4 shrink-0 text-icon-outline-secondary dark:text-white/50"
+          aria-hidden
+        />
+      </span>
+      <p className="min-w-0 flex-1 font-general-sans text-sm font-normal leading-5 tracking-[-0.14px] text-text-secondary dark:text-white/50">
+        {TRANSFER_COPY.warning}
+      </p>
+    </div>
+  );
+}
+
+function ActionButtons({
+  onClose,
+  onConfirm,
+  ctaLabel,
+  isSubmitting,
+  buttonHeightClass,
+}: {
+  onClose: () => void;
+  onConfirm: () => void;
+  ctaLabel: string;
+  isSubmitting?: boolean;
+  buttonHeightClass: string;
+}) {
+  return (
+    <div className="flex items-center gap-6">
+      <button
+        type="button"
+        onClick={onClose}
+        className={classNames(
+          buttonHeightClass,
+          "shrink-0 rounded-xl bg-accent-gray px-4 py-2.5 font-general-sans text-sm font-medium leading-5 tracking-[-0.14px] text-text-body transition-colors hover:bg-gray-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-lavender-500 dark:bg-white/10 dark:text-white dark:hover:bg-white/15",
+        )}
+      >
+        {TRANSFER_COPY.back}
+      </button>
+      <button
+        type="button"
+        data-testid="transfer-confirm-primary"
+        onClick={onConfirm}
+        disabled={isSubmitting}
+        className={classNames(
+          buttonHeightClass,
+          "flex-1 rounded-xl bg-lavender-500 px-4 py-2.5 font-general-sans text-sm font-medium leading-5 tracking-[-0.14px] text-white transition-colors hover:bg-lavender-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-lavender-500 disabled:cursor-not-allowed disabled:bg-border-input disabled:hover:bg-border-input dark:disabled:bg-[#2e2e2e]",
+        )}
+      >
+        {ctaLabel}
+      </button>
+    </div>
+  );
+}
+
 /** Confirm content shared by the token-detail overlay (2691:73762) and the Home full-page confirm (2620:130748). */
 export function TransferConfirmPanel({
   titleId,
@@ -91,21 +156,33 @@ export function TransferConfirmPanel({
   arrivalTimeLabel,
   subtitle,
   showCloseButton = true,
+  chrome = "drawer",
 }: Props) {
+  const isPage = chrome === "page";
+
   return (
-    <div className="flex w-full flex-col gap-4">
+    <div className={classNames("flex w-full flex-col", isPage ? "gap-6" : "gap-4")}>
       <div className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 flex-col gap-1">
-          <p
-            id={titleId}
-            className="text-xl font-semibold leading-7 text-text-primary dark:text-white"
-          >
-            Confirm transfer to
-            <br />
-            {shortAddress}
-          </p>
+          {isPage ? (
+            <p
+              id={titleId}
+              className="truncate font-general-sans text-xl font-medium leading-7 text-text-body dark:text-white/80"
+            >
+              {TRANSFER_COPY.confirmTitle(shortAddress)}
+            </p>
+          ) : (
+            <p
+              id={titleId}
+              className="text-xl font-semibold leading-7 text-text-primary dark:text-white"
+            >
+              Confirm transfer to
+              <br />
+              {shortAddress}
+            </p>
+          )}
           {subtitle ? (
-            <p className="text-sm leading-5 tracking-[-0.14px] text-text-secondary dark:text-white/50">
+            <p className="font-general-sans text-sm font-normal leading-5 tracking-[-0.14px] text-text-secondary dark:text-white/50">
               {subtitle}
             </p>
           ) : null}
@@ -164,45 +241,43 @@ export function TransferConfirmPanel({
         <SummaryRow label={TRANSFER_COPY.recipientRow} value={shortAddress} />
       </div>
 
-      <hr className="w-full border-border-light dark:border-white/10" />
+      <hr
+        className={classNames(
+          "w-full",
+          isPage
+            ? "border-dashed border-border-light dark:border-white/10"
+            : "border-border-light dark:border-white/10",
+        )}
+      />
 
-      {saveRecipientControl ? (
+      {saveRecipientControl}
+
+      {isPage ? (
         <>
-          {saveRecipientControl}
-          <hr className="w-full border-border-light dark:border-white/10" />
-        </>
-      ) : null}
-
-      <div className="flex w-full gap-[10px] rounded-xl border-[0.3px] border-border-light bg-background-neutral p-3 dark:border-white/10 dark:bg-white/5">
-        <span className="flex items-start py-0.5">
-          <InformationSquareIcon
-            className="size-4 shrink-0 text-icon-outline-secondary dark:text-white/50"
-            aria-hidden
+          <ActionButtons
+            onClose={onClose}
+            onConfirm={onConfirm}
+            ctaLabel={ctaLabel}
+            isSubmitting={isSubmitting}
+            buttonHeightClass="h-11"
           />
-        </span>
-        <p className="min-w-0 flex-1 text-sm font-normal leading-5 tracking-[-0.14px] text-text-secondary dark:text-white/50">
-          {TRANSFER_COPY.warning}
-        </p>
-      </div>
-
-      <div className="flex items-center gap-6">
-        <button
-          type="button"
-          onClick={onClose}
-          className="h-10 shrink-0 rounded-xl bg-accent-gray px-4 py-2.5 text-sm font-medium leading-5 tracking-[-0.14px] text-text-body transition-colors hover:bg-gray-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-lavender-500 dark:bg-white/10 dark:text-white dark:hover:bg-white/15"
-        >
-          {TRANSFER_COPY.back}
-        </button>
-        <button
-          type="button"
-          data-testid="transfer-confirm-primary"
-          onClick={onConfirm}
-          disabled={isSubmitting}
-          className="h-10 flex-1 rounded-xl bg-lavender-500 px-4 py-2.5 text-sm font-medium leading-5 tracking-[-0.14px] text-white transition-colors hover:bg-lavender-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-lavender-500 disabled:cursor-not-allowed disabled:bg-border-input disabled:hover:bg-border-input dark:disabled:bg-[#2e2e2e]"
-        >
-          {ctaLabel}
-        </button>
-      </div>
+          <WarningCard />
+        </>
+      ) : (
+        <>
+          {saveRecipientControl ? (
+            <hr className="w-full border-border-light dark:border-white/10" />
+          ) : null}
+          <WarningCard />
+          <ActionButtons
+            onClose={onClose}
+            onConfirm={onConfirm}
+            ctaLabel={ctaLabel}
+            isSubmitting={isSubmitting}
+            buttonHeightClass="h-10"
+          />
+        </>
+      )}
     </div>
   );
 }

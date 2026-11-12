@@ -36,6 +36,7 @@ export const TRANSFER_COPY = {
     "Transfers cannot be reversed. Check the transaction details above before confirming.",
   back: "Back",
   saveRecipient: "Save recipient to contacts",
+  saveRecipients: "Save recipients to contacts",
   createBeneficiary: "Create beneficiary",
   beneficiaryName: "Name",
   beneficiaryNamePlaceholder: "Enter beneficiary name",

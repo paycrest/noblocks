@@ -1,5 +1,5 @@
 "use client";
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, type ReactNode } from "react";
 import { useForm } from "react-hook-form";
 import { useSearchParams } from "next/navigation";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
@@ -67,6 +67,11 @@ export const TransferForm: React.FC<{
    * and success is the compact frame-97 modal instead of the rich receipt.
    */
   chrome?: "drawer" | "page";
+  /**
+   * Host-owned heading for the form step (Home: "Transfer funds" + subtitle).
+   * Rendered only while the form is showing; confirm replaces this whole block.
+   */
+  formHeader?: ReactNode;
 }> = ({
   onClose,
   onSuccess,
@@ -74,6 +79,7 @@ export const TransferForm: React.FC<{
   setCurrentView,
   preferredTokenSymbol,
   chrome = "drawer",
+  formHeader,
 }) => {
   const searchParams = useSearchParams();
   const useInjectedWallet = shouldUseInjectedWallet(searchParams);
@@ -514,6 +520,12 @@ export const TransferForm: React.FC<{
           networkName={recipientNetwork ?? ""}
           networkImageUrl={recipientNetworkImageUrl}
           onSaved={() => setSavedThisFlow(true)}
+          appearance={chrome === "page" ? "checkbox" : "switch"}
+          label={
+            chrome === "page"
+              ? TRANSFER_COPY.saveRecipients
+              : TRANSFER_COPY.saveRecipient
+          }
         />
       ) : undefined;
 
@@ -537,6 +549,7 @@ export const TransferForm: React.FC<{
         {showInlineConfirm ? (
           <div className="mx-auto flex w-full max-w-[417px] flex-col gap-6">
             <TransferConfirmPanel
+              chrome="page"
               onClose={handleBackToForm}
               onConfirm={handleConfirmTransfer}
               shortAddress={formatTransferShortAddress(recipientAddress)}
@@ -552,6 +565,34 @@ export const TransferForm: React.FC<{
               subtitle={TRANSFER_COPY.confirmSubtitle}
               showCloseButton={false}
             />
+          </div>
+        ) : formHeader ? (
+          <div className="flex w-full flex-col gap-[49px]">
+            {formHeader}
+            <TransferFormFields
+            registerAmount={amountField}
+            registerRecipientAddress={addressField}
+            errors={errors}
+            showRecipientAddressError={showRecipientAddressError}
+            token={token}
+            amount={amount}
+            tokenOptions={fetchedTokens}
+            tokenBalance={tokenBalance}
+            isBalanceLoading={isBalanceLoading}
+            hasBalanceSnapshot={transferNetworkBalance !== null}
+            recipientNetwork={recipientNetwork}
+            recipientNetworks={recipientNetworks}
+            canContinue={canContinue}
+            isConfirming={isConfirming}
+            rateLabel={rateLabel}
+            balanceError={balanceError}
+            onOpenNetwork={() => setPicker("network")}
+            onOpenToken={() => setPicker("token")}
+            onMax={handleBalanceMaxClick}
+            onQuickAmount={handleQuickAmount}
+            onContinue={() => void submitForConfirm()}
+            onSubmit={submitForConfirm}
+          />
           </div>
         ) : (
           <TransferFormFields

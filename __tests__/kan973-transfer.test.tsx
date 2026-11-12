@@ -201,6 +201,13 @@ import {
 } from "../app/components/transfer/transferConfig";
 import type { BridgeQuote } from "../app/lib/bridge";
 
+const PAGE_FORM_HEADER = (
+  <div className="flex flex-col items-start gap-1 text-left">
+    <h1>Transfer funds</h1>
+    <p>Send any token to any network</p>
+  </div>
+);
+
 function renderForm({
   preferredTokenSymbol,
   chrome,
@@ -211,6 +218,7 @@ function renderForm({
       onClose={onClose}
       preferredTokenSymbol={preferredTokenSymbol}
       chrome={chrome}
+      formHeader={chrome === "page" ? PAGE_FORM_HEADER : undefined}
     />,
   );
   return { ...utils, onClose };
@@ -484,13 +492,21 @@ describe("TransferForm — token-detail entry preselects the token", () => {
 describe("TransferForm — Home full-page chrome (KAN-973)", () => {
   it("replaces the form with an inline confirm panel, with the subtitle the drawer omits", async () => {
     renderForm({ chrome: "page" });
+    expect(screen.getByText("Transfer funds")).toBeInTheDocument();
+    expect(
+      screen.getByText("Send any token to any network"),
+    ).toBeInTheDocument();
     await fillForm();
 
     const continueButton = screen.getByRole("button", { name: "Continue" });
     await waitFor(() => expect(continueButton).toBeEnabled());
     fireEvent.click(continueButton);
 
-    expect(await screen.findByText(/Confirm transfer to/)).toBeInTheDocument();
+    // Confirm replaces the Transfer funds header (Figma 2620:130748).
+    expect(
+      await screen.findByText("Confirm transfer to 0x7a3...91f4"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Transfer funds")).not.toBeInTheDocument();
     expect(
       screen.getByText("Verify transaction details before you send"),
     ).toBeInTheDocument();
@@ -500,6 +516,19 @@ describe("TransferForm — Home full-page chrome (KAN-973)", () => {
       screen.queryByRole("button", { name: "Close" }),
     ).not.toBeInTheDocument();
     expect(screen.getByTestId("transfer-confirm-primary")).toBeInTheDocument();
+    // Home confirm uses the checkbox bar, not the token-detail switch.
+    expect(
+      screen.getByRole("checkbox", { name: "Save recipients to contacts" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("switch", { name: "Save recipient to contacts" }),
+    ).not.toBeInTheDocument();
+    // Warning sits below the Transfer CTA (Figma 2620:131092).
+    const warning = screen.getByText(/Transfers cannot be reversed/);
+    const cta = screen.getByTestId("transfer-confirm-primary");
+    expect(
+      cta.compareDocumentPosition(warning) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
   });
 
   it("shows the compact success modal instead of the rich receipt, and Close calls onClose", async () => {
@@ -516,12 +545,12 @@ describe("TransferForm — Home full-page chrome (KAN-973)", () => {
 
     transferState.isLoading = true;
     rerender(
-      <TransferForm onClose={onClose} chrome="page" />,
+      <TransferForm onClose={onClose} chrome="page" formHeader={PAGE_FORM_HEADER} />,
     );
     transferState.isLoading = false;
     transferState.isSuccess = true;
     rerender(
-      <TransferForm onClose={onClose} chrome="page" />,
+      <TransferForm onClose={onClose} chrome="page" formHeader={PAGE_FORM_HEADER} />,
     );
 
     const successDialog = await screen.findByRole("dialog");
@@ -543,6 +572,15 @@ describe("TransferForm — Home full-page chrome (KAN-973)", () => {
       within(successDialog).queryByText("Help spread the word"),
     ).not.toBeInTheDocument();
 
+    // Frame 97 sits over the confirm panel, not the Transfer funds form.
+    expect(screen.queryByText("Transfer funds")).not.toBeInTheDocument();
+    expect(screen.getByText("Confirm transfer to 0x7a3...91f4")).toBeInTheDocument();
+
+    const explorer = within(successDialog).getByRole("link", {
+      name: /View in explorer/,
+    });
+    expect(explorer.querySelector("svg")).toBeNull();
+
     fireEvent.click(within(successDialog).getByRole("button", { name: "Close" }));
     expect(onClose).toHaveBeenCalled();
   });
@@ -563,10 +601,10 @@ describe("TransferForm — Home full-page chrome (KAN-973)", () => {
     await waitFor(() => expect(mockTransfer).toHaveBeenCalledTimes(1));
 
     transferState.isLoading = true;
-    rerender(<TransferForm onClose={onClose} chrome="page" />);
+    rerender(<TransferForm onClose={onClose} chrome="page" formHeader={PAGE_FORM_HEADER} />);
     transferState.isLoading = false;
     transferState.isSuccess = true;
-    rerender(<TransferForm onClose={onClose} chrome="page" />);
+    rerender(<TransferForm onClose={onClose} chrome="page" formHeader={PAGE_FORM_HEADER} />);
 
     const successDialog = await screen.findByRole("dialog");
     expect(

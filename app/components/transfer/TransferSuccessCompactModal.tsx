@@ -1,0 +1,165 @@
+"use client";
+
+import { useEffect, useId, useState } from "react";
+import { usePrivy } from "@privy-io/react-auth";
+import { LinkSquare02Icon } from "hugeicons-react";
+import { toast } from "sonner";
+
+import { saveRecipient } from "@/app/api/aggregator";
+import { AnimatedModal } from "@/app/components/AnimatedComponents";
+import {
+  drawerModalScrimClasses,
+  drawerSecondaryButtonClasses,
+} from "@/app/components/drawer/drawerStyles";
+import { SuccessCheckmark } from "@/app/components/drawer/SuccessCheckmark";
+
+import { CreateBeneficiaryModal } from "./CreateBeneficiaryModal";
+import { TRANSFER_COPY } from "./transferConfig";
+
+type Props = {
+  isOpen: boolean;
+  amountLabel: string;
+  tokenSymbol: string;
+  explorerLink?: string;
+  onClose: () => void;
+  /**
+   * Offers "Save beneficiary" as a secondary text control — frame 97
+   * (3034:152339) draws no such row, added per KAN-973 AC6. Only passed true
+   * when the recipient is an EVM address not already saved, and not saved
+   * earlier in this same flow via the confirm-step toggle.
+   */
+  offerSaveBeneficiary?: boolean;
+  recipientAddress?: string;
+  recipientNetworkName?: string;
+  recipientNetworkImageUrl?: string;
+};
+
+/** Home full-page compact success modal (Figma frame 97 / 3034:152339). */
+export function TransferSuccessCompactModal({
+  isOpen,
+  amountLabel,
+  tokenSymbol,
+  explorerLink,
+  onClose,
+  offerSaveBeneficiary,
+  recipientAddress,
+  recipientNetworkName,
+  recipientNetworkImageUrl,
+}: Props) {
+  const titleId = useId();
+  const { getAccessToken } = usePrivy();
+  const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [justSaved, setJustSaved] = useState(false);
+
+  // Reset once the receipt closes, so the next completed transfer re-evaluates
+  // `offerSaveBeneficiary` fresh instead of carrying over a stale "saved" flag.
+  useEffect(() => {
+    if (!isOpen) {
+      setIsSaveModalOpen(false);
+      setJustSaved(false);
+    }
+  }, [isOpen]);
+
+  const handleSaveBeneficiary = async (name: string) => {
+    if (!recipientAddress || !name) return;
+    setIsSaving(true);
+    try {
+      const accessToken = await getAccessToken();
+      if (!accessToken) {
+        throw new Error("Sign in to save this recipient.");
+      }
+      await saveRecipient(
+        { type: "wallet", walletAddress: recipientAddress, name },
+        accessToken,
+      );
+      setIsSaveModalOpen(false);
+      setJustSaved(true);
+      toast.success("Recipient saved");
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Could not save this recipient. Try again.",
+      );
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return (
+    <AnimatedModal
+      isOpen={isOpen}
+      onClose={onClose}
+      maxWidth="320px"
+      dialogPanelClassName="!bg-transparent !shadow-none"
+      contentClassName="!rounded-[32px] !border !border-border-light !bg-white !p-5 !shadow-2xl dark:!border-white/10 dark:!bg-[#2b2b2b]"
+      ariaLabelledBy={titleId}
+      scrimClassName={drawerModalScrimClasses}
+    >
+      <div className="flex w-full flex-col gap-6">
+        <div className="flex flex-col gap-4">
+          <SuccessCheckmark size={40} strokeWidth={2} />
+
+          <p
+            id={titleId}
+            className="w-full text-xl font-medium leading-7 text-text-body dark:text-white/80"
+          >
+            {TRANSFER_COPY.successTitle}
+          </p>
+
+          <p className="text-sm leading-5 tracking-[-0.14px] text-text-secondary dark:text-white/50">
+            <span className="font-medium text-text-primary dark:text-white">
+              {amountLabel} {tokenSymbol}
+            </span>{" "}
+            has been successfully transferred to the recipient.
+          </p>
+
+          {explorerLink ? (
+            <a
+              href={explorerLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 self-start text-sm font-medium leading-5 tracking-[-0.14px] text-lavender-500 hover:underline"
+            >
+              {TRANSFER_COPY.viewInExplorer}
+              <LinkSquare02Icon className="size-4 shrink-0" aria-hidden />
+              <span className="sr-only">(opens in new tab)</span>
+            </a>
+          ) : null}
+        </div>
+
+        <div className="flex flex-col items-center gap-3">
+          <button
+            type="button"
+            onClick={onClose}
+            className={drawerSecondaryButtonClasses}
+          >
+            Close
+          </button>
+          {offerSaveBeneficiary && !justSaved ? (
+            <button
+              type="button"
+              onClick={() => setIsSaveModalOpen(true)}
+              className="text-sm font-medium leading-5 tracking-[-0.14px] text-lavender-500 transition-colors hover:text-lavender-600"
+            >
+              {TRANSFER_COPY.saveBeneficiary}
+            </button>
+          ) : null}
+        </div>
+      </div>
+
+      {recipientAddress ? (
+        <CreateBeneficiaryModal
+          isOpen={isSaveModalOpen}
+          onClose={() => setIsSaveModalOpen(false)}
+          onSave={(name) => void handleSaveBeneficiary(name)}
+          walletAddress={recipientAddress}
+          networkName={recipientNetworkName ?? ""}
+          networkImageUrl={recipientNetworkImageUrl}
+          isSaving={isSaving}
+        />
+      ) : null}
+    </AnimatedModal>
+  );
+}

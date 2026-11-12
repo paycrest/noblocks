@@ -42,6 +42,11 @@ jest.mock("@privy-io/react-auth", () => ({
   usePrivy: jest.fn(() => ({ ready: true, authenticated: true })),
 }));
 
+const mockRouterPush = jest.fn();
+jest.mock("next/navigation", () => ({
+  useRouter: () => ({ push: mockRouterPush }),
+}));
+
 jest.mock("@/components/drawer", () => ({
   ActionDrawer: ({
     isOpen,
@@ -227,6 +232,7 @@ function openReceiveFromHome() {
 }
 
 beforeEach(() => {
+  mockRouterPush.mockClear();
   mockedIsReferralEnabled.mockReturnValue(true);
   mockedCopyToClipboard.mockResolvedValue(true);
   localStorage.clear();
@@ -468,6 +474,24 @@ describe("WalletHomeContent", () => {
     expect(
       screen.getByRole("button", { name: /Copy wallet address/i }),
     ).toBeInTheDocument();
+  });
+
+  it("navigates to the /transfer page instead of opening a drawer (KAN-973)", () => {
+    usePortfolio.mockReturnValue({
+      data: loadedSummary,
+      isLoading: false,
+      error: null,
+      refetch: jest.fn(),
+    });
+
+    render(<WalletHomeContent />);
+    fireEvent.click(
+      screen.getByRole("button", { name: /More add funds options/i }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: /^Transfer$/i }));
+
+    expect(mockRouterPush).toHaveBeenCalledWith("/transfer");
+    expect(screen.queryByTestId("action-drawer")).not.toBeInTheDocument();
   });
 
   it("shows receive error state when wallet address is missing", () => {

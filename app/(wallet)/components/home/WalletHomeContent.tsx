@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Coins01Icon,
   Copy01Icon,
@@ -13,7 +14,6 @@ import {
 import { PiCheck } from "react-icons/pi";
 import { ActionDrawer } from "@/app/components/drawer";
 import { DepositDrawer } from "@/app/components/deposit/DepositDrawer";
-import { TransferForm } from "@/app/components/TransferForm";
 import { BridgeForm } from "@/app/components/bridge/BridgeForm";
 import { ReferralHubView } from "@/app/components/wallet-mobile-modal/ReferralHubView";
 import { CopyAddressWarningModal } from "@/app/components/CopyAddressWarningModal";
@@ -431,8 +431,6 @@ function WalletActionDrawerHost({
             onCopyWarningOpen={() => setAddressWarningOpen(true)}
           />
         );
-      case "transfer":
-        return <TransferForm onClose={onClose} />;
       case "swap":
         return <BridgeForm onClose={onClose} onBridgeSubmit={() => {}} />;
       default:
@@ -444,16 +442,9 @@ function WalletActionDrawerHost({
     <>
       <ActionDrawer
         isOpen={activeAction != null}
-        title={
-          activeAction === "transfer"
-            ? "Transfer funds"
-            : activeAction
-              ? ACTION_TITLES[activeAction]
-              : "Action"
-        }
+        title={activeAction ? ACTION_TITLES[activeAction] : "Action"}
         onRequestClose={onClose}
         bodyAlign="start"
-        showPoweredByFooter={activeAction !== "transfer"}
       >
         {renderBody()}
       </ActionDrawer>
@@ -489,6 +480,7 @@ function InviteFriendsDrawer({
 }
 
 export function WalletHomeContent() {
+  const router = useRouter();
   const { ready, authenticated } = usePrivy();
   const authSettling = !ready || !authenticated;
   const flags = useMemo(() => getFeatureFlags(), []);
@@ -511,6 +503,11 @@ export function WalletHomeContent() {
   const isEmpty = data != null && isPortfolioEmpty(data);
 
   const handleAction = (action: WalletHomeActionId) => {
+    // Transfer is the Home full-page widget (KAN-973), not a drawer step.
+    if (action === "transfer") {
+      router.push("/transfer");
+      return;
+    }
     setDepositOpen(false);
     setActiveAction(action);
   };

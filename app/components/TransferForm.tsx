@@ -25,8 +25,10 @@ import { tokensEqual } from "../lib/token-symbol";
 import { TransferFormFields } from "./transfer/TransferFormFields";
 import { TransferPickerModal } from "./transfer/TransferPickerModal";
 import { TransferConfirmModal } from "./transfer/TransferConfirmModal";
+import { TransferConfirmPanel } from "./transfer/TransferConfirmPanel";
 import { TransferPendingModal } from "./transfer/TransferPendingModal";
 import { TransferSuccessModal } from "./transfer/TransferSuccessModal";
+import { TransferSuccessCompactModal } from "./transfer/TransferSuccessCompactModal";
 import { SaveRecipientToggle } from "./transfer/SaveRecipientToggle";
 import {
   formatTransferAmount,
@@ -36,6 +38,7 @@ import {
   isAddressAlreadySaved,
   isEvmRecipientNetwork,
   isUsdStablecoin,
+  TRANSFER_COPY,
   TRANSFER_FEE_USD,
   useTransferRate,
 } from "./transfer/transferConfig";
@@ -57,12 +60,20 @@ export const TransferForm: React.FC<{
   showBackButton?: boolean;
   setCurrentView?: React.Dispatch<React.SetStateAction<MobileSheetView>>;
   preferredTokenSymbol?: string;
+  /**
+   * Which host is rendering the form (KAN-973): "drawer" is the existing
+   * right-side ActionDrawer (token-detail entry); "page" is the Home full-page
+   * widget, where confirm replaces the form inline instead of overlaying it,
+   * and success is the compact frame-97 modal instead of the rich receipt.
+   */
+  chrome?: "drawer" | "page";
 }> = ({
   onClose,
   onSuccess,
   showBackButton = false,
   setCurrentView,
   preferredTokenSymbol,
+  chrome = "drawer",
 }) => {
   const searchParams = useSearchParams();
   const useInjectedWallet = shouldUseInjectedWallet(searchParams);
@@ -493,6 +504,19 @@ export const TransferForm: React.FC<{
       !isCompletedRecipientAlreadySaved &&
       !savedThisFlow;
 
+    const showInlineConfirm = chrome === "page" && transferStep !== "form";
+    const saveRecipientControl =
+      isEvmRecipientNetwork(recipientNetwork) &&
+      recipientAddress &&
+      !isRecipientAlreadySaved ? (
+        <SaveRecipientToggle
+          walletAddress={recipientAddress}
+          networkName={recipientNetwork ?? ""}
+          networkImageUrl={recipientNetworkImageUrl}
+          onSaved={() => setSavedThisFlow(true)}
+        />
+      ) : undefined;
+
     return (
       <>
         {showBackButton && setCurrentView ? (
@@ -510,30 +534,51 @@ export const TransferForm: React.FC<{
             </button>
           </div>
         ) : null}
-        <TransferFormFields
-          registerAmount={amountField}
-          registerRecipientAddress={addressField}
-          errors={errors}
-          showRecipientAddressError={showRecipientAddressError}
-          token={token}
-          amount={amount}
-          tokenOptions={fetchedTokens}
-          tokenBalance={tokenBalance}
-          isBalanceLoading={isBalanceLoading}
-          hasBalanceSnapshot={transferNetworkBalance !== null}
-          recipientNetwork={recipientNetwork}
-          recipientNetworks={recipientNetworks}
-          canContinue={canContinue}
-          isConfirming={isConfirming}
-          rateLabel={rateLabel}
-          balanceError={balanceError}
-          onOpenNetwork={() => setPicker("network")}
-          onOpenToken={() => setPicker("token")}
-          onMax={handleBalanceMaxClick}
-          onQuickAmount={handleQuickAmount}
-          onContinue={() => void submitForConfirm()}
-          onSubmit={submitForConfirm}
-        />
+        {showInlineConfirm ? (
+          <div className="mx-auto flex w-full max-w-[417px] flex-col gap-6">
+            <TransferConfirmPanel
+              onClose={handleBackToForm}
+              onConfirm={handleConfirmTransfer}
+              shortAddress={formatTransferShortAddress(recipientAddress)}
+              amountLabel={formatTransferAmount(amount)}
+              tokenSymbol={confirmTokenSymbol}
+              tokenImageUrl={selectedToken?.imageUrl}
+              networkName={recipientNetwork ?? ""}
+              networkImageUrl={recipientNetworkImageUrl}
+              feeLabel={formatTransferFeeUsd(TRANSFER_FEE_USD)}
+              ctaLabel={formatTransferCtaLabel(confirmTokenSymbol, amount)}
+              isSubmitting={isConfirming}
+              saveRecipientControl={saveRecipientControl}
+              subtitle={TRANSFER_COPY.confirmSubtitle}
+              showCloseButton={false}
+            />
+          </div>
+        ) : (
+          <TransferFormFields
+            registerAmount={amountField}
+            registerRecipientAddress={addressField}
+            errors={errors}
+            showRecipientAddressError={showRecipientAddressError}
+            token={token}
+            amount={amount}
+            tokenOptions={fetchedTokens}
+            tokenBalance={tokenBalance}
+            isBalanceLoading={isBalanceLoading}
+            hasBalanceSnapshot={transferNetworkBalance !== null}
+            recipientNetwork={recipientNetwork}
+            recipientNetworks={recipientNetworks}
+            canContinue={canContinue}
+            isConfirming={isConfirming}
+            rateLabel={rateLabel}
+            balanceError={balanceError}
+            onOpenNetwork={() => setPicker("network")}
+            onOpenToken={() => setPicker("token")}
+            onMax={handleBalanceMaxClick}
+            onQuickAmount={handleQuickAmount}
+            onContinue={() => void submitForConfirm()}
+            onSubmit={submitForConfirm}
+          />
+        )}
 
         <TransferPickerModal
           kind="network"
@@ -569,32 +614,23 @@ export const TransferForm: React.FC<{
           }}
         />
 
-        <TransferConfirmModal
-          isOpen={transferStep === "confirm"}
-          onClose={handleBackToForm}
-          onConfirm={handleConfirmTransfer}
-          shortAddress={formatTransferShortAddress(recipientAddress)}
-          amountLabel={formatTransferAmount(amount)}
-          tokenSymbol={confirmTokenSymbol}
-          tokenImageUrl={selectedToken?.imageUrl}
-          networkName={recipientNetwork ?? ""}
-          networkImageUrl={recipientNetworkImageUrl}
-          feeLabel={formatTransferFeeUsd(TRANSFER_FEE_USD)}
-          ctaLabel={formatTransferCtaLabel(confirmTokenSymbol, amount)}
-          isSubmitting={isConfirming}
-          saveRecipientControl={
-            isEvmRecipientNetwork(recipientNetwork) &&
-            recipientAddress &&
-            !isRecipientAlreadySaved ? (
-              <SaveRecipientToggle
-                walletAddress={recipientAddress}
-                networkName={recipientNetwork ?? ""}
-                networkImageUrl={recipientNetworkImageUrl}
-                onSaved={() => setSavedThisFlow(true)}
-              />
-            ) : undefined
-          }
-        />
+        {chrome === "drawer" ? (
+          <TransferConfirmModal
+            isOpen={transferStep === "confirm"}
+            onClose={handleBackToForm}
+            onConfirm={handleConfirmTransfer}
+            shortAddress={formatTransferShortAddress(recipientAddress)}
+            amountLabel={formatTransferAmount(amount)}
+            tokenSymbol={confirmTokenSymbol}
+            tokenImageUrl={selectedToken?.imageUrl}
+            networkName={recipientNetwork ?? ""}
+            networkImageUrl={recipientNetworkImageUrl}
+            feeLabel={formatTransferFeeUsd(TRANSFER_FEE_USD)}
+            ctaLabel={formatTransferCtaLabel(confirmTokenSymbol, amount)}
+            isSubmitting={isConfirming}
+            saveRecipientControl={saveRecipientControl}
+          />
+        ) : null}
 
         <TransferPendingModal
           isOpen={transferStep === "pending"}
@@ -610,25 +646,39 @@ export const TransferForm: React.FC<{
           elapsedSeconds={elapsedSeconds}
         />
 
-        <TransferSuccessModal
-          isOpen={transferStep === "success"}
-          amountLabel={formatTransferAmount(submittedValues?.amount)}
-          tokenSymbol={completedTokenSymbol}
-          tokenImageUrl={
-            fetchedTokens.find((item) =>
-              tokensEqual(item.symbol, completedTokenSymbol),
-            )?.imageUrl
-          }
-          shortAddress={completedShortAddress}
-          elapsedSeconds={frozenElapsedSeconds}
-          explorerLink={getTxExplorerLink()}
-          onBackHome={handleBackHome}
-          onNewPayment={handleNewPayment}
-          offerSaveBeneficiary={offerSaveBeneficiaryOnReceipt}
-          recipientAddress={submittedValues?.recipientAddress}
-          recipientNetworkName={submittedValues?.recipientNetwork}
-          recipientNetworkImageUrl={submittedValues?.recipientNetworkImageUrl}
-        />
+        {chrome === "drawer" ? (
+          <TransferSuccessModal
+            isOpen={transferStep === "success"}
+            amountLabel={formatTransferAmount(submittedValues?.amount)}
+            tokenSymbol={completedTokenSymbol}
+            tokenImageUrl={
+              fetchedTokens.find((item) =>
+                tokensEqual(item.symbol, completedTokenSymbol),
+              )?.imageUrl
+            }
+            shortAddress={completedShortAddress}
+            elapsedSeconds={frozenElapsedSeconds}
+            explorerLink={getTxExplorerLink()}
+            onBackHome={handleBackHome}
+            onNewPayment={handleNewPayment}
+            offerSaveBeneficiary={offerSaveBeneficiaryOnReceipt}
+            recipientAddress={submittedValues?.recipientAddress}
+            recipientNetworkName={submittedValues?.recipientNetwork}
+            recipientNetworkImageUrl={submittedValues?.recipientNetworkImageUrl}
+          />
+        ) : (
+          <TransferSuccessCompactModal
+            isOpen={transferStep === "success"}
+            amountLabel={formatTransferAmount(submittedValues?.amount)}
+            tokenSymbol={completedTokenSymbol}
+            explorerLink={getTxExplorerLink()}
+            onClose={handleBackHome}
+            offerSaveBeneficiary={offerSaveBeneficiaryOnReceipt}
+            recipientAddress={submittedValues?.recipientAddress}
+            recipientNetworkName={submittedValues?.recipientNetwork}
+            recipientNetworkImageUrl={submittedValues?.recipientNetworkImageUrl}
+          />
+        )}
       </>
     );
   };

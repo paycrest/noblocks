@@ -20,6 +20,7 @@ const ROUTE_LABELS: Record<string, string> = {
   profile: "Profile",
   settings: "Settings",
   beneficiaries: "Beneficiaries",
+  transfer: "Transfer",
 };
 
 /**

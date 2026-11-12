@@ -203,10 +203,15 @@ import type { BridgeQuote } from "../app/lib/bridge";
 
 function renderForm({
   preferredTokenSymbol,
-}: { preferredTokenSymbol?: string } = {}) {
+  chrome,
+}: { preferredTokenSymbol?: string; chrome?: "drawer" | "page" } = {}) {
   const onClose = jest.fn();
   const utils = render(
-    <TransferForm onClose={onClose} preferredTokenSymbol={preferredTokenSymbol} />,
+    <TransferForm
+      onClose={onClose}
+      preferredTokenSymbol={preferredTokenSymbol}
+      chrome={chrome}
+    />,
   );
   return { ...utils, onClose };
 }
@@ -472,6 +477,100 @@ describe("TransferForm — token-detail entry preselects the token", () => {
 
     expect(
       await screen.findByRole("button", { name: "Select token, USDC" }),
+    ).toBeInTheDocument();
+  });
+});
+
+describe("TransferForm — Home full-page chrome (KAN-973)", () => {
+  it("replaces the form with an inline confirm panel, with the subtitle the drawer omits", async () => {
+    renderForm({ chrome: "page" });
+    await fillForm();
+
+    const continueButton = screen.getByRole("button", { name: "Continue" });
+    await waitFor(() => expect(continueButton).toBeEnabled());
+    fireEvent.click(continueButton);
+
+    expect(await screen.findByText(/Confirm transfer to/)).toBeInTheDocument();
+    expect(
+      screen.getByText("Verify transaction details before you send"),
+    ).toBeInTheDocument();
+    // Not a modal — no dialog role, no X close button, Back returns to the form.
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Close" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByTestId("transfer-confirm-primary")).toBeInTheDocument();
+  });
+
+  it("shows the compact success modal instead of the rich receipt, and Close calls onClose", async () => {
+    const { rerender, onClose } = renderForm({ chrome: "page" });
+    await fillForm();
+
+    const continueButton = screen.getByRole("button", { name: "Continue" });
+    await waitFor(() => expect(continueButton).toBeEnabled());
+    fireEvent.click(continueButton);
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Transfer $100" }),
+    );
+    await waitFor(() => expect(mockTransfer).toHaveBeenCalledTimes(1));
+
+    transferState.isLoading = true;
+    rerender(
+      <TransferForm onClose={onClose} chrome="page" />,
+    );
+    transferState.isLoading = false;
+    transferState.isSuccess = true;
+    rerender(
+      <TransferForm onClose={onClose} chrome="page" />,
+    );
+
+    const successDialog = await screen.findByRole("dialog");
+    expect(
+      within(successDialog).getByText("Transfer successful"),
+    ).toBeInTheDocument();
+    expect(
+      within(successDialog).getByText(
+        /has been successfully transferred to the recipient\./,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      within(successDialog).queryByText("Back home"),
+    ).not.toBeInTheDocument();
+    expect(
+      within(successDialog).queryByText("New payment"),
+    ).not.toBeInTheDocument();
+    expect(
+      within(successDialog).queryByText("Help spread the word"),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(within(successDialog).getByRole("button", { name: "Close" }));
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it("offers the compact success's Save beneficiary for a new address (AC6)", async () => {
+    mockFetchSavedRecipients.mockRejectedValue(new Error("network error"));
+    const { rerender, onClose } = renderForm({ chrome: "page" });
+    await fillForm();
+
+    const continueButton = screen.getByRole("button", { name: "Continue" });
+    await waitFor(() => expect(continueButton).toBeEnabled());
+    fireEvent.click(continueButton);
+    await waitFor(() => expect(mockFetchSavedRecipients).toHaveBeenCalled());
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Transfer $100" }),
+    );
+    await waitFor(() => expect(mockTransfer).toHaveBeenCalledTimes(1));
+
+    transferState.isLoading = true;
+    rerender(<TransferForm onClose={onClose} chrome="page" />);
+    transferState.isLoading = false;
+    transferState.isSuccess = true;
+    rerender(<TransferForm onClose={onClose} chrome="page" />);
+
+    const successDialog = await screen.findByRole("dialog");
+    expect(
+      within(successDialog).getByRole("button", { name: "Save beneficiary" }),
     ).toBeInTheDocument();
   });
 });

@@ -446,25 +446,27 @@ export function KYCProvider({ children }: { children: React.ReactNode }) {
   );
 
   useEffect(() => {
+    const empty = createEmptySnapshot();
+    latestSnapshotRef.current = empty;
+    setTier(empty.tier);
+    setPooledWalletCount(empty.pooledWalletCount);
+    setIsPhoneVerified(empty.isPhoneVerified);
+    setIdentityHasVerifiedPhone(empty.identityHasVerifiedPhone);
+    setHasLoadedStatus(empty.hasLoadedStatus);
+    setHasLoadedTransactionSummary(empty.hasLoadedTransactionSummary);
+    setPhoneNumber(empty.phoneNumber);
+    setFullName(empty.fullName);
+    setTransactionSummary({ ...EMPTY_TX_SUMMARY });
+    fetchGuardsRef.current = {};
+    lastFetchTimeRef.current = 0;
+    // Detach any refresh still in flight for the PREVIOUS wallet. A forced refresh chains
+    // onto whatever is in flight, so leaving it attached would make this wallet's status
+    // wait on an unrelated (and untimed) fetch before it even starts. The run's own
+    // ownership check means the detached promise can't clobber this wallet's state.
+    refreshInFlightRef.current = null;
+    // No wallet (e.g. disconnect, or injected mode before the address resolves) just
+    // clears to the empty snapshot above — there's nothing to refresh for.
     if (walletAddress) {
-      const empty = createEmptySnapshot();
-      latestSnapshotRef.current = empty;
-      setTier(empty.tier);
-      setPooledWalletCount(empty.pooledWalletCount);
-      setIsPhoneVerified(empty.isPhoneVerified);
-      setIdentityHasVerifiedPhone(empty.identityHasVerifiedPhone);
-      setHasLoadedStatus(empty.hasLoadedStatus);
-      setHasLoadedTransactionSummary(empty.hasLoadedTransactionSummary);
-      setPhoneNumber(empty.phoneNumber);
-      setFullName(empty.fullName);
-      setTransactionSummary({ ...EMPTY_TX_SUMMARY });
-      fetchGuardsRef.current = {};
-      lastFetchTimeRef.current = 0;
-      // Detach any refresh still in flight for the PREVIOUS wallet. A forced refresh chains
-      // onto whatever is in flight, so leaving it attached would make this wallet's status
-      // wait on an unrelated (and untimed) fetch before it even starts. The run's own
-      // ownership check means the detached promise can't clobber this wallet's state.
-      refreshInFlightRef.current = null;
       void refreshStatus(true);
     }
   }, [walletAddress, refreshStatus]);

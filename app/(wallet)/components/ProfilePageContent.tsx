@@ -237,6 +237,21 @@ function AccordionTierRow({
   );
 }
 
+/** Current-tier card skeleton: standalone (while only KYC status is still loading) or nested in ProfilePageSkeleton (full page). */
+function TierCardSkeleton() {
+  return (
+    <div
+      className="space-y-3 rounded-[20px] bg-background-neutral p-4 dark:bg-[#363636]"
+      aria-busy="true"
+      aria-label="Loading tier status"
+    >
+      <div className={classNames("h-6 w-24 rounded-lg", pulseBar)} />
+      <div className={classNames("h-8 w-full rounded", pulseBar)} />
+      <div className={classNames("h-2 w-full rounded-full", pulseBar)} />
+    </div>
+  );
+}
+
 function ProfilePageSkeleton() {
   return (
     <div className="mt-[37px] flex flex-col gap-5" aria-busy="true" aria-label="Loading">
@@ -250,11 +265,7 @@ function ProfilePageSkeleton() {
               <div className={classNames("h-3 w-24 rounded", pulseBar)} />
             </div>
           </div>
-          <div className="space-y-3 rounded-[20px] bg-background-neutral p-4 dark:bg-[#363636]">
-            <div className={classNames("h-6 w-24 rounded-lg", pulseBar)} />
-            <div className={classNames("h-8 w-full rounded", pulseBar)} />
-            <div className={classNames("h-2 w-full rounded-full", pulseBar)} />
-          </div>
+          <TierCardSkeleton />
         </div>
       </div>
     </div>
@@ -272,6 +283,7 @@ export function ProfilePageContent() {
     currentLimits,
     monthlyProgress,
     isLoading,
+    isKycStatusLoading,
     isTransactionSummaryLoading,
     linkEmail,
     handleCopyAddress,
@@ -363,86 +375,94 @@ export function ProfilePageContent() {
               </div>
             </div>
 
-            {/* Current tier status */}
-            {hasAssignedKycTier(tier) && (
-              <div className="flex flex-col rounded-[20px] border-[0.5px] border-border-light bg-background-neutral p-4 dark:border-0 dark:bg-[#363636]">
-                <div className="flex w-fit items-center gap-2 rounded-lg bg-[#39C65D] px-2 py-1">
-                  <StarIcon className="text-white dark:text-black" size={16} />
-                  <span className="text-sm font-semibold text-white dark:text-black">
-                    Current: {formatKycTierDisplayLabel(tier)}
-                  </span>
-                </div>
+            {isKycStatusLoading ? (
+              // Retries are exhausted but KYC status never loaded — show the
+              // tier-card skeleton instead of a fabricated tier 0 / $0.00.
+              <TierCardSkeleton />
+            ) : (
+              <>
+                {/* Current tier status */}
+                {hasAssignedKycTier(tier) && (
+                  <div className="flex flex-col rounded-[20px] border-[0.5px] border-border-light bg-background-neutral p-4 dark:border-0 dark:bg-[#363636]">
+                    <div className="flex w-fit items-center gap-2 rounded-lg bg-[#39C65D] px-2 py-1">
+                      <StarIcon className="text-white dark:text-black" size={16} />
+                      <span className="text-sm font-semibold text-white dark:text-black">
+                        Current: {formatKycTierDisplayLabel(tier)}
+                      </span>
+                    </div>
 
-                <div className="mt-4 flex items-center gap-1">
-                  <span className="text-sm font-medium text-text-body dark:text-white/80">
-                    Monthly limit
-                  </span>
-                  <InformationCircleIcon className="size-4 text-outline-gray dark:text-white/50" />
-                </div>
+                    <div className="mt-4 flex items-center gap-1">
+                      <span className="text-sm font-medium text-text-body dark:text-white/80">
+                        Monthly limit
+                      </span>
+                      <InformationCircleIcon className="size-4 text-outline-gray dark:text-white/50" />
+                    </div>
 
-                <div className="mt-4 space-y-3">
-                  {isPooledAllowance(pooledWalletCount) && (
-                    <p className="text-xs font-light text-text-secondary dark:text-white/50">
-                      Shared across your {pooledWalletCount} wallets
-                    </p>
-                  )}
-
-                  {isTransactionSummaryLoading ? (
-                    <>
-                      <div className={classNames("h-8 w-full rounded", pulseBar)} />
-                      {!currentLimits.unlimited && (
-                        <div className={classNames("h-2 w-full rounded-full", pulseBar)} />
+                    <div className="mt-4 space-y-3">
+                      {isPooledAllowance(pooledWalletCount) && (
+                        <p className="text-xs font-light text-text-secondary dark:text-white/50">
+                          Shared across your {pooledWalletCount} wallets
+                        </p>
                       )}
-                    </>
-                  ) : (
-                    <>
-                      <div className="font-general-sans text-2xl font-medium leading-9 tracking-[-0.72px] text-text-body dark:text-white">
-                        {formatMonthlyLimitLine(
-                          transactionSummary.monthlySpent,
-                          currentLimits.monthly,
-                          !!currentLimits.unlimited,
-                        )}
-                      </div>
 
-                      {!currentLimits.unlimited && (
-                        <div className="flex h-2 w-full items-center rounded-full bg-border-light dark:bg-white/10">
-                          <div
-                            className="h-2 rounded-full bg-lavender-500 transition-all duration-500"
-                            style={{ width: `${monthlyProgress}%` }}
-                          />
-                        </div>
+                      {isTransactionSummaryLoading ? (
+                        <>
+                          <div className={classNames("h-8 w-full rounded", pulseBar)} />
+                          {!currentLimits.unlimited && (
+                            <div className={classNames("h-2 w-full rounded-full", pulseBar)} />
+                          )}
+                        </>
+                      ) : (
+                        <>
+                          <div className="font-general-sans text-2xl font-medium leading-9 tracking-[-0.72px] text-text-body dark:text-white">
+                            {formatMonthlyLimitLine(
+                              transactionSummary.monthlySpent,
+                              currentLimits.monthly,
+                              !!currentLimits.unlimited,
+                            )}
+                          </div>
+
+                          {!currentLimits.unlimited && (
+                            <div className="flex h-2 w-full items-center rounded-full bg-border-light dark:bg-white/10">
+                              <div
+                                className="h-2 rounded-full bg-lavender-500 transition-all duration-500"
+                                style={{ width: `${monthlyProgress}%` }}
+                              />
+                            </div>
+                          )}
+                        </>
                       )}
-                    </>
-                  )}
-                </div>
+                    </div>
 
-                {tier < 4 && (
-                  <button
-                    type="button"
-                    onClick={openLimitModal}
-                    title={`Upgrade to ${formatKycTierDisplayLabel(tier + 1)}`}
-                    className="mt-[14px] min-h-11 w-full rounded-xl bg-lavender-500 px-4 py-2 text-center text-sm font-medium text-white transition-all hover:scale-[0.98] hover:bg-lavender-600 active:scale-95"
-                  >
-                    Increase limit → {formatKycTierDisplayLabel(tier + 1)}
-                  </button>
+                    {tier < 4 && (
+                      <button
+                        type="button"
+                        onClick={openLimitModal}
+                        title={`Upgrade to ${formatKycTierDisplayLabel(tier + 1)}`}
+                        className="mt-[14px] min-h-11 w-full rounded-xl bg-lavender-500 px-4 py-2 text-center text-sm font-medium text-white transition-all hover:scale-[0.98] hover:bg-lavender-600 active:scale-95"
+                      >
+                        Increase limit → {formatKycTierDisplayLabel(tier + 1)}
+                      </button>
+                    )}
+                  </div>
                 )}
-              </div>
-            )}
 
-            {/* Tier accordion: lists the tiers above the current one, same rule as ProfileView. */}
-            {tiersAboveCurrent.length > 0 && (
-              <div className="flex w-full flex-col gap-3">
-                {tiersAboveCurrent.map((tierData) => (
-                  <AccordionTierRow
-                    key={tierData.level}
-                    tierData={tierData}
-                    isExpanded={expandedTierLevel === tierData.level}
-                    onToggle={() => toggleTierExpansion(tierData.level)}
-                    showVerifyCta={tier === 0 && tierData.level === tier + 1}
-                    onVerify={openLimitModal}
-                  />
-                ))}
-              </div>
+                {/* Tier accordion: lists the tiers above the current one, same rule as ProfileView. */}
+                {tiersAboveCurrent.length > 0 && (
+                  <div className="flex w-full flex-col gap-3">
+                    {tiersAboveCurrent.map((tierData) => (
+                      <AccordionTierRow
+                        key={tierData.level}
+                        tierData={tierData}
+                        isExpanded={expandedTierLevel === tierData.level}
+                        onToggle={() => toggleTierExpansion(tierData.level)}
+                        showVerifyCta={tier === 0 && tierData.level === tier + 1}
+                        onVerify={openLimitModal}
+                      />
+                    ))}
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>

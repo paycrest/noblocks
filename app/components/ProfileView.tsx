@@ -39,6 +39,25 @@ interface ProfileViewProps {
   onClose?: () => void; // Used for "drawer" layout to close the drawer
 }
 
+/** Current-tier card skeleton: standalone (while only KYC status is still loading) or nested in renderSkeletonLoader (full view). */
+function TierCardSkeleton() {
+  return (
+    <div
+      className="space-y-4 rounded-[20px] border border-border-light bg-transparent p-4 dark:border-white/5"
+      aria-busy="true"
+      aria-label="Loading tier status"
+    >
+      <div className="h-6 w-28 rounded-lg bg-gray-200 dark:bg-white/10"></div>
+      <div className="space-y-3">
+        <div className="h-4 w-24 rounded bg-gray-200 dark:bg-white/10"></div>
+        <div className="h-8 w-full rounded bg-gray-200 dark:bg-white/10"></div>
+        <div className="h-2 w-full rounded-full bg-gray-200 dark:bg-white/10"></div>
+      </div>
+      <div className="h-11 w-full rounded-xl bg-gray-200 dark:bg-white/10"></div>
+    </div>
+  );
+}
+
 export default function ProfileView({ layout, onBack, onClose }: ProfileViewProps) {
   const {
     user,
@@ -51,6 +70,7 @@ export default function ProfileView({ layout, onBack, onClose }: ProfileViewProp
     currentLimits,
     monthlyProgress,
     isLoading,
+    isKycStatusLoading,
     linkEmail,
     handleCopyAddress,
     isAddressCopied,
@@ -78,15 +98,7 @@ export default function ProfileView({ layout, onBack, onClose }: ProfileViewProp
           </div>
         </div>
       </div>
-      <div className="space-y-4 rounded-[20px] border border-border-light bg-transparent p-4 dark:border-white/5">
-        <div className="h-6 w-28 rounded-lg bg-gray-200 dark:bg-white/10"></div>
-        <div className="space-y-3">
-          <div className="h-4 w-24 rounded bg-gray-200 dark:bg-white/10"></div>
-          <div className="h-8 w-full rounded bg-gray-200 dark:bg-white/10"></div>
-          <div className="h-2 w-full rounded-full bg-gray-200 dark:bg-white/10"></div>
-        </div>
-        <div className="h-11 w-full rounded-xl bg-gray-200 dark:bg-white/10"></div>
-      </div>
+      <TierCardSkeleton />
       {[1, 2].map((i) => (
         <div
           key={i}
@@ -332,88 +344,96 @@ export default function ProfileView({ layout, onBack, onClose }: ProfileViewProp
               </div>
             </div>
 
-            {/* Current tier status */}
-            {hasAssignedKycTier(tier) && (
-              <div className="space-y-4 rounded-[20px] border border-border-light bg-transparent p-4 dark:border-white/5">
-                <div className="flex w-[137px] items-center gap-2 rounded-lg bg-[#39C65D] px-3 py-1.5 dark:bg-[#39C65D]">
-                  <StarIcon
-                    className="text-white dark:text-black"
-                    size={16}
-                  />
-                  <span className="text-xs font-medium text-white dark:text-black">
-                    Current: {formatKycTierDisplayLabel(tier)}
-                  </span>
-                </div>
+            {isKycStatusLoading ? (
+              // Retries are exhausted but KYC status never loaded — show the
+              // tier-card skeleton instead of a fabricated tier 0 / $0.00.
+              <TierCardSkeleton />
+            ) : (
+              <>
+                {/* Current tier status */}
+                {hasAssignedKycTier(tier) && (
+                  <div className="space-y-4 rounded-[20px] border border-border-light bg-transparent p-4 dark:border-white/5">
+                    <div className="flex w-[137px] items-center gap-2 rounded-lg bg-[#39C65D] px-3 py-1.5 dark:bg-[#39C65D]">
+                      <StarIcon
+                        className="text-white dark:text-black"
+                        size={16}
+                      />
+                      <span className="text-xs font-medium text-white dark:text-black">
+                        Current: {formatKycTierDisplayLabel(tier)}
+                      </span>
+                    </div>
 
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-light text-text-secondary dark:text-white/70">
-                      Monthly limit
-                    </span>
-                    <InformationCircleIcon className="size-4 text-outline-gray dark:text-white/50" />
-                  </div>
-
-                  {/* Explains spend this wallet did not make. Hidden at one wallet so
-                      users without a shared allowance see the original layout. */}
-                  {isPooledAllowance(pooledWalletCount) && (
-                    <p className="text-xs font-light text-text-secondary dark:text-white/50">
-                      Shared across your {pooledWalletCount} wallets
-                    </p>
-                  )}
-
-                  {isTransactionSummaryLoading ? (
-                    <>
-                      <div className="h-8 w-full animate-pulse rounded bg-gray-200 dark:bg-white/10" />
-                      {!currentLimits.unlimited && (
-                        <div className="h-2 w-full animate-pulse rounded-full bg-gray-200 dark:bg-white/10" />
-                      )}
-                    </>
-                  ) : (
-                    <>
-                      <div className="text-2xl font-light text-text-body dark:text-white">
-                        ${formatUsdAmount(transactionSummary.monthlySpent)}{" "}
-                        /{" "}
-                        {currentLimits.unlimited
-                          ? "Unlimited"
-                          : `$${formatUsdAmount(currentLimits.monthly)}`}
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-light text-text-secondary dark:text-white/70">
+                          Monthly limit
+                        </span>
+                        <InformationCircleIcon className="size-4 text-outline-gray dark:text-white/50" />
                       </div>
 
-                      {!currentLimits.unlimited && (
-                        <div className="flex h-2 w-full items-center rounded-full bg-gray-300 dark:bg-white/10">
-                          <div
-                            className="h-2.5 rounded-full bg-gradient-to-r from-lavender-300 to-lavender-600 transition-all duration-500 dark:from-lavender-400 dark:to-lavender-600"
-                            style={{
-                              width: `${Math.min(monthlyProgress, 100)}%`,
-                            }}
-                          />
-                        </div>
+                      {/* Explains spend this wallet did not make. Hidden at one wallet so
+                          users without a shared allowance see the original layout. */}
+                      {isPooledAllowance(pooledWalletCount) && (
+                        <p className="text-xs font-light text-text-secondary dark:text-white/50">
+                          Shared across your {pooledWalletCount} wallets
+                        </p>
                       )}
-                    </>
-                  )}
-                </div>
 
-                {tier < 4 && (
-                  <button
-                    type="button"
-                    onClick={openLimitModal}
-                    title={`Upgrade to ${formatKycTierDisplayLabel(tier + 1)}`}
-                    className="min-h-11 w-full rounded-xl bg-lavender-600 px-4 py-2 text-center text-sm font-light text-white transition-all hover:scale-[0.98] hover:bg-lavender-700 active:scale-95 dark:bg-lavender-500 dark:hover:bg-lavender-600"
-                  >
-                    Increase limit → {formatKycTierDisplayLabel(tier + 1)}
-                  </button>
+                      {isTransactionSummaryLoading ? (
+                        <>
+                          <div className="h-8 w-full animate-pulse rounded bg-gray-200 dark:bg-white/10" />
+                          {!currentLimits.unlimited && (
+                            <div className="h-2 w-full animate-pulse rounded-full bg-gray-200 dark:bg-white/10" />
+                          )}
+                        </>
+                      ) : (
+                        <>
+                          <div className="text-2xl font-light text-text-body dark:text-white">
+                            ${formatUsdAmount(transactionSummary.monthlySpent)}{" "}
+                            /{" "}
+                            {currentLimits.unlimited
+                              ? "Unlimited"
+                              : `$${formatUsdAmount(currentLimits.monthly)}`}
+                          </div>
+
+                          {!currentLimits.unlimited && (
+                            <div className="flex h-2 w-full items-center rounded-full bg-gray-300 dark:bg-white/10">
+                              <div
+                                className="h-2.5 rounded-full bg-gradient-to-r from-lavender-300 to-lavender-600 transition-all duration-500 dark:from-lavender-400 dark:to-lavender-600"
+                                style={{
+                                  width: `${Math.min(monthlyProgress, 100)}%`,
+                                }}
+                              />
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+
+                    {tier < 4 && (
+                      <button
+                        type="button"
+                        onClick={openLimitModal}
+                        title={`Upgrade to ${formatKycTierDisplayLabel(tier + 1)}`}
+                        className="min-h-11 w-full rounded-xl bg-lavender-600 px-4 py-2 text-center text-sm font-light text-white transition-all hover:scale-[0.98] hover:bg-lavender-700 active:scale-95 dark:bg-lavender-500 dark:hover:bg-lavender-600"
+                      >
+                        Increase limit → {formatKycTierDisplayLabel(tier + 1)}
+                      </button>
+                    )}
+                  </div>
                 )}
-              </div>
-            )}
 
-            {/* Tier Information */}
-            {tiersAboveCurrent.map((tierData) => (
-              <div
-                key={tierData.level}
-                className="rounded-[20px] border border-border-light bg-transparent dark:border-white/5"
-              >
-                {renderTierSection(tierData.level)}
-              </div>
-            ))}
+                {/* Tier Information */}
+                {tiersAboveCurrent.map((tierData) => (
+                  <div
+                    key={tierData.level}
+                    className="rounded-[20px] border border-border-light bg-transparent dark:border-white/5"
+                  >
+                    {renderTierSection(tierData.level)}
+                  </div>
+                ))}
+              </>
+            )}
 
             {/* Referrals (F-7) - hidden in embed mode */}
             {isReferralEnabled() && !isEmbed && (

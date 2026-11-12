@@ -72,6 +72,7 @@ export function useProfileViewModel() {
   const [isAddressCopied, setIsAddressCopied] = useState(false);
   const [retryTick, setRetryTick] = useState(0);
   const [initialRefreshSettled, setInitialRefreshSettled] = useState(false);
+  const [retriesExhausted, setRetriesExhausted] = useState(false);
   const retryCountRef = useRef(0);
 
   const currentLimits = getCurrentLimits();
@@ -84,8 +85,11 @@ export function useProfileViewModel() {
 
   // The page/drawer must keep showing the skeleton while status is unknown —
   // including after a failed fetch — rather than rendering the reset
-  // snapshot (tier 0, $0.00 spend) as if it were real data.
-  const isLoading = !hasLoadedStatus;
+  // snapshot (tier 0, $0.00 spend) as if it were real data. Once the retry
+  // budget is exhausted, though, stop trapping the user on the skeleton —
+  // the account card (address, copy, sign out) can render without KYC data.
+  const isLoading = !hasLoadedStatus && !retriesExhausted;
+  const isKycStatusLoading = !hasLoadedStatus;
   const isTransactionSummaryLoading = !hasLoadedTransactionSummary;
 
   useEffect(() => {
@@ -99,6 +103,13 @@ export function useProfileViewModel() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // A new wallet gets its own full retry budget — wallet A exhausting its
+  // retries must not leave wallet B with none.
+  useEffect(() => {
+    retryCountRef.current = 0;
+    setRetriesExhausted(false);
+  }, [walletAddress]);
+
   // Quiet automatic retry: if status or the transaction summary failed to
   // load, retry a bounded number of times with backoff so a transient
   // failure doesn't leave the page on the skeleton forever. No new UI.
@@ -109,9 +120,13 @@ export function useProfileViewModel() {
     if (!initialRefreshSettled) return;
     if (hasLoadedStatus && hasLoadedTransactionSummary) {
       retryCountRef.current = 0;
+      setRetriesExhausted(false);
       return;
     }
-    if (retryCountRef.current >= RETRY_DELAYS_MS.length) return;
+    if (retryCountRef.current >= RETRY_DELAYS_MS.length) {
+      setRetriesExhausted(true);
+      return;
+    }
     const delay = RETRY_DELAYS_MS[retryCountRef.current];
     const timeoutId = setTimeout(() => {
       retryCountRef.current += 1;
@@ -124,6 +139,7 @@ export function useProfileViewModel() {
     hasLoadedTransactionSummary,
     retryTick,
     refreshStatus,
+    walletAddress,
   ]);
 
   const { linkEmail } = useLinkAccountAuth({
@@ -189,6 +205,7 @@ export function useProfileViewModel() {
     currentLimits,
     monthlyProgress,
     isLoading,
+    isKycStatusLoading,
     isTransactionSummaryLoading,
     refreshStatus,
     linkEmail,

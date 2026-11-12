@@ -2,6 +2,7 @@
 
 import React from "react";
 import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
+import { toast } from "sonner";
 import {
   formatMonthlyLimitLine,
   computeMonthlyProgressPercent,
@@ -99,7 +100,10 @@ function makeKycState(overrides: Partial<KycState> = {}): KycState {
 
 import { ProfilePageContent } from "../app/(wallet)/components/ProfilePageContent";
 import { SettingsPageContent } from "../app/(wallet)/components/SettingsPageContent";
+import ProfileView from "../app/components/ProfileView";
 import { KYC_TIERS } from "../app/context/KYCContext";
+
+const mockClipboardWriteText = jest.fn().mockResolvedValue(undefined);
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -109,6 +113,10 @@ beforeEach(() => {
   // jsdom has no sendBeacon; the logout tracker falls back to fetch otherwise,
   // and the global fetch mock (jest.setup.js) returns undefined, not a thenable.
   (navigator as unknown as { sendBeacon: jest.Mock }).sendBeacon = jest.fn();
+  Object.defineProperty(navigator, "clipboard", {
+    value: { writeText: mockClipboardWriteText },
+    configurable: true,
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -374,6 +382,132 @@ describe("ProfilePageContent", () => {
         await jest.advanceTimersByTimeAsync(60000);
       });
       expect(mockRefreshStatus).toHaveBeenCalledTimes(4);
+    });
+
+    it("gives a new wallet its own retry budget after the previous wallet exhausts its retries", async () => {
+      mockKycState = makeKycState({
+        walletAddress: "0x1111111111111111111111111111111111111111",
+        hasLoadedStatus: false,
+        hasLoadedTransactionSummary: false,
+      });
+      const { rerender } = render(<ProfilePageContent />);
+
+      await waitFor(() => expect(mockRefreshStatus).toHaveBeenCalledTimes(1));
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(0);
+      });
+
+      // Wallet A exhausts its 3 retries (2s/4s/8s).
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(2000);
+      });
+      expect(mockRefreshStatus).toHaveBeenCalledTimes(2);
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(4000);
+      });
+      expect(mockRefreshStatus).toHaveBeenCalledTimes(3);
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(8000);
+      });
+      expect(mockRefreshStatus).toHaveBeenCalledTimes(4);
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(60000);
+      });
+      expect(mockRefreshStatus).toHaveBeenCalledTimes(4);
+
+      // Switch to wallet B — still failing — it must get its own full budget.
+      mockKycState = makeKycState({
+        walletAddress: "0x2222222222222222222222222222222222222222",
+        hasLoadedStatus: false,
+        hasLoadedTransactionSummary: false,
+      });
+      rerender(<ProfilePageContent />);
+
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(2000);
+      });
+      expect(mockRefreshStatus).toHaveBeenCalledTimes(5);
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(4000);
+      });
+      expect(mockRefreshStatus).toHaveBeenCalledTimes(6);
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(8000);
+      });
+      expect(mockRefreshStatus).toHaveBeenCalledTimes(7);
+    });
+
+    it("shows Account actions once retries are exhausted without fabricating tier data (ProfilePageContent)", async () => {
+      mockKycState = makeKycState({
+        tier: 0,
+        hasLoadedStatus: false,
+        hasLoadedTransactionSummary: false,
+      });
+      render(<ProfilePageContent />);
+
+      await waitFor(() => expect(mockRefreshStatus).toHaveBeenCalledTimes(1));
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(0);
+      });
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(2000);
+      });
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(4000);
+      });
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(8000);
+      });
+
+      const signOut = await screen.findByText("Sign out");
+      expect(signOut).toBeEnabled();
+
+      const copyButton = screen.getByTitle("Copy wallet address");
+      expect(copyButton).toBeInTheDocument();
+      fireEvent.click(copyButton);
+      await waitFor(() =>
+        expect(toast.success).toHaveBeenCalledWith("Address copied to clipboard"),
+      );
+
+      expect(screen.queryByText("Verify to start swapping")).not.toBeInTheDocument();
+      expect(screen.queryByText(/Current: Tier/)).not.toBeInTheDocument();
+      expect(screen.queryByText(/\$0\.00/)).not.toBeInTheDocument();
+      expect(screen.getByLabelText("Loading tier status")).toBeInTheDocument();
+    });
+
+    it("shows the account card once retries are exhausted without tier-0 defaults (ProfileView)", async () => {
+      mockKycState = makeKycState({
+        tier: 0,
+        hasLoadedStatus: false,
+        hasLoadedTransactionSummary: false,
+      });
+      render(<ProfileView layout="drawer" />);
+
+      await waitFor(() => expect(mockRefreshStatus).toHaveBeenCalledTimes(1));
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(0);
+      });
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(2000);
+      });
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(4000);
+      });
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(8000);
+      });
+
+      const copyButton = screen.getByTitle("Copy wallet address");
+      expect(copyButton).toBeInTheDocument();
+      fireEvent.click(copyButton);
+      await waitFor(() =>
+        expect(toast.success).toHaveBeenCalledWith("Address copied to clipboard"),
+      );
+
+      expect(screen.queryByText("Verify now")).not.toBeInTheDocument();
+      expect(screen.queryByText(/Current: Tier/)).not.toBeInTheDocument();
+      expect(screen.queryByText(/\$0\.00/)).not.toBeInTheDocument();
+      expect(screen.getByLabelText("Loading tier status")).toBeInTheDocument();
     });
   });
 });

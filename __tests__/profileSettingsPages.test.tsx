@@ -536,6 +536,52 @@ describe("ProfilePageContent", () => {
       expect(screen.getByLabelText("Loading tier status")).toBeInTheDocument();
     });
 
+    it("unblocks account actions at the 10s deadline even when the initial refresh settled quickly but the first retry hangs", async () => {
+      mockKycState = makeKycState({
+        tier: 0,
+        hasLoadedStatus: false,
+        hasLoadedTransactionSummary: false,
+      });
+      // The initial refresh settles quickly (the default mock resolves immediately)
+      // but status never loads. The retry effect then chains the first retry at 2s,
+      // and that retry hangs forever — its `.finally` never fires, so retryTick never
+      // bumps. The account-actions deadline must still fire at 10s from mount since
+      // it's no longer cleared when the initial refresh settles.
+      mockRefreshStatus
+        .mockImplementationOnce(async () => null)
+        .mockImplementationOnce(() => new Promise(() => {}));
+      render(<ProfilePageContent />);
+
+      await waitFor(() => expect(mockRefreshStatus).toHaveBeenCalledTimes(1));
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(0);
+      });
+
+      // First retry fires at 2s and hangs forever.
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(2000);
+      });
+      expect(mockRefreshStatus).toHaveBeenCalledTimes(2);
+
+      // Still within the deadline — account actions stay hidden.
+      expect(screen.queryByText("Sign out")).not.toBeInTheDocument();
+
+      // Advance to 10s from mount — the deadline fires independently of the hung retry.
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(8000);
+      });
+      expect(mockRefreshStatus).toHaveBeenCalledTimes(2);
+
+      const signOut = await screen.findByText("Sign out");
+      expect(signOut).toBeEnabled();
+      expect(screen.getByTitle("Copy wallet address")).toBeInTheDocument();
+
+      expect(screen.queryByText("Verify to start swapping")).not.toBeInTheDocument();
+      expect(screen.queryByText(/Current: Tier/)).not.toBeInTheDocument();
+      expect(screen.queryByText(/\$0\.00/)).not.toBeInTheDocument();
+      expect(screen.getByLabelText("Loading tier status")).toBeInTheDocument();
+    });
+
     it("shows Account actions once retries are exhausted without fabricating tier data (ProfilePageContent)", async () => {
       mockKycState = makeKycState({
         tier: 0,

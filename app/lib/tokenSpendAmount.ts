@@ -22,9 +22,17 @@ export function addressesMatchTokenRow(
   return row === k;
 }
 
+/** Largest decimals field allowed on standard EVM ERC-20 metadata (uint8). */
+export const MAX_SUPPORTED_TOKEN_DECIMALS = 255;
+
 /** Decimals from our token list: must be a positive integer (no defaulting). */
 export function isValidTokenDecimals(d: unknown): d is number {
-  return typeof d === "number" && Number.isInteger(d) && d > 0;
+  return (
+    typeof d === "number" &&
+    Number.isInteger(d) &&
+    d > 0 &&
+    d <= MAX_SUPPORTED_TOKEN_DECIMALS
+  );
 }
 
 const TOKEN_DECIMALS_DIGITS_ONLY = /^\d+$/;
@@ -95,6 +103,11 @@ export function resolveBridgeLegToken(
     return { ok: false, reason: "missing_token_address" };
   }
   return { ok: true, address: addr, decimals: token.decimals };
+}
+
+/** Bridge pickers: only rows that resolve to a usable leg address and decimals. */
+export function isBridgeLegTokenSelectable(token: Token): boolean {
+  return resolveBridgeLegToken(token).ok;
 }
 
 /** Single row from the network list: native matches empty address; otherwise match normalized contract id. */

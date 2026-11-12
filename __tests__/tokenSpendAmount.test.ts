@@ -6,6 +6,7 @@ import {
   buildOfframpSpendWei,
   isValidTokenDecimals,
   normalizeTokenDecimals,
+  isBridgeLegTokenSelectable,
   resolveBridgeExecuteToken,
   resolveSpendTokenFromList,
   toRawAmount,
@@ -252,6 +253,60 @@ describe("resolveBridgeExecuteToken", () => {
         "Token data not found for the selected asset.",
       );
     }
+  });
+});
+
+describe("isValidTokenDecimals", () => {
+  it("rejects decimals above the ERC-20 uint8 maximum (fail closed before parseUnits)", () => {
+    expect(isValidTokenDecimals(256)).toBe(false);
+    expect(isValidTokenDecimals(1_000_000_000)).toBe(false);
+  });
+
+  it("accepts the largest uint8 decimals value supported on-chain", () => {
+    expect(isValidTokenDecimals(255)).toBe(true);
+  });
+});
+
+describe("isBridgeLegTokenSelectable", () => {
+  it("rejects ERC-20 rows with missing contract address", () => {
+    const broken: Token = {
+      name: "Broken",
+      symbol: "BRK",
+      decimals: 6,
+      address: "",
+    };
+    expect(isBridgeLegTokenSelectable(broken)).toBe(false);
+  });
+
+  it("rejects tokens with invalid decimals", () => {
+    const broken: Token = {
+      name: "Broken",
+      symbol: "BRK",
+      decimals: undefined as unknown as number,
+      address: baseUsdcAddress,
+    };
+    expect(isBridgeLegTokenSelectable(broken)).toBe(false);
+  });
+
+  it("accepts native tokens with empty address", () => {
+    const eth: Token = {
+      name: "Ethereum",
+      symbol: "ETH",
+      decimals: 18,
+      address: "",
+      isNative: true,
+    };
+    expect(isBridgeLegTokenSelectable(eth)).toBe(true);
+  });
+
+  it("accepts ERC-20 rows with address and decimals", () => {
+    const usdc: Token = {
+      name: "USD Coin",
+      symbol: "USDC",
+      decimals: 6,
+      address: baseUsdcAddress,
+    };
+    expect(isBridgeLegTokenSelectable(usdc)).toBe(true);
   });
 });
 

@@ -165,12 +165,12 @@ export function TransferConfirmPanel({
       <div className="flex items-start justify-between gap-3">
         <div className={classNames("flex min-w-0 flex-col", isPage ? "gap-4" : "gap-1")}>
           {isPage ? (
-            <p
+            <h1
               id={titleId}
               className="truncate font-general-sans text-xl font-medium leading-7 text-text-body dark:text-white/80"
             >
               {TRANSFER_COPY.confirmTitle(shortAddress)}
-            </p>
+            </h1>
           ) : (
             <p
               id={titleId}

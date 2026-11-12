@@ -31,6 +31,7 @@ import { TransferSuccessModal } from "./transfer/TransferSuccessModal";
 import { TransferSuccessCompactModal } from "./transfer/TransferSuccessCompactModal";
 import { SaveRecipientToggle } from "./transfer/SaveRecipientToggle";
 import {
+  addressesEqual,
   formatTransferAmount,
   formatTransferCtaLabel,
   formatTransferFeeUsd,
@@ -126,6 +127,12 @@ export const TransferForm: React.FC<{
     useState<TransferFormValues | null>(null);
   const confirmInFlightRef = useRef(false);
   const transferStartedAtRef = useRef<number | null>(null);
+  // Invalidated by a new confirm open or resetFlowState, so a late-resolving
+  // fetch from a previous confirm (user went back and changed the recipient,
+  // or started a new payment) can't overwrite the current saved-recipient
+  // state. Not invalidated by leaving "confirm" for "pending"/"success"
+  // within the same flow — that fetch result must still land on the receipt.
+  const savedRecipientsSessionRef = useRef(0);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [frozenElapsedSeconds, setFrozenElapsedSeconds] = useState(0);
   // Saved recipients, fetched once per confirm-step open, to hide the "Save
@@ -135,7 +142,12 @@ export const TransferForm: React.FC<{
   const [savedRecipients, setSavedRecipients] = useState<
     RecipientDetailsWithId[] | null
   >(null);
-  const [savedThisFlow, setSavedThisFlow] = useState(false);
+  // The address saved during this flow (via the confirm-step toggle), not a
+  // flow-wide boolean — so saving address A then transferring to a different
+  // address B still offers "Save beneficiary" for B.
+  const [savedThisFlowAddress, setSavedThisFlowAddress] = useState<
+    string | null
+  >(null);
   const rateLabel = useTransferRate(
     token,
     recipientNetwork || selectedNetwork.chain.name,
@@ -218,21 +230,23 @@ export const TransferForm: React.FC<{
 
   useEffect(() => {
     if (transferStep !== "confirm") return;
-    let cancelled = false;
+    savedRecipientsSessionRef.current += 1;
+    const session = savedRecipientsSessionRef.current;
     void (async () => {
       try {
         const accessToken = await getAccessTokenRef.current();
         if (!accessToken) return;
         const list = await fetchSavedRecipients(accessToken);
-        if (!cancelled) setSavedRecipients(list);
+        // A newer confirm open (or a reset) invalidates this session — a
+        // transition to "pending"/"success" within the same flow does not.
+        if (savedRecipientsSessionRef.current === session) {
+          setSavedRecipients(list);
+        }
       } catch {
         // Fetch failure: leave savedRecipients as-is, so the Save controls
         // keep showing rather than surfacing a new error state.
       }
     })();
-    return () => {
-      cancelled = true;
-    };
   }, [transferStep]);
 
   useEffect(() => {
@@ -440,8 +454,9 @@ export const TransferForm: React.FC<{
     setElapsedSeconds(0);
     setFrozenElapsedSeconds(0);
     setSubmittedValues(null);
-    setSavedThisFlow(false);
+    setSavedThisFlowAddress(null);
     setSavedRecipients(null);
+    savedRecipientsSessionRef.current += 1;
   };
 
   const handleNewPayment = () => {
@@ -504,22 +519,31 @@ export const TransferForm: React.FC<{
       savedRecipients,
       submittedValues?.recipientAddress,
     );
+    const isSubmittedRecipientSavedThisFlow = addressesEqual(
+      savedThisFlowAddress,
+      submittedValues?.recipientAddress,
+    );
     const offerSaveBeneficiaryOnReceipt =
       isEvmRecipientNetwork(submittedValues?.recipientNetwork) &&
       Boolean(submittedValues?.recipientAddress) &&
       !isCompletedRecipientAlreadySaved &&
-      !savedThisFlow;
+      !isSubmittedRecipientSavedThisFlow;
 
+    const isRecipientSavedThisFlow = addressesEqual(
+      savedThisFlowAddress,
+      recipientAddress,
+    );
     const showInlineConfirm = chrome === "page" && transferStep !== "form";
     const saveRecipientControl =
       isEvmRecipientNetwork(recipientNetwork) &&
       recipientAddress &&
-      !isRecipientAlreadySaved ? (
+      !isRecipientAlreadySaved &&
+      !isRecipientSavedThisFlow ? (
         <SaveRecipientToggle
           walletAddress={recipientAddress}
           networkName={recipientNetwork ?? ""}
           networkImageUrl={recipientNetworkImageUrl}
-          onSaved={() => setSavedThisFlow(true)}
+          onSaved={(savedAddress) => setSavedThisFlowAddress(savedAddress)}
           appearance={chrome === "page" ? "checkbox" : "switch"}
           label={
             chrome === "page"

@@ -394,9 +394,11 @@ describe("TransferForm", () => {
     await waitFor(() =>
       expect(screen.queryByText("Create beneficiary")).not.toBeInTheDocument(),
     );
+    // The switch itself disappears once saved this flow — otherwise the user
+    // could reopen it and submit another save for the same address.
     expect(
-      screen.getByRole("switch", { name: "Save recipient to contacts" }),
-    ).toHaveAttribute("aria-checked", "true");
+      screen.queryByRole("switch", { name: "Save recipient to contacts" }),
+    ).not.toBeInTheDocument();
     expect(mockTransfer).not.toHaveBeenCalled();
   });
 

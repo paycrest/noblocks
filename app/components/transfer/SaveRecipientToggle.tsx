@@ -14,8 +14,8 @@ type Props = {
   walletAddress: string;
   networkName: string;
   networkImageUrl?: string;
-  /** Called after a successful save, so the caller can e.g. hide the receipt's own offer. */
-  onSaved?: () => void;
+  /** Called with the saved address after a successful save, so the caller can e.g. hide the receipt's own offer. */
+  onSaved?: (walletAddress: string) => void;
   /**
    * "switch" is the token-detail overlay (Figma 2691:73762).
    * "checkbox" is the Home page confirm bar (Figma 2620:131092).
@@ -75,7 +75,7 @@ export function SaveRecipientToggle({
       setIsModalOpen(false);
       setEnabled(true);
       toast.success("Recipient saved");
-      onSaved?.();
+      onSaved?.(walletAddress);
     } catch (error) {
       setIsModalOpen(false);
       setEnabled(false);

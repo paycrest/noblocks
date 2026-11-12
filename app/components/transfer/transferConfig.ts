@@ -274,6 +274,15 @@ export function formatBridgeFeeLabel(
   return `${formatTokenAmount(fee)} ${receivingTokenSymbol}`.trim();
 }
 
+/** Case-insensitive address equality, consistent with `isAddressAlreadySaved`. */
+export function addressesEqual(
+  a: string | null | undefined,
+  b: string | null | undefined,
+): boolean {
+  if (!a || !b) return false;
+  return a.trim().toLowerCase() === b.trim().toLowerCase();
+}
+
 /**
  * True when `address` already matches a saved wallet-type recipient.
  * `RecipientDetails` has no network field for `type: "wallet"` (see

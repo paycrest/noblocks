@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { toast } from "sonner";
 
@@ -50,11 +50,16 @@ export function TransferSuccessCompactModal({
   const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [justSaved, setJustSaved] = useState(false);
+  // Bumped every time the receipt closes, so a save that resolves after close
+  // (for a since-reopened receipt showing a different, unsaved recipient)
+  // can't set `justSaved` on that later receipt.
+  const sessionRef = useRef(0);
 
   // Reset once the receipt closes, so the next completed transfer re-evaluates
   // `offerSaveBeneficiary` fresh instead of carrying over a stale "saved" flag.
   useEffect(() => {
     if (!isOpen) {
+      sessionRef.current += 1;
       setIsSaveModalOpen(false);
       setJustSaved(false);
     }
@@ -62,6 +67,7 @@ export function TransferSuccessCompactModal({
 
   const handleSaveBeneficiary = async (name: string) => {
     if (!recipientAddress || !name) return;
+    const session = sessionRef.current;
     setIsSaving(true);
     try {
       const accessToken = await getAccessToken();
@@ -72,8 +78,10 @@ export function TransferSuccessCompactModal({
         { type: "wallet", walletAddress: recipientAddress, name },
         accessToken,
       );
-      setIsSaveModalOpen(false);
-      setJustSaved(true);
+      if (sessionRef.current === session) {
+        setIsSaveModalOpen(false);
+        setJustSaved(true);
+      }
       toast.success("Recipient saved");
     } catch (error) {
       toast.error(

@@ -1,7 +1,7 @@
 /// <reference types="jest" />
 
 import React from "react";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, act } from "@testing-library/react";
 import { KYCProvider, useKYC } from "../app/context/KYCContext";
 
 const mockGetAccessToken = jest.fn(async () => "test-access-token");
@@ -25,9 +25,19 @@ jest.mock("@/hooks/useWalletAddress", () => ({
   useWalletAddress: () => mockUseWalletAddress(),
 }));
 
-function Consumer() {
-  const { walletAddress, hasLoadedTransactionSummary, transactionSummary, tier } =
-    useKYC();
+function Consumer({
+  refreshRef,
+}: {
+  refreshRef?: { current: ReturnType<typeof useKYC>["refreshStatus"] | null };
+}) {
+  const {
+    walletAddress,
+    hasLoadedTransactionSummary,
+    transactionSummary,
+    tier,
+    refreshStatus,
+  } = useKYC();
+  if (refreshRef) refreshRef.current = refreshStatus;
   return (
     <div>
       <span data-testid="wallet">{walletAddress ?? "none"}</span>
@@ -154,6 +164,78 @@ describe("KYCProvider wallet switch", () => {
     statusDeferreds[0].resolve(1);
     await new Promise((r) => setTimeout(r, 0));
     expect(screen.getByTestId("tier").textContent).toBe("3");
+  });
+
+  it("does not let a forced refresh queued behind an in-flight one adopt a newer session after A -> undefined -> A", async () => {
+    const statusDeferreds: Deferred[] = [];
+    (global.fetch as jest.Mock).mockImplementation(async (url: string) => {
+      if (url.includes("/api/kyc/transaction-summary")) {
+        return {
+          ok: true,
+          json: async () => ({
+            success: true,
+            dailySpent: 0,
+            monthlySpent: 0,
+            lastTransactionDate: null,
+          }),
+        };
+      }
+      if (url.includes("/api/kyc/status")) {
+        const deferred = createDeferredStatusResponse();
+        statusDeferreds.push(deferred);
+        return deferred.promise;
+      }
+      return { ok: false, json: async () => ({}) };
+    });
+
+    const walletA = "0x1111111111111111111111111111111111111111";
+    mockUseWalletAddress.mockReturnValue(walletA);
+    const refreshRef: {
+      current: ReturnType<typeof useKYC>["refreshStatus"] | null;
+    } = { current: null };
+    const { rerender } = render(
+      <KYCProvider>
+        <Consumer refreshRef={refreshRef} />
+      </KYCProvider>,
+    );
+
+    // Wallet A's initial run (session S1) is in flight.
+    await waitFor(() => expect(statusDeferreds).toHaveLength(1));
+
+    // A forced refresh issued now, while A's initial run is still in flight, gets
+    // queued (chained) behind it — it must keep A's session (S1) from the moment
+    // it was called, not whatever session is current once it actually runs.
+    await act(async () => {
+      void refreshRef.current?.(true);
+    });
+
+    // Disconnect, then reconnect to the SAME address — a new wallet session (S3)
+    // starts its own run while the queued forced refresh above is still waiting
+    // on S1's run to settle.
+    mockUseWalletAddress.mockReturnValue(undefined);
+    rerender(
+      <KYCProvider>
+        <Consumer refreshRef={refreshRef} />
+      </KYCProvider>,
+    );
+    mockUseWalletAddress.mockReturnValue(walletA);
+    rerender(
+      <KYCProvider>
+        <Consumer refreshRef={refreshRef} />
+      </KYCProvider>,
+    );
+    await waitFor(() => expect(statusDeferreds).toHaveLength(2));
+
+    // A's original (session S1) run resolves, unblocking the queued forced refresh.
+    // If it had adopted the new session, it would issue its own fetch here; it must
+    // bail instead, since S1 is no longer the current session.
+    statusDeferreds[0].resolve(1);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(statusDeferreds).toHaveLength(2);
+
+    // The new session's (S3) own run resolves with the real tier.
+    statusDeferreds[1].resolve(3);
+    await waitFor(() => expect(screen.getByTestId("tier").textContent).toBe("3"));
   });
 
   it("clears transactionSummary/hasLoadedTransactionSummary when the wallet disconnects", async () => {

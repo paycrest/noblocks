@@ -41,6 +41,9 @@ export function formatTierLimitLine(
 /** Bounded backoff for the quiet retry after a failed status/summary fetch. */
 const RETRY_DELAYS_MS = [2000, 4000, 8000];
 
+/** Caps how long the initial-refresh gate can block account actions if the fetch hangs. */
+const INITIAL_REFRESH_TIMEOUT_MS = 10000;
+
 /**
  * Shared Profile data/state: KYC tier, limits, account/email linking, and the
  * tier-accordion expand state. Consumed by both the drawer/sheet ProfileView
@@ -96,16 +99,29 @@ export function useProfileViewModel() {
   // exhausting its retries (or still having its initial refresh in flight) must not leave
   // wallet B with none, nor block B's retry effect from ever scheduling. The cancelled flag
   // means a completion from an earlier wallet can't settle the gate for the current one.
+  // A timeout bounds the gate itself — a hung initial fetch must not trap account actions
+  // behind the skeleton forever; the retry cycle still proceeds once it settles late.
   useEffect(() => {
     let isMounted = true;
     retryCountRef.current = 0;
     setRetriesExhausted(false);
     setInitialRefreshSettled(false);
+    const timeoutId = setTimeout(() => {
+      // A hung initial fetch must not keep blocking account actions forever —
+      // show the account card now. The retry cycle keeps running, and if status
+      // loads later the KYC card fills in with real data.
+      if (isMounted) {
+        setInitialRefreshSettled(true);
+        setRetriesExhausted(true);
+      }
+    }, INITIAL_REFRESH_TIMEOUT_MS);
     void refreshStatus(true).finally(() => {
+      clearTimeout(timeoutId);
       if (isMounted) setInitialRefreshSettled(true);
     });
     return () => {
       isMounted = false;
+      clearTimeout(timeoutId);
     };
   }, [walletAddress, refreshStatus]);
 

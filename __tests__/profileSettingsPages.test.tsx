@@ -423,18 +423,24 @@ describe("ProfilePageContent", () => {
       });
       rerender(<ProfilePageContent />);
 
+      // B's own initial refresh.
+      await waitFor(() => expect(mockRefreshStatus).toHaveBeenCalledTimes(5));
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(0);
+      });
+
       await act(async () => {
         await jest.advanceTimersByTimeAsync(2000);
       });
-      expect(mockRefreshStatus).toHaveBeenCalledTimes(5);
+      expect(mockRefreshStatus).toHaveBeenCalledTimes(6);
       await act(async () => {
         await jest.advanceTimersByTimeAsync(4000);
       });
-      expect(mockRefreshStatus).toHaveBeenCalledTimes(6);
+      expect(mockRefreshStatus).toHaveBeenCalledTimes(7);
       await act(async () => {
         await jest.advanceTimersByTimeAsync(8000);
       });
-      expect(mockRefreshStatus).toHaveBeenCalledTimes(7);
+      expect(mockRefreshStatus).toHaveBeenCalledTimes(8);
     });
 
     it("restarts the initial-refresh gate for a new wallet whose predecessor never settled", async () => {
@@ -480,6 +486,54 @@ describe("ProfilePageContent", () => {
       const signOut = await screen.findByText("Sign out");
       expect(signOut).toBeEnabled();
       expect(screen.getByTitle("Copy wallet address")).toBeInTheDocument();
+    });
+
+    it("bounds the initial-refresh gate with a timeout so a hung fetch doesn't trap account actions forever", async () => {
+      mockKycState = makeKycState({
+        tier: 0,
+        hasLoadedStatus: false,
+        hasLoadedTransactionSummary: false,
+      });
+      // The initial refresh never settles, and the retry chained behind it (fired once
+      // the gate times out) never settles either — its `.finally` never runs, so
+      // retryTick never bumps. Only the timeout's own retriesExhausted flip can unblock
+      // the account card here.
+      mockRefreshStatus
+        .mockImplementationOnce(() => new Promise(() => {}))
+        .mockImplementationOnce(() => new Promise(() => {}));
+      render(<ProfilePageContent />);
+      await waitFor(() => expect(mockRefreshStatus).toHaveBeenCalledTimes(1));
+
+      // The initial-refresh timeout fires at 10s. No retry has been scheduled yet, so
+      // the only thing that can be unblocking account actions here is the timeout
+      // itself setting retriesExhausted.
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(10000);
+      });
+      expect(mockRefreshStatus).toHaveBeenCalledTimes(1);
+
+      const signOut = await screen.findByText("Sign out");
+      expect(signOut).toBeEnabled();
+      expect(screen.getByTitle("Copy wallet address")).toBeInTheDocument();
+
+      expect(screen.queryByText("Verify to start swapping")).not.toBeInTheDocument();
+      expect(screen.queryByText(/Current: Tier/)).not.toBeInTheDocument();
+      expect(screen.queryByText(/\$0\.00/)).not.toBeInTheDocument();
+      expect(screen.getByLabelText("Loading tier status")).toBeInTheDocument();
+
+      // The chained retry fires next and also hangs forever — the unblocked state
+      // must hold steady rather than flicker back to loading or reset.
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(2000);
+      });
+      expect(mockRefreshStatus).toHaveBeenCalledTimes(2);
+
+      expect(screen.getByText("Sign out")).toBeEnabled();
+      expect(screen.getByTitle("Copy wallet address")).toBeInTheDocument();
+      expect(screen.queryByText("Verify to start swapping")).not.toBeInTheDocument();
+      expect(screen.queryByText(/Current: Tier/)).not.toBeInTheDocument();
+      expect(screen.queryByText(/\$0\.00/)).not.toBeInTheDocument();
+      expect(screen.getByLabelText("Loading tier status")).toBeInTheDocument();
     });
 
     it("shows Account actions once retries are exhausted without fabricating tier data (ProfilePageContent)", async () => {

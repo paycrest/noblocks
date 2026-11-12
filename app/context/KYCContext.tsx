@@ -392,8 +392,14 @@ export function KYCProvider({ children }: { children: React.ReactNode }) {
         return latestSnapshotRef.current;
       }
 
+      // Captured now, before any chaining behind an in-flight refresh — a forced refresh
+      // queued behind one must keep the session that was active when it was CALLED, not
+      // whatever is active once it finally runs (a disconnect/reconnect in between would
+      // otherwise hand it the new session and let it silently clobber that session's data).
+      const session = walletSessionRef.current;
+
       const run = async (): Promise<KYCStatusSnapshot | null> => {
-        const session = walletSessionRef.current;
+        if (walletSessionRef.current !== session) return null;
         const guards = fetchGuardsRef.current;
         delete guards[`${guardKey}_kyc`];
         delete guards[`${guardKey}_tx`];

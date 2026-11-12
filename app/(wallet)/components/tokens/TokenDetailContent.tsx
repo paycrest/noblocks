@@ -22,6 +22,8 @@ import { usePrivy } from "@privy-io/react-auth";
 import { BalanceSkeleton } from "@/app/components/BalanceSkeleton";
 import { usePortfolio } from "@/app/hooks/usePortfolio";
 import { useBridgeStatusTracker } from "@/app/hooks/useBridgeStatusTracker";
+import { getFeatureFlags } from "@/app/lib/flags";
+import { isWalletHomeActionVisible } from "@/app/lib/portfolio/home-visibility";
 import { formatPortfolioUsd } from "@/app/lib/portfolio/display";
 import {
   TOKEN_HISTORY_RANGES,
@@ -172,9 +174,11 @@ const DETAIL_MENU: Array<{
 ];
 
 function TokenDetailActionsMenu({
+  menuItems,
   onAction,
   onAddFunds,
 }: {
+  menuItems: typeof DETAIL_MENU;
   onAction: (action: DetailActionId) => void;
   onAddFunds: () => void;
 }) {
@@ -213,7 +217,7 @@ function TokenDetailActionsMenu({
                 className="z-50 mt-2 flex w-[155px] flex-col gap-1 rounded-xl border border-border-light bg-white py-2 shadow-[0px_10px_27px_0px_rgba(0,0,0,0.35)] dark:border-white/10 dark:bg-surface-overlay"
               >
                 <ul>
-                  {DETAIL_MENU.map((item) => (
+                  {menuItems.map((item) => (
                     <li key={item.id}>
                       <button
                         type="button"
@@ -269,6 +273,14 @@ function formatSupplyLabel(value: string | null, symbol: string): string {
 export function TokenDetailContent({ symbol }: TokenDetailContentProps) {
   const { ready, authenticated } = usePrivy();
   const { trackBridge } = useBridgeStatusTracker();
+  const flags = useMemo(() => getFeatureFlags(), []);
+  const detailMenu = useMemo(
+    () =>
+      DETAIL_MENU.filter(
+        (item) => item.id !== "swap" || isWalletHomeActionVisible("swap", flags),
+      ),
+    [flags],
+  );
   const { data, isLoading, error, refetch } = usePortfolio({
     enabled: ready && authenticated,
   });
@@ -349,6 +361,7 @@ export function TokenDetailContent({ symbol }: TokenDetailContentProps) {
           </div>
         </div>
         <TokenDetailActionsMenu
+          menuItems={detailMenu}
           onAddFunds={() => {
             setActiveAction(null);
             setDepositOpen(true);

@@ -90,10 +90,10 @@ jest.mock("@/components/TransferForm", () => ({
   ),
 }));
 
-jest.mock("@/components/bridge/BridgeForm", () => ({
-  BridgeForm: ({ preferredTokenSymbol }: { preferredTokenSymbol?: string }) => (
+jest.mock("@/components/swap/SwapForm", () => ({
+  SwapForm: ({ preferredTokenSymbol }: { preferredTokenSymbol?: string }) => (
     <div
-      data-testid="bridge-form"
+      data-testid="swap-form"
       data-preferred-token={preferredTokenSymbol}
     />
   ),

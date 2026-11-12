@@ -19,8 +19,14 @@ type Props = {
   tokenSymbol: string;
   tokenImageUrl?: string;
   shortAddress: string;
+  /** Optional icon in the right-hand (destination) pill. Transfer leaves this unset. */
+  destinationImageUrl?: string;
   elapsedSeconds: number;
   onClose: () => void;
+  /** Defaults to Transfer copy so existing callers stay unchanged. */
+  title?: string;
+  note?: string;
+  testId?: string;
 };
 
 /** Pending overlay (Figma 2691:75077): rotating ring + elapsed UI timer. */
@@ -30,10 +36,16 @@ export function TransferPendingModal({
   tokenSymbol,
   tokenImageUrl,
   shortAddress,
+  destinationImageUrl,
   elapsedSeconds,
   onClose,
+  title,
+  note,
+  testId,
 }: Props) {
   const titleId = useId();
+  const resolvedTitle = title ?? TRANSFER_COPY.pendingTitle;
+  const resolvedNote = note ?? TRANSFER_COPY.pendingNote;
 
   return (
     <AnimatedModal
@@ -45,7 +57,10 @@ export function TransferPendingModal({
       ariaLabelledBy={titleId}
       scrimClassName={drawerModalScrimClasses}
     >
-      <div className="flex h-[537px] max-h-[calc(100dvh-32px)] w-full flex-col items-center justify-center gap-[65px]">
+      <div
+        className="flex h-[537px] max-h-[calc(100dvh-32px)] w-full flex-col items-center justify-center gap-[65px]"
+        data-testid={testId}
+      >
         <div className="relative size-[231px] shrink-0" aria-hidden>
           <div className="absolute inset-0 rounded-full border-[35.62px] border-border-light dark:border-white/[0.05]" />
           <div className="absolute inset-0 animate-spin [animation-duration:3s] motion-reduce:animate-none">
@@ -73,7 +88,7 @@ export function TransferPendingModal({
             id={titleId}
             className="w-full text-xl font-medium leading-7 text-text-body dark:text-white/80"
           >
-            {TRANSFER_COPY.pendingTitle}
+            {resolvedTitle}
           </p>
 
           <div className="flex w-full items-center gap-2">
@@ -95,7 +110,16 @@ export function TransferPendingModal({
               className="h-px flex-1 border-t border-dotted border-[#b0e8be]"
               aria-hidden
             />
-            <span className="flex shrink-0 items-center rounded-full bg-accent-gray px-2 py-1 dark:bg-white/10">
+            <span className="flex shrink-0 items-center gap-1 rounded-full bg-accent-gray px-2 py-1 dark:bg-white/10">
+              {destinationImageUrl ? (
+                <Image
+                  src={destinationImageUrl}
+                  alt=""
+                  width={14}
+                  height={14}
+                  className="size-3.5 shrink-0"
+                />
+              ) : null}
               <span className="px-1 text-sm font-medium leading-5 tracking-[-0.14px] text-text-secondary dark:text-[#d7d7d7]">
                 {shortAddress}
               </span>
@@ -105,7 +129,7 @@ export function TransferPendingModal({
           <hr className={classNames("w-full", drawerDashedDividerClasses)} />
 
           <p className={classNames("w-full", drawerSecondaryText)}>
-            {TRANSFER_COPY.pendingNote}
+            {resolvedNote}
           </p>
         </div>
       </div>

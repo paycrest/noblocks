@@ -50,7 +50,7 @@ export class TransferOutcomeUnknownError extends Error {
  * /api/starknet/transfer route and returns the transaction hash. `amount` is in
  * base units. Shared by withdrawals (below) and sender-API sells, which pay
  * their order's deposit address the same way. An error other than
- * TransferOutcomeUnknownError means the route answered and nothing was sent.
+ * TransferOutcomeUnknownError means the route answered that nothing was sent.
  */
 export async function requestStarknetTransfer({
   accessToken,
@@ -70,7 +70,7 @@ export async function requestStarknetTransfer({
   recipientAddress: string;
 }): Promise<`0x${string}`> {
   let response: Response;
-  let data: { error?: string; transactionHash?: string };
+  let data: { error?: string; transactionHash?: string; outcome?: string };
   try {
     response = await fetch("/api/starknet/transfer", {
       method: "POST",
@@ -90,6 +90,11 @@ export async function requestStarknetTransfer({
     });
     data = await response.json();
   } catch {
+    throw new TransferOutcomeUnknownError();
+  }
+  // A failure while submitting (route says so) or from a gateway in front of it
+  // (502-504) may still have sent the transfer.
+  if (!response.ok && (data.outcome === "unknown" || response.status >= 502)) {
     throw new TransferOutcomeUnknownError();
   }
   if (!response.ok) {

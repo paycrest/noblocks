@@ -1827,6 +1827,8 @@ export async function createV2SenderOfframpOrder(
     envelope?.status !== "success" ||
     typeof created?.id !== "string" ||
     !created.providerAccount?.receiveAddress ||
+    // The exact deposit the aggregator requires; never guessed from the entered amount.
+    !created.providerAccount.amountToTransfer?.trim() ||
     typeof envelope.transactionId !== "string"
   ) {
     const detail = (created as { message?: unknown } | undefined)?.message;

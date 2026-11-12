@@ -271,16 +271,31 @@ export const POST = withRateLimit(async (request: NextRequest) =>
       wallet_address: walletAddress,
     });
 
-    const created = (data as { data?: { id?: unknown; rate?: unknown; providerAccount?: unknown } } | null)?.data;
+    const created = (data as {
+      data?: { id?: unknown; rate?: unknown; amount?: unknown; providerAccount?: unknown };
+    } | null)?.data;
     if (status < 200 || status >= 300 || typeof created?.id !== "string") {
       return paymentOrdersJson(span, data, status);
     }
 
     // The order exists but is unrecorded if this fails: it is never shown or paid,
     // and expires on its own.
+    // The limit counts an on-ramp by the stablecoin it delivers, so the row records the
+    // aggregator's amount for the order, never the client's estimate (which only fed
+    // the precheck above). Without a usable amount the order is not recorded.
+    const deliveredAmount = Number(created.amount);
+    if (!Number.isFinite(deliveredAmount) || deliveredAmount <= 0) {
+      console.error(`[payment-orders] onramp order ${created.id} has no usable amount; not recorded`);
+      trackApiError(request, "/api/v1/payment-orders", "POST", new Error("Onramp order amount missing"), 502);
+      return paymentOrdersJson(
+        span,
+        { success: false, error: "Could not confirm the order amount. Please try again." },
+        502,
+      );
+    }
     const recorded = await recordSenderOrderRow(
       record.record,
-      { ...row, fee: Number(created.rate) || 0 },
+      { ...row, amountReceived: deliveredAmount, fee: Number(created.rate) || 0 },
       created.id,
       created.providerAccount,
     );

@@ -676,3 +676,84 @@ describe("sender order record helpers", () => {
     ).resolves.toEqual({ ok: true, id: null });
   });
 });
+
+describe("requestStarknetTransfer", () => {
+  type TransferModule = typeof import("../app/hooks/useSmartWalletTransfer");
+  let transferModule: TransferModule;
+  const fetchMock = jest.fn();
+  const args = {
+    accessToken: "token",
+    walletId: "wallet-1",
+    publicKey: "0xpub",
+    address: STARKNET_PADDED,
+    tokenAddress: "0x1",
+    amount: "50020000",
+    recipientAddress: "0x0123",
+  };
+
+  beforeAll(() => {
+    jest.isolateModules(() => {
+      // The hook module pulls in React contexts and wallet SDKs; only the fetch helper is under test.
+      jest.doMock("../app/context", () => ({ useStarknet: jest.fn() }));
+      jest.doMock("@privy-io/react-auth", () => ({ useWallets: jest.fn() }));
+      jest.doMock("../app/hooks/useEIP7702Account", () => ({}));
+      jest.doMock("../app/hooks/analytics/useMixpanel", () => ({ trackEvent: jest.fn() }));
+      jest.doMock("../app/lib/toastMappedError", () => ({ mapReportAndAct: jest.fn() }));
+      jest.doMock("../app/lib/config", () => ({
+        __esModule: true,
+        default: {},
+        getDelegationContractAddress: jest.fn(),
+        STARKNET_READY_ACCOUNT_CLASSHASH: "0xclass",
+      }));
+      jest.doMock("../app/lib/providerBatch", () => ({}));
+      jest.doMock("sonner", () => ({ toast: {} }));
+      transferModule = jest.requireActual("../app/hooks/useSmartWalletTransfer");
+    });
+  });
+
+  beforeEach(() => {
+    fetchMock.mockReset();
+    (globalThis as { fetch?: unknown }).fetch = fetchMock;
+  });
+
+  const respond = (status: number, body: unknown) =>
+    fetchMock.mockResolvedValue({
+      ok: status >= 200 && status < 300,
+      status,
+      json: async () => body,
+    });
+
+  it("returns the transaction hash on success", async () => {
+    respond(200, { success: true, transactionHash: "0xabc" });
+    await expect(transferModule.requestStarknetTransfer(args)).resolves.toBe("0xabc");
+  });
+
+  it("reports a failure while submitting as an unknown outcome, never as not sent", async () => {
+    respond(502, { error: "paymaster timeout", outcome: "unknown" });
+    await expect(transferModule.requestStarknetTransfer(args)).rejects.toBeInstanceOf(
+      transferModule.TransferOutcomeUnknownError,
+    );
+  });
+
+  it("treats a gateway error in front of the route as an unknown outcome", async () => {
+    respond(504, {});
+    await expect(transferModule.requestStarknetTransfer(args)).rejects.toBeInstanceOf(
+      transferModule.TransferOutcomeUnknownError,
+    );
+    fetchMock.mockRejectedValue(new TypeError("Failed to fetch"));
+    await expect(transferModule.requestStarknetTransfer(args)).rejects.toBeInstanceOf(
+      transferModule.TransferOutcomeUnknownError,
+    );
+  });
+
+  it("reports a definite failure (route answered, nothing sent) as a plain error", async () => {
+    respond(400, { error: "Invalid recipient address" });
+    const error = await transferModule.requestStarknetTransfer(args).catch((e) => e);
+    expect(error).not.toBeInstanceOf(transferModule.TransferOutcomeUnknownError);
+    expect(error.message).toBe("Invalid recipient address");
+
+    respond(500, { error: "Transaction reverted on-chain" });
+    const reverted = await transferModule.requestStarknetTransfer(args).catch((e) => e);
+    expect(reverted).not.toBeInstanceOf(transferModule.TransferOutcomeUnknownError);
+  });
+});

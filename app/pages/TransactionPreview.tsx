@@ -107,6 +107,38 @@ import { TbCircleDashed } from "react-icons/tb";
 import { useActualTheme } from "../hooks/useActualTheme";
 import axios from "axios";
 
+type PendingDeposit = {
+  orderId: string;
+  transactionId: string;
+  account: V2CryptoProviderAccountDTO;
+};
+
+/**
+ * An unpaid sender-API sell survives Back (which unmounts the preview) for the rest of the
+ * session, so returning with the same details resumes it instead of creating a second order.
+ */
+const PENDING_DEPOSIT_KEY = "noblocks.pendingSenderDeposit";
+
+type StoredPendingDeposit = PendingDeposit & { fingerprint: string; attempted: boolean };
+
+function readPendingDeposit(): StoredPendingDeposit | null {
+  try {
+    const raw = sessionStorage.getItem(PENDING_DEPOSIT_KEY);
+    return raw ? (JSON.parse(raw) as StoredPendingDeposit) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writePendingDeposit(value: StoredPendingDeposit | null) {
+  try {
+    if (value) sessionStorage.setItem(PENDING_DEPOSIT_KEY, JSON.stringify(value));
+    else sessionStorage.removeItem(PENDING_DEPOSIT_KEY);
+  } catch {
+    // Storage unavailable: the order simply cannot be resumed after Back.
+  }
+}
+
 /**
  * Renders a preview of a transaction with the provided details.
  *
@@ -209,10 +241,7 @@ export const TransactionPreview = ({
   );
   const orderSubmissionBlock = useRef<bigint | null>(null);
   // Sender-API sell whose order exists but whose deposit has not been sent (or confirmed) yet.
-  const [pendingDeposit, setPendingDeposit] = useState<{
-    orderId: string;
-    account: V2CryptoProviderAccountDTO;
-  } | null>(null);
+  const [pendingDeposit, setPendingDeposit] = useState<PendingDeposit | null>(null);
   // Set once a transfer was attempted for the pending deposit, so a retry checks the order first.
   const [depositAttempted, setDepositAttempted] = useState(false);
 
@@ -435,6 +464,42 @@ export const TransactionPreview = ({
     ? embeddedWallet.address
     : activeWallet?.address;
 
+  // Identifies "the same sell" for resuming an unpaid sender-API order after Back.
+  const depositFingerprint = JSON.stringify([
+    selectedNetwork.chain.name,
+    token,
+    String(amountSent),
+    currency,
+    institution,
+    accountIdentifier,
+    (activeWallet?.address ?? "").toLowerCase(),
+  ]);
+
+  // Coming back to the same sell resumes its unpaid order (Send, or Retry after an attempt)
+  // instead of creating a second one. A stored order for other details or past its deposit
+  // window is dropped; it expires on the aggregator with nothing sent.
+  useEffect(() => {
+    if (!isApiOfframp || !activeWallet?.address) return;
+    const stored = readPendingDeposit();
+    if (!stored) return;
+    const validUntil = Date.parse(stored.account?.validUntil ?? "");
+    const live = Number.isFinite(validUntil) && validUntil > Date.now();
+    if (!live || stored.fingerprint !== depositFingerprint) {
+      if (!live) writePendingDeposit(null);
+      return;
+    }
+    setPendingDeposit({
+      orderId: stored.orderId,
+      transactionId: stored.transactionId,
+      account: stored.account,
+    });
+    setDepositAttempted(stored.attempted === true);
+    setOrderId(stored.orderId);
+    setActiveOrderIsOnramp(false);
+    localStorage.setItem("currentTransactionId", stored.transactionId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isApiOfframp, activeWallet?.address, depositFingerprint]);
+
   // Embedded-wallet users always spend from the EOA (externalWalletBalance); see useShouldUseEOA.
   const activeBalance = injectedWallet
     ? injectedWalletBalance
@@ -457,9 +522,7 @@ export const TransactionPreview = ({
 
   // A sender-API order charges its network cost on top of the amount; it is only known once the
   // order exists, so the fee and the total to send appear after the first confirm.
-  const depositTotal = pendingDeposit
-    ? (pendingDeposit.account.amountToTransfer ?? String(amountSent))
-    : null;
+  const depositTotal = pendingDeposit?.account.amountToTransfer?.trim() || null;
   // Token-list decimals only (never a default): a sender-API order is never paid without them.
   const spendDecimals =
     offrampSpendView.kind === "ready" ? offrampSpendView.decimals : null;
@@ -613,6 +676,7 @@ export const TransactionPreview = ({
   const goToOrderStatus = () => {
     setPendingDeposit(null);
     setDepositAttempted(false);
+    writePendingDeposit(null);
     setCreatedAt(new Date().toISOString());
     setTransactionStatus("pending");
     setCurrentStep("status");
@@ -624,12 +688,14 @@ export const TransactionPreview = ({
    * whether an earlier attempt already landed, and an attempt whose outcome is unknown moves on to
    * the status page instead of offering another send.
    */
-  const payDeposit = async (
-    pending: { orderId: string; account: V2CryptoProviderAccountDTO },
-    auth: OrderAuth,
-  ) => {
+  const payDeposit = async (pending: PendingDeposit, auth: OrderAuth) => {
     const { orderId: pendingOrderId, account } = pending;
-    const total = account.amountToTransfer ?? String(amountSent);
+    const total = account.amountToTransfer?.trim();
+    if (!total) {
+      throw new Error(
+        "This order is missing its deposit amount, so nothing was sent. Please start again.",
+      );
+    }
 
     if (depositAttempted) {
       const latest = await fetchV2SenderPaymentOrderById(
@@ -656,6 +722,7 @@ export const TransactionPreview = ({
     if (Number.isFinite(validUntil) && validUntil <= Date.now()) {
       setPendingDeposit(null);
       setDepositAttempted(false);
+      writePendingDeposit(null);
       throw new Error(
         "This order expired before the transfer was sent. Nothing left your wallet. Please start again.",
       );
@@ -667,6 +734,7 @@ export const TransactionPreview = ({
     }
 
     setDepositAttempted(true);
+    writePendingDeposit({ ...pending, fingerprint: depositFingerprint, attempted: true });
     let depositHash: string;
     try {
       depositHash = await sendDeposit(account.receiveAddress, total);
@@ -760,7 +828,11 @@ export const TransactionPreview = ({
       auth.injectedToken,
     );
 
-    const pending = { orderId: created.id, account: created.providerAccount };
+    const pending: PendingDeposit = {
+      orderId: created.id,
+      transactionId: created.transactionId,
+      account: created.providerAccount,
+    };
     // The server recorded the transaction row with the order, before any funds move, so
     // limits, history and the reconciler all see it even if this tab never gets to send.
     localStorage.setItem("currentTransactionId", created.transactionId);
@@ -769,8 +841,9 @@ export const TransactionPreview = ({
     setCreatedAt(new Date().toISOString());
     setDepositAttempted(false);
     setPendingDeposit(pending);
+    writePendingDeposit({ ...pending, fingerprint: depositFingerprint, attempted: false });
 
-    const total = created.providerAccount.amountToTransfer ?? String(amountSent);
+    const total = created.providerAccount.amountToTransfer ?? "";
     let chargesFee = true;
     try {
       chargesFee =

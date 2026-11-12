@@ -268,18 +268,24 @@ export const POST = withRateLimit(async (request: NextRequest) => {
         );
       }
     } catch (error: any) {
+      // The paymaster may have accepted the transaction before this failed (a lost
+      // response, a timeout), so the transfer may still land: never report it as
+      // definitely not sent, or a client could retry and pay twice.
       console.error("[API] Error executing transaction:", error);
       trackApiError(
         request,
         "/api/starknet/transfer",
         "POST",
         new Error(error?.message || "Failed to execute transaction"),
-        500,
+        502,
         { wallet_address: walletAddress },
       );
       return NextResponse.json(
-        { error: error.message || "Failed to execute transaction" },
-        { status: 500 },
+        {
+          error: error.message || "Failed to execute transaction",
+          outcome: "unknown",
+        },
+        { status: 502 },
       );
     }
 

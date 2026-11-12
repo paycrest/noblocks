@@ -1,5 +1,5 @@
 "use client";
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, type ReactNode } from "react";
 import { useForm } from "react-hook-form";
 import { useSearchParams } from "next/navigation";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
@@ -14,9 +14,10 @@ import {
 } from "../utils";
 import { validateWalletAddress } from "../lib/validation";
 import { useSmartWalletTransfer } from "../hooks/useSmartWalletTransfer";
+import { fetchSavedRecipients } from "../api/aggregator";
 import { toast } from "sonner";
 import { ArrowLeft02Icon } from "hugeicons-react";
-import { Token, type MobileSheetView } from "../types";
+import { Token, type MobileSheetView, type RecipientDetailsWithId } from "../types";
 import { networks } from "../mocks";
 import { getNetworkImageUrl } from "../utils";
 import { useActualTheme } from "../hooks/useActualTheme";
@@ -24,16 +25,21 @@ import { tokensEqual } from "../lib/token-symbol";
 import { TransferFormFields } from "./transfer/TransferFormFields";
 import { TransferPickerModal } from "./transfer/TransferPickerModal";
 import { TransferConfirmModal } from "./transfer/TransferConfirmModal";
+import { TransferConfirmPanel } from "./transfer/TransferConfirmPanel";
 import { TransferPendingModal } from "./transfer/TransferPendingModal";
 import { TransferSuccessModal } from "./transfer/TransferSuccessModal";
+import { TransferSuccessCompactModal } from "./transfer/TransferSuccessCompactModal";
 import { SaveRecipientToggle } from "./transfer/SaveRecipientToggle";
 import {
+  addressesEqual,
   formatTransferAmount,
   formatTransferCtaLabel,
   formatTransferFeeUsd,
   formatTransferShortAddress,
+  isAddressAlreadySaved,
   isEvmRecipientNetwork,
   isUsdStablecoin,
+  TRANSFER_COPY,
   TRANSFER_FEE_USD,
   useTransferRate,
 } from "./transfer/transferConfig";
@@ -55,12 +61,26 @@ export const TransferForm: React.FC<{
   showBackButton?: boolean;
   setCurrentView?: React.Dispatch<React.SetStateAction<MobileSheetView>>;
   preferredTokenSymbol?: string;
+  /**
+   * Which host is rendering the form (KAN-973): "drawer" is the existing
+   * right-side ActionDrawer (token-detail entry); "page" is the Home full-page
+   * widget, where confirm replaces the form inline instead of overlaying it,
+   * and success is the compact frame-97 modal instead of the rich receipt.
+   */
+  chrome?: "drawer" | "page";
+  /**
+   * Host-owned heading for the form step (Home: "Transfer funds" + subtitle).
+   * Rendered only while the form is showing; confirm replaces this whole block.
+   */
+  formHeader?: ReactNode;
 }> = ({
   onClose,
   onSuccess,
   showBackButton = false,
   setCurrentView,
   preferredTokenSymbol,
+  chrome = "drawer",
+  formHeader,
 }) => {
   const searchParams = useSearchParams();
   const useInjectedWallet = shouldUseInjectedWallet(searchParams);
@@ -107,8 +127,35 @@ export const TransferForm: React.FC<{
     useState<TransferFormValues | null>(null);
   const confirmInFlightRef = useRef(false);
   const transferStartedAtRef = useRef<number | null>(null);
+  // Invalidated by a new confirm open or resetFlowState, so a late-resolving
+  // fetch from a previous confirm (user went back and changed the recipient,
+  // or started a new payment) can't overwrite the current saved-recipient
+  // state. Not invalidated by leaving "confirm" for "pending"/"success"
+  // within the same flow — that fetch result must still land on the receipt.
+  const savedRecipientsSessionRef = useRef(0);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [frozenElapsedSeconds, setFrozenElapsedSeconds] = useState(0);
+  // Saved recipients, fetched once per confirm-step open, to hide the "Save
+  // recipient" controls for an address already saved (KAN-973 AC6). Gated by
+  // `savedRecipientsStatus` below: the controls only render once this check
+  // has settled (loaded or failed), so an in-flight fetch from a *different*
+  // session can't be mistaken for "not saved".
+  const [savedRecipients, setSavedRecipients] = useState<
+    RecipientDetailsWithId[] | null
+  >(null);
+  // idle: no confirm opened yet. loading: fetch in flight for the current
+  // session — controls stay hidden. loaded/failed: settled — a failed fetch
+  // leaves `savedRecipients` null, which `isAddressAlreadySaved` treats as
+  // "not saved", so the controls show rather than inventing an error state.
+  const [savedRecipientsStatus, setSavedRecipientsStatus] = useState<
+    "idle" | "loading" | "loaded" | "failed"
+  >("idle");
+  // The address saved during this flow (via the confirm-step toggle), not a
+  // flow-wide boolean — so saving address A then transferring to a different
+  // address B still offers "Save beneficiary" for B.
+  const [savedThisFlowAddress, setSavedThisFlowAddress] = useState<
+    string | null
+  >(null);
   const rateLabel = useTransferRate(
     token,
     recipientNetwork || selectedNetwork.chain.name,
@@ -177,6 +224,53 @@ export const TransferForm: React.FC<{
       toast.error(error);
     }
   }, [error]);
+
+  // Refetch saved recipients each time the confirm step opens, so the
+  // already-saved check (AC6) reflects any beneficiary saved elsewhere since
+  // the form was last opened. No polling — one fetch per confirm open.
+  // `getAccessToken` is read via a ref, not a dependency: Privy returns a new
+  // closure identity on every render, so depending on it directly re-runs the
+  // effect (and its setState) every render — an infinite fetch loop.
+  const getAccessTokenRef = useRef(getAccessToken);
+  useEffect(() => {
+    getAccessTokenRef.current = getAccessToken;
+  }, [getAccessToken]);
+
+  useEffect(() => {
+    if (transferStep !== "confirm") return;
+    savedRecipientsSessionRef.current += 1;
+    const session = savedRecipientsSessionRef.current;
+    // Starting a new session: drop any prior session's result so it can't
+    // keep the Save controls hidden if this session's fetch fails.
+    setSavedRecipients(null);
+    setSavedRecipientsStatus("loading");
+    void (async () => {
+      try {
+        const accessToken = await getAccessTokenRef.current();
+        if (!accessToken) {
+          // No token: treat like a failed check rather than leaving the
+          // controls hidden on "loading" forever.
+          if (savedRecipientsSessionRef.current === session) {
+            setSavedRecipientsStatus("failed");
+          }
+          return;
+        }
+        const list = await fetchSavedRecipients(accessToken);
+        // A newer confirm open (or a reset) invalidates this session — a
+        // transition to "pending"/"success" within the same flow does not.
+        if (savedRecipientsSessionRef.current === session) {
+          setSavedRecipients(list);
+          setSavedRecipientsStatus("loaded");
+        }
+      } catch {
+        // Fetch failure: leave savedRecipients null, so the Save controls
+        // keep showing rather than surfacing a new error state.
+        if (savedRecipientsSessionRef.current === session) {
+          setSavedRecipientsStatus("failed");
+        }
+      }
+    })();
+  }, [transferStep]);
 
   useEffect(() => {
     if (isTransferSuccess && onSuccess) {
@@ -383,6 +477,10 @@ export const TransferForm: React.FC<{
     setElapsedSeconds(0);
     setFrozenElapsedSeconds(0);
     setSubmittedValues(null);
+    setSavedThisFlowAddress(null);
+    setSavedRecipients(null);
+    setSavedRecipientsStatus("idle");
+    savedRecipientsSessionRef.current += 1;
   };
 
   const handleNewPayment = () => {
@@ -437,6 +535,53 @@ export const TransferForm: React.FC<{
     const completedShortAddress = formatTransferShortAddress(
       submittedValues?.recipientAddress,
     );
+    // Offer saving only once the check has settled — an in-flight fetch
+    // must not be mistaken for "not saved" (CodeRabbit fix).
+    const canOfferSavedRecipientCheck =
+      savedRecipientsStatus === "loaded" || savedRecipientsStatus === "failed";
+    const isRecipientAlreadySaved = isAddressAlreadySaved(
+      savedRecipients,
+      recipientAddress,
+    );
+    const isCompletedRecipientAlreadySaved = isAddressAlreadySaved(
+      savedRecipients,
+      submittedValues?.recipientAddress,
+    );
+    const isSubmittedRecipientSavedThisFlow = addressesEqual(
+      savedThisFlowAddress,
+      submittedValues?.recipientAddress,
+    );
+    const offerSaveBeneficiaryOnReceipt =
+      isEvmRecipientNetwork(submittedValues?.recipientNetwork) &&
+      Boolean(submittedValues?.recipientAddress) &&
+      canOfferSavedRecipientCheck &&
+      !isCompletedRecipientAlreadySaved &&
+      !isSubmittedRecipientSavedThisFlow;
+
+    const isRecipientSavedThisFlow = addressesEqual(
+      savedThisFlowAddress,
+      recipientAddress,
+    );
+    const showInlineConfirm = chrome === "page" && transferStep !== "form";
+    const saveRecipientControl =
+      isEvmRecipientNetwork(recipientNetwork) &&
+      recipientAddress &&
+      canOfferSavedRecipientCheck &&
+      !isRecipientAlreadySaved &&
+      !isRecipientSavedThisFlow ? (
+        <SaveRecipientToggle
+          walletAddress={recipientAddress}
+          networkName={recipientNetwork ?? ""}
+          networkImageUrl={recipientNetworkImageUrl}
+          onSaved={(savedAddress) => setSavedThisFlowAddress(savedAddress)}
+          appearance={chrome === "page" ? "checkbox" : "switch"}
+          label={
+            chrome === "page"
+              ? TRANSFER_COPY.saveRecipients
+              : TRANSFER_COPY.saveRecipient
+          }
+        />
+      ) : undefined;
 
     return (
       <>
@@ -455,30 +600,80 @@ export const TransferForm: React.FC<{
             </button>
           </div>
         ) : null}
-        <TransferFormFields
-          registerAmount={amountField}
-          registerRecipientAddress={addressField}
-          errors={errors}
-          showRecipientAddressError={showRecipientAddressError}
-          token={token}
-          amount={amount}
-          tokenOptions={fetchedTokens}
-          tokenBalance={tokenBalance}
-          isBalanceLoading={isBalanceLoading}
-          hasBalanceSnapshot={transferNetworkBalance !== null}
-          recipientNetwork={recipientNetwork}
-          recipientNetworks={recipientNetworks}
-          canContinue={canContinue}
-          isConfirming={isConfirming}
-          rateLabel={rateLabel}
-          balanceError={balanceError}
-          onOpenNetwork={() => setPicker("network")}
-          onOpenToken={() => setPicker("token")}
-          onMax={handleBalanceMaxClick}
-          onQuickAmount={handleQuickAmount}
-          onContinue={() => void submitForConfirm()}
-          onSubmit={submitForConfirm}
-        />
+        {showInlineConfirm ? (
+          <div className="flex w-full max-w-[417px] flex-col gap-6 pt-[81px]">
+            <TransferConfirmPanel
+              chrome="page"
+              onClose={handleBackToForm}
+              onConfirm={handleConfirmTransfer}
+              shortAddress={formatTransferShortAddress(recipientAddress)}
+              amountLabel={formatTransferAmount(amount)}
+              tokenSymbol={confirmTokenSymbol}
+              tokenImageUrl={selectedToken?.imageUrl}
+              networkName={recipientNetwork ?? ""}
+              networkImageUrl={recipientNetworkImageUrl}
+              feeLabel={formatTransferFeeUsd(TRANSFER_FEE_USD)}
+              ctaLabel={formatTransferCtaLabel(confirmTokenSymbol, amount)}
+              isSubmitting={isConfirming}
+              saveRecipientControl={saveRecipientControl}
+              subtitle={TRANSFER_COPY.confirmSubtitle}
+              showCloseButton={false}
+            />
+          </div>
+        ) : formHeader ? (
+          <div className="flex w-full flex-col gap-[49px] pt-[46px]">
+            {formHeader}
+            <TransferFormFields
+            registerAmount={amountField}
+            registerRecipientAddress={addressField}
+            errors={errors}
+            showRecipientAddressError={showRecipientAddressError}
+            token={token}
+            amount={amount}
+            tokenOptions={fetchedTokens}
+            tokenBalance={tokenBalance}
+            isBalanceLoading={isBalanceLoading}
+            hasBalanceSnapshot={transferNetworkBalance !== null}
+            recipientNetwork={recipientNetwork}
+            recipientNetworks={recipientNetworks}
+            canContinue={canContinue}
+            isConfirming={isConfirming}
+            rateLabel={rateLabel}
+            balanceError={balanceError}
+            onOpenNetwork={() => setPicker("network")}
+            onOpenToken={() => setPicker("token")}
+            onMax={handleBalanceMaxClick}
+            onQuickAmount={handleQuickAmount}
+            onContinue={() => void submitForConfirm()}
+            onSubmit={submitForConfirm}
+          />
+          </div>
+        ) : (
+          <TransferFormFields
+            registerAmount={amountField}
+            registerRecipientAddress={addressField}
+            errors={errors}
+            showRecipientAddressError={showRecipientAddressError}
+            token={token}
+            amount={amount}
+            tokenOptions={fetchedTokens}
+            tokenBalance={tokenBalance}
+            isBalanceLoading={isBalanceLoading}
+            hasBalanceSnapshot={transferNetworkBalance !== null}
+            recipientNetwork={recipientNetwork}
+            recipientNetworks={recipientNetworks}
+            canContinue={canContinue}
+            isConfirming={isConfirming}
+            rateLabel={rateLabel}
+            balanceError={balanceError}
+            onOpenNetwork={() => setPicker("network")}
+            onOpenToken={() => setPicker("token")}
+            onMax={handleBalanceMaxClick}
+            onQuickAmount={handleQuickAmount}
+            onContinue={() => void submitForConfirm()}
+            onSubmit={submitForConfirm}
+          />
+        )}
 
         <TransferPickerModal
           kind="network"
@@ -514,29 +709,23 @@ export const TransferForm: React.FC<{
           }}
         />
 
-        <TransferConfirmModal
-          isOpen={transferStep === "confirm"}
-          onClose={handleBackToForm}
-          onConfirm={handleConfirmTransfer}
-          shortAddress={formatTransferShortAddress(recipientAddress)}
-          amountLabel={formatTransferAmount(amount)}
-          tokenSymbol={confirmTokenSymbol}
-          tokenImageUrl={selectedToken?.imageUrl}
-          networkName={recipientNetwork ?? ""}
-          networkImageUrl={recipientNetworkImageUrl}
-          feeLabel={formatTransferFeeUsd(TRANSFER_FEE_USD)}
-          ctaLabel={formatTransferCtaLabel(confirmTokenSymbol, amount)}
-          isSubmitting={isConfirming}
-          saveRecipientControl={
-            isEvmRecipientNetwork(recipientNetwork) && recipientAddress ? (
-              <SaveRecipientToggle
-                walletAddress={recipientAddress}
-                networkName={recipientNetwork ?? ""}
-                networkImageUrl={recipientNetworkImageUrl}
-              />
-            ) : undefined
-          }
-        />
+        {chrome === "drawer" ? (
+          <TransferConfirmModal
+            isOpen={transferStep === "confirm"}
+            onClose={handleBackToForm}
+            onConfirm={handleConfirmTransfer}
+            shortAddress={formatTransferShortAddress(recipientAddress)}
+            amountLabel={formatTransferAmount(amount)}
+            tokenSymbol={confirmTokenSymbol}
+            tokenImageUrl={selectedToken?.imageUrl}
+            networkName={recipientNetwork ?? ""}
+            networkImageUrl={recipientNetworkImageUrl}
+            feeLabel={formatTransferFeeUsd(TRANSFER_FEE_USD)}
+            ctaLabel={formatTransferCtaLabel(confirmTokenSymbol, amount)}
+            isSubmitting={isConfirming}
+            saveRecipientControl={saveRecipientControl}
+          />
+        ) : null}
 
         <TransferPendingModal
           isOpen={transferStep === "pending"}
@@ -552,21 +741,39 @@ export const TransferForm: React.FC<{
           elapsedSeconds={elapsedSeconds}
         />
 
-        <TransferSuccessModal
-          isOpen={transferStep === "success"}
-          amountLabel={formatTransferAmount(submittedValues?.amount)}
-          tokenSymbol={completedTokenSymbol}
-          tokenImageUrl={
-            fetchedTokens.find((item) =>
-              tokensEqual(item.symbol, completedTokenSymbol),
-            )?.imageUrl
-          }
-          shortAddress={completedShortAddress}
-          elapsedSeconds={frozenElapsedSeconds}
-          explorerLink={getTxExplorerLink()}
-          onBackHome={handleBackHome}
-          onNewPayment={handleNewPayment}
-        />
+        {chrome === "drawer" ? (
+          <TransferSuccessModal
+            isOpen={transferStep === "success"}
+            amountLabel={formatTransferAmount(submittedValues?.amount)}
+            tokenSymbol={completedTokenSymbol}
+            tokenImageUrl={
+              fetchedTokens.find((item) =>
+                tokensEqual(item.symbol, completedTokenSymbol),
+              )?.imageUrl
+            }
+            shortAddress={completedShortAddress}
+            elapsedSeconds={frozenElapsedSeconds}
+            explorerLink={getTxExplorerLink()}
+            onBackHome={handleBackHome}
+            onNewPayment={handleNewPayment}
+            offerSaveBeneficiary={offerSaveBeneficiaryOnReceipt}
+            recipientAddress={submittedValues?.recipientAddress}
+            recipientNetworkName={submittedValues?.recipientNetwork}
+            recipientNetworkImageUrl={submittedValues?.recipientNetworkImageUrl}
+          />
+        ) : (
+          <TransferSuccessCompactModal
+            isOpen={transferStep === "success"}
+            amountLabel={formatTransferAmount(submittedValues?.amount)}
+            tokenSymbol={completedTokenSymbol}
+            explorerLink={getTxExplorerLink()}
+            onClose={handleBackHome}
+            offerSaveBeneficiary={offerSaveBeneficiaryOnReceipt}
+            recipientAddress={submittedValues?.recipientAddress}
+            recipientNetworkName={submittedValues?.recipientNetwork}
+            recipientNetworkImageUrl={submittedValues?.recipientNetworkImageUrl}
+          />
+        )}
       </>
     );
   };

@@ -10,6 +10,7 @@ const WALLET_SHELL_PATHS = [
   "/profile",
   "/settings",
   "/beneficiaries",
+  "/transfer",
 ] as const;
 
 export function isWalletAppPath(pathname: string | null | undefined): boolean {
@@ -28,7 +29,8 @@ export type WalletRouteId =
   | "history"
   | "profile"
   | "settings"
-  | "beneficiaries";
+  | "beneficiaries"
+  | "transfer";
 
 /** Routes gated when their feature flag is OFF (404 or redirect home). */
 export const WALLET_ROUTE_FLAG: Partial<Record<WalletRouteId, FeatureFlagName>> = {
@@ -46,6 +48,9 @@ export function resolveWalletRouteId(pathname: string): WalletRouteId | null {
   if (pathname === "/settings" || pathname.startsWith("/settings/")) return "settings";
   if (pathname === "/beneficiaries" || pathname.startsWith("/beneficiaries/")) {
     return "beneficiaries";
+  }
+  if (pathname === "/transfer" || pathname.startsWith("/transfer/")) {
+    return "transfer";
   }
   return null;
 }

@@ -122,6 +122,7 @@ jest.mock("@/lib/validation", () => ({
 jest.mock("../app/api/aggregator", () => ({
   fetchRate: jest.fn(() => Promise.reject(new Error("no rate"))),
   saveRecipient: jest.fn(async () => true),
+  fetchSavedRecipients: jest.fn(async () => []),
 }));
 
 jest.mock("../app/utils", () => {
@@ -254,7 +255,7 @@ describe("TransferForm", () => {
     expect(within(confirmDialog).getByText("Fees")).toBeInTheDocument();
     expect(within(confirmDialog).getByText("$0")).toBeInTheDocument();
     expect(
-      within(confirmDialog).getByText("Save recipient to contacts"),
+      await within(confirmDialog).findByText("Save recipient to contacts"),
     ).toBeInTheDocument();
     const dividers = confirmDialog.querySelectorAll("hr");
     expect(dividers).toHaveLength(2);
@@ -393,9 +394,11 @@ describe("TransferForm", () => {
     await waitFor(() =>
       expect(screen.queryByText("Create beneficiary")).not.toBeInTheDocument(),
     );
+    // The switch itself disappears once saved this flow — otherwise the user
+    // could reopen it and submit another save for the same address.
     expect(
-      screen.getByRole("switch", { name: "Save recipient to contacts" }),
-    ).toHaveAttribute("aria-checked", "true");
+      screen.queryByRole("switch", { name: "Save recipient to contacts" }),
+    ).not.toBeInTheDocument();
     expect(mockTransfer).not.toHaveBeenCalled();
   });
 

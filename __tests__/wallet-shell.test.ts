@@ -40,6 +40,13 @@ describe("wallet shell breadcrumbs", () => {
       { label: "USD Coin" },
     ]);
   });
+
+  it("builds the Transfer trail (KAN-973 Home full-page widget)", () => {
+    expect(buildWalletBreadcrumbs({ pathname: "/transfer" })).toEqual([
+      { label: "Home", href: "/" },
+      { label: "Transfer" },
+    ]);
+  });
 });
 
 describe("wallet route flags", () => {
@@ -121,6 +128,12 @@ describe("wallet route ids", () => {
   it("resolves route ids", () => {
     expect(resolveWalletRouteId("/tokens/USDC")).toBe("tokens");
     expect(resolveWalletRouteId("/profile")).toBe("profile");
+    expect(resolveWalletRouteId("/transfer")).toBe("transfer");
+  });
+
+  it("treats /transfer as a wallet shell path", () => {
+    expect(isWalletAppPath("/transfer")).toBe(true);
+    expect(walletRouteRequiresFeature("/transfer")).toBeNull();
   });
 });
 

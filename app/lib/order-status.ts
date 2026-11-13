@@ -25,6 +25,20 @@ export function isKnownAggregatorOrderStatus(
 }
 
 /**
+ * Sender-API sells report these before the on-chain order exists: `initiated` while the deposit is
+ * awaited, `deposited` once it has arrived. The status UI has no separate state for them, so
+ * callers show them as pending.
+ */
+const AWAITING_ORDER_STATUSES = new Set(["initiated", "deposited"]);
+
+export function isAwaitingOrderStatus(status: unknown): boolean {
+  return (
+    typeof status === "string" &&
+    AWAITING_ORDER_STATUSES.has(status.toLowerCase())
+  );
+}
+
+/**
  * Customer-facing explanation of why an on-ramp deposit went back to the account it came from,
  * from the aggregator's `refundReason`; undefined for any other refund. `inProgress` words it
  * for a refund still being sent.

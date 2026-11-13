@@ -16,7 +16,18 @@ import { useOutsideClick } from "@/app/hooks";
 import { fetchAccountName } from "@/app/api/aggregator";
 import { usePrivy } from "@privy-io/react-auth";
 import { InputError } from "@/app/components/InputError";
-import { classNames, getOfframpAccountIdentifierPlaceholder, filterAndSortInstitutions, expandKesMpesaInstitutions, KES_MPESA_INSTITUTION_CODE, kesMpesaUiKey, getKesMpesaInstitutionLabel, isSameSavedRecipient, NGN_NUBAN_LENGTH, isUnresolvedAccountName } from "@/app/utils";
+import {
+  classNames,
+  getOfframpAccountIdentifierPlaceholder,
+  filterAndSortInstitutions,
+  expandKesMpesaInstitutions,
+  KES_MPESA_INSTITUTION_CODE,
+  kesMpesaUiKey,
+  getKesMpesaInstitutionLabel,
+  isSameSavedRecipient,
+  NGN_NUBAN_LENGTH,
+  isUnresolvedAccountName,
+} from "@/app/utils";
 import type { KesMpesaChannel } from "@/app/types";
 import {
   RecipientDetails,
@@ -143,7 +154,7 @@ export const RecipientDetailsForm = ({
       // Only Till and Paybill are real business rails.
       const channel: KesMpesaChannel | undefined =
         recipient.institutionCode === KES_MPESA_INSTITUTION_CODE
-          ? (recipient.channel || "Mobile")
+          ? recipient.channel || "Mobile"
           : recipient.channel;
       setSelectedInstitution({
         name:
@@ -152,9 +163,7 @@ export const RecipientDetailsForm = ({
             : recipient.institution,
         code: recipient.institutionCode,
         type: recipient.type,
-        ...(channel
-          ? { channel, uiKey: kesMpesaUiKey(channel) }
-          : {}),
+        ...(channel ? { channel, uiKey: kesMpesaUiKey(channel) } : {}),
       });
       setValue("institution", recipient.institutionCode, { shouldDirty: true });
       setValue("accountIdentifier", recipient.accountIdentifier, {
@@ -182,10 +191,10 @@ export const RecipientDetailsForm = ({
 
     try {
       // Find the recipient with ID from the saved recipients
-      const recipientWithId = savedRecipients.find(
-        (r) =>
+      const recipientWithId = savedRecipients.find((r) =>
           recipientToDeleteParam.type === "wallet"
-            ? r.type === "wallet" && r.walletAddress === recipientToDeleteParam.walletAddress
+          ? r.type === "wallet" &&
+            r.walletAddress === recipientToDeleteParam.walletAddress
             : r.type !== "wallet" &&
             isSameSavedRecipient(r, recipientToDeleteParam),
       );
@@ -218,7 +227,9 @@ export const RecipientDetailsForm = ({
         if (selectedRecipient) {
           if (
             recipientToDeleteParam.type === "wallet"
-              ? selectedRecipient.type === "wallet" && selectedRecipient.walletAddress === recipientToDeleteParam.walletAddress
+              ? selectedRecipient.type === "wallet" &&
+                selectedRecipient.walletAddress ===
+                  recipientToDeleteParam.walletAddress
               : selectedRecipient.type !== "wallet" &&
               isSameSavedRecipient(selectedRecipient, recipientToDeleteParam)
           ) {
@@ -454,7 +465,9 @@ export const RecipientDetailsForm = ({
         }) ?? expanded.find((inst) => inst.code === institution);
       if (foundInstitution) {
         setSelectedInstitution(foundInstitution);
-        setValue("accountType", foundInstitution.type, { shouldValidate: true });
+        setValue("accountType", foundInstitution.type, {
+          shouldValidate: true,
+        });
         if (foundInstitution.channel && !kesChannel) {
           setValue("kesChannel", foundInstitution.channel, {
             shouldValidate: true,
@@ -545,11 +558,11 @@ export const RecipientDetailsForm = ({
   const formatNetworkName = (network?: string): string => {
     if (!network) return "";
     const networkMap: Record<string, string> = {
-      "bsc": "Binance Smartchain",
+      bsc: "Binance Smartchain",
       "arbitrum-one": "Arbitrum One",
-      "polygon": "Polygon",
-      "base": "Base",
-      "ethereum": "Ethereum",
+      polygon: "Polygon",
+      base: "Base",
+      ethereum: "Ethereum",
     };
     return networkMap[network.toLowerCase()] || network;
   };
@@ -602,7 +615,9 @@ export const RecipientDetailsForm = ({
   const recipientNameRegister = register("recipientName", {
     validate: (value) => {
       if (!isRecipientNameEditable) return true;
-      const name = String(value ?? "").replace(/\s+/g, " ").trim();
+      const name = String(value ?? "")
+        .replace(/\s+/g, " ")
+        .trim();
       if (!name) return "Recipient name is required";
       // Never let the sentinel through as if it were a real account holder.
       // Any other non-empty name is accepted — no minimum length, since a short
@@ -705,18 +720,20 @@ export const RecipientDetailsForm = ({
               !isDestinationOwnWallet && (
                 <div className="flex items-center gap-2 rounded-xl bg-gray-50 px-3 py-2.5 text-xs font-normal leading-4 text-text-disabled dark:bg-white/5 dark:text-white/30">
                   <InformationCircleIcon className="size-4 flex-shrink-0" />
-                  <span>Funds will be routed through your Noblocks wallet.</span>
+                  <span>
+                    Funds will be routed through your Noblocks wallet.
+                  </span>
                 </div>
               )}
             {networkName && (
               <div className="flex items-center gap-2 text-xs text-text-disabled dark:text-white/30">
-                <div className="flex size-5 items-center justify-center">
+                <div className="flex size-4 items-center justify-center">
                   <Image
                     src={getNetworkImageUrl(selectedNetwork, isDark)}
                     alt={selectedNetwork.chain.name}
-                    width={20}
-                    height={20}
-                    className="size-5"
+                    width={16}
+                    height={16}
+                    className="size-4"
                   />
                 </div>
                 <span
@@ -731,9 +748,9 @@ export const RecipientDetailsForm = ({
         ) : (
           /* Bank/Mobile Money fields for offramp */
           <>
-            <div className="flex flex-col items-start gap-4 sm:flex-row">
+            <div className="flex flex-col items-start gap-4">
               {/* Bank */}
-              <div className="w-full flex-1 sm:w-1/2">
+              <div className="w-full flex-1">
                 <button
                   type="button"
                   onClick={() => setIsSelectBankModalOpen(true)}
@@ -744,7 +761,7 @@ export const RecipientDetailsForm = ({
                     <p className="truncate">{selectedInstitution.name}</p>
                   ) : (
                     <p className="text-text-placeholder dark:text-white/30">
-                      Select institution
+                      Select bank
                     </p>
                   )}
                   {isFetchingInstitutions ? (
@@ -761,7 +778,7 @@ export const RecipientDetailsForm = ({
               </div>
 
               {/* Account / phone / till / paybill reference (NGN NUBAN is 10 digits) */}
-              <div className="w-full flex-1 flex-shrink-0 sm:w-1/2">
+              <div className="w-full flex-1 flex-shrink-0">
                 <input
                   type="text"
                   inputMode={isKesPaybill ? "text" : "numeric"}
@@ -794,7 +811,10 @@ export const RecipientDetailsForm = ({
                   }}
                   className={classNames(
                     "w-full rounded-xl border bg-transparent px-4 py-2.5 text-base outline-none transition-all duration-300 placeholder:text-text-placeholder focus:outline-none dark:text-white/80 dark:placeholder:text-white/30 sm:text-sm",
-                    errors.accountIdentifier
+                    // AC10: the account field itself turns red when the aggregator
+                    // couldn't resolve a name for it, not only on client-side
+                    // format errors — matches Figma s34 (red border + red pill).
+                    errors.accountIdentifier || recipientNameError
                       ? "border-input-destructive focus:border-gray-400 dark:border-input-destructive"
                       : "border-border-input dark:border-white/20 dark:focus:border-white/40 dark:focus:ring-offset-neutral-900",
                   )}
@@ -836,12 +856,10 @@ export const RecipientDetailsForm = ({
             {/* Account details feedback */}
             <AnimatePresence mode="wait">
               {isFetchingRecipientName ? (
-                <div className="flex items-center gap-1 text-gray-400 dark:text-white/50">
-                  <AnimatedFeedbackItem className="animate-pulse">
-                    <ImSpinner className="size-4 animate-spin" />
-                    <p className="text-xs">Verifying account name...</p>
-                  </AnimatedFeedbackItem>
-                </div>
+                <div
+                  className="h-7 w-40 animate-pulse rounded-md bg-accent-gray dark:bg-white/10"
+                  aria-label="Verifying account name…"
+                />
               ) : isRecipientNameEditable ? (
                 <div className="w-full space-y-2">
                   <input
@@ -863,8 +881,8 @@ export const RecipientDetailsForm = ({
                     <InformationSquareIcon className="mt-0.5 size-5 shrink-0 text-warning-foreground dark:text-warning-text" />
                     <p className="min-w-0 flex-1 break-words text-xs font-light leading-snug text-warning-foreground dark:text-warning-text">
                       We couldn&apos;t confirm this account name. Make sure the
-                      recipient&apos;s account number is accurate before proceeding
-                      with your swap.{" "}
+                      recipient&apos;s account number is accurate before
+                      proceeding with your swap.{" "}
                       <button
                         type="button"
                         onClick={handleLearnMore}
@@ -903,7 +921,12 @@ export const RecipientDetailsForm = ({
                       <Tick02Icon className="text-lg text-green-700 dark:text-green-500 max-sm:hidden" />
                     </AnimatedFeedbackItem>
                   ) : recipientNameError ? (
-                    <InputError message={recipientNameError} />
+                    <div className="flex items-center gap-2 rounded-xl bg-[#f53d6b]/10 px-3 py-2">
+                      <InformationSquareIcon className="size-4 shrink-0 text-text-accent-red dark:text-[#f53d6b]" />
+                      <p className="text-xs font-medium text-text-accent-red dark:text-[#f53d6b]">
+                        {recipientNameError}
+                      </p>
+                    </div>
                   ) : null}
                 </>
               )}

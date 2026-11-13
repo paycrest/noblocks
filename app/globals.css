@@ -221,3 +221,12 @@ html.dark body.widget-experience {
   color: rgba(255, 255, 255, 0.8);
 }
 
+/* The step components (TransactionForm/Preview/MakePayment/Status) each
+   render their own "Powered by" footer for the v2 wallet Buy/Sell drawer
+   (KAN-971). WidgetShell already has its own "Secured by Noblocks" footer
+   below the scrollable content, so the step's copy would otherwise stack a
+   second "Powered by" row right above it. */
+body.widget-experience [data-drawer-powered-by-footer] {
+  display: none;
+}
+

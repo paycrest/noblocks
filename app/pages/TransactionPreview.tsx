@@ -1,5 +1,4 @@
 "use client";
-import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useSearchParams } from "next/navigation";
@@ -16,7 +15,6 @@ import {
   formatRecipientInstitutionDisplay,
   getKesMpesaInstitutionLabel,
   KES_MPESA_INSTITUTION_CODE,
-  getNetworkImageUrl,
   getRpcUrl,
   normalizeNetworkName,
   shortenAddress,
@@ -34,7 +32,20 @@ import type {
   RefundAccountDetails,
   V2FiatProviderAccountDTO,
 } from "../types";
-import { primaryBtnClasses, secondaryBtnClasses } from "../components/Styles";
+import {
+  ActionSubmitButton,
+  ReviewDetailCard,
+  type ReviewDetailRow,
+} from "../components/drawer";
+import { DrawerPoweredByFooter } from "../components/drawer/DrawerPoweredByFooter";
+import { ReceiptDashedRule } from "../components/drawer/ReceiptMetaRows";
+import {
+  drawerBodyText,
+  drawerBorderLight,
+  drawerNeutralCardClasses,
+  drawerSecondaryText,
+  drawerStepHeadingClasses,
+} from "../components/drawer/drawerStyles";
 import { gatewayAbi } from "../api/abi";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
@@ -77,7 +88,6 @@ import {
 } from "../api/aggregator";
 import { trackEvent } from "../hooks/analytics/client";
 import { ImSpinner } from "react-icons/im";
-import { BiEdit } from "react-icons/bi";
 import { IoAdd } from "react-icons/io5";
 import { InformationSquareIcon } from "hugeicons-react";
 import { AddRefundAccountModal } from "../components/AddRefundAccountModal";
@@ -90,7 +100,6 @@ import { KycModal } from "../components/KycModal";
 import { RefundAccountSuccessModal } from "../components/RefundAccountSuccessModal";
 import { PiCheckCircleFill } from "react-icons/pi";
 import { TbCircleDashed } from "react-icons/tb";
-import { useActualTheme } from "../hooks/useActualTheme";
 import axios from "axios";
 
 /**
@@ -104,7 +113,6 @@ export const TransactionPreview = ({
   stateProps,
   createdAt,
 }: TransactionPreviewProps) => {
-  const isDark = useActualTheme();
   const { user, getAccessToken } = usePrivy();
   const { wallets } = useWallets();
   const { client } = useSmartWallets();
@@ -1299,175 +1307,185 @@ export const TransactionPreview = ({
     [errorCount, errorMessage],
   );
 
+  /**
+   * Buy has no review step in Figma (frame b14's "Buy" goes straight to
+   * Make payment, b16) — this fires the exact same `handlePaymentConfirmation`
+   * the (now off-ramp-only) "Confirm payment" button below calls, just
+   * triggered automatically once a refund account exists instead of by a
+   * click. The refund-account-required control is unchanged and still gates
+   * it; KYC escalation (OnrampIdentityModal) still opens on top of this.
+   */
+  const autoConfirmFiredRef = useRef(false);
+  useEffect(() => {
+    if (!isOnramp) {
+      return;
+    }
+    if (!refundAccount) {
+      autoConfirmFiredRef.current = false;
+      return;
+    }
+    if (autoConfirmFiredRef.current || isConfirming) return;
+    autoConfirmFiredRef.current = true;
+    void handlePaymentConfirmation();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- handlePaymentConfirmation closes over current form state each render; re-running it from a dep change (rather than the refundAccount/isOnramp gate above) would double-submit.
+  }, [isOnramp, refundAccount, isConfirming]);
+
+  if (isOnramp) {
+    return (
+      <div className="flex w-full flex-col gap-6 text-sm">
+        {!refundAccount ? (
+          <>
+            <div>
+              <p className={drawerStepHeadingClasses}>Add a refund account</p>
+              <p className={classNames("text-sm leading-5", drawerSecondaryText)}>
+                We need somewhere to send your money back to if this payment
+                fails.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setRefundAccountModalOpen(true)}
+              aria-label="Add refund account"
+              className="flex w-full items-center justify-between gap-3 rounded-xl border-[3.3px] border-lavender-500 bg-transparent px-3 py-3 text-left transition-colors hover:border-lavender-400 hover:bg-lavender-500/5 focus:outline-none focus-visible:ring-2 focus-visible:ring-lavender-500/35 dark:hover:border-lavender-400 dark:hover:bg-lavender-400/10 dark:focus-visible:ring-lavender-400/30"
+            >
+              <span className="text-sm text-text-body dark:text-white">
+                Add Refund Account
+              </span>
+              <IoAdd className="size-5 shrink-0 text-text-body dark:text-white/90" />
+            </button>
+          </>
+        ) : (
+          <div className="flex flex-col items-center gap-3 py-10 text-center">
+            {errorMessage ? (
+              <>
+                <p className="text-red-600 dark:text-red-400">{errorMessage}</p>
+                <ActionSubmitButton
+                  label="Back"
+                  variant="secondary"
+                  onClick={handleBackButtonClick}
+                  className="w-auto px-6"
+                />
+              </>
+            ) : (
+              <>
+                <ImSpinner className="animate-spin text-2xl text-lavender-500" />
+                <p className={drawerSecondaryText}>Confirming your purchase…</p>
+              </>
+            )}
+          </div>
+        )}
+
+        <AnimatedModal isOpen={identityPrompt !== null} onClose={() => setIdentityPrompt(null)}>
+          {identityPrompt && (
+            <OnrampIdentityModal
+              prompt={identityPrompt}
+              onClose={() => setIdentityPrompt(null)}
+              onVerified={() => {
+                setIdentityPrompt(null);
+                toast.success("Identity confirmed");
+                void handlePaymentConfirmation();
+              }}
+              onVerifyIdentity={() => {
+                setIdentityPrompt(null);
+                setIsKycModalOpen(true);
+              }}
+            />
+          )}
+        </AnimatedModal>
+        <AnimatedModal isOpen={isKycModalOpen} onClose={() => setIsKycModalOpen(false)}>
+          <KycModal
+            setIsKycModalOpen={setIsKycModalOpen}
+            setIsUserVerified={() => {}}
+            targetTier={2}
+          />
+        </AnimatedModal>
+        <AddRefundAccountModal
+          isOpen={refundAccountModalOpen}
+          onClose={() => setRefundAccountModalOpen(false)}
+          institutions={supportedInstitutions}
+          isFetchingInstitutions={isFetchingInstitutions}
+          currency={currency}
+          initial={refundAccount}
+          onSave={async (data: RefundAccountDetails) => {
+            const { accessToken, injectedToken } = await resolveAuth({
+              interactive: true,
+            });
+            if (!accessToken && !injectedToken) {
+              throw new Error("Please sign in to save your refund account.");
+            }
+            const isEdit = refundAccount !== null;
+            const saved = await saveRefundAccount(
+              data,
+              accessToken,
+              injectedToken,
+            );
+            setRefundAccount(saved);
+            setRefundAccountWasEdited(isEdit);
+          }}
+          onSaved={() => setRefundAccountSuccessOpen(true)}
+        />
+        <RefundAccountSuccessModal
+          isOpen={refundAccountSuccessOpen}
+          onClose={() => setRefundAccountSuccessOpen(false)}
+          isEditing={refundAccountWasEdited}
+        />
+      </div>
+    );
+  }
+
+  // Off-ramp only past this point — Buy (on-ramp) returns above, before any
+  // review card renders (Figma has no Buy review step).
+  const reviewRows: ReviewDetailRow[] = [
+    { label: "Amount", value: renderedInfo.amount },
+    { label: "Total value", value: renderedInfo.totalValue },
+    { label: "Recipient", value: renderedInfo.recipient },
+    ...("account" in renderedInfo ? [{ label: "Account", value: renderedInfo.account }] : []),
+    ...("description" in renderedInfo && renderedInfo.description
+      ? [{ label: "Memo", value: renderedInfo.description }]
+      : []),
+  ];
+
   return (
-    <div className="mx-auto grid max-w-[27.3125rem] gap-6 py-10 text-sm">
-      <div className="grid gap-4">
-        <h2 className="text-xl font-medium text-text-body dark:text-white/80">
-          Review transaction
-        </h2>
-        <p className="text-text-secondary dark:text-white/50">
+    <div className="flex w-full flex-col gap-6 text-sm">
+      <div>
+        <p className={drawerStepHeadingClasses}>Review transaction</p>
+        <p className={classNames("text-sm leading-5", drawerSecondaryText)}>
           Verify transaction details before you send
         </p>
       </div>
 
-      <div className="grid gap-4">
-        {Object.entries(renderedInfo).map(([key, value]) => {
-          const showTokenLogo =
-            (isOnramp && key === "totalValue") ||
-            (!isOnramp && (key === "amount" || key === "fee"));
-
-          return (
-            <div key={key} className="flex items-start justify-between gap-2">
-              <h3 className="w-full max-w-28 text-text-secondary dark:text-white/50 sm:max-w-40">
-                {key === "totalValue"
-                  ? isOnramp
-                    ? "Receive amount"
-                    : "Total value"
-                  : key === "amount"
-                    ? isOnramp
-                      ? "You send"
-                      : "Amount"
-                    : key.charAt(0).toUpperCase() + key.slice(1)}
-              </h3>
-
-              <p className="flex flex-grow items-center gap-1 font-medium text-text-body dark:text-white/80">
-                {showTokenLogo && (
-                  <Image
-                    src={`/logos/${String(token)?.toLowerCase()}-logo.svg`}
-                    alt={`${token} logo`}
-                    width={14}
-                    height={14}
-                  />
-                )}
-
-                {key === "network" && (
-                  <Image
-                    src={getNetworkImageUrl(selectedNetwork, isDark)}
-                    alt={selectedNetwork.chain.name}
-                    width={14}
-                    height={14}
-                  />
-                )}
-
-                {value}
-              </p>
-            </div>
-          );
-        })}
-      </div>
+      <ReviewDetailCard rows={reviewRows} />
 
       {/* Transaction detail disclaimer */}
-      <div className="flex gap-2.5 rounded-xl border border-border-light bg-background-neutral p-3 text-text-secondary dark:border-white/5 dark:bg-white/5 dark:text-white/50">
-        <InformationSquareIcon className="mt-1 size-4 flex-shrink-0" />
+      <div
+        className={classNames(
+          "flex gap-2.5 rounded-xl p-3 text-sm",
+          drawerNeutralCardClasses,
+          drawerBorderLight,
+          drawerBodyText,
+        )}
+      >
+        <InformationSquareIcon className="mt-0.5 size-4 flex-shrink-0" />
         <p>
-          Ensure the details above are correct. Failed transaction due to wrong
-          details may attract a refund fee
+          Ensure the details above is correct. Failed transaction due to
+          wrong details will attract a refund fee
         </p>
       </div>
 
-      {isOnramp && (
+      {/* Transaction Steps Indicator - injected wallet approval steps (not
+          drawn by Figma, but a required control for injected off-ramp —
+          kept, restyled to fit). */}
+      {isInjectedWallet && (
         <>
-          <div className="space-y-2">
-            <p className="text-sm text-neutral-500 dark:text-white/50">
-              Refund account
-            </p>
-            <button
-              type="button"
-              onClick={() => setRefundAccountModalOpen(true)}
-              aria-label={refundAccount ? "Edit refund account" : "Add refund account"}
-              className="flex w-full items-center justify-between gap-3 rounded-xl border-[3.3px] border-lavender-500 bg-transparent px-3 py-3 text-left transition-colors hover:border-lavender-400 hover:bg-lavender-500/5 focus:outline-none focus-visible:ring-2 focus-visible:ring-lavender-500/35 dark:hover:border-lavender-400 dark:hover:bg-lavender-400/10 dark:focus-visible:ring-lavender-400/30"
-            >
-              <span className="text-sm text-text-body dark:text-white">
-                {refundAccount ? (
-                  <>
-                    <span>{refundAccount.accountName} </span>
-                    <span className="font-semibold">{refundAccount.accountNumber} | {refundAccount.institutionName}</span>
-                  </>
-                ) : (
-                  "Add Refund Account"
-                )}
-              </span>
-              <span
-                className="shrink-0 text-text-body dark:text-white/90"
-                aria-hidden
-              >
-                {refundAccount ? (
-                  <BiEdit className="size-5" />
-                ) : (
-                  <IoAdd className="size-5" />
-                )}
-              </span>
-            </button>
-          </div>
-          <AnimatedModal isOpen={identityPrompt !== null} onClose={() => setIdentityPrompt(null)}>
-            {identityPrompt && (
-              <OnrampIdentityModal
-                prompt={identityPrompt}
-                onClose={() => setIdentityPrompt(null)}
-                onVerified={() => {
-                  setIdentityPrompt(null);
-                  toast.success("Identity confirmed");
-                  void handlePaymentConfirmation();
-                }}
-                onVerifyIdentity={() => {
-                  setIdentityPrompt(null);
-                  setIsKycModalOpen(true);
-                }}
-              />
-            )}
-          </AnimatedModal>
-          <AnimatedModal isOpen={isKycModalOpen} onClose={() => setIsKycModalOpen(false)}>
-            <KycModal
-              setIsKycModalOpen={setIsKycModalOpen}
-              setIsUserVerified={() => {}}
-              targetTier={2}
-            />
-          </AnimatedModal>
-          <AddRefundAccountModal
-            isOpen={refundAccountModalOpen}
-            onClose={() => setRefundAccountModalOpen(false)}
-            institutions={supportedInstitutions}
-            isFetchingInstitutions={isFetchingInstitutions}
-            currency={currency}
-            initial={refundAccount}
-            onSave={async (data: RefundAccountDetails) => {
-              const { accessToken, injectedToken } = await resolveAuth({
-                interactive: true,
-              });
-              if (!accessToken && !injectedToken) {
-                throw new Error("Please sign in to save your refund account.");
-              }
-              const isEdit = refundAccount !== null;
-              const saved = await saveRefundAccount(
-                data,
-                accessToken,
-                injectedToken,
-              );
-              setRefundAccount(saved);
-              setRefundAccountWasEdited(isEdit);
-            }}
-            onSaved={() => setRefundAccountSuccessOpen(true)}
-          />
-          <RefundAccountSuccessModal
-            isOpen={refundAccountSuccessOpen}
-            onClose={() => setRefundAccountSuccessOpen(false)}
-            isEditing={refundAccountWasEdited}
-          />
-        </>
-      )}
+          <ReceiptDashedRule />
 
-      {/* Transaction Steps Indicator - Only for offramp + injected wallet */}
-      {isInjectedWallet && !isOnramp && (
-        <>
-          <hr className="w-full border-dashed border-gray-200 dark:border-white/10" />
-
-          <p className="text-gray-500 dark:text-white/50">
+          <p className={drawerSecondaryText}>
             {willNeedApproval
               ? "To confirm order, you'll be required to approve these two permissions from your wallet"
               : "To confirm order, you'll be required to approve this permission from your wallet"}
           </p>
 
-          <div className="flex items-center justify-between pb-2 text-gray-500 dark:text-white/50">
+          <div className={classNames("flex items-center justify-between pb-2", drawerSecondaryText)}>
             <p>
               <span>
                 {willNeedApproval ? (isGatewayApproved ? 2 : 1) : 1}
@@ -1504,50 +1522,28 @@ export const TransactionPreview = ({
               </div>
             </div>
           </div>
+
+          <ReceiptDashedRule />
         </>
       )}
 
-      {isOnramp &&
-        config.onrampChainedForwardingEnabled &&
-        walletAddress &&
-        activeWallet?.address &&
-        walletAddress.toLowerCase() !== activeWallet.address.toLowerCase() && (
-          <p className="text-center text-xs font-normal text-text-secondary dark:text-white/50">
-            Funds settle to your Noblocks wallet, then we forward them to the
-            recipient address.
-          </p>
-        )}
-
       {/* CTAs */}
-      <div className="flex gap-4 xsm:gap-6">
-        <button
-          type="button"
+      <div className="flex gap-3">
+        <ActionSubmitButton
+          label="Back"
+          variant="secondary"
           onClick={handleBackButtonClick}
-          className={classNames(secondaryBtnClasses)}
           disabled={isConfirming || isPollingOrderId}
-        >
-          Back
-        </button>
-        <button
-          type="submit"
-          className={classNames(primaryBtnClasses, "w-full")}
+        />
+        <ActionSubmitButton
+          label="Confirm payment"
           onClick={handlePaymentConfirmation}
-          disabled={
-            isConfirming ||
-            isPollingOrderId ||
-            (isOnramp && !refundAccount)
-          }
-        >
-          {isConfirming || isPollingOrderId ? (
-            <span className="flex items-center justify-center gap-2">
-              <ImSpinner className="animate-spin text-lg" />
-              Confirming...
-            </span>
-          ) : (
-            "Confirm payment"
-          )}
-        </button>
+          isSubmitting={isConfirming || isPollingOrderId}
+          disabled={isConfirming || isPollingOrderId}
+        />
       </div>
+
+      <DrawerPoweredByFooter />
     </div>
   );
 };

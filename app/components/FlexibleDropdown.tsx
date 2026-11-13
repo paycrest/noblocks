@@ -53,6 +53,12 @@ interface FlexibleDropdownProps {
   searchPlaceholder?: string;
   /** When true, option labels don't wrap (e.g. short, fixed-width menus like a status filter). */
   nowrapOptions?: boolean;
+  /**
+   * When true, the selected row shows no checkmark (the pill itself already
+   * reflects the selection, e.g. the Buy/Sell currency and token pickers).
+   * The disabled-row lock icon is unaffected.
+   */
+  hideSelectedCheckmark?: boolean;
 }
 
 function resolveDefaultSelection(
@@ -79,6 +85,7 @@ export const FlexibleDropdown = ({
   searchable = false,
   searchPlaceholder = "Search…",
   nowrapOptions = false,
+  hideSelectedCheckmark = false,
 }: FlexibleDropdownProps) => {
   const [selectedItem, setSelectedItem] = useState<DropdownItem | undefined>(() =>
     resolveDefaultSelection(defaultSelectedItem, data),
@@ -342,7 +349,7 @@ export const FlexibleDropdown = ({
       <div className="ml-2 flex min-w-[24px] flex-shrink-0 items-center justify-end">
         {item.disabled ? (
           <SquareLock02Icon className="size-5 text-icon-outline-secondary dark:text-white/50" />
-        ) : selectedItem?.name === item.name ? (
+        ) : !hideSelectedCheckmark && selectedItem?.name === item.name ? (
           <Tick02Icon className="size-5 text-gray-400 dark:text-white/50" />
         ) : null}
       </div>

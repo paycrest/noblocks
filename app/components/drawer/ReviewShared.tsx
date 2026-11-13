@@ -23,12 +23,22 @@ import type { ReviewDetailRow } from "./types";
 type ReviewDetailCardProps = {
   rows: ReviewDetailRow[];
   expiresInSeconds?: number;
+  /**
+   * Pre-formatted "Expires in" value (e.g. an already-ticking "MM:SS" string
+   * owned by the caller's own countdown effect) — used instead of
+   * `expiresInSeconds` when the caller must not hand this component the raw
+   * seconds (e.g. MakePayment's countdown effect is money-adjacent and must
+   * stay untouched; this lets the row still render inside the card, matching
+   * Figma, without duplicating that effect's math here).
+   */
+  expiresInLabel?: string;
   className?: string;
 };
 
 export function ReviewDetailCard({
   rows,
   expiresInSeconds,
+  expiresInLabel,
   className,
 }: ReviewDetailCardProps) {
   const copy = async (value: string) => {
@@ -78,7 +88,7 @@ export function ReviewDetailCard({
                     )}
                     onClick={() => copy(row.copyValue!)}
                   >
-                    <Copy01Icon className="size-6" aria-hidden />
+                    <Copy01Icon className="size-4" aria-hidden />
                   </button>
                 ) : null}
               </div>
@@ -86,7 +96,7 @@ export function ReviewDetailCard({
           ))}
         </div>
       </div>
-      {expiresInSeconds != null ? (
+      {expiresInSeconds != null || expiresInLabel != null ? (
         <div className="flex items-center justify-between px-4 py-1 text-sm">
           <span className={drawerSecondaryText}>Expires in</span>
           <span
@@ -96,7 +106,7 @@ export function ReviewDetailCard({
               drawerBorderLight,
             )}
           >
-            {formatExpiryCountdown(expiresInSeconds)}
+            {expiresInLabel ?? formatExpiryCountdown(expiresInSeconds!)}
           </span>
         </div>
       ) : null}

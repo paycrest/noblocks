@@ -11,7 +11,9 @@ import {
   AnimatedModal,
   slideInOut,
 } from "../components/AnimatedComponents";
-import { TransactionLimitModal, PhoneVerificationModal } from "../components";
+import TransactionLimitModal from "../components/TransactionLimitModal";
+import PhoneVerificationModal from "../components/PhoneVerificationModal";
+import { DrawerPoweredByFooter } from "../components/drawer/DrawerPoweredByFooter";
 import { primaryBtnClasses } from "../components/Styles";
 import { FormDropdown } from "../components/FormDropdown";
 import { RecipientDetailsForm } from "../components/recipient/RecipientDetailsForm";
@@ -117,6 +119,7 @@ export const TransactionForm = ({
   onSubmit,
   isUserVerified,
   setIsUserVerified,
+  lockSwapMode = false,
 }: TransactionFormProps & {
   isUserVerified: boolean;
   setIsUserVerified: (v: boolean) => void;
@@ -156,7 +159,6 @@ export const TransactionForm = ({
     isEmbed,
     tokenAllowlist: rawTokenAllowlist,
     currencyAllowlist: rawCurrencyAllowlist,
-    hideSideToggle,
     isSideLocked,
     hostFormConfig,
   } = useEmbed();
@@ -497,9 +499,7 @@ export const TransactionForm = ({
       if (parts[1] === "" && valueStr.endsWith(".")) {
         return `${integerPart}.`;
       }
-      const decimalPart = parts[1]
-        .slice(0, RATE_DECIMALS)
-        .replace(/0+$/, "");
+      const decimalPart = parts[1].slice(0, RATE_DECIMALS).replace(/0+$/, "");
       return decimalPart ? `${integerPart}.${decimalPart}` : integerPart;
     }
 
@@ -1163,7 +1163,9 @@ export const TransactionForm = ({
         );
     if (!hasRecipient) {
       if (resumingAfterPhoneVerification) {
-        toast.info("Phone number verified — add the recipient details to continue.");
+        toast.info(
+          "Phone number verified — add the recipient details to continue.",
+        );
       } else {
         toast.error("Add recipient details to continue.");
       }
@@ -1239,9 +1241,14 @@ export const TransactionForm = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Handle swap button click to switch between token/currency dropdowns
+  // Handle swap button click to switch between token/currency dropdowns.
+  // No-op when the side is locked — either by an embed host config
+  // (`isSideLocked`) or because the caller fixed the mode for this session
+  // (`lockSwapMode`, e.g. the v2 wallet Buy/Sell drawer, where the drawer
+  // title already says "Buy" or "Sell"). The icon still renders (Figma draws
+  // it in every state); it's just decorative when locked.
   const handleSwapFields = () => {
-    if (isSideLocked) return;
+    if (isSideLocked || lockSwapMode) return;
     const willBeSwapped = !isSwapped;
     if (willBeSwapped && !onrampSupported) {
       toast.error("Buy is not available on Tron yet", {
@@ -1445,70 +1452,15 @@ export const TransactionForm = ({
   };
 
   return (
-    <div className="mx-auto max-w-[27.3125rem]">
+    <div className="w-full">
       <motion.form
         layout
         transition={{ duration: 0.2, ease: "easeInOut" }}
         onSubmit={handleSubmit(onSubmit)}
-        className="grid gap-4 pb-20 text-sm text-text-body transition-all dark:text-white sm:gap-2"
+        className="grid w-full gap-4 text-sm text-text-body transition-all dark:text-white sm:gap-2"
         noValidate
       >
         <div className="grid gap-2 rounded-[20px] bg-background-neutral p-2 dark:bg-white/5">
-          {!hideSideToggle && (
-            <div className="flex items-center justify-between px-2 py-1">
-              <h3 className="text-base font-medium">Swap</h3>
-
-              <div className="flex items-center gap-1">
-                {/* On-ramp button */}
-                <button
-                  type="button"
-                  aria-disabled={!onrampSupported}
-                  onClick={() => {
-                    if (!onrampSupported) {
-                      toast.error("Buy is not available on Tron yet", {
-                        description:
-                          "Switch to another network to buy crypto, or use Sell on Tron.",
-                      });
-                      return;
-                    }
-                    if (!isSwapped) {
-                      void handleSwapFields();
-                    }
-                  }}
-                  className={[
-                    "h-8 rounded-full px-4 text-sm font-medium transition-colors",
-                    "bg-neutral-100 dark:bg-[#141414]",
-                    !onrampSupported ? "cursor-not-allowed opacity-40" : "",
-                    isSwapped
-                      ? "border border-neutral-400 text-neutral-900 dark:border-[#FFFFFF1A] dark:text-white"
-                      : "border border-transparent text-neutral-400 dark:text-[#bdbdbd80]",
-                  ].join(" ")}
-                >
-                  Buy
-                </button>
-
-                {/* Off-ramp button */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (isSwapped) {
-                      void handleSwapFields();
-                    }
-                  }}
-                  className={[
-                    "h-8 rounded-full px-4 text-sm font-medium transition-colors",
-                    "bg-neutral-100 dark:bg-[#141414]",
-                    !isSwapped
-                      ? "border border-neutral-400 text-neutral-900 dark:border-[#FFFFFF1A] dark:text-white"
-                      : "border border-transparent text-neutral-400 dark:text-[#bdbdbd80]",
-                  ].join(" ")}
-                >
-                  Sell
-                </button>
-              </div>
-            </div>
-          )}
-
           <motion.div
             layout
             transition={{ duration: 0.2, ease: "easeInOut" }}
@@ -1613,8 +1565,9 @@ export const TransactionForm = ({
                         shouldDirty: true,
                       })
                     }
-                    className="min-w-80"
-                    dropdownWidth={320}
+                    className="min-w-[230px]"
+                    dropdownWidth={230}
+                    hideSelectedCheckmark
                     isCTA={!currency}
                     disabled={isCurrencyLocked}
                   />
@@ -1627,8 +1580,9 @@ export const TransactionForm = ({
                     onSelect={(selectedToken) =>
                       setValue("token", selectedToken, { shouldDirty: true })
                     }
-                    className="min-w-32"
-                    dropdownWidth={160}
+                    className="min-w-[230px]"
+                    dropdownWidth={230}
+                    hideSelectedCheckmark
                     disabled={isTokenLocked}
                   />
                 )}
@@ -1654,24 +1608,28 @@ export const TransactionForm = ({
               </AnimatedComponent>
             )}
 
-            {/* Arrow showing swap direction */}
-            {!isSideLocked && (
-              <button
-                type="button"
-                onClick={handleSwapFields}
-                className="absolute -bottom-5 left-1/2 z-10 w-fit -translate-x-1/2 rounded-xl border-4 border-background-neutral bg-background-neutral dark:border-white/5 dark:bg-surface-canvas"
-              >
-                <div className="rounded-lg bg-white p-0.5 dark:bg-surface-canvas">
-                  {isFetchingRate ? (
-                    <span className="animate-spin text-xl text-outline-gray dark:text-white/50">
-                      <ImSpinner3 />
-                    </span>
-                  ) : (
-                    <ArrowUpDownIcon className="text-xl text-outline-gray dark:text-white/40" />
-                  )}
-                </div>
-              </button>
-            )}
+            {/* Arrow showing swap direction. Always rendered (Figma draws it
+                in every state); `handleSwapFields` itself is a no-op when
+                the side is locked (embed `isSideLocked`, or the caller fixed
+                the mode via `lockSwapMode` — e.g. the v2 wallet Buy/Sell
+                drawer, where the drawer title already says "Buy" or "Sell"). */}
+            <button
+              type="button"
+              aria-hidden={isSideLocked || lockSwapMode || undefined}
+              tabIndex={isSideLocked || lockSwapMode ? -1 : undefined}
+              onClick={handleSwapFields}
+              className="absolute -bottom-5 left-1/2 z-10 w-fit -translate-x-1/2 rounded-xl border-4 border-background-neutral bg-background-neutral dark:border-white/5 dark:bg-surface-canvas"
+            >
+              <div className="rounded-lg bg-white p-0.5 dark:bg-surface-canvas">
+                {isFetchingRate ? (
+                  <span className="animate-spin text-xl text-outline-gray dark:text-white/50">
+                    <ImSpinner3 />
+                  </span>
+                ) : (
+                  <ArrowUpDownIcon className="text-xl text-outline-gray dark:text-white/40" />
+                )}
+              </div>
+            </button>
           </motion.div>
 
           {/* Amount to receive & currency */}
@@ -1722,15 +1680,16 @@ export const TransactionForm = ({
                     defaultTitle="Select token"
                     data={tokens}
                     defaultSelectedItem={token || undefined}
-                    isCTA={!token}
+                    isCTA={false}
                     onSelect={(selectedToken) => {
                       setValue("token", selectedToken, { shouldDirty: true });
                       setValue("receiveDestinationExplicitlySelected", true, {
                         shouldDirty: true,
                       });
                     }}
-                    className="min-w-32"
-                    dropdownWidth={160}
+                    className="min-w-[230px]"
+                    dropdownWidth={230}
+                    hideSelectedCheckmark
                     disabled={isTokenLocked}
                   />
                 ) : (
@@ -1746,12 +1705,13 @@ export const TransactionForm = ({
                         shouldDirty: true,
                       });
                     }}
-                    className="min-w-80"
+                    className="min-w-[230px]"
                     isCTA={
                       !currency &&
                       !(isWalletConnected && totalRequired > balance)
                     }
-                    dropdownWidth={320}
+                    dropdownWidth={230}
+                    hideSelectedCheckmark
                     disabled={isCurrencyLocked}
                   />
                 )}
@@ -1792,7 +1752,7 @@ export const TransactionForm = ({
                         formMethods.setValue("memo", e.target.value);
                       }}
                       value={formMethods.watch("memo")}
-                      className={`min-h-11 w-full rounded-xl border border-gray-300 bg-transparent py-2 pl-9 pr-4 text-sm transition-all placeholder:text-text-placeholder focus-within:border-gray-400 focus:outline-none disabled:cursor-not-allowed dark:border-white/20 dark:bg-input-focus dark:placeholder:text-white/30 dark:focus-within:border-white/40 ${
+                      className={`min-h-11 w-full rounded-xl border border-gray-300 bg-transparent py-2 pl-9 pr-11 text-sm transition-all placeholder:text-text-placeholder focus-within:border-gray-400 focus:outline-none disabled:cursor-not-allowed dark:border-white/20 dark:bg-input-focus dark:placeholder:text-white/30 dark:focus-within:border-white/40 ${
                         errors.memo
                           ? "text-red-500 dark:text-red-500"
                           : "text-text-body dark:text-white/80"
@@ -1800,6 +1760,9 @@ export const TransactionForm = ({
                       placeholder="Add description (optional)"
                       maxLength={25}
                     />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-text-secondary dark:text-white/40">
+                      {(formMethods.watch("memo") ?? "").length}/25
+                    </span>
                   </div>
                 )}
               </AnimatedComponent>
@@ -1905,22 +1868,9 @@ export const TransactionForm = ({
                   </span>
                 ) : rate > 0 ? (
                   <>
-                    {isSwapped ? (
-                      <>
-                        {isFetchingRate
-                          ? "..."
-                          : formatRateForDisplay(rate)}{" "}
-                        {currency} ~ 1 {token}
-                      </>
-                    ) : (
-                      <>
-                        1 {token} ~{" "}
-                        {isFetchingRate
-                          ? "..."
-                          : formatRateForDisplay(rate)}{" "}
-                        {currency}
-                      </>
-                    )}
+                    1 {token} ~{" "}
+                    {isFetchingRate ? "..." : formatRateForDisplay(rate)}{" "}
+                    {currency}
                   </>
                 ) : null}
               </div>
@@ -1928,13 +1878,15 @@ export const TransactionForm = ({
               {!isEmbed && (
                 <div className="ml-auto flex w-full flex-col justify-end gap-2 xsm:flex-row xsm:items-center">
                   <div className="h-px w-1/2 flex-shrink bg-gradient-to-tr from-white to-gray-300 dark:bg-gradient-to-tr dark:from-neutral-900 dark:to-neutral-700 sm:w-full" />
-                  <p className="min-w-fit">Swap usually completes in 30s</p>
+                  <p className="min-w-fit">Swap usually completes in 15 sec</p>
                 </div>
               )}
             </AnimatedComponent>
           )}
         </AnimatePresence>
       </motion.form>
+
+      <DrawerPoweredByFooter className="mt-4" />
 
       {!isInjectedWallet && (
         <AnimatedModal

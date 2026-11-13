@@ -1,6 +1,7 @@
 "use client"
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { Step, STEPS } from "../types";
+import { ACTION_DRAWER_PANEL_ATTR } from "../components/drawer/walletDrawerSlot";
 
 interface StepContextType {
   currentStep: Step;
@@ -18,8 +19,12 @@ export function StepProvider({ children }: { children: React.ReactNode }) {
   const [isOnrampProviderDetailsOpen, setIsOnrampProviderDetailsOpen] =
     useState(false);
 
-  // Scroll to top whenever the step changes
+  // Scroll to top whenever the step changes — but not when the step change
+  // is happening inside the Buy/Sell ActionDrawer (KAN-971): the drawer is a
+  // panel over the v2 wallet page, not a full-page transition, so jumping
+  // the whole window to the top on every step would be jarring.
   useEffect(() => {
+    if (document.querySelector(`[${ACTION_DRAWER_PANEL_ATTR}]`)) return;
     window.scrollTo({ top: 0, behavior: "smooth" });
   }, [currentStep]);
 

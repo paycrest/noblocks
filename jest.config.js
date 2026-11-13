@@ -31,14 +31,16 @@ const customJestConfig = {
 }
 
 // createJestConfig is exported this way to ensure that next/jest can load the Next.js config which is async
-// jose v6 is ESM-only — next/jest APPENDS user transformIgnorePatterns after its
+// jose v6 and ofetch are ESM-only (ofetch is pulled in transitively by
+// @privy-io/react-auth/smart-wallets, which BalanceContext.tsx imports) —
+// next/jest APPENDS user transformIgnorePatterns after its
 // blanket '/node_modules/' ignore (any-match wins), so the exemption must
 // REPLACE the resolved patterns instead. Both plain and pnpm layouts covered.
 module.exports = async () => {
   const config = await createJestConfig(customJestConfig)()
   config.transformIgnorePatterns = [
-    '/node_modules/(?!\\.pnpm)(?!jose)',
-    '/node_modules/\\.pnpm/(?!jose@)',
+    '/node_modules/(?!\\.pnpm)(?!jose)(?!ofetch)',
+    '/node_modules/\\.pnpm/(?!jose@)(?!ofetch@)',
     '^.+\\.module\\.(css|sass|scss)$',
   ]
   return config

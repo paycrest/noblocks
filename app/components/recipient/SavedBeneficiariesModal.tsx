@@ -99,7 +99,7 @@ export const SavedBeneficiariesModal = ({
         <SearchInput
           value={beneficiarySearchTerm}
           onChange={setBeneficiarySearchTerm}
-          placeholder={swapMode === "onramp" ? "Search beneficiaries" : "Search by name or account number"}
+          placeholder={swapMode === "onramp" ? "Search beneficiaries" : "Search bank beneficiaries"}
           autoFocus={isOpen}
         />
       </div>

@@ -15,6 +15,8 @@ interface FormDropdownProps {
   dropdownWidth?: number;
   /** Embed allowlist lock: pill keeps its normal look but can't open (no chevron). */
   disabled?: boolean;
+  /** See `FlexibleDropdown`'s prop of the same name. */
+  hideSelectedCheckmark?: boolean;
 }
 
 export const FormDropdown = ({
@@ -26,6 +28,7 @@ export const FormDropdown = ({
   isCTA = false,
   dropdownWidth,
   disabled = false,
+  hideSelectedCheckmark = false,
 }: FormDropdownProps) => {
   const [imageErrors, setImageErrors] = useState<Record<string, boolean>>({});
   return (
@@ -37,6 +40,7 @@ export const FormDropdown = ({
       dropdownWidth={dropdownWidth}
       mobileTitle={defaultTitle}
       disabled={disabled}
+      hideSelectedCheckmark={hideSelectedCheckmark}
     >
       {({ selectedItem, isOpen, toggleDropdown, disabled: isLocked }) => (
         <button

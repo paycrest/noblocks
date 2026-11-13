@@ -27,7 +27,7 @@ export const SelectBankModal = ({
     <AnimatedModal isOpen={isOpen} onClose={onClose} maxWidth="28.5rem">
       <div className="flex items-center justify-between">
         <DialogTitle className="text-lg font-semibold dark:text-white sm:text-base">
-          Select institution
+          Select bank
         </DialogTitle>
         <button
           type="button"
@@ -43,7 +43,7 @@ export const SelectBankModal = ({
         <SearchInput
           value={bankSearchTerm}
           onChange={setBankSearchTerm}
-          placeholder="Search institutions..."
+          placeholder="Search banks"
           autoFocus={isOpen}
         />
       </div>
@@ -120,8 +120,11 @@ export const SelectBankModal = ({
                 >
                   <div className="flex flex-col items-center gap-2 py-12 text-center">
                     <InformationSquareIcon className="size-5" />
-                    <p className="font-medium">No banks found</p>
-                    <p>Please try another search term</p>
+                    <p className="font-medium">No exact match found</p>
+                    <p>
+                      No bank with that name found. Please try another search
+                      input
+                    </p>
                   </div>
                 </motion.li>
               )

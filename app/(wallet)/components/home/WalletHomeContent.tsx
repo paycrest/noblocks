@@ -14,7 +14,7 @@ import {
 import { PiCheck } from "react-icons/pi";
 import { ActionDrawer } from "@/app/components/drawer";
 import { DepositDrawer } from "@/app/components/deposit/DepositDrawer";
-import { BridgeForm } from "@/app/components/bridge/BridgeForm";
+import { SwapForm, SWAP_COPY } from "@/app/components/swap/SwapForm";
 import { ReferralHubView } from "@/app/components/wallet-mobile-modal/ReferralHubView";
 import { CopyAddressWarningModal } from "@/app/components/CopyAddressWarningModal";
 import { BalanceSkeleton } from "@/app/components/BalanceSkeleton";
@@ -432,7 +432,17 @@ function WalletActionDrawerHost({
           />
         );
       case "swap":
-        return <BridgeForm onClose={onClose} onBridgeSubmit={() => {}} />;
+        return (
+          <SwapForm
+            onClose={onClose}
+            showNetworkPicker
+            fromLabel={SWAP_COPY.from}
+            toLabel={SWAP_COPY.to}
+            ctaLabel={SWAP_COPY.reviewCta}
+            confirmBeforeSubmit
+            successPresentation="overlay"
+          />
+        );
       default:
         return null;
     }
@@ -443,8 +453,10 @@ function WalletActionDrawerHost({
       <ActionDrawer
         isOpen={activeAction != null}
         title={activeAction ? ACTION_TITLES[activeAction] : "Action"}
+        subtitle={activeAction === "swap" ? SWAP_COPY.subtitle : undefined}
         onRequestClose={onClose}
         bodyAlign="start"
+        showPoweredByFooter={activeAction !== "swap"}
       >
         {renderBody()}
       </ActionDrawer>

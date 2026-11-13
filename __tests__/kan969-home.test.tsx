@@ -74,8 +74,8 @@ jest.mock("@/components/TransferForm", () => ({
   TransferForm: () => null,
 }));
 
-jest.mock("@/components/bridge/BridgeForm", () => ({
-  BridgeForm: () => null,
+jest.mock("@/components/swap/SwapForm", () => ({
+  SwapForm: () => null,
 }));
 
 jest.mock("@/components/wallet-mobile-modal/ReferralHubView", () => ({

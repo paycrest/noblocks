@@ -8,7 +8,7 @@ import Decimal from "decimal.js";
 import { ActionDrawer } from "@/app/components/drawer";
 import { DepositDrawer } from "@/app/components/deposit/DepositDrawer";
 import { TransferForm } from "@/app/components/TransferForm";
-import { BridgeForm } from "@/app/components/bridge/BridgeForm";
+import { SwapForm, SWAP_COPY } from "@/app/components/swap/SwapForm";
 import { CopyAddressWarningModal } from "@/app/components/CopyAddressWarningModal";
 import { ReferralHubView } from "@/app/components/wallet-mobile-modal/ReferralHubView";
 import { BalanceSkeleton } from "@/app/components/BalanceSkeleton";
@@ -614,10 +614,17 @@ export function TokenActionDrawerHost({
         );
       case "swap":
         return (
-          <BridgeForm
+          <SwapForm
             onClose={onClose}
             onBridgeSubmit={onBridgeSubmit}
             preferredTokenSymbol={preferredTokenSymbol}
+            showNetworkPicker={false}
+            fromLabel={SWAP_COPY.sell}
+            toLabel={SWAP_COPY.receive}
+            ctaLabel={SWAP_COPY.swapCta}
+            confirmBeforeSubmit={false}
+            successPresentation="inline"
+            innerHeading={SWAP_COPY.swapCta}
           />
         );
       default:
@@ -634,13 +641,17 @@ export function TokenActionDrawerHost({
             ? preferredTokenSymbol
               ? `Transfer ${canonicalTokenSymbol(preferredTokenSymbol)}`
               : "Transfer funds"
-            : activeAction
-              ? TOKEN_ACTION_TITLES[activeAction]
-              : ("Action" as const)
+            : activeAction === "swap"
+              ? preferredTokenSymbol
+                ? `Swap ${canonicalTokenSymbol(preferredTokenSymbol)}`
+                : "Swap"
+              : activeAction
+                ? TOKEN_ACTION_TITLES[activeAction]
+                : ("Action" as const)
         }
         onRequestClose={onClose}
         bodyAlign="start"
-        showPoweredByFooter={activeAction !== "transfer"}
+        showPoweredByFooter={activeAction !== "transfer" && activeAction !== "swap"}
       >
         {renderBody()}
       </ActionDrawer>

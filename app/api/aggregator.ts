@@ -1033,7 +1033,7 @@ export type SwapPrecheckPayload = Pick<
   | "fee"
 > & {
   recipient?: TransactionCreateInput["recipient"];
-  /** Aggregator network slug (e.g. solana-mainnet-beta) for staging rate quotes in KYC precheck. */
+  /** Network (display name or aggregator id, e.g. "base") for staging rate quotes in KYC precheck. */
   network?: string;
   /** Defaults to offramp; pass onramp for fiat → crypto limit checks. */
   transactionType?: "offramp" | "onramp";

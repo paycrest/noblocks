@@ -71,8 +71,6 @@ const config: Config = {
     process.env.NEXT_PUBLIC_SOLANA_WSS ||
     process.env.NEXT_PUBLIC_SOLANA_MAINNET_WSS ||
     "wss://api.mainnet-beta.solana.com",
-  solanaGatewayProgramId:
-    process.env.NEXT_PUBLIC_SOLANA_GATEWAY_PROGRAM_ID || "",
   referralEnabled: (process.env.NEXT_PUBLIC_REFERRAL_ENABLED || "").trim().toLowerCase() !== "false",
   bridgeEnabled: process.env.NEXT_PUBLIC_BRIDGE_ENABLED === "true",
   textileEnabled: process.env.NEXT_PUBLIC_TEXTILE_ENABLED === "true",

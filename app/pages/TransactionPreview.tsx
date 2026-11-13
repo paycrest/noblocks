@@ -151,6 +151,41 @@ function writePendingDeposit(value: StoredPendingDeposit | null) {
 }
 
 /**
+ * Calls /api/solana/transfer. A `submit` that gets no definite answer (network failure, gateway
+ * error, or the route saying the outcome is unknown) may still have been broadcast, so it is
+ * reported as TransferOutcomeUnknownError and never offered as a plain retry.
+ */
+async function postSolanaTransfer<T>(
+  payload: { phase: "build" | "submit"; orderId: string; signedTransaction?: string },
+  accessToken: string,
+): Promise<T> {
+  const isSubmit = payload.phase === "submit";
+  let response: Response;
+  let data: { error?: string; outcome?: string } & Record<string, unknown>;
+  try {
+    response = await fetch("/api/solana/transfer", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify(payload),
+    });
+    data = await response.json();
+  } catch {
+    if (isSubmit) throw new TransferOutcomeUnknownError();
+    throw new Error("Could not reach Noblocks. Please try again.");
+  }
+  if (!response.ok && isSubmit && (data.outcome === "unknown" || response.status >= 502)) {
+    throw new TransferOutcomeUnknownError();
+  }
+  if (!response.ok) {
+    throw new Error(data.error || "Solana transfer failed");
+  }
+  return data as T;
+}
+
+/**
  * Renders a preview of a transaction with the provided details.
  *
  * @param handleBackButtonClick - Function to handle the back button click event.
@@ -455,6 +490,7 @@ export const TransactionPreview = ({
   }, [
     isInjectedWallet,
     isOnramp,
+    isSolanaSelected,
     isStarknetSelected,
     isTronSelected,
     injectedReady,
@@ -469,6 +505,8 @@ export const TransactionPreview = ({
   const activeWallet = injectedWallet ||
     (isStarknetSelected
       ? (starknetWalletAddress ? { address: starknetWalletAddress, type: "starknet" } : undefined)
+      : isSolanaSelected
+        ? (solanaWalletAddress ? { address: solanaWalletAddress, type: "solana" } : undefined)
       : shouldUseEOA
         ? (embeddedWallet ? { address: embeddedWallet.address, type: "eoa" } : undefined)
         : smartWallet);
@@ -661,9 +699,10 @@ export const TransactionPreview = ({
 
   /** Pays a sender-API order's deposit address from the embedded wallet on the selected network. */
   const sendDeposit = async (
-    receiveAddress: string,
+    pending: PendingDeposit,
     amount: string,
   ): Promise<string> => {
+    const receiveAddress = pending.account.receiveAddress;
     if (spendDecimals === null || offrampSpendView.kind !== "ready") {
       throw new Error(
         offrampSpendBlockedReason ||
@@ -692,6 +731,36 @@ export const TransactionPreview = ({
         amount: amountNumberToBaseUnits(amount, spendDecimals).toString(),
         recipientAddress: receiveAddress,
       });
+    }
+    if (isSolanaSelected) {
+      // The server builds the transfer from the order itself (recipient, exact amount, mint)
+      // with Noblocks paying the SOL fee; the wallet only adds its signature.
+      const solanaWallet = solanaWalletsReady
+        ? solanaWallets.find((wallet) => wallet.address === solanaWalletAddress)
+        : undefined;
+      if (!solanaWalletAddress || !solanaWallet) {
+        throw new Error("Solana wallet not ready");
+      }
+      const accessToken = await getAccessToken();
+      if (!accessToken) throw new Error("Not authenticated");
+      const built = await postSolanaTransfer<{ transaction: string }>(
+        { phase: "build", orderId: pending.orderId },
+        accessToken,
+      );
+      const { signedTransaction } = await signSolanaTransaction({
+        transaction: base64ToUint8Array(built.transaction),
+        wallet: solanaWallet,
+        chain: "solana:mainnet-beta",
+      });
+      const submitted = await postSolanaTransfer<{ transactionHash: string }>(
+        {
+          phase: "submit",
+          orderId: pending.orderId,
+          signedTransaction: uint8ArrayToBase64(signedTransaction),
+        },
+        accessToken,
+      );
+      return submitted.transactionHash;
     }
     throw new Error(
       `Selling on ${selectedNetwork.chain.name} is not available yet.`,
@@ -762,7 +831,7 @@ export const TransactionPreview = ({
     writePendingDeposit({ ...pending, fingerprint: depositFingerprint, attempted: true });
     let depositHash: string;
     try {
-      depositHash = await sendDeposit(account.receiveAddress, total);
+      depositHash = await sendDeposit(pending, total);
     } catch (e) {
       if (e instanceof TransferOutcomeUnknownError) {
         // It may have gone through. The order page tracks it either way: it completes if the
@@ -804,7 +873,7 @@ export const TransactionPreview = ({
    * the user sees the fee and total before anything is sent.
    */
   const createApiOfframpOrder = async (auth: OrderAuth) => {
-    if (!isStarknetSelected) {
+    if (!isStarknetSelected && !isSolanaSelected) {
       // No wallet on this network can sign a transfer yet; refuse before an order exists.
       throw new Error(
         `Selling on ${selectedNetwork.chain.name} is not available yet.`,
@@ -1320,6 +1389,29 @@ export const TransactionPreview = ({
         const aggregatorNetwork = match.network;
         const providerId =
           searchParams.get("provider") || searchParams.get("PROVIDER") || undefined;
+
+        // The aggregator will not deliver to a Solana address without a token account for the
+        // token. Open one for the user's own wallet (Noblocks pays the rent); refuse any other
+        // address that lacks one before the user pays, instead of stalling after.
+        if (isSolanaSelected) {
+          const ensureRes = await fetch("/api/solana/ata-exists", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+              ...(injectedToken ? { "x-injected-token": injectedToken } : {}),
+            },
+            body: JSON.stringify({ owner: walletAddress, token: toAggregatorToken(token) }),
+          }).catch(() => null);
+          const ensured = (await ensureRes?.json().catch(() => null)) as
+            | { exists?: boolean; error?: string }
+            | null;
+          if (!ensureRes?.ok || ensured?.exists !== true) {
+            throw new Error(
+              ensured?.error || "Could not prepare the Solana wallet. Please try again.",
+            );
+          }
+        }
 
         await precheckSwapTransaction(
           {

@@ -2177,9 +2177,6 @@ const NORMALIZED_GATEWAY_ADDRESSES = new Set(
  * @returns The contract address for the specified network, or undefined if the network is not found.
  */
 export function getGatewayContractAddress(network = ""): string | undefined {
-  if (network === "Solana") {
-    return config.solanaGatewayProgramId?.trim() || undefined;
-  }
   return GATEWAY_CONTRACT_ADDRESSES[network as GatewayNetwork];
 }
 

@@ -133,7 +133,7 @@ const nextConfig = {
     };
 
     // starkzap optionally imports @solana/web3.js in the browser bundle only.
-    // Server routes (e.g. /api/solana/create-order) need the real package.
+    // Server routes (e.g. /api/solana/transfer) need the real package.
     if (!isServer) {
       config.resolve.alias["@solana/web3.js"] = starkzapUnusedShim;
     }
@@ -201,7 +201,7 @@ const nextConfig = {
       "@hyperlane-xyz/sdk": "./app/lib/_starkzap-unused-shim.ts",
       "@hyperlane-xyz/registry": "./app/lib/_starkzap-unused-shim.ts",
       "@hyperlane-xyz/utils": "./app/lib/_starkzap-unused-shim.ts",
-      // Browser only — server routes (solanaGateway.ts) need the real package.
+      // Browser only — server routes (solanaTransfer in solanaSponsor.ts) need the real package.
       "@solana/web3.js": {
         browser: "./app/lib/_starkzap-unused-shim.ts",
       },

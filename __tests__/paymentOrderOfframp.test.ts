@@ -9,6 +9,7 @@ const STARKNET_PADDED =
 
 const mockGetSenderApiKey = jest.fn<string, []>(() => SENDER_API_KEY);
 const mockAxiosPost = jest.fn();
+const mockAxiosGet = jest.fn();
 const mockFetchTokens = jest.fn();
 const mockLinkedAddresses = jest.fn();
 const mockParseRecord = jest.fn();
@@ -30,7 +31,10 @@ jest.mock("next/server", () => ({
 }));
 jest.mock("axios", () => ({
   __esModule: true,
-  default: { post: (...args: unknown[]) => mockAxiosPost(...args) },
+  default: {
+    post: (...args: unknown[]) => mockAxiosPost(...args),
+    get: (...args: unknown[]) => mockAxiosGet(...args),
+  },
 }));
 jest.mock("../app/lib/aggregator-outbound-headers", () => ({
   buildAggregatorOutboundHeaders: async (
@@ -96,6 +100,7 @@ jest.mock("../app/utils", () => ({
 }));
 
 import {
+  fetchLiveDeposit,
   buildSenderOfframpOrderBody,
   handleCreateOfframpOrder,
   normalizeWalletAddress,
@@ -755,5 +760,99 @@ describe("requestStarknetTransfer", () => {
     respond(500, { error: "Transaction reverted on-chain" });
     const reverted = await transferModule.requestStarknetTransfer(args).catch((e) => e);
     expect(reverted).not.toBeInstanceOf(transferModule.TransferOutcomeUnknownError);
+  });
+});
+
+describe("fetchLiveDeposit", () => {
+  const SOLANA_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
+  const DEPOSITOR = "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM";
+  const RECEIVE = "7EcDhSYGxXyscszYEp35KHN8vvw3svAuLKTzXwCFLtV";
+  const liveOrder = (overrides: Record<string, unknown> = {}) => ({
+    status: 200,
+    data: {
+      status: "success",
+      data: {
+        id: "6f1c0a52-1d0e-4a57-9b53-6a0f6f3f4a11",
+        status: "initiated",
+        amountPaid: "0",
+        source: { type: "crypto", currency: "USDC", network: "solana", refundAddress: DEPOSITOR },
+        providerAccount: {
+          network: "solana",
+          receiveAddress: RECEIVE,
+          amountToTransfer: "50.02",
+          currency: "USDC",
+          validUntil: new Date(Date.now() + 10 * 60_000).toISOString(),
+        },
+        ...overrides,
+      },
+    },
+  });
+
+  beforeEach(() => {
+    mockAxiosGet.mockReset();
+    mockFetchTokens.mockResolvedValue([
+      { symbol: "USDC", network: "solana", decimals: 6, contractAddress: SOLANA_MINT },
+      { symbol: "USDC", network: "base", decimals: 6, contractAddress: "0x2" },
+    ]);
+  });
+
+  it("returns the deposit of a live order with the token from the aggregator list", async () => {
+    mockAxiosGet.mockResolvedValue(liveOrder());
+    await expect(fetchLiveDeposit("order-1", "Solana")).resolves.toEqual({
+      ok: true,
+      deposit: {
+        network: "Solana",
+        token: { symbol: "USDC", contractAddress: SOLANA_MINT, decimals: 6 },
+        depositorAddress: DEPOSITOR,
+        receiveAddress: RECEIVE,
+        amountToTransfer: "50.02",
+      },
+    });
+    const [url, options] = mockAxiosGet.mock.calls[0];
+    expect(url).toBe("https://aggregator.test/v2/sender/orders/order-1");
+    expect(options.headers["API-Key"]).toBe(SENDER_API_KEY);
+  });
+
+  it.each([
+    ["an order already paid into", { amountPaid: "50.02" }, 409],
+    ["an order past initiated", { status: "pending" }, 409],
+    [
+      "an order on another network",
+      { source: { type: "crypto", currency: "USDC", network: "base", refundAddress: DEPOSITOR } },
+      400,
+    ],
+  ])("refuses %s", async (_label, overrides, status) => {
+    mockAxiosGet.mockResolvedValue(liveOrder(overrides));
+    await expect(fetchLiveDeposit("order-1", "Solana")).resolves.toMatchObject({ ok: false, status });
+  });
+
+  it("refuses an order past its deposit window", async () => {
+    const expired = liveOrder();
+    (expired.data.data.providerAccount as { validUntil: string }).validUntil = new Date(
+      Date.now() - 1000,
+    ).toISOString();
+    mockAxiosGet.mockResolvedValue(expired);
+    await expect(fetchLiveDeposit("order-1", "Solana")).resolves.toMatchObject({
+      ok: false,
+      status: 409,
+    });
+  });
+
+  it("refuses an order without its deposit amount, and a token the list does not carry", async () => {
+    const noAmount = liveOrder();
+    delete (noAmount.data.data.providerAccount as { amountToTransfer?: string }).amountToTransfer;
+    mockAxiosGet.mockResolvedValue(noAmount);
+    await expect(fetchLiveDeposit("order-1", "Solana")).resolves.toMatchObject({ ok: false, status: 502 });
+
+    mockFetchTokens.mockResolvedValue([]);
+    mockAxiosGet.mockResolvedValue(liveOrder());
+    await expect(fetchLiveDeposit("order-1", "Solana")).resolves.toMatchObject({ ok: false, status: 400 });
+  });
+
+  it("answers 404 for an unknown order and 502 when the aggregator is unreachable", async () => {
+    mockAxiosGet.mockResolvedValue({ status: 404, data: { status: "error" } });
+    await expect(fetchLiveDeposit("order-1", "Solana")).resolves.toMatchObject({ ok: false, status: 404 });
+    mockAxiosGet.mockRejectedValue(new Error("ECONNRESET"));
+    await expect(fetchLiveDeposit("order-1", "Solana")).resolves.toMatchObject({ ok: false, status: 502 });
   });
 });

@@ -568,6 +568,8 @@ export const config = {
     "/api/bundler/:path*",
     "/api/bridge/:path*",
     "/api/starknet/transfer",
+    "/api/solana/transfer",
+    "/api/solana/ata-exists",
     "/api/referral",
     "/api/referral/:path*",
     "/api/play/join",

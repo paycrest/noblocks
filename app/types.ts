@@ -570,7 +570,6 @@ export type Config = {
   solanaEnabled: boolean;
   solanaRpc: string;
   solanaWss: string;
-  solanaGatewayProgramId: string;
   /** Referral program feature flag. When false, all referral UI and API routes are disabled. */
   referralEnabled: boolean;
   /** Bridge/Swap feature flag. Controls Convert button visibility + proxy routes. */

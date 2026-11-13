@@ -92,9 +92,11 @@ export async function assertTransactionWalletAuthorized(
   return { ok: true };
 }
 
-/** NGN per 1 USDC from the aggregator (used for cNGN / fiat KYC limit math). */
+/**
+ * NGN per 1 USDC from the aggregator (used for cNGN / fiat KYC limit math). Native networks only:
+ * a bridged network (Solana, Tron) is priced on its settlement network anyway.
+ */
 const KYC_RATE_NETWORK_FALLBACKS = [
-  "solana-mainnet-beta",
   "base",
   "arbitrum-one",
   "polygon",

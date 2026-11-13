@@ -242,6 +242,103 @@ export async function postSenderOrder(
   return { status, data };
 }
 
+/** A sender-API sell that is still waiting for its deposit, as the aggregator reports it. */
+export type LiveDeposit = {
+  /** Noblocks network display name, e.g. "Solana". */
+  network: string;
+  token: { symbol: string; contractAddress: string; decimals: number };
+  /** The caller's own wallet on that network, set as the refund address when the order was created. */
+  depositorAddress: string;
+  receiveAddress: string;
+  /** Exact deposit in token units (decimal string). */
+  amountToTransfer: string;
+};
+
+/**
+ * Reads a sender order with the sender API key and returns its deposit only while it can still
+ * be paid: status `initiated`, nothing paid yet, inside its deposit window, on `network`. A
+ * sponsored transfer is built and broadcast only for such a deposit, so the sponsor never pays
+ * for anything else. Ownership is the caller's concern (assertCallerOwnsSenderOrder).
+ */
+export async function fetchLiveDeposit(
+  orderId: string,
+  network: string,
+  incomingHeaders?: { get(name: string): string | null },
+): Promise<{ ok: true; deposit: LiveDeposit } | { ok: false; status: number; error: string }> {
+  const apiKey = getAggregatorSenderApiKey();
+  if (!apiKey || !config.aggregatorUrl) {
+    return { ok: false, status: 503, error: "Order service temporarily unavailable" };
+  }
+  const baseUrl = config.aggregatorUrl.replace(/\/+$/, "").replace(/\/v1$/i, "");
+  let data: unknown;
+  let status: number;
+  try {
+    ({ data, status } = await axios.get(
+      `${baseUrl}/v2/sender/orders/${encodeURIComponent(orderId)}`,
+      {
+        headers: await buildAggregatorOutboundHeaders({ "API-Key": apiKey }, incomingHeaders),
+        validateStatus: () => true,
+      },
+    ));
+  } catch {
+    return { ok: false, status: 502, error: "Could not reach the aggregator. Please try again." };
+  }
+  if (status === 404) return { ok: false, status: 404, error: "Payment order not found" };
+  const order = asRecord(asRecord(data)?.data);
+  if (status < 200 || status >= 300 || !order) {
+    return { ok: false, status: 502, error: "Could not read the order. Please try again." };
+  }
+
+  const source = asRecord(order.source);
+  const account = asRecord(order.providerAccount);
+  const aggregatorNetwork = trimmedString(source?.network);
+  if (!source || !account || normalizeNetworkName(aggregatorNetwork) !== network) {
+    return { ok: false, status: 400, error: `This is not a ${network} sell order` };
+  }
+  const orderStatus = trimmedString(order.status).toLowerCase();
+  const amountPaid = Number(order.amountPaid ?? 0);
+  if (orderStatus !== "initiated" || (Number.isFinite(amountPaid) && amountPaid > 0)) {
+    return { ok: false, status: 409, error: "This order is no longer waiting for a deposit" };
+  }
+  const validUntil = Date.parse(trimmedString(account.validUntil));
+  if (!Number.isFinite(validUntil) || validUntil <= Date.now()) {
+    return { ok: false, status: 409, error: "This order expired. Nothing was sent; please start again." };
+  }
+  const receiveAddress = trimmedString(account.receiveAddress);
+  const amountToTransfer = trimmedString(account.amountToTransfer);
+  const depositorAddress = trimmedString(source.refundAddress);
+  const symbol = trimmedString(account.currency) || trimmedString(source.currency);
+  if (!receiveAddress || !isPositiveDecimal(amountToTransfer) || !depositorAddress || !symbol) {
+    return { ok: false, status: 502, error: "The order is missing its deposit details" };
+  }
+
+  let token: LiveDeposit["token"] | undefined;
+  try {
+    const match = (await fetchTokens()).find(
+      (t) =>
+        t.symbol.toUpperCase() === symbol.toUpperCase() &&
+        t.network === aggregatorNetwork,
+    );
+    if (match) {
+      token = {
+        symbol: match.symbol,
+        contractAddress: match.contractAddress,
+        decimals: Number(match.decimals),
+      };
+    }
+  } catch {
+    return { ok: false, status: 502, error: "Could not reach the aggregator. Please try again." };
+  }
+  if (!token || !token.contractAddress || !Number.isInteger(token.decimals) || token.decimals <= 0) {
+    return { ok: false, status: 400, error: `${symbol} is not available on ${network} right now` };
+  }
+
+  return {
+    ok: true,
+    deposit: { network, token, depositorAddress, receiveAddress, amountToTransfer },
+  };
+}
+
 function errorBody(message: string): Record<string, unknown> {
   return { status: "error", message };
 }

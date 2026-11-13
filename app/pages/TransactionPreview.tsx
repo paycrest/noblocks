@@ -1434,8 +1434,11 @@ export const TransactionPreview = ({
   // review card renders (Figma has no Buy review step).
   return (
     <div className="flex w-full flex-col gap-6 text-sm">
-      <div>
-        <p className={drawerStepHeadingClasses}>Review transaction</p>
+      {/* Figma s40: General Sans Medium 20/28 title, 8px to the subtitle, 40px to the list. */}
+      <div className="mb-4 flex flex-col gap-2">
+        <p className="font-general-sans text-xl font-medium leading-7 text-text-body dark:text-white/80">
+          Review transaction
+        </p>
         <p className={classNames("text-sm leading-5", drawerSecondaryText)}>
           Verify transaction details before you send
         </p>
@@ -1447,7 +1450,7 @@ export const TransactionPreview = ({
           fee is broken out anywhere — `rate` already carries the fee-adjusted
           price), so the row is left out rather than fabricated. */}
       <div className="flex flex-col gap-4">
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-11">
           <p className={classNames("w-20 shrink-0", drawerSecondaryText)}>
             Amount
           </p>
@@ -1461,7 +1464,7 @@ export const TransactionPreview = ({
             {renderedInfo.amount}
           </p>
         </div>
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-11">
           <p className={classNames("w-20 shrink-0", drawerSecondaryText)}>
             Total value
           </p>
@@ -1469,7 +1472,7 @@ export const TransactionPreview = ({
             {renderedInfo.totalValue}
           </p>
         </div>
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-11">
           <p className={classNames("w-20 shrink-0", drawerSecondaryText)}>
             Recipient
           </p>
@@ -1478,7 +1481,7 @@ export const TransactionPreview = ({
           </p>
         </div>
         {"account" in renderedInfo && (
-          <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-11">
             <p className={classNames("w-20 shrink-0", drawerSecondaryText)}>
               Account
             </p>
@@ -1488,7 +1491,7 @@ export const TransactionPreview = ({
           </div>
         )}
         {"description" in renderedInfo && renderedInfo.description && (
-          <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-11">
             <p className={classNames("w-20 shrink-0", drawerSecondaryText)}>
               Memo
             </p>

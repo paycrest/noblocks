@@ -1776,7 +1776,7 @@ export const TransactionForm = ({
                           ? "text-red-500 dark:text-red-500"
                           : "text-text-body dark:text-white/80"
                       }`}
-                      placeholder="Add description (optional)"
+                      placeholder="Add description"
                       maxLength={25}
                     />
                     {isMemoFocused && (

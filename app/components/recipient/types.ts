@@ -32,7 +32,6 @@ export interface SavedBeneficiariesModalProps {
   isLoading?: boolean;
   error?: string | null;
   swapMode?: SwapMode;
-  networkName?: string; // Network name for wallet recipients
 }
 
 export type SelectBankModalProps = {

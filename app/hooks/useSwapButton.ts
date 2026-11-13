@@ -230,8 +230,9 @@ export function useSwapButton({
     return hasRecipient;
   })();
 
-  // Buy (onramp) CTA reads "Buy", never "Swap" (Figma frame b14); Sell keeps "Swap".
-  const swapModeLabel = isSwapped ? "Buy" : "Swap";
+  // Buy (onramp) CTA reads "Buy" once an amount is entered (Figma b13/b14); the truly empty
+  // state (b01/b02/b12, amountSent still 0) reads the generic "Swap", same as Sell always does.
+  const swapModeLabel = isSwapped && amountSent > 0 ? "Buy" : "Swap";
 
   const buttonText = (() => {
     if (isInjectedAwaiting) return "Connect wallet";

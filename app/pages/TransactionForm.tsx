@@ -193,6 +193,8 @@ export const TransactionForm = ({
 
   const [isKycModalOpen, setIsKycModalOpen] = useState(false);
   const [isReceiveInputActive, setIsReceiveInputActive] = useState(false);
+  /** Figma s38/s39: the memo field's character counter only shows while it's focused. */
+  const [isMemoFocused, setIsMemoFocused] = useState(false);
   const [isFundModalOpen, setIsFundModalOpen] = useState(false);
   const [formattedSentAmount, setFormattedSentAmount] = useState("");
   const [formattedReceivedAmount, setFormattedReceivedAmount] = useState("");
@@ -1461,6 +1463,18 @@ export const TransactionForm = ({
         noValidate
       >
         <div className="grid gap-2 rounded-[20px] bg-background-neutral p-2 dark:bg-white/5">
+          {/* Sell only (Figma s23/s33/s34 vs. s21/s22 — Buy has no equivalent
+              header): once a receive currency is picked, the Send/Receive
+              cards gain a "Swap" title row above them. */}
+          {!isSwapped &&
+            receiveDestinationExplicitlySelected &&
+            currency &&
+            isWalletConnected &&
+            isUserVerified && (
+              <p className="px-2 font-general-sans text-base font-semibold leading-6 text-text-body dark:text-white">
+                Swap
+              </p>
+            )}
           <motion.div
             layout
             transition={{ duration: 0.2, ease: "easeInOut" }}
@@ -1489,15 +1503,17 @@ export const TransactionForm = ({
                         >
                           {formatNumberWithCommas(
                             formatDecimalPrecision(balance, 2),
-                          )}{" "}
-                          {token}
+                          )}
                         </span>
                         {balance > 0 && (
                           <button
                             type="button"
                             onClick={handleBalanceMaxClick}
                             className={classNames(
-                              "font-medium text-lavender-500 dark:text-lavender-500",
+                              "font-medium",
+                              amountSent > balance
+                                ? "text-text-disabled dark:text-white/30"
+                                : "text-lavender-500 dark:text-lavender-500",
                               balance === 0 ? "hidden" : "",
                             )}
                           >
@@ -1565,9 +1581,10 @@ export const TransactionForm = ({
                         shouldDirty: true,
                       })
                     }
-                    className="min-w-[230px]"
-                    dropdownWidth={230}
+                    className="min-w-[256px] text-sm"
+                    dropdownWidth={256}
                     hideSelectedCheckmark
+                    nowrapOptions
                     isCTA={!currency}
                     disabled={isCurrencyLocked}
                   />
@@ -1580,9 +1597,10 @@ export const TransactionForm = ({
                     onSelect={(selectedToken) =>
                       setValue("token", selectedToken, { shouldDirty: true })
                     }
-                    className="min-w-[230px]"
+                    className="min-w-[230px] text-sm"
                     dropdownWidth={230}
                     hideSelectedCheckmark
+                    nowrapOptions
                     disabled={isTokenLocked}
                   />
                 )}
@@ -1687,9 +1705,10 @@ export const TransactionForm = ({
                         shouldDirty: true,
                       });
                     }}
-                    className="min-w-[230px]"
+                    className="min-w-[230px] text-sm"
                     dropdownWidth={230}
                     hideSelectedCheckmark
+                    nowrapOptions
                     disabled={isTokenLocked}
                   />
                 ) : (
@@ -1705,13 +1724,11 @@ export const TransactionForm = ({
                         shouldDirty: true,
                       });
                     }}
-                    className="min-w-[230px]"
-                    isCTA={
-                      !currency &&
-                      !(isWalletConnected && totalRequired > balance)
-                    }
-                    dropdownWidth={230}
+                    className="min-w-[256px] text-sm"
+                    isCTA={false}
+                    dropdownWidth={256}
                     hideSelectedCheckmark
+                    nowrapOptions
                     disabled={isCurrencyLocked}
                   />
                 )}
@@ -1751,8 +1768,10 @@ export const TransactionForm = ({
                       onChange={(e) => {
                         formMethods.setValue("memo", e.target.value);
                       }}
+                      onFocus={() => setIsMemoFocused(true)}
+                      onBlur={() => setIsMemoFocused(false)}
                       value={formMethods.watch("memo")}
-                      className={`min-h-11 w-full rounded-xl border border-gray-300 bg-transparent py-2 pl-9 pr-11 text-sm transition-all placeholder:text-text-placeholder focus-within:border-gray-400 focus:outline-none disabled:cursor-not-allowed dark:border-white/20 dark:bg-input-focus dark:placeholder:text-white/30 dark:focus-within:border-white/40 ${
+                      className={`min-h-11 w-full rounded-xl border border-gray-300 bg-transparent py-2 pl-9 pr-11 text-sm transition-all placeholder:text-text-placeholder focus-within:border-lavender-500 focus:outline-none disabled:cursor-not-allowed dark:border-white/20 dark:bg-input-focus dark:placeholder:text-white/30 dark:focus-within:border-lavender-500 ${
                         errors.memo
                           ? "text-red-500 dark:text-red-500"
                           : "text-text-body dark:text-white/80"
@@ -1760,9 +1779,11 @@ export const TransactionForm = ({
                       placeholder="Add description (optional)"
                       maxLength={25}
                     />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-text-secondary dark:text-white/40">
-                      {(formMethods.watch("memo") ?? "").length}/25
-                    </span>
+                    {isMemoFocused && (
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-text-secondary dark:text-white/40">
+                        {(formMethods.watch("memo") ?? "").length}
+                      </span>
+                    )}
                   </div>
                 )}
               </AnimatedComponent>
@@ -1869,7 +1890,14 @@ export const TransactionForm = ({
                 ) : rate > 0 ? (
                   <>
                     1 {token} ~{" "}
-                    {isFetchingRate ? "..." : formatRateForDisplay(rate)}{" "}
+                    {isFetchingRate
+                      ? "..."
+                      : // Figma's rate line never groups digits ("1400", not
+                        // "1,400") — scoped to this one line; the shared
+                        // `formatRateForDisplay` util (also used by
+                        // Deposit/Transfer, out of this ticket's scope) is
+                        // untouched.
+                        formatRateForDisplay(rate).replace(/,/g, "")}{" "}
                     {currency}
                   </>
                 ) : null}
@@ -1877,7 +1905,6 @@ export const TransactionForm = ({
               {/* Not part of the compact widget design (embed mode). */}
               {!isEmbed && (
                 <div className="ml-auto flex w-full flex-col justify-end gap-2 xsm:flex-row xsm:items-center">
-                  <div className="h-px w-1/2 flex-shrink bg-gradient-to-tr from-white to-gray-300 dark:bg-gradient-to-tr dark:from-neutral-900 dark:to-neutral-700 sm:w-full" />
                   <p className="min-w-fit">Swap usually completes in 15 sec</p>
                 </div>
               )}

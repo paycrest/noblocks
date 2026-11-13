@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useSearchParams } from "next/navigation";
+import Image from "next/image";
 
 import {
   calculateDuration,
@@ -32,11 +33,7 @@ import type {
   RefundAccountDetails,
   V2FiatProviderAccountDTO,
 } from "../types";
-import {
-  ActionSubmitButton,
-  ReviewDetailCard,
-  type ReviewDetailRow,
-} from "../components/drawer";
+import { ActionSubmitButton } from "../components/drawer";
 import { DrawerPoweredByFooter } from "../components/drawer/DrawerPoweredByFooter";
 import { ReceiptDashedRule } from "../components/drawer/ReceiptMetaRows";
 import {
@@ -1435,16 +1432,6 @@ export const TransactionPreview = ({
 
   // Off-ramp only past this point — Buy (on-ramp) returns above, before any
   // review card renders (Figma has no Buy review step).
-  const reviewRows: ReviewDetailRow[] = [
-    { label: "Amount", value: renderedInfo.amount },
-    { label: "Total value", value: renderedInfo.totalValue },
-    { label: "Recipient", value: renderedInfo.recipient },
-    ...("account" in renderedInfo ? [{ label: "Account", value: renderedInfo.account }] : []),
-    ...("description" in renderedInfo && renderedInfo.description
-      ? [{ label: "Memo", value: renderedInfo.description }]
-      : []),
-  ];
-
   return (
     <div className="flex w-full flex-col gap-6 text-sm">
       <div>
@@ -1454,7 +1441,63 @@ export const TransactionPreview = ({
         </p>
       </div>
 
-      <ReviewDetailCard rows={reviewRows} />
+      {/* Figma s40: a flat label/value list on the drawer background — no
+          card. The "Fees" row Figma draws between Amount and Total value is
+          intentionally omitted: v1 has no separate fee value in state (no
+          fee is broken out anywhere — `rate` already carries the fee-adjusted
+          price), so the row is left out rather than fabricated. */}
+      <div className="flex flex-col gap-4">
+        <div className="flex items-center justify-between gap-2">
+          <p className={classNames("w-20 shrink-0", drawerSecondaryText)}>
+            Amount
+          </p>
+          <p className="flex items-center gap-1 font-medium text-text-body dark:text-white/80">
+            <Image
+              src={`/logos/${String(token)?.toLowerCase()}-logo.svg`}
+              alt={`${token} logo`}
+              width={14}
+              height={14}
+            />
+            {renderedInfo.amount}
+          </p>
+        </div>
+        <div className="flex items-center justify-between gap-2">
+          <p className={classNames("w-20 shrink-0", drawerSecondaryText)}>
+            Total value
+          </p>
+          <p className="font-medium text-text-body dark:text-white/80">
+            {renderedInfo.totalValue}
+          </p>
+        </div>
+        <div className="flex items-center justify-between gap-2">
+          <p className={classNames("w-20 shrink-0", drawerSecondaryText)}>
+            Recipient
+          </p>
+          <p className="font-medium text-text-body dark:text-white/80">
+            {renderedInfo.recipient}
+          </p>
+        </div>
+        {"account" in renderedInfo && (
+          <div className="flex items-center justify-between gap-2">
+            <p className={classNames("w-20 shrink-0", drawerSecondaryText)}>
+              Account
+            </p>
+            <p className="font-medium text-text-body dark:text-white/80">
+              {renderedInfo.account}
+            </p>
+          </div>
+        )}
+        {"description" in renderedInfo && renderedInfo.description && (
+          <div className="flex items-center justify-between gap-2">
+            <p className={classNames("w-20 shrink-0", drawerSecondaryText)}>
+              Memo
+            </p>
+            <p className="font-inter font-medium text-text-body dark:text-white/80">
+              {renderedInfo.description}
+            </p>
+          </div>
+        )}
+      </div>
 
       {/* Transaction detail disclaimer */}
       <div
@@ -1523,23 +1566,26 @@ export const TransactionPreview = ({
             </div>
           </div>
 
-          <ReceiptDashedRule />
         </>
       )}
 
-      {/* CTAs */}
-      <div className="flex gap-3">
+      <ReceiptDashedRule />
+
+      {/* CTAs — Figma: Back is content-width, Confirm payment fills the rest. */}
+      <div className="flex gap-6">
         <ActionSubmitButton
           label="Back"
           variant="secondary"
           onClick={handleBackButtonClick}
           disabled={isConfirming || isPollingOrderId}
+          className="!w-auto flex-none px-4"
         />
         <ActionSubmitButton
           label="Confirm payment"
           onClick={handlePaymentConfirmation}
           isSubmitting={isConfirming || isPollingOrderId}
           disabled={isConfirming || isPollingOrderId}
+          className="flex-1"
         />
       </div>
 

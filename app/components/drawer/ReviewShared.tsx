@@ -9,7 +9,6 @@ import { classNames } from "@/app/utils";
 import {
   drawerBodyMediumText,
   drawerBorderLight,
-  drawerCanvasClasses,
   drawerCopyButtonClasses,
   drawerDetailCardInnerClasses,
   drawerDividerClasses,
@@ -101,9 +100,8 @@ export function ReviewDetailCard({
           <span className={drawerSecondaryText}>Expires in</span>
           <span
             className={classNames(
-              "rounded-full px-2 py-0.5 text-sm font-medium text-lavender-500",
-              drawerCanvasClasses,
-              drawerBorderLight,
+              "rounded-full border-[0.3px] border-border-light bg-white px-2 py-0.5 text-sm font-medium text-lavender-500",
+              "dark:border-transparent dark:bg-lavender-500 dark:text-white",
             )}
           >
             {expiresInLabel ?? formatExpiryCountdown(expiresInSeconds!)}

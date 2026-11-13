@@ -17,6 +17,8 @@ interface FormDropdownProps {
   disabled?: boolean;
   /** See `FlexibleDropdown`'s prop of the same name. */
   hideSelectedCheckmark?: boolean;
+  /** See `FlexibleDropdown`'s prop of the same name. */
+  nowrapOptions?: boolean;
 }
 
 export const FormDropdown = ({
@@ -29,6 +31,7 @@ export const FormDropdown = ({
   dropdownWidth,
   disabled = false,
   hideSelectedCheckmark = false,
+  nowrapOptions = false,
 }: FormDropdownProps) => {
   const [imageErrors, setImageErrors] = useState<Record<string, boolean>>({});
   return (
@@ -41,6 +44,7 @@ export const FormDropdown = ({
       mobileTitle={defaultTitle}
       disabled={disabled}
       hideSelectedCheckmark={hideSelectedCheckmark}
+      nowrapOptions={nowrapOptions}
     >
       {({ selectedItem, isOpen, toggleDropdown, disabled: isLocked }) => (
         <button

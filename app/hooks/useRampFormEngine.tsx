@@ -188,7 +188,14 @@ export function useRampFormEngine({
     },
   });
   const { watch, setValue } = formMethods;
-  const { currency, amountSent, amountReceived, token, swapMode } = watch();
+  const {
+    currency,
+    amountSent,
+    amountReceived,
+    token,
+    swapMode,
+    receiveDestinationExplicitlySelected,
+  } = watch();
   /** On-ramp (fiat→crypto): rates API `buy` side */
   const isOnrampRate = swapMode === "onramp";
 
@@ -196,6 +203,20 @@ export function useRampFormEngine({
   // market book — max-liquidity limits are not actionable until the amount is fundable.
   const isWalletConnected =
     authenticated || (isInjectedWallet && injectedReady);
+  /**
+   * Mirrors the exact condition `TransactionForm` uses to reveal its own
+   * recipient card (Figma b13/b14: the FORM step's content is vertically
+   * centred only once this card is showing; b01/b02/b12 stay top-aligned).
+   * Exposed here — not a "centered" flag — so a host that cares about layout
+   * can derive its own alignment from real state instead of this engine
+   * knowing anything about that host's presentation.
+   */
+  const isRecipientSectionVisible = Boolean(
+    receiveDestinationExplicitlySelected &&
+      currency &&
+      isWalletConnected &&
+      isUserVerified,
+  );
   const spendableTokenBalance = useMemo(() => {
     const activeBalance = isInjectedWallet
       ? injectedWalletBalance
@@ -712,5 +733,6 @@ export function useRampFormEngine({
     transactionStatus,
     orderId,
     onrampPaymentAccount,
+    isRecipientSectionVisible,
   };
 }

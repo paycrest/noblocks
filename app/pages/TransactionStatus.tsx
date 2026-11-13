@@ -1,5 +1,6 @@
 "use client";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { useTheme } from "next-themes";
 import { useEffect, useState, useRef } from "react";
 import { ImSpinner } from "react-icons/im";
@@ -19,6 +20,7 @@ import {
   classNames,
   formatCurrency,
   formatNumberWithCommas,
+  formatRecipientNameFirstWordForPill,
   getInstitutionNameByCode,
   getKesMpesaInstitutionLabel,
   KES_MPESA_INSTITUTION_CODE,
@@ -85,9 +87,15 @@ import {
   showActionSuccessToast,
 } from "../components/drawer";
 import { DrawerPoweredByFooter } from "../components/drawer/DrawerPoweredByFooter";
-import { ReceiptDashedRule } from "../components/drawer/ReceiptMetaRows";
+import {
+  buildDefaultReceiptRows,
+  ReceiptDashedRule,
+  ReceiptMetaRows,
+} from "../components/drawer/ReceiptMetaRows";
+import { SuccessCheckmark } from "../components/drawer/SuccessCheckmark";
 import {
   drawerBodyText,
+  drawerReceiptTitleClasses,
   drawerSecondaryText,
   drawerStepHeadingClasses,
 } from "../components/drawer/drawerStyles";
@@ -1472,6 +1480,9 @@ export function TransactionStatus({
     orderDetails?.status === "refunded" ? orderDetails?.txHash : createdHash
   }`;
   const tokenAmountLabel = `${formatNumberWithCommas(isOnramp ? fiat : amount)} ${token}`;
+  // Figma bsuccess: the Buy success title reads "{token} {amount} added" —
+  // token first, the one spot that differs from `tokenAmountLabel`'s order.
+  const addedAmountLabel = `${token} ${formatNumberWithCommas(fiat)}`;
   const fiatAmountLabel = formatCurrency(
     Number(isOnramp ? amount : fiat) || 0,
     currency,
@@ -1479,34 +1490,66 @@ export function TransactionStatus({
   );
   const fundStatusLabel = isOnramp ? "Transferred" : "Deposited";
 
-  if (showSuccessVisual) {
+  if (showSuccessVisual && isOnramp) {
     return (
       <div className="flex w-full flex-col items-center">
         <ActionReceiptSuccess
           variant="drawer"
-          title={
-            isOnramp ? `${tokenAmountLabel} added` : "Transaction successful"
-          }
-          subtitle={
-            isOnramp
-              ? "Your money is in your balance and ready to use."
-              : `Your transfer of ${tokenAmountLabel} to ${recipientName} has been completed successfully.`
-          }
+          title={`${addedAmountLabel} added`}
+          subtitle="Your money is in your balance and ready to use."
           fundStatusLabel={fundStatusLabel}
           timeSpentLabel={timeSpentLabel}
           networkName={networkName}
           txHash={resolvedTxHash}
-          secondaryActionLabel={isOnramp ? "Done" : "Get receipt"}
-          onSecondaryAction={
-            isOnramp ? handleBackButtonClick : handleGetReceipt
-          }
-          primaryActionLabel={isOnramp ? "Earn" : "New payment"}
-          onPrimaryAction={
-            isOnramp ? () => router.push("/earn") : handleBackButtonClick
-          }
+          secondaryActionLabel="Done"
+          onSecondaryAction={handleBackButtonClick}
+          primaryActionLabel="Earn"
+          onPrimaryAction={() => router.push("/earn")}
         />
+      </div>
+    );
+  }
 
-        {!isOnramp && !isRecipientInBeneficiaries ? (
+  if (showSuccessVisual) {
+    // Sell success — Figma s42: title/subtitle, then the action buttons,
+    // then the beneficiaries checkbox, then the dashed-rule/details/
+    // dashed-rule block, then the share section. `ActionReceiptSuccess`'s
+    // own internal order (details, *then* buttons) matches Buy's bsuccess
+    // frame exactly — Buy keeps using it unchanged above; Sell's different
+    // order is built here from the same primitives instead of adding a
+    // layout-order flag to that shared component.
+    const rows = buildDefaultReceiptRows({
+      transactionStatusLabel: "Completed",
+      transactionStatusTone: "success",
+      fundStatusLabel,
+      timeSpentLabel,
+    });
+    return (
+      <div className="flex w-full flex-col items-center pt-5">
+        <SuccessCheckmark size={54} strokeWidth={2.7} />
+        <div className="mt-4 w-full space-y-1 text-center">
+          <p className={drawerReceiptTitleClasses}>Transaction successful</p>
+          <p className={classNames("text-sm", drawerSecondaryText)}>
+            Your transfer of {tokenAmountLabel} to {recipientName} has been
+            completed successfully.
+          </p>
+        </div>
+
+        <div className="mt-5 flex w-full gap-3">
+          <ActionSubmitButton
+            label="Get receipt"
+            variant="secondary"
+            onClick={handleGetReceipt}
+            className="!min-h-[42px] flex-1"
+          />
+          <ActionSubmitButton
+            label="New payment"
+            onClick={handleBackButtonClick}
+            className="!min-h-[42px] flex-1"
+          />
+        </div>
+
+        {!isRecipientInBeneficiaries ? (
           <div className="mt-5 flex w-full items-start gap-2 text-sm">
             {isSavingRecipient ? (
               <>
@@ -1556,6 +1599,16 @@ export function TransactionStatus({
           </div>
         ) : null}
 
+        <ReceiptDashedRule className="mt-5" />
+        <div className="mt-5 w-full">
+          <ReceiptMetaRows
+            rows={rows}
+            networkName={networkName}
+            txHash={resolvedTxHash}
+            layout="drawer"
+          />
+        </div>
+
         {!isEmbed ? (
           <div className="mt-5 w-full space-y-4">
             <ReceiptDashedRule />
@@ -1565,11 +1618,8 @@ export function TransactionStatus({
             <div className="relative flex items-center gap-3 overflow-hidden rounded-xl bg-gray-50 px-4 py-2 dark:bg-white/5">
               <YellowHeart className="size-8 flex-shrink-0" />
               <p className={classNames("text-sm", drawerSecondaryText)}>
-                Yay! I just swapped{" "}
-                {isOnramp
-                  ? `${currency} for ${token}`
-                  : `${token} for ${currency}`}{" "}
-                in {timeSpentLabel} on noblocks.xyz
+                Yay! I just swapped {token} for {currency} in {timeSpentLabel}{" "}
+                on noblocks.xyz
               </p>
               <QuotesBgIcon className="absolute -bottom-1 right-4 size-6" />
             </div>
@@ -1579,7 +1629,7 @@ export function TransactionStatus({
                 aria-label="Share on Twitter"
                 rel="noopener noreferrer"
                 target="_blank"
-                href={`https://x.com/intent/tweet?text=I%20just%20swapped%20${isOnramp ? `${currency}%20for%20${token}` : `${token}%20for%20${currency}`}%20in%20${isOnramp ? encodeURIComponent(onRampTimeSpentLabel) : offRampTimeSpentLabel}%20on%20noblocks.xyz`}
+                href={`https://x.com/intent/tweet?text=I%20just%20swapped%20${token}%20for%20${currency}%20in%20${offRampTimeSpentLabel}%20on%20noblocks.xyz`}
                 className={`min-h-9 !rounded-full ${secondaryBtnClasses} flex gap-2 text-neutral-900 dark:text-white/80`}
               >
                 {resolvedTheme === "dark" ? (
@@ -1593,7 +1643,7 @@ export function TransactionStatus({
                 aria-label="Share on Warpcast"
                 rel="noopener noreferrer"
                 target="_blank"
-                href={`https://warpcast.com/~/compose?text=Yay%21%20I%20just%20swapped%20${isOnramp ? `${currency}%20for%20${token}` : `${token}%20for%20${currency}`}%20in%20${isOnramp ? encodeURIComponent(onRampTimeSpentLabel) : encodeURIComponent(offRampTimeSpentLabel)}%20on%20noblocks.xyz`}
+                href={`https://warpcast.com/~/compose?text=Yay%21%20I%20just%20swapped%20${token}%20for%20${currency}%20in%20${encodeURIComponent(offRampTimeSpentLabel)}%20on%20noblocks.xyz`}
                 className={`min-h-9 !rounded-full ${secondaryBtnClasses} flex gap-2 text-neutral-900 dark:text-white/80`}
               >
                 {resolvedTheme === "dark" ? (
@@ -1687,27 +1737,51 @@ export function TransactionStatus({
     return renderBuyWatchingCard(steps);
   }
 
-  // Sell processing/indexing — Figma s41.
+  // Sell processing/indexing — Figma s41 (top-aligned, left-aligned content —
+  // unlike every other status screen here, this one isn't centred or
+  // center-text; it reads top-to-bottom like the Form/Review steps).
   return (
-    <div className="flex w-full flex-col gap-5 pt-2">
-      <div className="flex items-center justify-center gap-2">
-        <span className="inline-flex items-center gap-1.5 rounded-full border border-border-light bg-gray-50 px-2.5 py-1 text-sm font-medium text-text-body dark:border-0 dark:bg-white/10 dark:text-white/80">
-          <span className="size-1.5 shrink-0 rounded-full bg-[#39c65d]" />
+    <div className="flex w-full flex-col gap-4">
+      <div className="flex items-center gap-2">
+        <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-background-neutral px-2 py-1 text-sm font-medium text-text-body dark:bg-white/5 dark:text-white/80">
+          <Image
+            src={`/logos/${String(token)?.toLowerCase()}-logo.svg`}
+            alt={`${token} logo`}
+            width={14}
+            height={14}
+          />
           {tokenAmountLabel}
         </span>
-        <span className="inline-flex items-center rounded-full border border-border-light bg-gray-50 px-2.5 py-1 text-sm font-medium text-text-body dark:border-0 dark:bg-white/10 dark:text-white/80">
-          {recipientName}
+        <span
+          aria-hidden
+          className="h-px min-w-6 flex-1 border-t border-dashed border-[#b0e8be] dark:border-[#2a6b3c]"
+        />
+        <span className="size-1.5 shrink-0 rounded-full bg-[#39c65d]" />
+        <span className="shrink-0 rounded-full bg-[#f7f7f8] px-2 py-1 text-sm text-text-body dark:bg-white/5 dark:text-white/80">
+          {formatRecipientNameFirstWordForPill(recipientName)}
         </span>
       </div>
-      <div className="flex items-center justify-center gap-1.5 self-center rounded-full bg-[#f2c71c]/15 px-3 py-1 text-xs font-medium text-[#8a6d00] dark:text-[#f2c71c]">
-        <ImSpinner className="size-3.5 animate-spin" />
-        Indexing by aggregator...
+
+      <div className="flex flex-col items-start gap-4">
+        <span className="inline-flex items-center gap-1 rounded-full bg-[#fef9e8] px-2 py-1 text-sm text-[#61500b] dark:bg-[#61500b]/20 dark:text-[#f2c71c]">
+          <ImSpinner className="size-4 animate-spin" />
+          indexing
+        </span>
+
+        <p className="font-general-sans text-xl font-medium leading-7 text-text-body dark:text-white/80">
+          Indexing by aggregator...
+        </p>
+
+        <ReceiptDashedRule />
+
+        <p className={classNames("text-sm", drawerSecondaryText)}>
+          Processing payment of{" "}
+          <span className="text-text-body dark:text-white/80">
+            {fiatAmountLabel}
+          </span>{" "}
+          to {recipientName}. Hang on, this will only take a few seconds
+        </p>
       </div>
-      <ReceiptDashedRule />
-      <p className={classNames("text-center text-sm", drawerBodyText)}>
-        Processing payment of {fiatAmountLabel} to {recipientName}. Hang on,
-        this will only take a few seconds.
-      </p>
     </div>
   );
 }

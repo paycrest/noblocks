@@ -26,9 +26,13 @@ jest.mock("next/navigation", () => ({
 
 jest.mock("next/image", () => ({
   __esModule: true,
-  default: (props: { alt: string; src?: string }) => (
+  default: (props: { alt: string; src?: string; className?: string }) => (
     // eslint-disable-next-line @next/next/no-img-element
-    <img alt={props.alt} src={typeof props.src === "string" ? props.src : ""} />
+    <img
+      alt={props.alt}
+      src={typeof props.src === "string" ? props.src : ""}
+      className={props.className}
+    />
   ),
 }));
 
@@ -432,6 +436,43 @@ describe("RecipientDetailsForm", () => {
     });
   });
 
+  it("Buy recipient header matches Figma 13/14: one nowrap row with the short address and 'My wallet', no 'Select beneficiary' even with saved wallets", async () => {
+    const aggregator = jest.requireMock("../app/api/aggregator");
+    aggregator.fetchSavedRecipients.mockResolvedValue([
+      {
+        id: "w1",
+        name: "Ada Treasury",
+        walletAddress: "0x9C7d1b3E4f5a6B7c8D9e0F1a2B3c4D5e6F7a8B9c",
+        accountIdentifier: "0x9C7d1b3E4f5a6B7c8D9e0F1a2B3c4D5e6F7a8B9c",
+        type: "wallet",
+      },
+    ]);
+    render(
+      <OnrampHarness connectedWalletAddress="0x1111111111111111111111111111111111111111" />,
+    );
+    const myWallet = screen.getByRole("button", { name: "My wallet" });
+    const header = myWallet.closest("div.whitespace-nowrap");
+    expect(header).not.toBeNull();
+    expect(header).toHaveTextContent(/^Recipient0x111\.\.\.My wallet$/);
+    expect(screen.getByText("0x111...")).not.toHaveClass("font-mono");
+    await new Promise((r) => setTimeout(r, 50));
+    expect(
+      screen.queryByRole("button", { name: "Select beneficiary" }),
+    ).not.toBeInTheDocument();
+    aggregator.fetchSavedRecipients.mockResolvedValue([]);
+  });
+
+  it("renders the network hint with the real network logo, rounded like the Swap network pill", () => {
+    render(
+      <OnrampHarness connectedWalletAddress="0x1111111111111111111111111111111111111111" />,
+    );
+    const hint = screen.getByText(/You are on .* network/i).parentElement!;
+    const img = hint.querySelector("img")!;
+    expect(img).toHaveAttribute("alt", "Base");
+    expect(img).toHaveAttribute("src", "/logos/base-logo.svg");
+    expect(img.className).toContain("rounded-full");
+  });
+
   it("keeps the account field flagged and shows the red 'no match' pill when the aggregator can't resolve a name (AC10)", async () => {
     mockFetchAccountName.mockRejectedValue(
       new Error("No recipient account found."),
@@ -444,7 +485,7 @@ describe("RecipientDetailsForm", () => {
     await waitFor(
       () => {
         expect(
-          screen.getByText("No recipient account found."),
+          screen.getByText("No recipient account found"),
         ).toBeInTheDocument();
       },
       { timeout: 3000 },

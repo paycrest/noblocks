@@ -3,6 +3,7 @@ import { ImSpinner } from "react-icons/im";
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  AlertCircleIcon,
   ArrowDown01Icon,
   Tick02Icon,
   InformationCircleIcon,
@@ -422,7 +423,7 @@ export const RecipientDetailsForm = ({
       } catch (error) {
         if (requestId !== nameRequestIdRef.current) return;
         setIsRecipientNameEditable(false);
-        setRecipientNameError("No recipient account found.");
+        setRecipientNameError("No recipient account found");
         setIsFetchingRecipientName(false);
       }
     };
@@ -649,47 +650,44 @@ export const RecipientDetailsForm = ({
   return (
     <>
       <div className="space-y-4 rounded-2xl bg-white p-4 text-sm dark:bg-surface-canvas">
-        <div className="flex items-center justify-between">
-          <p className="text-base font-medium text-text-body dark:text-white">
+        <div className="flex items-center justify-between gap-3 whitespace-nowrap text-sm">
+          <p className="font-inter font-medium leading-6 text-text-body dark:text-white">
             Recipient
           </p>
-          {(showMyWalletButton || showSelectBeneficiaryButton) && (
-            <div className="flex items-center gap-3 font-medium">
-              {showMyWalletButton && (
-                <div className="flex items-center gap-2">
-                  <span
-                    className="font-mono text-xs text-text-disabled dark:text-white/45"
-                    aria-label={`Connected wallet starts with ${connectedWalletAddress!.slice(0, 5)}`}
-                  >
-                    {connectedWalletAddress!.slice(0, 5)}...
-                  </span>
-                  <button
-                    type="button"
-                    title="Fill with your connected wallet address"
-                    onClick={() =>
-                      setValue("walletAddress", connectedWalletAddress!, {
-                        shouldValidate: true,
-                        shouldDirty: true,
-                        shouldTouch: true,
-                      })
-                    }
-                    className="text-sm text-lavender-500 transition-colors hover:text-lavender-400 dark:text-lavender-500 dark:hover:text-lavender-400"
-                  >
-                    My wallet
-                  </button>
-                </div>
-              )}
-              {showSelectBeneficiaryButton && (
-                <button
-                  type="button"
-                  onClick={() => setIsModalOpen(true)}
-                  className="text-sm text-lavender-500 dark:text-lavender-500"
-                >
-                  Select beneficiary
-                </button>
-              )}
+          {/* Figma (Buy 13/14, Sell 23/31–39): Buy shows "0x7a3… My wallet",
+              Sell shows "Select beneficiary"; one action per mode, never wrapped. */}
+          {showMyWalletButton ? (
+            <div className="flex items-center gap-1 font-general-sans font-medium leading-5 tracking-[-0.14px]">
+              <span
+                className="text-right text-text-body dark:text-white/80"
+                aria-label={`Connected wallet starts with ${connectedWalletAddress!.slice(0, 5)}`}
+              >
+                {connectedWalletAddress!.slice(0, 5)}...
+              </span>
+              <button
+                type="button"
+                title="Fill with your connected wallet address"
+                onClick={() =>
+                  setValue("walletAddress", connectedWalletAddress!, {
+                    shouldValidate: true,
+                    shouldDirty: true,
+                    shouldTouch: true,
+                  })
+                }
+                className="text-lavender-500 transition-colors hover:text-lavender-400 dark:text-lavender-500 dark:hover:text-lavender-400"
+              >
+                My wallet
+              </button>
             </div>
-          )}
+          ) : showSelectBeneficiaryButton ? (
+            <button
+              type="button"
+              onClick={() => setIsModalOpen(true)}
+              className="font-general-sans font-medium leading-5 tracking-[-0.14px] text-lavender-500 dark:text-lavender-500"
+            >
+              Select beneficiary
+            </button>
+          ) : null}
         </div>
 
         {swapMode === "onramp" ? (
@@ -706,7 +704,7 @@ export const RecipientDetailsForm = ({
                   validateWalletAddress(value, networkName ?? ""),
               })}
               className={classNames(
-                "w-full rounded-xl border bg-transparent px-4 py-2.5 text-sm outline-none transition-all duration-300 placeholder:text-text-placeholder focus:outline-none dark:text-white/80 dark:placeholder:text-white/30",
+                "w-full overflow-hidden text-ellipsis rounded-xl border bg-transparent px-4 py-2.5 text-sm outline-none transition-all duration-300 placeholder:text-text-placeholder focus:outline-none dark:text-white/80 dark:placeholder:text-white/30",
                 errors.walletAddress
                   ? "border-input-destructive focus:border-gray-400 dark:border-input-destructive"
                   : "border-border-input dark:border-white/20 dark:focus:border-white/40 dark:focus:ring-offset-neutral-900",
@@ -733,13 +731,10 @@ export const RecipientDetailsForm = ({
                     alt={selectedNetwork.chain.name}
                     width={16}
                     height={16}
-                    className="size-4"
+                    className="size-4 rounded-full"
                   />
                 </div>
-                <span
-                  className="text-xs font-normal leading-4 tracking-normal"
-                  style={{ fontFamily: "Inter" }}
-                >
+                <span className="font-general-sans text-xs font-normal leading-4 tracking-normal">
                   You are on {formatNetworkName(networkName)} network
                 </span>
               </div>
@@ -750,10 +745,12 @@ export const RecipientDetailsForm = ({
           <>
             <div className="flex flex-col items-start gap-4">
               {/* Bank */}
-              <div className="w-full flex-1">
+              <div className="relative w-full flex-1">
                 <button
                   type="button"
-                  onClick={() => setIsSelectBankModalOpen(true)}
+                  data-select-bank-anchor
+                  aria-expanded={isSelectBankModalOpen}
+                  onClick={() => setIsSelectBankModalOpen((open) => !open)}
                   disabled={isFetchingInstitutions}
                   className="flex w-full items-center justify-between gap-2 rounded-xl border border-border-input px-4 py-2.5 text-left text-sm dark:border-white/20 dark:text-white/80"
                 >
@@ -770,11 +767,26 @@ export const RecipientDetailsForm = ({
                     <ArrowDown01Icon
                       className={classNames(
                         "size-5 flex-shrink-0 text-outline-gray transition-transform dark:text-white/50",
-                        isInstitutionsDropdownOpen ? "rotate-180" : "",
+                        isInstitutionsDropdownOpen || isSelectBankModalOpen
+                          ? "rotate-180"
+                          : "",
                       )}
                     />
                   )}
                 </button>
+                <SelectBankModal
+                  isOpen={isSelectBankModalOpen}
+                  onClose={() => setIsSelectBankModalOpen(false)}
+                  filteredInstitutions={filteredInstitutions}
+                  selectedInstitution={selectedInstitution}
+                  setSelectedInstitution={setSelectedInstitution}
+                  setValue={setValue}
+                  setIsManualEntry={setIsManualEntry}
+                  currency={currency}
+                  bankSearchTerm={bankSearchTerm}
+                  setBankSearchTerm={setBankSearchTerm}
+                  isFetchingInstitutions={isFetchingInstitutions}
+                />
               </div>
 
               {/* Account / phone / till / paybill reference (NGN NUBAN is 10 digits) */}
@@ -921,11 +933,11 @@ export const RecipientDetailsForm = ({
                       <Tick02Icon className="text-lg text-green-700 dark:text-green-500 max-sm:hidden" />
                     </AnimatedFeedbackItem>
                   ) : recipientNameError ? (
-                    <div className="flex items-center gap-2 rounded-xl bg-[#f53d6b]/10 px-3 py-2">
-                      <InformationSquareIcon className="size-4 shrink-0 text-text-accent-red dark:text-[#f53d6b]" />
-                      <p className="text-xs font-medium text-text-accent-red dark:text-[#f53d6b]">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="rounded-lg bg-[#f53d6b]/10 px-2 py-1 text-sm text-text-accent-red dark:text-[#f53d6b]">
                         {recipientNameError}
-                      </p>
+                      </span>
+                      <AlertCircleIcon className="size-4 shrink-0 text-text-accent-red dark:text-[#f53d6b]" />
                     </div>
                   ) : null}
                 </>
@@ -934,20 +946,6 @@ export const RecipientDetailsForm = ({
           </>
         )}
       </div>
-
-      <SelectBankModal
-        isOpen={isSelectBankModalOpen}
-        onClose={() => setIsSelectBankModalOpen(false)}
-        filteredInstitutions={filteredInstitutions}
-        selectedInstitution={selectedInstitution}
-        setSelectedInstitution={setSelectedInstitution}
-        setValue={setValue}
-        setIsManualEntry={setIsManualEntry}
-        currency={currency}
-        bankSearchTerm={bankSearchTerm}
-        setBankSearchTerm={setBankSearchTerm}
-        isFetchingInstitutions={isFetchingInstitutions}
-      />
 
       <SavedBeneficiariesModal
         isOpen={isModalOpen}
@@ -963,7 +961,6 @@ export const RecipientDetailsForm = ({
         isLoading={isLoadingRecipients}
         error={recipientsError}
         swapMode={swapMode}
-        networkName={networkName}
       />
     </>
   );

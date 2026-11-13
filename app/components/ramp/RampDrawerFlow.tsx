@@ -11,7 +11,13 @@ import { AnimatedPage } from "@/app/components/AnimatedComponents";
 import { useRampFormEngine } from "@/app/hooks/useRampFormEngine";
 import { STEPS, type SwapMode } from "@/app/types";
 
-/** Steps whose Figma frames show vertically centred content (Make payment, Watching, Success). */
+/**
+ * Steps whose Figma frames always show vertically centred content (Make
+ * payment, Watching, Success). FORM is centred too, but only once its
+ * recipient card is showing (b13/b14 vs. top-aligned b01/b02/b12) — see
+ * `isRecipientSectionVisible` below. PREVIEW (Sell's review step) and all
+ * Sell frames stay top-aligned.
+ */
 const VERTICALLY_CENTERED_STEPS = new Set<string>([
   STEPS.MAKE_PAYMENT,
   STEPS.STATUS,
@@ -53,8 +59,13 @@ export function RampDrawerFlow({
   mode,
   onCenterBodyChange,
 }: RampDrawerFlowProps) {
-  const { currentStep, setCurrentStep, renderStep, transactionStatus } =
-    useRampFormEngine({ initialSwapMode: mode, lockSwapMode: true });
+  const {
+    currentStep,
+    setCurrentStep,
+    renderStep,
+    transactionStatus,
+    isRecipientSectionVisible,
+  } = useRampFormEngine({ initialSwapMode: mode, lockSwapMode: true });
 
   // Each drawer open is a fresh instance of this component (the parent only
   // renders it while the drawer is open — see ActionDrawer), but `currentStep`
@@ -67,8 +78,13 @@ export function RampDrawerFlow({
   }, []);
 
   useEffect(() => {
-    onCenterBodyChange?.(VERTICALLY_CENTERED_STEPS.has(currentStep));
-  }, [currentStep, onCenterBodyChange]);
+    const centered =
+      VERTICALLY_CENTERED_STEPS.has(currentStep) ||
+      (mode === "onramp" &&
+        currentStep === STEPS.FORM &&
+        isRecipientSectionVisible);
+    onCenterBodyChange?.(centered);
+  }, [currentStep, isRecipientSectionVisible, mode, onCenterBodyChange]);
 
   // AC7: closing the drawer while an order is being watched must not lose
   // it — the order already exists server-side by the time STATUS is on
@@ -91,9 +107,13 @@ export function RampDrawerFlow({
     };
   }, [mode]);
 
+  // Figma Buy/Sell frames: General Sans for body, inputs, buttons and helpers;
+  // titles and headings opt back into Inter (`font-inter`).
   return (
-    <AnimatePresence mode="wait">
-      <AnimatedPage componentKey={currentStep}>{renderStep()}</AnimatedPage>
-    </AnimatePresence>
+    <div className="w-full font-general-sans">
+      <AnimatePresence mode="wait">
+        <AnimatedPage componentKey={currentStep}>{renderStep()}</AnimatedPage>
+      </AnimatePresence>
+    </div>
   );
 }

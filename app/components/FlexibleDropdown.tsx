@@ -54,8 +54,9 @@ interface FlexibleDropdownProps {
   /** When true, option labels don't wrap (e.g. short, fixed-width menus like a status filter). */
   nowrapOptions?: boolean;
   /**
-   * When true, the selected row shows no checkmark (the pill itself already
-   * reflects the selection, e.g. the Buy/Sell currency and token pickers).
+   * When true, the selected row shows no checkmark and no highlighted
+   * background (the pill itself already reflects the selection, e.g. the
+   * Buy/Sell currency and token pickers — Figma draws every row identically).
    * The disabled-row lock icon is unaffected.
    */
   hideSelectedCheckmark?: boolean;
@@ -328,7 +329,9 @@ export const FlexibleDropdown = ({
       className={classNames(
         "flex w-full items-center justify-between gap-2 rounded-lg p-2.5 text-left transition-all duration-300 hover:bg-accent-gray dark:hover:bg-neutral-700",
         item.disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer",
-        selectedItem?.name === item.name && !item.disabled
+        !hideSelectedCheckmark &&
+          selectedItem?.name === item.name &&
+          !item.disabled
           ? "bg-accent-gray dark:bg-neutral-700"
           : "",
       )}

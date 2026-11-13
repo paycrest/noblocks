@@ -1,7 +1,14 @@
 /// <reference types="jest" />
 
 import React from "react";
-import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import type { BridgeLeg, BridgeQuote } from "../app/lib/bridge";
 
 // ---------------------------------------------------------------------------
@@ -124,10 +131,22 @@ const mockQuoteState: {
   isFetched: boolean;
   error: unknown;
   refetch: jest.Mock;
-} = { quote: null, isLoading: false, isFetched: false, error: null, refetch: jest.fn() };
-const mockStatusState: { result: { status: string; destinationTxHash?: string } | null } = {
+} = {
+  quote: null,
+  isLoading: false,
+  isFetched: false,
+  error: null,
+  refetch: jest.fn(),
+};
+const mockStatusState: {
+  result: { status: string; destinationTxHash?: string } | null;
+} = {
   result: null,
 };
+type MockStatus = { status: string; destinationTxHash?: string } | null;
+// Per-reference setters for each useBridgeStatus instance, so a test can
+// publish a late response to the instance that requested that reference.
+const mockStatusSetters = new Map<string, (r: MockStatus) => void>();
 const mockExecute = jest.fn();
 const mockUseBridgeQuote = jest.fn();
 const mockUseBridgeStatus = jest.fn();
@@ -137,9 +156,17 @@ jest.mock("../app/hooks/bridge", () => ({
     return mockQuoteState;
   },
   useBridgeExecute: () => ({ execute: mockExecute }),
-  useBridgeStatus: (params: unknown) => {
+  useBridgeStatus: (params: { refId?: string | null; enabled?: boolean }) => {
     mockUseBridgeStatus(params);
-    return mockStatusState;
+    // Instance state like the real hook: late results land on whichever
+    // instance asked for that reference.
+    const { useState, useEffect } = jest.requireActual("react");
+    const [own, setOwn] = useState(null);
+    useEffect(() => {
+      if (params.enabled && params.refId)
+        mockStatusSetters.set(params.refId, setOwn);
+    }, [params.enabled, params.refId]);
+    return { result: mockStatusState.result ?? own };
   },
 }));
 
@@ -148,8 +175,9 @@ jest.mock("../app/api/aggregator", () => ({
 }));
 
 jest.mock("../app/lib/toastMappedError", () => ({
-  mapReportAndAct: jest.fn((_err: unknown, opts: { onUserMessage?: (m: string) => void }) =>
-    opts.onUserMessage?.("Swap could not be completed"),
+  mapReportAndAct: jest.fn(
+    (_err: unknown, opts: { onUserMessage?: (m: string) => void }) =>
+      opts.onUserMessage?.("Swap could not be completed"),
   ),
 }));
 
@@ -167,11 +195,17 @@ jest.mock("../app/components/AnimatedComponents", () => ({
     isOpen ? (
       <div role="dialog" aria-modal="true">
         {/* Stand-in for Escape / scrim dismissal. */}
-        <button type="button" data-testid="mock-modal-dismiss" onClick={() => onClose?.()} />
+        <button
+          type="button"
+          data-testid="mock-modal-dismiss"
+          onClick={() => onClose?.()}
+        />
         {children}
       </div>
     ) : null,
-  AnimatedComponent: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  AnimatedComponent: ({ children }: { children: React.ReactNode }) => (
+    <>{children}</>
+  ),
   slideInOut: {},
   slideInDown: {},
   dropdownVariants: {},
@@ -244,7 +278,9 @@ jest.mock("../app/components/drawer", () => ({
     isOpen ? (
       <div data-testid="action-drawer">
         <h2>{title}</h2>
-        {subtitle ? <p data-testid="action-drawer-subtitle">{subtitle}</p> : null}
+        {subtitle ? (
+          <p data-testid="action-drawer-subtitle">{subtitle}</p>
+        ) : null}
         {children}
         {showPoweredByFooter ? <p>Powered by Paycrest</p> : null}
       </div>
@@ -262,7 +298,14 @@ jest.mock("next/navigation", () => ({
 
 jest.mock("next/link", () => ({
   __esModule: true,
-  default: ({ href, children, ...rest }: { href: string; children: React.ReactNode }) => (
+  default: ({
+    href,
+    children,
+    ...rest
+  }: {
+    href: string;
+    children: React.ReactNode;
+  }) => (
     <a href={href} {...rest}>
       {children}
     </a>
@@ -302,9 +345,13 @@ import { getFeatureFlags, isFeatureEnabled } from "../app/lib/flags";
 import { WalletHomeContent } from "../app/(wallet)/components/home/WalletHomeContent";
 import { TokenActionDrawerHost } from "../app/(wallet)/components/tokens/TokensPageContent";
 
-const { usePortfolio: mockUsePortfolio } = jest.requireMock("../app/hooks/usePortfolio");
+const { usePortfolio: mockUsePortfolio } = jest.requireMock(
+  "../app/hooks/usePortfolio",
+);
 
-const { saveTransaction: mockSaveTransaction } = jest.requireMock("../app/api/aggregator");
+const { saveTransaction: mockSaveTransaction } = jest.requireMock(
+  "../app/api/aggregator",
+);
 
 const QUOTE: BridgeQuote = {
   kind: "near-deposit",
@@ -374,6 +421,7 @@ beforeEach(() => {
   mockQuoteState.refetch = jest.fn();
   mockUseBridgeStatus.mockClear();
   mockStatusState.result = null;
+  mockStatusSetters.clear();
   mockExecute.mockReset();
   mockUseBridgeQuote.mockClear();
   mockSaveTransaction.mockClear();
@@ -409,7 +457,9 @@ describe("KAN-964 feature flag", () => {
 });
 
 describe("swapConfig helpers", () => {
-  const allTokens = mockTokensValue.allTokens as unknown as Parameters<typeof buildSwapLeg>[2];
+  const allTokens = mockTokensValue.allTokens as unknown as Parameters<
+    typeof buildSwapLeg
+  >[2];
 
   it("builds a same-network leg from network + symbol", () => {
     const leg = buildSwapLeg("Base", "usdc", allTokens);
@@ -432,7 +482,9 @@ describe("swapConfig helpers", () => {
   });
 
   it("formats the live rate label and rejects unusable inputs", () => {
-    expect(formatSwapRateLabel("USDT", "USDC", "100", "99.5")).toBe("1 USDT ~ 0.995 USDC");
+    expect(formatSwapRateLabel("USDT", "USDC", "100", "99.5")).toBe(
+      "1 USDT ~ 0.995 USDC",
+    );
     expect(formatSwapRateLabel(undefined, "USDC", "100", "99.5")).toBeNull();
     expect(formatSwapRateLabel("USDT", "USDC", "0", "99.5")).toBeNull();
     expect(formatSwapRateLabel("USDT", "USDC", "", "")).toBeNull();
@@ -548,11 +600,15 @@ describe("SwapForm — Home chrome", () => {
 
   it("shows the flip icon, not a spinner, when no quote is loading", () => {
     renderSwap(HOME_PROPS);
-    const flip = screen.getByRole("button", { name: "Flip from and to tokens" });
+    const flip = screen.getByRole("button", {
+      name: "Flip from and to tokens",
+    });
     expect(flip).toBeEnabled();
     expect(flip).toHaveAttribute("aria-busy", "false");
     expect(flip.querySelector("svg")).not.toHaveClass("animate-spin");
-    expect(screen.queryByRole("button", { name: "Loading quote" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Loading quote" }),
+    ).not.toBeInTheDocument();
   });
 
   it("turns the flip control into a disabled spinner while the quote loads", () => {
@@ -571,11 +627,17 @@ describe("SwapForm — Home chrome", () => {
     renderSwap(HOME_PROPS);
     pick(SWAP_COPY.selectNetwork, "Base");
     pick(SWAP_COPY.selectToken, "USDC");
-    fireEvent.click(screen.getByRole("button", { name: "Flip from and to tokens" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Flip from and to tokens" }),
+    );
     const fromCard = screen.getByTestId("swap-from-card");
     const toCard = screen.getByTestId("swap-to-card");
-    expect(within(fromCard).getByRole("button", { name: "USDC token" })).toBeInTheDocument();
-    expect(within(toCard).getByRole("button", { name: "USDT token" })).toBeInTheDocument();
+    expect(
+      within(fromCard).getByRole("button", { name: "USDC token" }),
+    ).toBeInTheDocument();
+    expect(
+      within(toCard).getByRole("button", { name: "USDT token" }),
+    ).toBeInTheDocument();
   });
 
   it("keeps the CTA disabled on insufficient balance", () => {
@@ -599,7 +661,10 @@ describe("SwapForm — Home chrome", () => {
 
   it("shows the Swap pending modal as soon as confirm starts, then the success modal", async () => {
     mockQuoteState.quote = QUOTE;
-    let resolveExecute: (v: { txHash: string; depositRefId: string }) => void = () => {};
+    let resolveExecute: (v: {
+      txHash: string;
+      depositRefId: string;
+    }) => void = () => {};
     mockExecute.mockImplementation(
       () =>
         new Promise((res) => {
@@ -613,14 +678,24 @@ describe("SwapForm — Home chrome", () => {
 
     // Pending is the shared TransferPendingModal with Swap copy, not a spinner.
     const pending = await screen.findByTestId("swap-pending-content");
-    expect(within(pending).getByText(SWAP_COPY.pendingTitle)).toBeInTheDocument();
-    expect(within(pending).getByText(SWAP_COPY.pendingNote)).toBeInTheDocument();
+    expect(
+      within(pending).getByText(SWAP_COPY.pendingTitle),
+    ).toBeInTheDocument();
+    expect(
+      within(pending).getByText(SWAP_COPY.pendingNote),
+    ).toBeInTheDocument();
     expect(within(pending).getByText("99.5 USDC")).toBeInTheDocument();
-    expect(screen.queryByText(TRANSFER_COPY.pendingTitle)).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(TRANSFER_COPY.pendingTitle),
+    ).not.toBeInTheDocument();
     expect(mockExecute).toHaveBeenCalledTimes(1);
     const [quoteArg, fromArg] = mockExecute.mock.calls[0];
     expect(quoteArg).toBe(QUOTE);
-    expect(fromArg).toMatchObject({ token: "USDT", amount: "100", rawAmount: "100000000" });
+    expect(fromArg).toMatchObject({
+      token: "USDT",
+      amount: "100",
+      rawAmount: "100000000",
+    });
 
     await act(async () => {
       resolveExecute({ txHash: "0xabc", depositRefId: "ref-1" });
@@ -631,12 +706,18 @@ describe("SwapForm — Home chrome", () => {
     mockStatusState.result = { status: "SUCCESS", destinationTxHash: "0xdef" };
     rerender(<SwapForm onClose={onClose} {...HOME_PROPS} />);
     const success = await screen.findByTestId("swap-success-content");
-    expect(within(success).getByText(SWAP_COPY.successTitle)).toBeInTheDocument();
+    expect(
+      within(success).getByText(SWAP_COPY.successTitle),
+    ).toBeInTheDocument();
     expect(within(success).getByText(SWAP_COPY.completed)).toBeInTheDocument();
-    expect(screen.queryByTestId("swap-pending-content")).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("swap-pending-content"),
+    ).not.toBeInTheDocument();
     // Home success is a centered modal over the still-mounted form.
     expect(screen.getByTestId("swap-form-body")).toBeInTheDocument();
-    fireEvent.click(within(success).getByRole("button", { name: SWAP_COPY.close }));
+    fireEvent.click(
+      within(success).getByRole("button", { name: SWAP_COPY.close }),
+    );
     expect(onClose).toHaveBeenCalled();
   });
 
@@ -649,7 +730,9 @@ describe("SwapForm — Home chrome", () => {
     fireEvent.click(screen.getByTestId("swap-review-confirm"));
     const failed = await screen.findByTestId("swap-failed-content");
     expect(within(failed).getByText(SWAP_COPY.failedTitle)).toBeInTheDocument();
-    expect(within(failed).getByRole("button", { name: SWAP_COPY.tryAgain })).toBeInTheDocument();
+    expect(
+      within(failed).getByRole("button", { name: SWAP_COPY.tryAgain }),
+    ).toBeInTheDocument();
   });
 });
 
@@ -659,17 +742,24 @@ describe("SwapForm — token-page chrome", () => {
     expect(screen.queryByTestId("swap-network-card")).not.toBeInTheDocument();
     expect(screen.getByText(SWAP_COPY.sell)).toBeInTheDocument();
     expect(screen.getByText(SWAP_COPY.receive)).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: SWAP_COPY.swapCta })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: SWAP_COPY.swapCta }),
+    ).toBeInTheDocument();
     expect(screen.getByTestId("swap-submit-cta")).toHaveTextContent(/^Swap$/);
     // From is preselected to the page's token on the page's network.
     expect(
-      within(screen.getByTestId("swap-from-card")).getByRole("button", { name: "USDT token" }),
+      within(screen.getByTestId("swap-from-card")).getByRole("button", {
+        name: "USDT token",
+      }),
     ).toBeInTheDocument();
   });
 
   it("executes directly on Swap (no review), then shows the inline Swap Complete receipt", async () => {
     mockQuoteState.quote = QUOTE;
-    let resolveExecute: (v: { txHash: string; depositRefId: string }) => void = () => {};
+    let resolveExecute: (v: {
+      txHash: string;
+      depositRefId: string;
+    }) => void = () => {};
     mockExecute.mockImplementation(
       () =>
         new Promise((res) => {
@@ -680,7 +770,9 @@ describe("SwapForm — token-page chrome", () => {
     fillTokenPage();
     fireEvent.click(screen.getByTestId("swap-submit-cta"));
     expect(screen.queryByTestId("swap-review-content")).not.toBeInTheDocument();
-    expect(await screen.findByTestId("swap-pending-content")).toBeInTheDocument();
+    expect(
+      await screen.findByTestId("swap-pending-content"),
+    ).toBeInTheDocument();
     expect(mockExecute).toHaveBeenCalledTimes(1);
 
     await act(async () => {
@@ -690,12 +782,18 @@ describe("SwapForm — token-page chrome", () => {
     rerender(<SwapForm onClose={onClose} {...TOKEN_PAGE_PROPS} />);
 
     const success = await screen.findByTestId("swap-success-content");
-    expect(within(success).getByText(SWAP_COPY.completeTitle)).toBeInTheDocument();
-    expect(within(success).getByText(SWAP_COPY.transactionFee)).toBeInTheDocument();
+    expect(
+      within(success).getByText(SWAP_COPY.completeTitle),
+    ).toBeInTheDocument();
+    expect(
+      within(success).getByText(SWAP_COPY.transactionFee),
+    ).toBeInTheDocument();
     // Inline: the receipt replaces the form inside the drawer, no modal.
     expect(screen.queryByTestId("swap-form-body")).not.toBeInTheDocument();
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    fireEvent.click(within(success).getByRole("button", { name: SWAP_COPY.done }));
+    fireEvent.click(
+      within(success).getByRole("button", { name: SWAP_COPY.done }),
+    );
     expect(onClose).toHaveBeenCalled();
   });
 });
@@ -751,7 +849,14 @@ describe("Swap entry points", () => {
         stale: false,
         asOf: ASOF,
         holdings: [
-          { id: "t1", chain: "Base", symbol: "USDT", amount: "578", usd: "578", asOf: ASOF },
+          {
+            id: "t1",
+            chain: "Base",
+            symbol: "USDT",
+            amount: "578",
+            usd: "578",
+            asOf: ASOF,
+          },
         ],
       },
       earn: { totalUsd: "0", stale: false, asOf: ASOF, holdings: [] },
@@ -770,14 +875,20 @@ describe("Swap entry points", () => {
 
   function openHomeMenu() {
     render(<WalletHomeContent />);
-    fireEvent.click(screen.getByRole("button", { name: /More add funds options/i }));
+    fireEvent.click(
+      screen.getByRole("button", { name: /More add funds options/i }),
+    );
   }
 
   it("hides Swap in the Home add-funds menu when the flag is off", () => {
     delete process.env.NEXT_PUBLIC_FF_NOBLOCKS_SWAP;
     openHomeMenu();
-    expect(screen.getByRole("button", { name: /^Receive$/i })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /^Swap$/i })).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /^Receive$/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /^Swap$/i }),
+    ).not.toBeInTheDocument();
   });
 
   it("opens the Home Swap drawer with subtitle, Home chrome and no Powered-by footer", () => {
@@ -785,19 +896,25 @@ describe("Swap entry points", () => {
     openHomeMenu();
     fireEvent.click(screen.getByRole("button", { name: /^Swap$/i }));
     const drawer = screen.getByTestId("action-drawer");
-    expect(within(drawer).getByRole("heading", { name: "Swap" })).toBeInTheDocument();
-    expect(within(drawer).getByTestId("action-drawer-subtitle")).toHaveTextContent(
-      SWAP_COPY.subtitle,
-    );
+    expect(
+      within(drawer).getByRole("heading", { name: "Swap" }),
+    ).toBeInTheDocument();
+    expect(
+      within(drawer).getByTestId("action-drawer-subtitle"),
+    ).toHaveTextContent(SWAP_COPY.subtitle);
     expect(within(drawer).getByTestId("swap-network-card")).toBeInTheDocument();
-    expect(within(drawer).getByTestId("swap-submit-cta")).toHaveTextContent(SWAP_COPY.reviewCta);
+    expect(within(drawer).getByTestId("swap-submit-cta")).toHaveTextContent(
+      SWAP_COPY.reviewCta,
+    );
     expect(within(drawer).queryByText(/Powered by/i)).not.toBeInTheDocument();
   });
 
   it("keeps the Powered-by footer on other Home drawers", () => {
     openHomeMenu();
     fireEvent.click(screen.getByRole("button", { name: /^Receive$/i }));
-    expect(within(screen.getByTestId("action-drawer")).getByText(/Powered by/i)).toBeInTheDocument();
+    expect(
+      within(screen.getByTestId("action-drawer")).getByText(/Powered by/i),
+    ).toBeInTheDocument();
   });
 
   it("titles the token-page drawer 'Swap {symbol}' with token chrome and no Powered-by footer", () => {
@@ -810,11 +927,19 @@ describe("Swap entry points", () => {
       />,
     );
     const drawer = screen.getByTestId("action-drawer");
-    expect(within(drawer).getByRole("heading", { name: "Swap USDT" })).toBeInTheDocument();
-    expect(within(drawer).queryByTestId("action-drawer-subtitle")).not.toBeInTheDocument();
-    expect(within(drawer).queryByTestId("swap-network-card")).not.toBeInTheDocument();
+    expect(
+      within(drawer).getByRole("heading", { name: "Swap USDT" }),
+    ).toBeInTheDocument();
+    expect(
+      within(drawer).queryByTestId("action-drawer-subtitle"),
+    ).not.toBeInTheDocument();
+    expect(
+      within(drawer).queryByTestId("swap-network-card"),
+    ).not.toBeInTheDocument();
     expect(within(drawer).getByText(SWAP_COPY.sell)).toBeInTheDocument();
-    expect(within(drawer).getByTestId("swap-submit-cta")).toHaveTextContent(/^Swap$/);
+    expect(within(drawer).getByTestId("swap-submit-cta")).toHaveTextContent(
+      /^Swap$/,
+    );
     expect(within(drawer).queryByText(/Powered by/i)).not.toBeInTheDocument();
   });
 
@@ -827,7 +952,9 @@ describe("Swap entry points", () => {
         onBridgeSubmit={jest.fn()}
       />,
     );
-    expect(within(screen.getByTestId("action-drawer")).getByText(/Powered by/i)).toBeInTheDocument();
+    expect(
+      within(screen.getByTestId("action-drawer")).getByText(/Powered by/i),
+    ).toBeInTheDocument();
   });
 });
 
@@ -837,14 +964,25 @@ describe("Swap entry points", () => {
 
 describe("quote deadline helpers", () => {
   it("reads NEAR deadline and HyperFX expiresAt, and nothing for LI.FI", () => {
-    expect(getSwapQuoteDeadline({ ...QUOTE, deadline: 1234 } as BridgeQuote)).toBe(1234);
     expect(
-      getSwapQuoteDeadline({ kind: "hyperfx-intent", expiresAt: 5678 } as unknown as BridgeQuote),
+      getSwapQuoteDeadline({ ...QUOTE, deadline: 1234 } as BridgeQuote),
+    ).toBe(1234);
+    expect(
+      getSwapQuoteDeadline({
+        kind: "hyperfx-intent",
+        expiresAt: 5678,
+      } as unknown as BridgeQuote),
     ).toBe(5678);
-    expect(getSwapQuoteDeadline({ kind: "lifi-tx" } as unknown as BridgeQuote)).toBeNull();
+    expect(
+      getSwapQuoteDeadline({ kind: "lifi-tx" } as unknown as BridgeQuote),
+    ).toBeNull();
     expect(getSwapQuoteDeadline(null)).toBeNull();
-    expect(isSwapQuoteExpired({ ...QUOTE, deadline: 1000 } as BridgeQuote, 1000)).toBe(true);
-    expect(isSwapQuoteExpired({ ...QUOTE, deadline: 1001 } as BridgeQuote, 1000)).toBe(false);
+    expect(
+      isSwapQuoteExpired({ ...QUOTE, deadline: 1000 } as BridgeQuote, 1000),
+    ).toBe(true);
+    expect(
+      isSwapQuoteExpired({ ...QUOTE, deadline: 1001 } as BridgeQuote, 1000),
+    ).toBe(false);
   });
 });
 
@@ -853,23 +991,45 @@ describe("SwapForm — quote expiry", () => {
     jest.useRealTimers();
   });
 
-  it("disables the CTA once the active quote's deadline passes", () => {
+  it("disables the CTA and explains with Retry once the active quote's deadline passes", () => {
     jest.useFakeTimers();
-    mockQuoteState.quote = { ...QUOTE, deadline: Date.now() + 5_000 } as BridgeQuote;
-    renderSwap(TOKEN_PAGE_PROPS);
+    mockQuoteState.quote = {
+      ...QUOTE,
+      deadline: Date.now() + 5_000,
+    } as BridgeQuote;
+    const { rerender, onClose } = renderSwap(TOKEN_PAGE_PROPS);
     fillTokenPage();
     expect(screen.getByTestId("swap-submit-cta")).toBeEnabled();
+    expect(screen.queryByTestId("swap-form-notice")).not.toBeInTheDocument();
     act(() => {
       jest.advanceTimersByTime(5_001);
     });
     expect(screen.getByTestId("swap-submit-cta")).toBeDisabled();
+    const notice = screen.getByTestId("swap-form-notice");
+    expect(notice).toHaveTextContent(SWAP_COPY.quoteExpired);
     // No countdown UI is rendered for expiry.
     expect(screen.queryByText(/expires in/i)).not.toBeInTheDocument();
+    fireEvent.click(
+      within(notice).getByRole("button", { name: SWAP_COPY.retry }),
+    );
+    expect(mockQuoteState.refetch).toHaveBeenCalledTimes(1);
+
+    // A fresh quote clears the expired state and the notice.
+    mockQuoteState.quote = {
+      ...QUOTE,
+      deadline: Date.now() + 60_000,
+    } as BridgeQuote;
+    rerender(<SwapForm onClose={onClose} {...TOKEN_PAGE_PROPS} />);
+    expect(screen.queryByTestId("swap-form-notice")).not.toBeInTheDocument();
+    expect(screen.getByTestId("swap-submit-cta")).toBeEnabled();
   });
 
   it("re-validates the deadline on Review confirm and refuses an expired quote", () => {
     jest.useFakeTimers();
-    mockQuoteState.quote = { ...QUOTE, deadline: Date.now() + 5_000 } as BridgeQuote;
+    mockQuoteState.quote = {
+      ...QUOTE,
+      deadline: Date.now() + 5_000,
+    } as BridgeQuote;
     renderSwap(HOME_PROPS);
     fillHome();
     fireEvent.click(screen.getByTestId("swap-submit-cta"));
@@ -879,10 +1039,14 @@ describe("SwapForm — quote expiry", () => {
     fireEvent.click(screen.getByTestId("swap-review-confirm"));
     expect(mockExecute).not.toHaveBeenCalled();
     expect(screen.queryByTestId("swap-review-content")).not.toBeInTheDocument();
-    expect(screen.getByTestId("swap-form-notice")).toHaveTextContent(SWAP_COPY.quoteExpired);
+    expect(screen.getByTestId("swap-form-notice")).toHaveTextContent(
+      SWAP_COPY.quoteExpired,
+    );
     expect(screen.getByTestId("swap-submit-cta")).toBeDisabled();
     fireEvent.click(
-      within(screen.getByTestId("swap-form-notice")).getByRole("button", { name: SWAP_COPY.retry }),
+      within(screen.getByTestId("swap-form-notice")).getByRole("button", {
+        name: SWAP_COPY.retry,
+      }),
     );
     expect(mockQuoteState.refetch).toHaveBeenCalled();
   });
@@ -900,13 +1064,19 @@ describe("SwapForm — Review confirm eligibility", () => {
       mockBalanceValue.crossChainBalances = [
         {
           network: { chain: { name: "Base" } },
-          balances: { total: 10, balances: { USDT: 10, USDC: 0 }, rawBalances: { USDT: 10, USDC: 0 } },
+          balances: {
+            total: 10,
+            balances: { USDT: 10, USDC: 0 },
+            rawBalances: { USDT: 10, USDC: 0 },
+          },
         },
       ];
       rerender(<SwapForm onClose={onClose} {...HOME_PROPS} />);
       fireEvent.click(screen.getByTestId("swap-review-confirm"));
       expect(mockExecute).not.toHaveBeenCalled();
-      expect(screen.queryByTestId("swap-review-content")).not.toBeInTheDocument();
+      expect(
+        screen.queryByTestId("swap-review-content"),
+      ).not.toBeInTheDocument();
       expect(screen.getByText("Insufficient balance")).toBeInTheDocument();
     } finally {
       mockBalanceValue.crossChainBalances = original;
@@ -917,7 +1087,10 @@ describe("SwapForm — Review confirm eligibility", () => {
 describe("SwapForm — execution attempts", () => {
   it("blocks a second execute() while the first is still waiting, even after dismissing pending", async () => {
     mockQuoteState.quote = QUOTE;
-    let resolveExecute: (v: { txHash: string; depositRefId: string }) => void = () => {};
+    let resolveExecute: (v: {
+      txHash: string;
+      depositRefId: string;
+    }) => void = () => {};
     mockExecute.mockImplementation(
       () =>
         new Promise((res) => {
@@ -930,7 +1103,9 @@ describe("SwapForm — execution attempts", () => {
     await screen.findByTestId("swap-pending-content");
     // Escape / scrim on the pending modal → resetToForm().
     fireEvent.click(screen.getByTestId("mock-modal-dismiss"));
-    expect(screen.queryByTestId("swap-pending-content")).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("swap-pending-content"),
+    ).not.toBeInTheDocument();
     const cta = screen.getByTestId("swap-submit-cta");
     expect(cta).toBeDisabled();
     expect(cta).toHaveAttribute("aria-busy", "true");
@@ -950,37 +1125,66 @@ describe("SwapForm — execution attempts", () => {
     fillTokenPage();
     fireEvent.click(screen.getByTestId("swap-submit-cta"));
     const failed = await screen.findByTestId("swap-failed-content");
-    fireEvent.click(within(failed).getByRole("button", { name: SWAP_COPY.tryAgain }));
+    fireEvent.click(
+      within(failed).getByRole("button", { name: SWAP_COPY.tryAgain }),
+    );
     mockExecute.mockImplementation(() => new Promise(() => {}));
     fireEvent.click(screen.getByTestId("swap-submit-cta"));
     expect(mockExecute).toHaveBeenCalledTimes(2);
   });
 
-  it("does not show a previous attempt's result while the next attempt is pending", async () => {
+  it("never shows an earlier attempt's late status as the next attempt's result", async () => {
     mockQuoteState.quote = QUOTE;
-    mockExecute.mockResolvedValueOnce({ txHash: "0xaaa", depositRefId: "ref-A" });
-    const { rerender, onClose } = renderSwap(TOKEN_PAGE_PROPS);
+    mockExecute.mockResolvedValueOnce({
+      txHash: "0xaaa",
+      depositRefId: "ref-A",
+    });
+    renderSwap(TOKEN_PAGE_PROPS);
     fillTokenPage();
     fireEvent.click(screen.getByTestId("swap-submit-cta"));
-    await waitFor(() =>
-      expect(mockUseBridgeStatus).toHaveBeenLastCalledWith(
-        expect.objectContaining({ refId: "ref-A", enabled: true }),
-      ),
-    );
+    await waitFor(() => expect(mockStatusSetters.has("ref-A")).toBe(true));
     // Dismiss A's pending modal while it is still processing.
     fireEvent.click(screen.getByTestId("mock-modal-dismiss"));
-    // A's poll later reports SUCCESS…
-    mockStatusState.result = { status: "SUCCESS" };
-    // …while attempt B is waiting on its wallet signature.
-    mockExecute.mockImplementation(() => new Promise(() => {}));
-    rerender(<SwapForm onClose={onClose} {...TOKEN_PAGE_PROPS} />);
+
+    // Attempt B waits on its wallet signature first.
+    let resolveB: (v: {
+      txHash: string;
+      depositRefId: string;
+    }) => void = () => {};
+    mockExecute.mockImplementation(
+      () =>
+        new Promise((res) => {
+          resolveB = res;
+        }),
+    );
     fireEvent.click(screen.getByTestId("swap-submit-cta"));
     expect(mockExecute).toHaveBeenCalledTimes(2);
-    expect(await screen.findByTestId("swap-pending-content")).toBeInTheDocument();
-    expect(screen.queryByTestId("swap-success-content")).not.toBeInTheDocument();
-    expect(mockUseBridgeStatus).toHaveBeenLastCalledWith(
-      expect.objectContaining({ refId: null, enabled: false }),
-    );
+    expect(
+      await screen.findByTestId("swap-pending-content"),
+    ).toBeInTheDocument();
+
+    // A's in-flight poll reports SUCCESS while B is pending…
+    act(() => mockStatusSetters.get("ref-A")?.({ status: "SUCCESS" }));
+    expect(
+      screen.queryByTestId("swap-success-content"),
+    ).not.toBeInTheDocument();
+
+    // …and again after B has its own reference: still not B's success.
+    await act(async () => {
+      resolveB({ txHash: "0xbbb", depositRefId: "ref-B" });
+    });
+    await waitFor(() => expect(mockStatusSetters.has("ref-B")).toBe(true));
+    act(() => mockStatusSetters.get("ref-A")?.({ status: "SUCCESS" }));
+    expect(screen.getByTestId("swap-pending-content")).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("swap-success-content"),
+    ).not.toBeInTheDocument();
+
+    // B's own SUCCESS completes B.
+    act(() => mockStatusSetters.get("ref-B")?.({ status: "SUCCESS" }));
+    expect(
+      await screen.findByTestId("swap-success-content"),
+    ).toBeInTheDocument();
   });
 });
 
@@ -992,7 +1196,9 @@ describe("SwapForm — quote card copy and errors", () => {
     fillHome();
     const card = screen.getByTestId("swap-quote-card");
     expect(within(card).getByText("Estimated receive")).toBeInTheDocument();
-    expect(within(card).queryByText(/Receive at least/i)).not.toBeInTheDocument();
+    expect(
+      within(card).queryByText(/Receive at least/i),
+    ).not.toBeInTheDocument();
   });
 
   it("explains a quote error and retries through the quote hook", () => {
@@ -1005,7 +1211,9 @@ describe("SwapForm — quote card copy and errors", () => {
     expect(screen.queryByText(SWAP_COPY.noRail)).not.toBeInTheDocument();
     const note = screen.getByTestId("swap-quote-error");
     expect(note).toHaveTextContent(SWAP_COPY.quoteError);
-    fireEvent.click(within(note).getByRole("button", { name: SWAP_COPY.retry }));
+    fireEvent.click(
+      within(note).getByRole("button", { name: SWAP_COPY.retry }),
+    );
     expect(mockQuoteState.refetch).toHaveBeenCalledTimes(1);
   });
 
@@ -1020,7 +1228,9 @@ describe("SwapForm — quote card copy and errors", () => {
 
 describe("SwapTokenAmountPill a11y", () => {
   it("exposes the token symbol to assistive tech without changing the visible amount", () => {
-    const { container } = render(<SwapTokenAmountPill symbol="USDC" amount="99.5" />);
+    const { container } = render(
+      <SwapTokenAmountPill symbol="USDC" amount="99.5" />,
+    );
     expect(screen.getByText("99.5")).toBeInTheDocument();
     const hidden = screen.getByText("USDC");
     expect(hidden).toHaveClass("sr-only");
@@ -1047,17 +1257,36 @@ describe("token-page Swap network default", () => {
   });
 
   it("picks the funded network, the largest when spread, and keeps the current on ties", () => {
-    expect(pickFundedSwapNetwork("USDT", [bal("Base", 0), bal("Arbitrum One", 50)], allTokens, "Base")).toBe(
-      "Arbitrum One",
-    );
-    expect(pickFundedSwapNetwork("USDT", [bal("Base", 10), bal("Arbitrum One", 50)], allTokens, "Base")).toBe(
-      "Arbitrum One",
-    );
-    expect(pickFundedSwapNetwork("USDT", [bal("Arbitrum One", 50), bal("Base", 50)], allTokens, "Base")).toBe(
-      "Base",
-    );
-    expect(pickFundedSwapNetwork("USDT", [bal("Base", 0)], allTokens, "Base")).toBeNull();
-    expect(pickFundedSwapNetwork("DOGE", [bal("Base", 10)], allTokens, "Base")).toBeNull();
+    expect(
+      pickFundedSwapNetwork(
+        "USDT",
+        [bal("Base", 0), bal("Arbitrum One", 50)],
+        allTokens,
+        "Base",
+      ),
+    ).toBe("Arbitrum One");
+    expect(
+      pickFundedSwapNetwork(
+        "USDT",
+        [bal("Base", 10), bal("Arbitrum One", 50)],
+        allTokens,
+        "Base",
+      ),
+    ).toBe("Arbitrum One");
+    expect(
+      pickFundedSwapNetwork(
+        "USDT",
+        [bal("Arbitrum One", 50), bal("Base", 50)],
+        allTokens,
+        "Base",
+      ),
+    ).toBe("Base");
+    expect(
+      pickFundedSwapNetwork("USDT", [bal("Base", 0)], allTokens, "Base"),
+    ).toBeNull();
+    expect(
+      pickFundedSwapNetwork("DOGE", [bal("Base", 10)], allTokens, "Base"),
+    ).toBeNull();
   });
 
   it("opens the token-page Swap on the network that actually holds the token", () => {
@@ -1067,27 +1296,108 @@ describe("token-page Swap network default", () => {
       mockBalanceValue.crossChainBalances = [
         {
           network: { chain: { name: "Base" } },
-          balances: { total: 0, balances: { USDT: 0, USDC: 0 }, rawBalances: { USDT: 0, USDC: 0 } },
+          balances: {
+            total: 0,
+            balances: { USDT: 0, USDC: 0 },
+            rawBalances: { USDT: 0, USDC: 0 },
+          },
         },
         {
           network: { chain: { name: "Arbitrum One" } },
-          balances: { total: 900, balances: { USDT: 900 }, rawBalances: { USDT: 900 } },
+          balances: {
+            total: 900,
+            balances: { USDT: 900 },
+            rawBalances: { USDT: 900 },
+          },
         } as unknown as (typeof originalBalances)[number],
       ];
       mockTokensValue.allTokens = {
         ...originalTokens,
         "Arbitrum One": [
-          ...((allTokens as Record<string, unknown[]>)["Arbitrum One"] as typeof originalTokens.Base),
-          { ...originalTokens.Base[1], address: "0xaf88d065e77c8cc2239327c5edb3a432268e5831" },
+          ...((allTokens as Record<string, unknown[]>)[
+            "Arbitrum One"
+          ] as typeof originalTokens.Base),
+          {
+            ...originalTokens.Base[1],
+            address: "0xaf88d065e77c8cc2239327c5edb3a432268e5831",
+          },
         ],
       } as typeof originalTokens;
       renderSwap(TOKEN_PAGE_PROPS);
       expect(screen.queryByTestId("swap-network-card")).not.toBeInTheDocument();
-      expect(within(screen.getByTestId("swap-from-card")).getByText(/900 USDT/)).toBeInTheDocument();
+      expect(
+        within(screen.getByTestId("swap-from-card")).getByText(/900 USDT/),
+      ).toBeInTheDocument();
       fillTokenPage();
-      const last = mockUseBridgeQuote.mock.calls.at(-1)?.[0] as { from: BridgeLeg; to: BridgeLeg };
-      expect(last.from).toMatchObject({ network: "Arbitrum One", token: "USDT" });
+      const last = mockUseBridgeQuote.mock.calls.at(-1)?.[0] as {
+        from: BridgeLeg;
+        to: BridgeLeg;
+      };
+      expect(last.from).toMatchObject({
+        network: "Arbitrum One",
+        token: "USDT",
+      });
       expect(last.to).toMatchObject({ network: "Arbitrum One", token: "USDC" });
+    } finally {
+      mockBalanceValue.crossChainBalances = originalBalances;
+      mockTokensValue.allTokens = originalTokens;
+    }
+  });
+
+  it("waits for token metadata before picking the funded network", () => {
+    const originalBalances = mockBalanceValue.crossChainBalances;
+    const originalTokens = mockTokensValue.allTokens;
+    try {
+      mockBalanceValue.crossChainBalances = [
+        {
+          network: { chain: { name: "Base" } },
+          balances: {
+            total: 0,
+            balances: { USDT: 0, USDC: 0 },
+            rawBalances: { USDT: 0, USDC: 0 },
+          },
+        },
+        {
+          network: { chain: { name: "Arbitrum One" } },
+          balances: {
+            total: 900,
+            balances: { USDT: 900 },
+            rawBalances: { USDT: 900 },
+          },
+        } as unknown as (typeof originalBalances)[number],
+      ];
+      // Balances are in, but TokensProvider has not populated metadata yet.
+      mockTokensValue.allTokens = {} as typeof originalTokens;
+      const { rerender, onClose } = renderSwap(TOKEN_PAGE_PROPS);
+      expect(
+        within(screen.getByTestId("swap-from-card")).queryByText(/\d USDT/),
+      ).not.toBeInTheDocument();
+
+      mockTokensValue.allTokens = {
+        ...originalTokens,
+        "Arbitrum One": [
+          ...((allTokens as Record<string, unknown[]>)[
+            "Arbitrum One"
+          ] as typeof originalTokens.Base),
+          {
+            ...originalTokens.Base[1],
+            address: "0xaf88d065e77c8cc2239327c5edb3a432268e5831",
+          },
+        ],
+      } as typeof originalTokens;
+      rerender(<SwapForm onClose={onClose} {...TOKEN_PAGE_PROPS} />);
+      expect(
+        within(screen.getByTestId("swap-from-card")).getByText(/900 USDT/),
+      ).toBeInTheDocument();
+      fillTokenPage();
+      const last = mockUseBridgeQuote.mock.calls.at(-1)?.[0] as {
+        from: BridgeLeg;
+        to: BridgeLeg;
+      };
+      expect(last.from).toMatchObject({
+        network: "Arbitrum One",
+        token: "USDT",
+      });
     } finally {
       mockBalanceValue.crossChainBalances = originalBalances;
       mockTokensValue.allTokens = originalTokens;

@@ -57,6 +57,7 @@ import {
   type BridgeLeg,
   type BridgeQuote,
   type BridgeEngine,
+  type BridgeStatusResult,
 } from "@/app/lib/bridge";
 import { mapReportAndAct } from "@/app/lib/toastMappedError";
 import { tokensEqual } from "@/app/lib/token-symbol";
@@ -628,6 +629,39 @@ export function SwapQuoteCard({
       </div>
     </div>
   );
+}
+
+type SwapStatusParams = Parameters<typeof useBridgeStatus>[0];
+
+/** Polls one attempt's status. Rendered keyed by engine + reference, so each
+ * attempt gets fresh hook state and a late response for an earlier reference
+ * lands on that attempt's unmounted instance, never on the current one. */
+function SwapStatusPoller({
+  statusKey,
+  engine,
+  refId,
+  getAccessToken,
+  getInjectedToken,
+  onResult,
+}: {
+  statusKey: string;
+  engine: BridgeEngine;
+  refId: string;
+  getAccessToken: SwapStatusParams["getAccessToken"];
+  getInjectedToken: SwapStatusParams["getInjectedToken"];
+  onResult: (statusKey: string, result: BridgeStatusResult | null) => void;
+}) {
+  const { result } = useBridgeStatus({
+    engine,
+    refId,
+    enabled: true,
+    getAccessToken,
+    getInjectedToken,
+  });
+  useEffect(() => {
+    onResult(statusKey, result);
+  }, [statusKey, result, onResult]);
+  return null;
 }
 
 /** Same amber note as the "No swap route" message, with an optional retry. */
@@ -1279,6 +1313,16 @@ export const SwapForm: React.FC<SwapFormProps> = ({
     amountReceived: string;
     fee: number;
   } | null>(null);
+  // Latest status reported by the poller, tagged with the reference it is for.
+  const [statusReport, setStatusReport] = useState<{
+    key: string;
+    result: BridgeStatusResult | null;
+  } | null>(null);
+  const handleStatusResult = useCallback(
+    (key: string, result: BridgeStatusResult | null) =>
+      setStatusReport({ key, result }),
+    [],
+  );
 
   // Preselect the From token on the page's own (fixed) network — mirrors
   // BridgeForm's preferredTokenSymbol effect.
@@ -1294,11 +1338,14 @@ export const SwapForm: React.FC<SwapFormProps> = ({
 
   // Token page: the network is locked (no picker), so start on a network that
   // actually holds the page's token instead of a possibly zero-balance global
-  // selection. Runs once, after balances load, before the user has started.
+  // selection. Runs once, after balances and token metadata load, before the
+  // user has started. Matching a balance to the token needs metadata, so stay
+  // pending until TokensProvider has populated it.
   useEffect(() => {
     if (showNetworkPicker || networkAutoPickedRef.current) return;
     if (!preferredTokenSymbol || isBalanceLoading) return;
     if (crossChainBalances.length === 0) return;
+    if (Object.keys(allTokens).length === 0) return;
     networkAutoPickedRef.current = true;
     if (amount || toSymbol) return;
     const funded = pickFundedSwapNetwork(
@@ -1498,16 +1545,15 @@ export const SwapForm: React.FC<SwapFormProps> = ({
         : undefined,
   });
 
-  const { result: bridgeStatus } = useBridgeStatus({
-    engine: resultInfo?.engine ?? null,
-    refId: resultInfo?.depositRefId ?? null,
-    enabled: step === "status" && !!resultInfo,
-    getAccessToken,
-    getInjectedToken:
-      isInjectedWallet && injectedReady ? getInjectedTokenPassive : undefined,
-  });
-  // Only trust a status result for the current attempt's reference.
-  const liveStatus = resultInfo ? bridgeStatus?.status : undefined;
+  // Only trust a status result reported for the current attempt's reference.
+  const statusKey = resultInfo
+    ? `${resultInfo.engine}:${resultInfo.depositRefId}`
+    : null;
+  const bridgeStatus =
+    step === "status" && statusKey && statusReport?.key === statusKey
+      ? statusReport.result
+      : null;
+  const liveStatus = bridgeStatus?.status;
   const isDone = liveStatus === "SUCCESS";
   const isRefunded = liveStatus === "REFUNDED";
   const isStatusFailed = liveStatus === "FAILED";
@@ -1663,6 +1709,7 @@ export const SwapForm: React.FC<SwapFormProps> = ({
     // New attempt: drop any previous attempt's result so status polling and
     // the result screens only ever follow this attempt's reference.
     setResultInfo(null);
+    setStatusReport(null);
     setCompletedAt(null);
     setTimeSpentSeconds(0);
     setFormNotice(null);
@@ -1757,6 +1804,14 @@ export const SwapForm: React.FC<SwapFormProps> = ({
 
   const showQuoteCard =
     !!quote && !!to && !quoteLoading && !hasInsufficientBalance && !quoteError;
+
+  // The expiry timer disables the CTA, so explain it on the form with Retry
+  // (a refused Review confirm sets the same notice via formNotice).
+  const visibleNotice =
+    formNotice ??
+    (isQuoteExpired && !!quote && !quoteError && !hasInsufficientBalance
+      ? SWAP_COPY.quoteExpired
+      : null);
 
   const formBody = (
     <div
@@ -1866,13 +1921,13 @@ export const SwapForm: React.FC<SwapFormProps> = ({
         />
       ) : null}
 
-      {formNotice ? (
+      {visibleNotice ? (
         <SwapNote
           testId="swap-form-notice"
           role="status"
-          message={formNotice}
+          message={visibleNotice}
           onRetry={
-            formNotice === SWAP_COPY.quoteExpired && refetchQuote
+            visibleNotice === SWAP_COPY.quoteExpired && refetchQuote
               ? () => void refetchQuote()
               : undefined
           }
@@ -2030,11 +2085,37 @@ export const SwapForm: React.FC<SwapFormProps> = ({
 
   const statusBody = isDone ? successBody : statusFailedBody;
 
+  const statusPoller =
+    step === "status" && resultInfo && statusKey ? (
+      <SwapStatusPoller
+        key={statusKey}
+        statusKey={statusKey}
+        engine={resultInfo.engine}
+        refId={resultInfo.depositRefId}
+        getAccessToken={getAccessToken}
+        getInjectedToken={
+          isInjectedWallet && injectedReady
+            ? getInjectedTokenPassive
+            : undefined
+        }
+        onResult={handleStatusResult}
+      />
+    ) : null;
+
   if (successPresentation === "inline") {
     if (step === "failed") return failedBody;
-    if (step === "status" && isTerminal) return statusBody;
+    if (step === "status" && isTerminal)
+      return (
+        <>
+          {statusPoller}
+          {statusBody}
+        </>
+      );
+    // Poller stays first in both branches so it is not remounted (and does
+    // not restart polling) when the inline receipt replaces the form.
     return (
       <>
+        {statusPoller}
         {formBody}
         {pendingModal}
       </>
@@ -2046,6 +2127,7 @@ export const SwapForm: React.FC<SwapFormProps> = ({
   return (
     <>
       {formBody}
+      {statusPoller}
 
       <AnimatedModal
         isOpen={step === "review"}

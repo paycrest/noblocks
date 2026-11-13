@@ -456,6 +456,9 @@ export const TransactionPreview = ({
   // Sells here are created through the sender API and paid by a plain transfer (no Gateway call).
   const isApiOfframp = !isOnramp && isApiOfframpNetwork(selectedNetwork.chain);
   const isSolanaSelected = isSolanaChain(selectedNetwork.chain);
+  /** On-ramp leg 2 (forward from the Noblocks wallet) exists for EVM networks only. */
+  const chainedForwarding =
+    config.onrampChainedForwardingEnabled && isEvmChain(selectedNetwork.chain);
 
   // Drives the approval-step copy for injected off-ramp only — that's the one flow that tells the
   // user up front how many wallet prompts to expect. Skipped for Starknet/Tron, whose chain objects
@@ -1454,10 +1457,8 @@ export const TransactionPreview = ({
             recipient: {
               // When chained forwarding is enabled, the aggregator settles to the user's
               // Noblocks wallet first. The user's chosen destination (`walletAddress`) is
-              // forwarded to in leg 2, server-side.
-              address: config.onrampChainedForwardingEnabled
-                ? activeWallet.address
-                : walletAddress,
+              // forwarded to in leg 2, server-side. EVM networks only; others settle directly.
+              address: chainedForwarding ? activeWallet.address : walletAddress,
               network: aggregatorNetwork,
             },
           },
@@ -2041,7 +2042,7 @@ export const TransactionPreview = ({
       )}
 
       {isOnramp &&
-        config.onrampChainedForwardingEnabled &&
+        chainedForwarding &&
         walletAddress &&
         activeWallet?.address &&
         walletAddress.toLowerCase() !== activeWallet.address.toLowerCase() && (

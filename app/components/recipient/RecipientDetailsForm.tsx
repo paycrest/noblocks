@@ -30,7 +30,7 @@ import {
 import { SavedBeneficiariesModal } from "@/app/components/recipient/SavedBeneficiariesModal";
 import { SelectBankModal } from "@/app/components/recipient/SelectBankModal";
 import { validateWalletAddress } from "@/app/lib/validation";
-import { getNetworkImageUrl } from "@/app/utils";
+import { getNetworkImageUrl, isEvmChain } from "@/app/utils";
 import { useActualTheme } from "@/app/hooks/useActualTheme";
 import { useNetwork } from "@/app/context";
 import { trackEvent } from "@/app/hooks/analytics/useMixpanel";
@@ -701,6 +701,7 @@ export const RecipientDetailsForm = ({
               <InputError message={errors.walletAddress.message} />
             )}
             {config.onrampChainedForwardingEnabled &&
+              isEvmChain(selectedNetwork.chain) &&
               !!walletAddress?.trim() &&
               !isDestinationOwnWallet && (
                 <div className="flex items-center gap-2 rounded-xl bg-gray-50 px-3 py-2.5 text-xs font-normal leading-4 text-text-disabled dark:bg-white/5 dark:text-white/30">

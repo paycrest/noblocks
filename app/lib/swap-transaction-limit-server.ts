@@ -103,11 +103,12 @@ const KYC_RATE_NETWORK_FALLBACKS = [
 ] as const;
 
 const RATE_FETCH_BUDGET_MS = 15_000;
+/** One slow route must not eat the whole budget and starve the fallbacks. */
+const RATE_FETCH_ATTEMPT_MS = 4_000;
 
 function rateFetchTimeoutMs(deadlineMs: number): number {
-  return Math.max(500, deadlineMs - Date.now());
+  return Math.max(500, Math.min(RATE_FETCH_ATTEMPT_MS, deadlineMs - Date.now()));
 }
-
 
 function normalizeRateNetworkSlug(network?: string | null): string | null {
   const trimmed = String(network ?? "").trim().toLowerCase();
@@ -497,6 +498,90 @@ export async function findSenderOrderRowForWallet(
     return { ok: true, id: null };
   }
   return { ok: true, id: String(row.id) };
+}
+
+export type SenderDepositClaim =
+  | { ok: true }
+  | { ok: false; status: 409 | 503; error: string };
+
+/**
+ * Records `txHash` as the deposit of a sender order on its server-written row before the transfer
+ * is broadcast, so one order cannot be paid twice (two tabs, a double click, a retried build).
+ * The write is a compare-and-set on the previous value: of two racing claims only one wins.
+ *
+ * An earlier, different claim blocks the new one unless `canReplace(previousHash, claimedAt)`
+ * says it can no longer move funds (it failed, or expired without landing).
+ */
+export async function claimSenderOrderDeposit(
+  orderId: string,
+  txHash: string,
+  canReplace: (previousHash: string, claimedAt: Date) => Promise<boolean>,
+): Promise<SenderDepositClaim> {
+  const unavailable = {
+    ok: false as const,
+    status: 503 as const,
+    error: "Could not check this order's payment. Please try again.",
+  };
+  const { data, error } = await supabaseAdmin
+    .from("transactions")
+    .select("id, tx_hash, updated_at")
+    .eq("order_id", orderId)
+    .in("transaction_type", ["onramp", "offramp"])
+    .limit(1);
+  const row = data?.[0];
+  if (error || !row) {
+    if (error) console.error("Sender deposit claim lookup failed:", error);
+    return unavailable;
+  }
+
+  const previous = typeof row.tx_hash === "string" && row.tx_hash ? row.tx_hash : null;
+  if (previous === txHash) return { ok: true };
+  if (previous) {
+    let replaceable: boolean;
+    try {
+      replaceable = await canReplace(previous, new Date(row.updated_at));
+    } catch (checkError) {
+      console.error("Sender deposit claim: could not check the earlier payment:", checkError);
+      return unavailable;
+    }
+    if (!replaceable) {
+      return {
+        ok: false,
+        status: 409,
+        error: "A payment for this order was already sent. Check its status before paying again.",
+      };
+    }
+  }
+
+  let update = supabaseAdmin
+    .from("transactions")
+    .update({ tx_hash: txHash, updated_at: new Date().toISOString() })
+    .eq("id", row.id);
+  update = previous ? update.eq("tx_hash", previous) : update.is("tx_hash", null);
+  const { data: claimed, error: claimError } = await update.select("id");
+  if (claimError) {
+    console.error("Sender deposit claim failed:", claimError);
+    return unavailable;
+  }
+  if (!claimed?.length) {
+    return {
+      ok: false,
+      status: 409,
+      error: "A payment for this order is already in progress.",
+    };
+  }
+  return { ok: true };
+}
+
+/** Drops a claim whose transfer definitely did not execute, so the order can be paid again. */
+export async function releaseSenderOrderDeposit(orderId: string, txHash: string): Promise<void> {
+  const { error } = await supabaseAdmin
+    .from("transactions")
+    .update({ tx_hash: null })
+    .eq("order_id", orderId)
+    .eq("tx_hash", txHash)
+    .in("transaction_type", ["onramp", "offramp"]);
+  if (error) console.error("Sender deposit claim release failed:", error);
 }
 
 /** Normalize aggregator VA fields for JSONB storage (Activepieces pay-in emails). */

@@ -16,15 +16,17 @@ import {
   TransactionInstruction,
 } from "@solana/web3.js";
 import config from "./config";
+import { isInitializedTokenAccount } from "./solanaAta";
 
 const SECRET_KEY_LENGTH = 64;
 
 function sponsorKeyEnvRaw(): string {
+  // `||`, not `??`: an empty primary entry copied from .env.example must not hide the legacy one.
   return (
-    process.env.SPONSOR_SOLANA_WALLET_PRIVATE_KEY ??
-    process.env.SPONSOR_SOLANA_WALLET_SECRET ??
+    process.env.SPONSOR_SOLANA_WALLET_PRIVATE_KEY?.trim() ||
+    process.env.SPONSOR_SOLANA_WALLET_SECRET?.trim() ||
     ""
-  ).trim();
+  );
 }
 
 function parseSecretKeyBytes(raw: string): Uint8Array {
@@ -71,9 +73,20 @@ const ASSOCIATED_TOKEN_PROGRAM_ID = new PublicKey(
 /** SPL Token `TransferChecked` instruction index. */
 const TRANSFER_CHECKED = 12;
 const CONFIRM_TIMEOUT_MS = 20_000;
+/** Per RPC request; web3.js sets no deadline of its own, so a stalled node would hang the route. */
+const RPC_REQUEST_TIMEOUT_MS = 10_000;
+/**
+ * How long an unseen deposit signature can still land: a blockhash stays valid for 150 blocks
+ * (about a minute), so after two minutes a transaction the cluster has never seen is dead.
+ */
+const UNSEEN_SIGNATURE_EXPIRY_MS = 120_000;
 
 function solanaConnection(): Connection {
-  return new Connection(config.solanaRpc, "confirmed");
+  return new Connection(config.solanaRpc, {
+    commitment: "confirmed",
+    fetch: (input, init) =>
+      fetch(input, { ...init, signal: AbortSignal.timeout(RPC_REQUEST_TIMEOUT_MS) }),
+  });
 }
 
 function getSponsorKeypair(): Keypair {
@@ -130,27 +143,25 @@ function transferCheckedInstruction(params: {
   });
 }
 
-/**
- * A sponsored token transfer from `owner` to `recipient`: creates the recipient's token account
- * if needed, then moves exactly `amount` base units with `TransferChecked` (which also pins the
- * mint and decimals). The sponsor is fee payer and has already signed; the owner's wallet adds
- * the second signature. Returns the serialized transaction (base64).
- */
-export async function buildSponsoredTokenTransfer(params: {
+export type TokenTransferParams = {
   owner: string;
   recipient: string;
   mint: string;
   amount: bigint;
   decimals: number;
-}): Promise<{ transaction: string; feePayer: string }> {
-  const sponsor = getSponsorKeypair();
+};
+
+function tokenTransferTransaction(
+  params: TokenTransferParams,
+  feePayer: PublicKey,
+  blockhash: string,
+): Transaction {
   const owner = new PublicKey(params.owner);
   const recipient = new PublicKey(params.recipient);
   const mint = new PublicKey(params.mint);
-  const { blockhash } = await solanaConnection().getLatestBlockhash("finalized");
-  const tx = new Transaction({ feePayer: sponsor.publicKey, recentBlockhash: blockhash });
+  const tx = new Transaction({ feePayer, recentBlockhash: blockhash });
   tx.add(
-    createIdempotentAtaInstruction(sponsor.publicKey, recipient, mint),
+    createIdempotentAtaInstruction(feePayer, recipient, mint),
     transferCheckedInstruction({
       owner,
       recipient,
@@ -159,6 +170,21 @@ export async function buildSponsoredTokenTransfer(params: {
       decimals: params.decimals,
     }),
   );
+  return tx;
+}
+
+/**
+ * A sponsored token transfer from `owner` to `recipient`: creates the recipient's token account
+ * if needed, then moves exactly `amount` base units with `TransferChecked` (which also pins the
+ * mint and decimals). The sponsor is fee payer and has already signed; the owner's wallet adds
+ * the second signature. Returns the serialized transaction (base64).
+ */
+export async function buildSponsoredTokenTransfer(
+  params: TokenTransferParams,
+): Promise<{ transaction: string; feePayer: string }> {
+  const sponsor = getSponsorKeypair();
+  const { blockhash } = await solanaConnection().getLatestBlockhash("finalized");
+  const tx = tokenTransferTransaction(params, sponsor.publicKey, blockhash);
   tx.partialSign(sponsor);
   return {
     transaction: tx.serialize({ requireAllSignatures: false }).toString("base64"),
@@ -176,7 +202,12 @@ export async function ensureTokenAccount(owner: string, mint: string): Promise<"
   const ownerKey = new PublicKey(owner);
   const mintKey = new PublicKey(mint);
   const ata = associatedTokenAddress(ownerKey, mintKey);
-  if (await connection.getAccountInfo(ata)) return "exists";
+  const info = await connection.getAccountInfo(ata);
+  // A system-owned account at the address (SOL sent there) is not a token account; the
+  // idempotent create below initializes it.
+  if (info && isInitializedTokenAccount({ owner: info.owner.toBase58(), data: info.data })) {
+    return "exists";
+  }
 
   const sponsor = getSponsorKeypair();
   const { blockhash } = await connection.getLatestBlockhash("finalized");
@@ -199,21 +230,60 @@ export type SendResult =
   | { kind: "unknown"; error: string };
 
 /**
- * Broadcasts a fully signed transaction whose fee payer is the sponsor, and waits briefly for
- * confirmation. Refuses anything the sponsor did not sign: since the sponsor only signs
- * transactions the server built, that limits it to those.
+ * Checks a signed transaction is exactly the transfer the server builds for `expected` (same
+ * instructions, sponsor as fee payer, every signature present and valid) and returns its
+ * signature, which identifies it on chain before it is broadcast. A transfer prepared for a
+ * different order, or altered after the sponsor signed, is refused.
  */
-export async function submitSponsoredTransaction(signedBase64: string): Promise<SendResult> {
+export function verifySponsoredTokenTransfer(
+  signedBase64: string,
+  expected: TokenTransferParams,
+): { ok: true; signature: string } | { ok: false; error: string } {
   let tx: Transaction;
   try {
     tx = Transaction.from(Buffer.from(signedBase64, "base64"));
   } catch {
-    return { kind: "rejected", error: "Invalid transaction" };
+    return { ok: false, error: "Invalid transaction" };
   }
+  const notOurs = {
+    ok: false as const,
+    error: "Transaction is not the one Noblocks prepared for this order, or is missing a signature",
+  };
   const sponsor = getSponsorKeypair().publicKey;
-  if (!tx.feePayer?.equals(sponsor) || !tx.verifySignatures(true)) {
-    return { kind: "rejected", error: "Transaction is not one Noblocks prepared, or is missing a signature" };
+  if (!tx.feePayer?.equals(sponsor) || !tx.recentBlockhash || !tx.signature) return notOurs;
+  const want = tokenTransferTransaction(expected, sponsor, tx.recentBlockhash);
+  if (!tx.serializeMessage().equals(want.serializeMessage()) || !tx.verifySignatures(true)) {
+    return notOurs;
   }
+  return { ok: true, signature: bs58.encode(tx.signature) };
+}
+
+/**
+ * Whether a deposit claimed earlier under `signature` can be superseded: it failed on chain, or
+ * the cluster never saw it and its blockhash has expired. A transfer that landed or may still
+ * land cannot be.
+ */
+export async function canReplaceSolanaDeposit(
+  signature: string,
+  claimedAt: Date,
+): Promise<boolean> {
+  try {
+    if (bs58.decode(signature).length !== 64) return true;
+  } catch {
+    return true;
+  }
+  const { value } = await solanaConnection().getSignatureStatus(signature, {
+    searchTransactionHistory: true,
+  });
+  if (value) return value.err != null;
+  return Date.now() - claimedAt.getTime() > UNSEEN_SIGNATURE_EXPIRY_MS;
+}
+
+/**
+ * Broadcasts a fully signed sponsored transaction and waits briefly for confirmation. Call
+ * `verifySponsoredTokenTransfer` first.
+ */
+export async function broadcastSponsoredTransaction(signedBase64: string): Promise<SendResult> {
   return sendAndConfirm(signedBase64);
 }
 

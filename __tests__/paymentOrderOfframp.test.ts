@@ -18,6 +18,7 @@ const mockRecordRow = jest.fn();
 const mockIsApiOfframpNetwork = jest.fn();
 const mockLinkedEvmAddresses = jest.fn();
 const mockOrderRowLookup = jest.fn();
+const mockOrderRowUpdate = jest.fn();
 
 jest.mock("server-only", () => ({}));
 // jsdom has no Request, so next/server cannot load; the helpers only read status and json().
@@ -70,6 +71,20 @@ jest.mock("../app/lib/supabase", () => ({
           }),
         }),
       }),
+      // Records the filters of an update; `.select()` or awaiting the chain runs it.
+      update: (values: Record<string, unknown>) => {
+        const filters: unknown[][] = [];
+        const run = () => mockOrderRowUpdate(values, filters);
+        const chain = {
+          eq: (column: string, value: unknown) => (filters.push(["eq", column, value]), chain),
+          is: (column: string, value: unknown) => (filters.push(["is", column, value]), chain),
+          in: (column: string, value: unknown) => (filters.push(["in", column, value]), chain),
+          select: () => run(),
+          then: (resolve: (v: unknown) => unknown, reject: (e: unknown) => unknown) =>
+            run().then(resolve, reject),
+        };
+        return chain;
+      },
     }),
   },
 }));
@@ -679,6 +694,98 @@ describe("sender order record helpers", () => {
     await expect(
       actual.findSenderOrderRowForWallet("order-1", "0xdef"),
     ).resolves.toEqual({ ok: true, id: null });
+  });
+});
+
+describe("sender order deposit claim", () => {
+  const actual = jest.requireActual(
+    "../app/lib/swap-transaction-limit-server",
+  ) as typeof import("../app/lib/swap-transaction-limit-server");
+  const CLAIMED_AT = "2026-11-13T10:00:00.000Z";
+  const canReplace = jest.fn();
+
+  function rowWith(txHash: string | null) {
+    mockOrderRowLookup.mockResolvedValue({
+      data: [{ id: "row-1", tx_hash: txHash, updated_at: CLAIMED_AT }],
+      error: null,
+    });
+  }
+
+  beforeEach(() => {
+    canReplace.mockReset();
+    mockOrderRowUpdate.mockResolvedValue({ data: [{ id: "row-1" }], error: null });
+  });
+
+  it("claims an unpaid order only while no other claim exists", async () => {
+    rowWith(null);
+    await expect(actual.claimSenderOrderDeposit("order-1", "sig-a", canReplace)).resolves.toEqual({
+      ok: true,
+    });
+    const [values, filters] = mockOrderRowUpdate.mock.calls[0];
+    expect(values).toMatchObject({ tx_hash: "sig-a" });
+    expect(filters).toEqual([
+      ["eq", "id", "row-1"],
+      ["is", "tx_hash", null],
+    ]);
+    expect(canReplace).not.toHaveBeenCalled();
+  });
+
+  it("lets the same transfer through again (a rebroadcast cannot pay twice)", async () => {
+    rowWith("sig-a");
+    await expect(actual.claimSenderOrderDeposit("order-1", "sig-a", canReplace)).resolves.toEqual({
+      ok: true,
+    });
+    expect(mockOrderRowUpdate).not.toHaveBeenCalled();
+  });
+
+  it("refuses a second transfer while the first can still move funds", async () => {
+    rowWith("sig-a");
+    canReplace.mockResolvedValue(false);
+    await expect(
+      actual.claimSenderOrderDeposit("order-1", "sig-b", canReplace),
+    ).resolves.toMatchObject({ ok: false, status: 409 });
+    expect(canReplace).toHaveBeenCalledWith("sig-a", new Date(CLAIMED_AT));
+    expect(mockOrderRowUpdate).not.toHaveBeenCalled();
+  });
+
+  it("replaces a claim that can no longer land, only if it is still the recorded one", async () => {
+    rowWith("sig-a");
+    canReplace.mockResolvedValue(true);
+    await expect(actual.claimSenderOrderDeposit("order-1", "sig-b", canReplace)).resolves.toEqual({
+      ok: true,
+    });
+    expect(mockOrderRowUpdate.mock.calls[0][1]).toEqual([
+      ["eq", "id", "row-1"],
+      ["eq", "tx_hash", "sig-a"],
+    ]);
+  });
+
+  it("refuses when a concurrent claim won the compare-and-set", async () => {
+    rowWith(null);
+    mockOrderRowUpdate.mockResolvedValue({ data: [], error: null });
+    await expect(
+      actual.claimSenderOrderDeposit("order-1", "sig-b", canReplace),
+    ).resolves.toMatchObject({ ok: false, status: 409 });
+  });
+
+  it("fails closed when the earlier transfer cannot be checked", async () => {
+    rowWith("sig-a");
+    canReplace.mockRejectedValue(new Error("rpc down"));
+    await expect(
+      actual.claimSenderOrderDeposit("order-1", "sig-b", canReplace),
+    ).resolves.toMatchObject({ ok: false, status: 503 });
+    expect(mockOrderRowUpdate).not.toHaveBeenCalled();
+  });
+
+  it("releases only its own claim", async () => {
+    await actual.releaseSenderOrderDeposit("order-1", "sig-a");
+    const [values, filters] = mockOrderRowUpdate.mock.calls[0];
+    expect(values).toEqual({ tx_hash: null });
+    expect(filters).toEqual([
+      ["eq", "order_id", "order-1"],
+      ["eq", "tx_hash", "sig-a"],
+      ["in", "transaction_type", ["onramp", "offramp"]],
+    ]);
   });
 });
 

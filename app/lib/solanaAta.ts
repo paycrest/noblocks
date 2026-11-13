@@ -29,13 +29,36 @@ export async function deriveAssociatedTokenAddress(
 
 const SOLANA_RPC_TIMEOUT_MS = 8_000;
 
-/** True when the token account exists on-chain (ATA initialized). */
+/** SPL token account size; its `state` byte (0 = uninitialized) sits at offset 108. */
+const TOKEN_ACCOUNT_LENGTH = 165;
+const TOKEN_ACCOUNT_STATE_OFFSET = 108;
+
+/**
+ * True for an initialized SPL token account. Presence alone is not enough: SOL sent to an
+ * unopened ATA address leaves a system-owned account there that cannot hold tokens.
+ */
+export function isInitializedTokenAccount(
+  info: { owner: string; data: Uint8Array } | null | undefined,
+): boolean {
+  return (
+    info != null &&
+    info.owner === TOKEN_PROGRAM &&
+    info.data.length === TOKEN_ACCOUNT_LENGTH &&
+    info.data[TOKEN_ACCOUNT_STATE_OFFSET] !== 0
+  );
+}
+
+/** True when the token account is open and can receive tokens. */
 export async function tokenAccountExists(ata: string): Promise<boolean> {
   const rpc = createSolanaRpc(solanaRpcUrl());
   const info = await rpc
     .getAccountInfo(address(ata.trim()), { encoding: "base64" })
     .send({ abortSignal: AbortSignal.timeout(SOLANA_RPC_TIMEOUT_MS) });
-  return info.value != null;
+  if (!info.value) return false;
+  return isInitializedTokenAccount({
+    owner: info.value.owner,
+    data: Buffer.from(info.value.data[0], "base64"),
+  });
 }
 
 /** SPL balance in base units; null when the ATA does not exist. */

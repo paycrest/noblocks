@@ -12,9 +12,16 @@ import { assertCallerOwnsSenderOrder } from "@/app/lib/transaction-wallet-auth";
 import { fetchLiveDeposit } from "@/app/lib/payment-order-offramp";
 import { amountNumberToBaseUnits } from "@/app/lib/tokenSpendAmount";
 import {
+  claimSenderOrderDeposit,
+  releaseSenderOrderDeposit,
+} from "@/app/lib/swap-transaction-limit-server";
+import {
+  broadcastSponsoredTransaction,
   buildSponsoredTokenTransfer,
+  canReplaceSolanaDeposit,
   isSolanaSponsorConfigured,
-  submitSponsoredTransaction,
+  type TokenTransferParams,
+  verifySponsoredTokenTransfer,
 } from "@/app/lib/solanaSponsor";
 
 const ROUTE = "/api/solana/transfer" as const;
@@ -25,8 +32,10 @@ const ROUTE = "/api/solana/transfer" as const;
  * `build`: for a live order of the caller, returns a USDC `TransferChecked` of exactly the
  * order's `amountToTransfer` from the order's refund wallet (the caller's own Solana wallet,
  * checked when the order was created) to its deposit address, already signed by the sponsor.
- * `submit`: broadcasts it once the wallet has added its signature. The sponsor signs nothing
- * else, so it cannot be made to pay for any other transaction.
+ * `submit`: broadcasts it once the wallet has added its signature, but only if it is exactly that
+ * transfer and no other transfer for the order was sent: its signature is claimed on the order's
+ * row first (see claimSenderOrderDeposit), and the claim is dropped again if the cluster rejects
+ * it. The sponsor signs nothing else, so it cannot be made to pay for any other transaction.
  */
 export const POST = withRateLimit(async (request: NextRequest) => {
   const startTime = Date.now();
@@ -69,20 +78,22 @@ export const POST = withRateLimit(async (request: NextRequest) => {
     if (!live.ok) return fail(live.status, live.error);
     const { deposit } = live;
 
+    let amount: bigint;
+    try {
+      amount = amountNumberToBaseUnits(deposit.amountToTransfer, deposit.token.decimals);
+    } catch (error) {
+      return fail(502, error instanceof Error ? error.message : "Invalid deposit amount");
+    }
+    const transfer: TokenTransferParams = {
+      owner: deposit.depositorAddress,
+      recipient: deposit.receiveAddress,
+      mint: deposit.token.contractAddress,
+      amount,
+      decimals: deposit.token.decimals,
+    };
+
     if (body.phase === "build") {
-      let amount: bigint;
-      try {
-        amount = amountNumberToBaseUnits(deposit.amountToTransfer, deposit.token.decimals);
-      } catch (error) {
-        return fail(502, error instanceof Error ? error.message : "Invalid deposit amount");
-      }
-      const built = await buildSponsoredTokenTransfer({
-        owner: deposit.depositorAddress,
-        recipient: deposit.receiveAddress,
-        mint: deposit.token.contractAddress,
-        amount,
-        decimals: deposit.token.decimals,
-      });
+      const built = await buildSponsoredTokenTransfer(transfer);
       trackApiResponse(ROUTE, "POST", 200, Date.now() - startTime, { phase: "build" });
       return NextResponse.json({ success: true, ...built });
     }
@@ -90,8 +101,20 @@ export const POST = withRateLimit(async (request: NextRequest) => {
     const signed =
       typeof body.signedTransaction === "string" ? body.signedTransaction.trim() : "";
     if (!signed) return fail(400, "signedTransaction is required");
-    const result = await submitSponsoredTransaction(signed);
-    if (result.kind === "rejected") return fail(400, result.error);
+    const verified = verifySponsoredTokenTransfer(signed, transfer);
+    if (!verified.ok) return fail(400, verified.error);
+    const claim = await claimSenderOrderDeposit(
+      orderId,
+      verified.signature,
+      canReplaceSolanaDeposit,
+    );
+    if (!claim.ok) return fail(claim.status, claim.error);
+
+    const result = await broadcastSponsoredTransaction(signed);
+    if (result.kind === "rejected") {
+      await releaseSenderOrderDeposit(orderId, verified.signature);
+      return fail(400, result.error);
+    }
     if (result.kind === "unknown") {
       // It may still land: the client must not offer a retry that could pay twice.
       return fail(502, result.error, { outcome: "unknown" });

@@ -237,6 +237,8 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
   const lastFetchedKeyRef = useRef<string>("");
   /** Monotonic fetch generation — stale async results must not overwrite newer state. */
   const fetchGenerationRef = useRef(0);
+  /** In-flight manual (cache-bypassing) refresh and the identity it is for. */
+  const manualRefreshRef = useRef<{ key: string; promise: Promise<void> } | null>(null);
 
   // CNGN rate for balance correction: same corridor as cross-chain batch (stable NGN↔USD quote).
   const { rate: cngnRate } = useCNGNRate({
@@ -877,9 +879,19 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
 
   const refreshBalance = (): Promise<void> => {
     bypassCacheNextFetchRef.current = true;
+    const promise = fetchBalances().finally(() => {
+      if (manualRefreshRef.current?.promise === promise) manualRefreshRef.current = null;
+    });
+    manualRefreshRef.current = { key: currentIdentityKey, promise };
+    return promise;
+  };
+  // A soft (cache-respecting) refresh for the same wallet joins a manual refresh in flight
+  // instead of superseding it, which would discard the fresh result for cached balances.
+  const softRefresh = (): Promise<void> => {
+    const manual = manualRefreshRef.current;
+    if (manual && manual.key === currentIdentityKey) return manual.promise;
     return fetchBalances();
   };
-  const softRefresh = (): Promise<void> => fetchBalances();
 
   return (
     <BalanceContext.Provider

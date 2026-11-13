@@ -697,6 +697,34 @@ describe("sender order record helpers", () => {
   });
 });
 
+describe("rateAttemptTimeoutMs", () => {
+  const { rateAttemptTimeoutMs } = jest.requireActual(
+    "../app/lib/swap-transaction-limit-server",
+  ) as typeof import("../app/lib/swap-transaction-limit-server");
+
+  it("caps one request at 4s while plenty of budget remains", () => {
+    expect(rateAttemptTimeoutMs(15_000, 6)).toBe(4_000);
+  });
+
+  it("keeps 1s back for every fallback still to come", () => {
+    expect(rateAttemptTimeoutMs(5_000, 3)).toBe(2_000);
+    // Whatever the earlier requests took, each later one still gets its reserve.
+    let remaining = 15_000;
+    for (let after = 6; after >= 0; after--) {
+      const timeout = rateAttemptTimeoutMs(remaining, after);
+      expect(timeout).not.toBeNull();
+      expect(timeout!).toBeGreaterThanOrEqual(1_000);
+      remaining -= timeout!; // worst case: every request times out
+    }
+    expect(remaining).toBeGreaterThanOrEqual(0);
+  });
+
+  it("never runs past the deadline, and stops when the budget is spent", () => {
+    expect(rateAttemptTimeoutMs(800, 0)).toBe(800);
+    expect(rateAttemptTimeoutMs(200, 0)).toBeNull();
+  });
+});
+
 describe("sender order deposit claim", () => {
   const actual = jest.requireActual(
     "../app/lib/swap-transaction-limit-server",

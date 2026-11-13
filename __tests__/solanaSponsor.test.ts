@@ -51,8 +51,10 @@ import {
   canReplaceSolanaDeposit,
   ensureTokenAccount,
   isSolanaSponsorConfigured,
+  TokenAccountFrozenError,
   verifySponsoredTokenTransfer,
 } from "../app/lib/solanaSponsor";
+import { tokenAccountState } from "../app/lib/solanaAta";
 
 beforeAll(() => {
   process.env.SPONSOR_SOLANA_WALLET_PRIVATE_KEY = bs58.encode(sponsor.secretKey);
@@ -245,6 +247,17 @@ describe("ensureTokenAccount", () => {
     expect(sent.instructions[0].keys[1].pubkey.equals(ata(owner.publicKey))).toBe(true);
   });
 
+  it("refuses a frozen token account instead of reporting it ready", async () => {
+    mockGetAccountInfo.mockResolvedValue({
+      owner: new PublicKey(TOKEN_PROGRAM),
+      data: tokenAccountData(2),
+    });
+    await expect(
+      ensureTokenAccount(owner.publicKey.toBase58(), mint.toBase58()),
+    ).rejects.toBeInstanceOf(TokenAccountFrozenError);
+    expect(mockSendRawTransaction).not.toHaveBeenCalled();
+  });
+
   it("initializes an address that only holds SOL (system-owned, not a token account)", async () => {
     mockGetAccountInfo.mockResolvedValue({
       owner: new PublicKey("11111111111111111111111111111111"),
@@ -254,5 +267,17 @@ describe("ensureTokenAccount", () => {
       "created",
     );
     expect(mockSendRawTransaction).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("tokenAccountState", () => {
+  it.each([
+    ["an initialized token account", { owner: TOKEN_PROGRAM, data: tokenAccountData(1) }, "ready"],
+    ["a frozen token account", { owner: TOKEN_PROGRAM, data: tokenAccountData(2) }, "frozen"],
+    ["an uninitialized token account", { owner: TOKEN_PROGRAM, data: tokenAccountData(0) }, "missing"],
+    ["a system-owned account (SOL only)", { owner: "11111111111111111111111111111111", data: Buffer.alloc(0) }, "missing"],
+    ["no account", null, "missing"],
+  ])("reports %s as %s", (_label, info, state) => {
+    expect(tokenAccountState(info)).toBe(state);
   });
 });

@@ -3,13 +3,17 @@ import config from "@/app/lib/config";
 import {
   DEFAULT_SOLANA_USDC_MINT,
   deriveAssociatedTokenAddress,
-  tokenAccountExists,
+  fetchTokenAccountState,
 } from "@/app/lib/solanaAta";
 import { isValidSolanaAddress } from "@/app/lib/validation";
 import { withRateLimit } from "@/app/lib/rate-limit";
 import { isInjectedUserId } from "@/app/lib/injected-identity";
 import { collectLinkedWalletAddressesForChainType } from "@/app/lib/privy";
-import { ensureTokenAccount, isSolanaSponsorConfigured } from "@/app/lib/solanaSponsor";
+import {
+  ensureTokenAccount,
+  isSolanaSponsorConfigured,
+  TokenAccountFrozenError,
+} from "@/app/lib/solanaSponsor";
 import { fetchTokens } from "@/app/api/aggregator";
 import { normalizeNetworkName } from "@/app/utils";
 
@@ -32,8 +36,14 @@ export const GET = withRateLimit(async (request: NextRequest) => {
 
   try {
     const ata = await deriveAssociatedTokenAddress(owner, mint);
-    const exists = await tokenAccountExists(ata);
-    return NextResponse.json({ owner, mint, ata, exists });
+    const state = await fetchTokenAccountState(ata);
+    return NextResponse.json({
+      owner,
+      mint,
+      ata,
+      exists: state === "ready",
+      frozen: state === "frozen",
+    });
   } catch (error) {
     console.error("solana ata-exists:", error);
     return NextResponse.json(
@@ -81,9 +91,15 @@ export const POST = withRateLimit(async (request: NextRequest) => {
       );
     }
     const mint = token.contractAddress;
-    if (await tokenAccountExists(await deriveAssociatedTokenAddress(owner, mint))) {
-      return NextResponse.json({ owner, mint, exists: true });
-    }
+    const frozen = NextResponse.json(
+      {
+        error: `This address can't receive ${token.symbol} on Solana: its ${token.symbol} token account is frozen. Choose another address.`,
+      },
+      { status: 422 },
+    );
+    const state = await fetchTokenAccountState(await deriveAssociatedTokenAddress(owner, mint));
+    if (state === "ready") return NextResponse.json({ owner, mint, exists: true });
+    if (state === "frozen") return frozen;
 
     const ownsAddress =
       !isInjectedUserId(userId) &&
@@ -103,7 +119,13 @@ export const POST = withRateLimit(async (request: NextRequest) => {
         { status: 503 },
       );
     }
-    const result = await ensureTokenAccount(owner, mint);
+    let result: Awaited<ReturnType<typeof ensureTokenAccount>>;
+    try {
+      result = await ensureTokenAccount(owner, mint);
+    } catch (error) {
+      if (error instanceof TokenAccountFrozenError) return frozen;
+      throw error;
+    }
     return NextResponse.json({ owner, mint, exists: true, created: result === "created" });
   } catch (error) {
     console.error("solana ata-exists (ensure):", error);

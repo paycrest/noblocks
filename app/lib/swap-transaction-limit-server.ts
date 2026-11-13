@@ -103,11 +103,29 @@ const KYC_RATE_NETWORK_FALLBACKS = [
 ] as const;
 
 const RATE_FETCH_BUDGET_MS = 15_000;
-/** One slow route must not eat the whole budget and starve the fallbacks. */
+/** Longest any single rate request may take. */
 const RATE_FETCH_ATTEMPT_MS = 4_000;
+/** Time kept back for each fallback still to come, so slow early routes cannot starve them. */
+const RATE_FETCH_RESERVE_MS = 1_000;
+const RATE_FETCH_MIN_ATTEMPT_MS = 300;
 
-function rateFetchTimeoutMs(deadlineMs: number): number {
-  return Math.max(500, Math.min(RATE_FETCH_ATTEMPT_MS, deadlineMs - Date.now()));
+type RateAttempt = {
+  label: string;
+  url: string;
+  parse: (payload: { data?: unknown } | null) => number;
+};
+
+/**
+ * Timeout for the next rate request, or null when the budget is spent. Each attempt leaves
+ * `RATE_FETCH_RESERVE_MS` for every fallback after it and never runs past the deadline.
+ */
+export function rateAttemptTimeoutMs(remainingMs: number, attemptsAfter: number): number | null {
+  const timeout = Math.min(
+    RATE_FETCH_ATTEMPT_MS,
+    remainingMs - attemptsAfter * RATE_FETCH_RESERVE_MS,
+    remainingMs,
+  );
+  return timeout >= RATE_FETCH_MIN_ATTEMPT_MS ? timeout : null;
 }
 
 function normalizeRateNetworkSlug(network?: string | null): string | null {
@@ -144,69 +162,44 @@ export async function fetchCngnToUsdRate(
     return 0;
   }
 
-  const deadline = Date.now() + RATE_FETCH_BUDGET_MS;
   const primary = normalizeRateNetworkSlug(networkSlug);
   const networksToTry = [
     ...(primary ? [primary] : []),
     ...KYC_RATE_NETWORK_FALLBACKS.filter((slug) => slug !== primary),
   ];
+  const attempts: RateAttempt[] = [
+    ...networksToTry.flatMap((network): RateAttempt[] => [
+      {
+        label: `v1 ${network}`,
+        url: `${v1Base}/rates/USDC/1/NGN?network=${encodeURIComponent(network)}`,
+        parse: parseV1RatePayload,
+      },
+      {
+        label: `v2 sell ${network}`,
+        url: `${origin}/v2/rates/${encodeURIComponent(network)}/USDC/1/NGN?side=sell`,
+        parse: parseV2SellRatePayload,
+      },
+    ]),
+    { label: "legacy v1", url: `${v1Base}/rates/USDC/1/NGN`, parse: parseV1RatePayload },
+  ];
 
-  for (const network of networksToTry) {
-    if (Date.now() >= deadline) break;
-
-    const v1Url = `${v1Base}/rates/USDC/1/NGN?network=${encodeURIComponent(network)}`;
+  const deadline = Date.now() + RATE_FETCH_BUDGET_MS;
+  for (let i = 0; i < attempts.length; i++) {
+    const timeoutMs = rateAttemptTimeoutMs(deadline - Date.now(), attempts.length - i - 1);
+    if (timeoutMs === null) break;
+    const { label, url, parse } = attempts[i];
     try {
-      const rateRes = await fetch(v1Url, {
-        signal: AbortSignal.timeout(rateFetchTimeoutMs(deadline)),
-      });
+      const rateRes = await fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
       const rateData = (await rateRes.json().catch(() => null)) as
         | { status?: string; data?: unknown }
         | null;
       if (rateRes.ok && rateData?.status === "success") {
-        const rate = parseV1RatePayload(rateData);
+        const rate = parse(rateData);
         if (rate > 0) return rate;
       }
     } catch (error) {
-      console.warn(
-        `swap limit check: v1 rate fetch failed for ${network}:`,
-        error,
-      );
+      console.warn(`swap limit check: ${label} rate fetch failed:`, error);
     }
-
-    const v2Url = `${origin}/v2/rates/${encodeURIComponent(network)}/USDC/1/NGN?side=sell`;
-    try {
-      const rateRes = await fetch(v2Url, {
-        signal: AbortSignal.timeout(rateFetchTimeoutMs(deadline)),
-      });
-      const rateData = (await rateRes.json().catch(() => null)) as
-        | { status?: string; data?: unknown }
-        | null;
-      if (rateRes.ok && rateData?.status === "success") {
-        const rate = parseV2SellRatePayload(rateData);
-        if (rate > 0) return rate;
-      }
-    } catch (error) {
-      console.warn(
-        `swap limit check: v2 sell rate fetch failed for ${network}:`,
-        error,
-      );
-    }
-  }
-
-  const legacyV1Url = `${v1Base}/rates/USDC/1/NGN`;
-  try {
-    const rateRes = await fetch(legacyV1Url, {
-      signal: AbortSignal.timeout(rateFetchTimeoutMs(deadline)),
-    });
-    const rateData = (await rateRes.json().catch(() => null)) as
-      | { status?: string; data?: unknown }
-      | null;
-    if (rateRes.ok && rateData?.status === "success") {
-      const rate = parseV1RatePayload(rateData);
-      if (rate > 0) return rate;
-    }
-  } catch (error) {
-    console.warn("swap limit check: legacy v1 rate fetch failed:", error);
   }
 
   console.warn(

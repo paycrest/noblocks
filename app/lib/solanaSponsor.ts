@@ -16,7 +16,7 @@ import {
   TransactionInstruction,
 } from "@solana/web3.js";
 import config from "./config";
-import { isInitializedTokenAccount } from "./solanaAta";
+import { tokenAccountState } from "./solanaAta";
 
 const SECRET_KEY_LENGTH = 64;
 
@@ -203,11 +203,11 @@ export async function ensureTokenAccount(owner: string, mint: string): Promise<"
   const mintKey = new PublicKey(mint);
   const ata = associatedTokenAddress(ownerKey, mintKey);
   const info = await connection.getAccountInfo(ata);
-  // A system-owned account at the address (SOL sent there) is not a token account; the
-  // idempotent create below initializes it.
-  if (info && isInitializedTokenAccount({ owner: info.owner.toBase58(), data: info.data })) {
-    return "exists";
-  }
+  // A system-owned account at the address (SOL sent there) counts as missing; the idempotent
+  // create below initializes it. A frozen one cannot be fixed by opening it again.
+  const state = tokenAccountState(info && { owner: info.owner.toBase58(), data: info.data });
+  if (state === "ready") return "exists";
+  if (state === "frozen") throw new TokenAccountFrozenError();
 
   const sponsor = getSponsorKeypair();
   const { blockhash } = await connection.getLatestBlockhash("finalized");
@@ -219,6 +219,12 @@ export async function ensureTokenAccount(owner: string, mint: string): Promise<"
     throw new Error("Could not open the token account. Please try again.");
   }
   return "created";
+}
+
+export class TokenAccountFrozenError extends Error {
+  constructor() {
+    super("This wallet's token account is frozen and cannot receive tokens");
+  }
 }
 
 export type SendResult =

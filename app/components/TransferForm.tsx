@@ -48,7 +48,7 @@ export const TransferForm: React.FC<{
   const { user, getAccessToken } = usePrivy();
   const { wallets } = useWallets();
   const shouldUseEOA = useShouldUseEOA();
-  const { refreshBalance, starknetWalletBalance } = useBalance();
+  const { refreshBalance, starknetWalletBalance, tronWalletBalance } = useBalance();
   const { allTokens } = useTokens();
   const { walletId, publicKey, address, deployed } = useStarknet();
   const isDark = useActualTheme();
@@ -199,6 +199,8 @@ export const TransferForm: React.FC<{
       try {
         if (transferNetwork.chain.name === "Starknet") {
           setTransferNetworkBalance(starknetWalletBalance);
+        } else if (transferNetwork.chain.name === "Tron") {
+          setTransferNetworkBalance(tronWalletBalance);
         } else {
           const balance = await fetchBalanceForNetwork(
             transferNetwork,
@@ -225,6 +227,7 @@ export const TransferForm: React.FC<{
     wallets,
     shouldUseEOA,
     starknetWalletBalance,
+    tronWalletBalance,
   ]);
 
   // Close dropdown when clicking outside or pressing Escape

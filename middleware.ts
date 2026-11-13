@@ -569,6 +569,7 @@ export const config = {
     "/api/bridge/:path*",
     "/api/starknet/transfer",
     "/api/solana/transfer",
+    "/api/tron/transfer",
     "/api/solana/ata-exists",
     "/api/referral",
     "/api/referral/:path*",

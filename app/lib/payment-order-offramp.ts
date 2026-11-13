@@ -27,6 +27,16 @@ import {
 } from "./payment-order-message-hash";
 import { fetchTokens } from "../api/aggregator";
 import { isApiOfframpNetwork, normalizeNetworkName } from "../utils";
+import { quoteTronSellFeeUsd } from "./tron";
+
+/**
+ * Tron sells carry a fixed fee recovering the TRX the sponsor burns for the deposit. Needs a
+ * SenderOrderToken with an EVM fee address for the settlement token on the aggregator (or the
+ * order is refused for a missing fee address); TRON_SELL_NETWORK_FEE=false turns it off.
+ */
+function tronSellFeeEnabled(): boolean {
+  return (process.env.TRON_SELL_NETWORK_FEE || "").trim().toLowerCase() !== "false";
+}
 
 /**
  * Sells created through the aggregator sender API (POST /v2/sender/orders with
@@ -178,7 +188,16 @@ export function generateOrderReference(): string {
 /** The complete POST /v2/sender/orders body for a sell. Nothing else is ever sent. */
 export function buildSenderOfframpOrderBody(
   input: OfframpOrderInput,
-  resolved: { aggregatorNetwork: string; refundAddress: string; reference: string },
+  resolved: {
+    aggregatorNetwork: string;
+    refundAddress: string;
+    reference: string;
+    /**
+     * A fixed fee Noblocks charges on top of the amount (token units), paid by the customer in the
+     * same deposit. Used on Tron to recover the TRX the sponsor burns for the deposit.
+     */
+    networkFee?: string;
+  },
 ) {
   const { recipient } = input;
   const metadata = kesRecipientMetadata(recipient);
@@ -188,6 +207,9 @@ export function buildSenderOfframpOrderBody(
     amountIn: "crypto" as const,
     rate: input.rate,
     reference: resolved.reference,
+    ...(resolved.networkFee
+      ? { senderFee: resolved.networkFee, transactionFeePayer: "customer" as const }
+      : {}),
     source: {
       type: "crypto" as const,
       currency: input.token,
@@ -459,6 +481,9 @@ export async function handleCreateOfframpOrder(
       aggregatorNetwork,
       refundAddress,
       reference: generateOrderReference(),
+      ...(input.network === "Tron" && tronSellFeeEnabled()
+        ? { networkFee: (await quoteTronSellFeeUsd()).toFixed(2) }
+        : {}),
     });
 
     let result: { status: number; data: unknown };

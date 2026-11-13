@@ -9,7 +9,7 @@ import { mapReportAndAct } from "../lib/toastMappedError";
 import { trackEvent } from "./analytics/useMixpanel";
 import type { Token, Network } from "../types";
 import type { User } from "@privy-io/react-auth";
-import { useStarknet } from "../context";
+import { useStarknet, useTron } from "../context";
 import {
   useShouldUseEOA,
   useDelegationContractAuth,
@@ -158,6 +158,7 @@ export function useSmartWalletTransfer({
   const { wallets } = useWallets();
   const { signDelegationAuthorization } = useDelegationContractAuth();
   const { ensureWalletExists } = useStarknet();
+  const { address: tronAddress } = useTron();
   const embeddedWallet = wallets.find((w) => w.walletClientType === "privy");
 
   const [isLoading, setIsLoading] = useState(false);
@@ -276,6 +277,63 @@ export function useSmartWalletTransfer({
             recipientAddress,
             amount,
             token,
+          });
+          if (resetForm) resetForm();
+          if (refreshBalance) refreshBalance();
+          return;
+        }
+
+        if (selectedNetwork.chain.name === "Tron") {
+          // The server signs (Privy, as the user), pays the TRX within the sponsored limits and
+          // records the transfer row itself.
+          if (!tronAddress) {
+            const err = "Tron wallet not ready";
+            setError(err);
+            throw new Error(err);
+          }
+          const accessToken = await getAccessToken();
+          if (!accessToken) throw new Error("Failed to get access token");
+          let response: Response;
+          let data: { error?: string; outcome?: string; transactionHash?: string };
+          try {
+            response = await fetch("/api/tron/transfer", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${accessToken}`,
+              },
+              body: JSON.stringify({
+                kind: "withdrawal",
+                from: tronAddress,
+                to: recipientAddress,
+                token,
+                amount: amount.toString(),
+              }),
+            });
+            data = await response.json();
+          } catch {
+            throw new TransferOutcomeUnknownError();
+          }
+          if (!response.ok && (data.outcome === "unknown" || response.status >= 502)) {
+            throw new TransferOutcomeUnknownError();
+          }
+          if (!response.ok || !data.transactionHash) {
+            throw new Error(data.error || "Transfer failed");
+          }
+          setTxHash(data.transactionHash);
+          setTxNetworkName("Tron");
+          setTransferAmount(amount.toString());
+          setTransferToken(token);
+          setIsSuccess(true);
+          setIsLoading(false);
+          toast.success(`${amount.toString()} ${token} successfully transferred`);
+          trackEvent("Transfer completed", {
+            Amount: amount,
+            "Send token": token,
+            "Recipient address": recipientAddress,
+            Network: "Tron",
+            "Transaction hash": data.transactionHash,
+            "Transfer date": new Date().toISOString(),
           });
           if (resetForm) resetForm();
           if (refreshBalance) refreshBalance();
@@ -525,6 +583,7 @@ export function useSmartWalletTransfer({
       onRequireMigration,
       starknetWallet,
       ensureWalletExists,
+      tronAddress,
     ],
   );
 

@@ -1264,9 +1264,9 @@ export const TransactionForm = ({
     if (isSideLocked) return;
     const willBeSwapped = !isSwapped;
     if (willBeSwapped && !onrampSupported) {
-      toast.error("Buy is not available on Tron yet", {
+      toast.error(`Buy is not available on ${selectedNetwork.chain.name} yet`, {
         description:
-          "Switch to another network to buy crypto, or use Sell on Tron.",
+          `Switch to another network to buy crypto, or use Sell on ${selectedNetwork.chain.name}.`,
       });
       return;
     }
@@ -1485,9 +1485,9 @@ export const TransactionForm = ({
                   aria-disabled={!onrampSupported}
                   onClick={() => {
                     if (!onrampSupported) {
-                      toast.error("Buy is not available on Tron yet", {
+                      toast.error(`Buy is not available on ${selectedNetwork.chain.name} yet`, {
                         description:
-                          "Switch to another network to buy crypto, or use Sell on Tron.",
+                          `Switch to another network to buy crypto, or use Sell on ${selectedNetwork.chain.name}.`,
                       });
                       return;
                     }

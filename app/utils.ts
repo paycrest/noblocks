@@ -2139,12 +2139,16 @@ export function isApiOfframpNetwork(chain: {
   return isTronChain(chain) || isStarknetChain(chain) || isSolanaChain(chain);
 }
 
-/** Noblocks: Tron is sell (off-ramp) only; buy (on-ramp) is not supported yet. */
+/**
+ * Whether Buy (on-ramp) is offered on a network. Every supported network can be bought on now
+ * (Tron and Solana deliver through the aggregator's bridge); kept as the single switch for a
+ * network that is ever sell-only again.
+ */
 export function networkSupportsOnramp(chain: {
   name?: string;
   network?: string;
 } | null | undefined): boolean {
-  return !isTronChain(chain);
+  return Boolean(chain);
 }
 
 /** Valid Tron base58 address (starts with T). Re-exported from validation for convenience. */

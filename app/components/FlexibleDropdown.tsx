@@ -53,6 +53,13 @@ interface FlexibleDropdownProps {
   searchPlaceholder?: string;
   /** When true, option labels don't wrap (e.g. short, fixed-width menus like a status filter). */
   nowrapOptions?: boolean;
+  /**
+   * When true, the selected row shows no checkmark and no highlighted
+   * background (the pill itself already reflects the selection, e.g. the
+   * Buy/Sell currency and token pickers — Figma draws every row identically).
+   * The disabled-row lock icon is unaffected.
+   */
+  hideSelectedCheckmark?: boolean;
 }
 
 function resolveDefaultSelection(
@@ -79,6 +86,7 @@ export const FlexibleDropdown = ({
   searchable = false,
   searchPlaceholder = "Search…",
   nowrapOptions = false,
+  hideSelectedCheckmark = false,
 }: FlexibleDropdownProps) => {
   const [selectedItem, setSelectedItem] = useState<DropdownItem | undefined>(() =>
     resolveDefaultSelection(defaultSelectedItem, data),
@@ -321,7 +329,9 @@ export const FlexibleDropdown = ({
       className={classNames(
         "flex w-full items-center justify-between gap-2 rounded-lg p-2.5 text-left transition-all duration-300 hover:bg-accent-gray dark:hover:bg-neutral-700",
         item.disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer",
-        selectedItem?.name === item.name && !item.disabled
+        !hideSelectedCheckmark &&
+          selectedItem?.name === item.name &&
+          !item.disabled
           ? "bg-accent-gray dark:bg-neutral-700"
           : "",
       )}
@@ -342,7 +352,7 @@ export const FlexibleDropdown = ({
       <div className="ml-2 flex min-w-[24px] flex-shrink-0 items-center justify-end">
         {item.disabled ? (
           <SquareLock02Icon className="size-5 text-icon-outline-secondary dark:text-white/50" />
-        ) : selectedItem?.name === item.name ? (
+        ) : !hideSelectedCheckmark && selectedItem?.name === item.name ? (
           <Tick02Icon className="size-5 text-gray-400 dark:text-white/50" />
         ) : null}
       </div>

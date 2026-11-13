@@ -23,7 +23,6 @@ export const SavedBeneficiariesModal = ({
   isLoading = false,
   error = null,
   swapMode = "offramp",
-  networkName,
 }: SavedBeneficiariesModalProps) => {
   const [beneficiarySearchTerm, setBeneficiarySearchTerm] = useState("");
 
@@ -80,10 +79,15 @@ export const SavedBeneficiariesModal = ({
   }, [savedRecipients, beneficiarySearchTerm, currency, institutions, swapMode]);
 
   return (
-    <AnimatedModal isOpen={isOpen} onClose={onClose} maxWidth="28.5rem">
+    <AnimatedModal
+      isOpen={isOpen}
+      onClose={onClose}
+      maxWidth="25.75rem"
+      scrimClassName="fixed inset-0 bg-black/50 backdrop-blur-sm"
+    >
       <div className="flex items-center justify-between">
         <DialogTitle className="text-lg font-semibold dark:text-white sm:text-base">
-          Saved beneficiaries{networkName ? ` (${networkName})` : ""}
+          Saved beneficiaries
         </DialogTitle>
         <button
           type="button"
@@ -99,7 +103,7 @@ export const SavedBeneficiariesModal = ({
         <SearchInput
           value={beneficiarySearchTerm}
           onChange={setBeneficiarySearchTerm}
-          placeholder={swapMode === "onramp" ? "Search beneficiaries" : "Search by name or account number"}
+          placeholder={swapMode === "onramp" ? "Search beneficiaries" : "Search bank beneficiaries"}
           autoFocus={isOpen}
         />
       </div>

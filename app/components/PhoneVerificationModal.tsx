@@ -753,7 +753,7 @@ export default function PhoneVerificationModal({
       dialogPanelClassName="!bg-transparent !shadow-none"
       contentClassName="!rounded-[20px] !border-[0.3px] !border-border-light !bg-white !p-5 dark:!border-white/10 dark:!bg-[#2b2b2b]"
       ariaLabelledBy={titleId}
-      scrimClassName="fixed inset-0 bg-[rgba(0,0,0,0.3)] backdrop-blur-[2px]"
+      scrimClassName="fixed inset-0 bg-[rgba(0,0,0,0.45)] backdrop-blur-[2px]"
     >
       <AnimatePresence mode="wait">
         {step === STEPS.ENTER_PHONE && renderEnterPhone()}

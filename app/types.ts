@@ -88,6 +88,14 @@ export type TransactionFormProps = {
   onSubmit: any;
   formMethods: UseFormReturn<FormData, any, undefined>;
   stateProps: StateProps;
+  /**
+   * True when the swap direction (Buy vs Sell) is fixed for this session and
+   * must not be toggled from inside the form — e.g. the v2 wallet Buy/Sell
+   * drawer (KAN-971), where the drawer title already fixes the mode. Mirrors
+   * the existing embed-only `isSideLocked` behaviour, just driven by the
+   * engine instead of embed host config.
+   */
+  lockSwapMode?: boolean;
 };
 
 export type TransactionPreviewProps = {

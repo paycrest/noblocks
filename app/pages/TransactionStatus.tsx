@@ -1,20 +1,12 @@
 "use client";
+import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { useTheme } from "next-themes";
 import { useEffect, useState, useRef } from "react";
-import { AnimatePresence } from "framer-motion";
 import { ImSpinner } from "react-icons/im";
 import { Checkbox } from "@headlessui/react";
 
-import {
-  AnimatedComponent,
-  scaleInOut,
-  secondaryBtnClasses,
-  fadeInOut,
-  slideInOut,
-  fadeUpAnimation,
-  primaryBtnClasses,
-} from "../components";
+import { secondaryBtnClasses } from "../components/Styles";
 import {
   FarcasterIconDarkTheme,
   FarcasterIconLightTheme,
@@ -29,7 +21,6 @@ import {
   formatCurrency,
   formatNumberWithCommas,
   formatRecipientNameFirstWordForPill,
-  getExplorerLink,
   getInstitutionNameByCode,
   getKesMpesaInstitutionLabel,
   KES_MPESA_INSTITUTION_CODE,
@@ -48,7 +39,10 @@ import {
   saveRecipient,
   deleteSavedRecipient,
 } from "../api/aggregator";
-import { isKnownAggregatorOrderStatus, onrampRefundExplanation } from "../lib/order-status";
+import {
+  isKnownAggregatorOrderStatus,
+  onrampRefundExplanation,
+} from "../lib/order-status";
 import { reindexSingleTransaction } from "../lib/reindex";
 import {
   STEPS,
@@ -58,13 +52,14 @@ import {
 } from "../types";
 import { toast } from "sonner";
 import { trackEvent } from "../hooks/analytics/client";
+import { CheckmarkCircle01Icon } from "hugeicons-react";
 import {
-  Cancel01Icon,
-  CancelCircleIcon,
-  CheckmarkCircle01Icon,
-  FootballIcon,
-} from "hugeicons-react";
-import { useBalance, useInjectedWallet, useNetwork, useTokens, useEmbed } from "../context";
+  useBalance,
+  useInjectedWallet,
+  useNetwork,
+  useTokens,
+  useEmbed,
+} from "../context";
 import { useSmartWalletTransfer } from "../hooks/useSmartWalletTransfer";
 import config from "../lib/config";
 import { formatUnits } from "viem";
@@ -82,9 +77,29 @@ import { readForwardBalanceWei } from "../lib/onrampForwarding/readForwardBalanc
 import type { Token } from "../types";
 import { usePrivy } from "@privy-io/react-auth";
 import { useApiAuth } from "../hooks/useApiAuth";
-import { TransactionHelperText } from "../components/TransactionHelperText";
 import { useConfetti } from "../hooks/useConfetti";
 import { useRocketStatus } from "../context/RocketStatusContext";
+import {
+  ActionProgress,
+  ActionReceiptFailed,
+  ActionReceiptSuccess,
+  ActionSubmitButton,
+  showActionSuccessToast,
+} from "../components/drawer";
+import { DrawerPoweredByFooter } from "../components/drawer/DrawerPoweredByFooter";
+import {
+  buildDefaultReceiptRows,
+  ReceiptDashedRule,
+  ReceiptMetaRows,
+} from "../components/drawer/ReceiptMetaRows";
+import { SuccessCheckmark } from "../components/drawer/SuccessCheckmark";
+import {
+  drawerBodyText,
+  drawerReceiptTitleClasses,
+  drawerSecondaryText,
+  drawerStepHeadingClasses,
+} from "../components/drawer/drawerStyles";
+import type { ActionProgressStep } from "../components/drawer/types";
 
 /**
  * Renders the transaction status component.
@@ -99,6 +114,27 @@ import { useRocketStatus } from "../context/RocketStatusContext";
  * @param setCurrentStep - Function to set the current step.
  * @param formMethods - The form methods.
  */
+
+/**
+ * The Buy "watching for your transfer" card (Figma b17/b19/b20) — shared so
+ * MakePayment's post-confirm UI-only "watching" state (Figma also b17, shown
+ * the instant the user clicks "I have sent the money", before the backend
+ * has actually confirmed anything) renders the identical markup instead of a
+ * second copy of it.
+ */
+export function renderBuyWatchingCard(steps: ActionProgressStep[]) {
+  return (
+    <div className="flex w-full flex-col gap-6">
+      <ActionProgress
+        heading="Watching for your transfer"
+        subheading="Transfers usually arrive within a few minutes."
+        steps={steps}
+      />
+      <DrawerPoweredByFooter />
+    </div>
+  );
+}
+
 export function TransactionStatus({
   transactionStatus,
   orderId,
@@ -113,6 +149,7 @@ export function TransactionStatus({
   refetchRate,
   isOnramp = false,
 }: TransactionStatusProps) {
+  const router = useRouter();
   const { resolvedTheme } = useTheme();
   const { selectedNetwork } = useNetwork();
   const { isEmbed } = useEmbed();
@@ -146,9 +183,6 @@ export function TransactionStatus({
   const [isSavingRecipient, setIsSavingRecipient] = useState(false);
   const [showSaveSuccess, setShowSaveSuccess] = useState(false);
   const [hasReindexed, setHasReindexed] = useState(false);
-  // Noblocks Play banner — dismissed state persists via localStorage.
-  const [isFantasyBannerDismissed, setIsFantasyBannerDismissed] =
-    useState(true);
   const reindexTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const latestRequestIdRef = useRef<number>(0);
   const lastPersistedOrderStatusRef = useRef<string | null>(null);
@@ -161,20 +195,6 @@ export function TransactionStatus({
   const transactionDbIdRef = useRef<string | null>(null);
 
   const fireConfetti = useConfetti();
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    setIsFantasyBannerDismissed(
-      localStorage.getItem("fantasy-banner-dismissed") === "true",
-    );
-  }, []);
-
-  const dismissFantasyBanner = () => {
-    setIsFantasyBannerDismissed(true);
-    if (typeof window !== "undefined") {
-      localStorage.setItem("fantasy-banner-dismissed", "true");
-    }
-  };
 
   useEffect(() => {
     lastPersistedOrderStatusRef.current = null;
@@ -467,7 +487,11 @@ export function TransactionStatus({
         // A read error (RPC/balance) is not a forwarding failure — never mark failed (or forward) on
         // incomplete information. Schedule a retry so a transient RPC blip doesn't strand the spinner.
         console.error("[onramp] forwarding evaluation failed:", err);
-        if (!cancelled && !forwardDoneRef.current && !forwardStartedRef.current) {
+        if (
+          !cancelled &&
+          !forwardDoneRef.current &&
+          !forwardStartedRef.current
+        ) {
           scheduleRecheck();
         }
       } finally {
@@ -537,6 +561,22 @@ export function TransactionStatus({
       ["validated", "settling", "settled"].includes(transactionStatus)) ||
     (isOnramp && transactionStatus === "settled" && isOnrampForwardingResolved);
 
+  /** Fire the "funds added" toast once per transition into on-ramp success. */
+  const successToastFiredRef = useRef(false);
+  useEffect(() => {
+    if (!isOnramp) return;
+    if (showSuccessVisual && !successToastFiredRef.current) {
+      successToastFiredRef.current = true;
+      showActionSuccessToast(
+        `${formatNumberWithCommas(fiat)} ${token} added`,
+        "Funds have been added to your balance.",
+      );
+    }
+    if (!showSuccessVisual) {
+      successToastFiredRef.current = false;
+    }
+  }, [isOnramp, showSuccessVisual, fiat, token]);
+
   /** Order meta / dashed hr: off-ramp unchanged; on-ramp only after final or terminal failure. */
   const showOrderMetaSection =
     (!isOnramp &&
@@ -549,8 +589,7 @@ export function TransactionStatus({
 
   /** Off-ramp: show during validated|settling|settled. On-ramp: only after order is done or terminal failure. */
   const showNewPaymentButton =
-    !isOnramp ||
-    ["settled", "refunded", "expired"].includes(transactionStatus);
+    !isOnramp || ["settled", "refunded", "expired"].includes(transactionStatus);
 
   /** PDF receipt is offramp-only for now (uses order-level isOnramp snapshot). */
   const showGetReceiptButton =
@@ -564,7 +603,9 @@ export function TransactionStatus({
     processingStartedAt || createdAt,
     completedAt,
   );
-  const timeSpentLabel = isOnramp ? onRampTimeSpentLabel : offRampTimeSpentLabel;
+  const timeSpentLabel = isOnramp
+    ? onRampTimeSpentLabel
+    : offRampTimeSpentLabel;
 
   // Check if recipient is already saved in the database
   const [isRecipientInBeneficiaries, setIsRecipientInBeneficiaries] =
@@ -649,8 +690,9 @@ export function TransactionStatus({
 
       // Pin the order's own DB row on first use; the localStorage key is global and may already
       // point at a later transfer's row (e.g. the leg-2 forward).
-      transactionDbIdRef.current ??=
-        localStorage.getItem("currentTransactionId");
+      transactionDbIdRef.current ??= localStorage.getItem(
+        "currentTransactionId",
+      );
       const transactionId = transactionDbIdRef.current;
       if (!transactionId) {
         console.error("No transaction ID found");
@@ -799,9 +841,7 @@ export function TransactionStatus({
           if (status === "expired") {
             const doneAt =
               responseData.updatedAt ||
-              String(
-                (responseData as Record<string, unknown>).timestamp ?? "",
-              );
+              String((responseData as Record<string, unknown>).timestamp ?? "");
             setCompletedAt(doneAt);
             setTransactionStatus("expired");
             stopPollingLoop();
@@ -1061,62 +1101,6 @@ export function TransactionStatus({
   );
 
   /**
-   * Renders the appropriate status indicator based on transaction status
-   * Shows checkmark for success, X for failure, or spinner for pending states
-   */
-  const StatusIndicator = () => (
-    <AnimatePresence mode="wait">
-      {showSuccessVisual ? (
-        <AnimatedComponent variant={scaleInOut} key="settled">
-          <CheckmarkCircle01Icon className="size-10" color="#39C65D" />
-        </AnimatedComponent>
-      ) : transactionStatus === "refunded" ? (
-        <AnimatedComponent variant={scaleInOut} key="refunded">
-          <CancelCircleIcon className="size-10" color="#F53D6B" />
-        </AnimatedComponent>
-      ) : transactionStatus === "expired" ? (
-        <AnimatedComponent variant={scaleInOut} key="expired">
-          <CancelCircleIcon className="size-10" color="#D97706" />
-        </AnimatedComponent>
-      ) : (
-        <AnimatedComponent
-          variant={fadeInOut}
-          key="pending"
-          className={`flex items-center gap-1 rounded-full px-2 py-1 dark:bg-white/10 ${transactionStatus === "pending"
-            ? "bg-orange-50 text-orange-400"
-            : transactionStatus === "fulfilling" ||
-                (isOnramp &&
-                  ["fulfilled", "validated", "settling"].includes(
-                    transactionStatus,
-                  ))
-              ? "bg-yellow-50 text-yellow-400"
-              : transactionStatus === "fulfilled"
-                ? "bg-green-50 text-green-400"
-                : transactionStatus === "refunding"
-                  ? "bg-purple-50 text-purple-400"
-                  : "bg-gray-50"
-            }`}
-        >
-          <ImSpinner className="animate-spin" />
-          <p>
-            {transactionStatus === "fulfilling" ||
-            (isOnramp && transactionStatus === "fulfilled")
-              ? "processing"
-              : isOnramp && transactionStatus === "pending"
-                ? isOnrampUnderReview(orderDetails)
-                  ? "under review"
-                  : "awaiting payment"
-                : isOnramp &&
-                    ["validated", "settling"].includes(transactionStatus)
-                  ? "processing"
-                  : transactionStatus}
-          </p>
-        </AnimatedComponent>
-      )}
-    </AnimatePresence>
-  );
-
-  /**
    * Handles the back button click event.
    *
    * "Retry transaction" (refunded/expired) keeps the form values so the user can resubmit.
@@ -1309,8 +1293,8 @@ export function TransactionStatus({
           <br />
           <br />
           {isOnramp
-            ? onrampRefundExplanation(orderDetails?.refundReason) ??
-              "The fiat payment could not be processed."
+            ? (onrampRefundExplanation(orderDetails?.refundReason) ??
+              "The fiat payment could not be processed.")
             : "The stablecoin has been refunded to your account."}
         </>
       );
@@ -1331,14 +1315,20 @@ export function TransactionStatus({
     }
 
     // On-ramp: the payment arrived and is held for a compliance review. It does not expire.
-    if (isOnramp && transactionStatus === "pending" && isOnrampUnderReview(orderDetails)) {
+    if (
+      isOnramp &&
+      transactionStatus === "pending" &&
+      isOnrampUnderReview(orderDetails)
+    ) {
       return (
         <>
           We received your payment of{" "}
-          <span className="text-text-body dark:text-white">{amountDisplay}</span>{" "}
-          and are reviewing it. Your money is safe: we&apos;ll either complete your
-          order or send the money back to the account it came from. Don&apos;t pay
-          again.
+          <span className="text-text-body dark:text-white">
+            {amountDisplay}
+          </span>{" "}
+          and are reviewing it. Your money is safe: we&apos;ll either complete
+          your order or send the money back to the account it came from.
+          Don&apos;t pay again.
         </>
       );
     }
@@ -1348,9 +1338,11 @@ export function TransactionStatus({
       return (
         <>
           Send{" "}
-          <span className="text-text-body dark:text-white">{amountDisplay}</span>{" "}
-          using the payment details below. This order stays pending until we receive
-          your bank transfer.
+          <span className="text-text-body dark:text-white">
+            {amountDisplay}
+          </span>{" "}
+          using the payment details below. This order stays pending until we
+          receive your bank transfer.
         </>
       );
     }
@@ -1361,15 +1353,22 @@ export function TransactionStatus({
     });
     if (
       isOnramp &&
-      !["validated", "settling", "settled", "refunded", "expired", "pending"].includes(
-        transactionStatus,
-      )
+      ![
+        "validated",
+        "settling",
+        "settled",
+        "refunded",
+        "expired",
+        "pending",
+      ].includes(transactionStatus)
     ) {
       return (
         <>
           {transactionStatus === "refunding" ? "Refunding" : "Processing"} your
           on-ramp payment of{" "}
-          <span className="text-text-body dark:text-white">{amountDisplay}</span>
+          <span className="text-text-body dark:text-white">
+            {amountDisplay}
+          </span>
           {transactionStatus === "refunding"
             ? refundingNote
               ? `. ${refundingNote}`
@@ -1380,10 +1379,7 @@ export function TransactionStatus({
     }
 
     // On-ramp: validated / settling = still processing (loading), not completion copy
-    if (
-      isOnramp &&
-      ["validated", "settling"].includes(transactionStatus)
-    ) {
+    if (isOnramp && ["validated", "settling"].includes(transactionStatus)) {
       return (
         <>
           Processing payment of{" "}
@@ -1402,7 +1398,8 @@ export function TransactionStatus({
     ) {
       return (
         <>
-          {transactionStatus === "refunding" ? "Refunding" : "Processing"} payment of{" "}
+          {transactionStatus === "refunding" ? "Refunding" : "Processing"}{" "}
+          payment of{" "}
           <span className="text-text-body dark:text-white">
             {amountDisplay}
           </span>{" "}
@@ -1430,24 +1427,15 @@ export function TransactionStatus({
       return (
         <>
           Processing your on-ramp payment of{" "}
-          <span className="text-text-body dark:text-white">{amountDisplay}</span>
+          <span className="text-text-body dark:text-white">
+            {amountDisplay}
+          </span>
           . Hang on, this will only take a few seconds.
         </>
       );
     }
 
     return null;
-  };
-
-  const getImageSrc = () => {
-    const useLongStepper = !isOnramp
-      ? ["validated", "settling", "settled", "refunded", "expired"].includes(
-          transactionStatus,
-        )
-      : ["settled", "refunded", "expired"].includes(transactionStatus);
-    const base = useLongStepper ? "/images/stepper-long" : "/images/stepper";
-    const themeSuffix = resolvedTheme === "dark" ? "-dark.svg" : ".svg";
-    return base + themeSuffix;
   };
 
   const handleGetReceipt = async () => {
@@ -1487,468 +1475,312 @@ export function TransactionStatus({
     }
   };
 
-  return (
-    <div className="flex w-full justify-center gap-[4.5rem]">
-      <div className="hidden flex-col gap-2 sm:flex">
-        <div className="flex w-fit flex-col items-end gap-2 text-neutral-900 dark:text-white/80">
-          <AnimatedComponent
-            variant={slideInOut}
-            delay={0.2}
-            className="flex items-center gap-1 rounded-full bg-gray-50 px-2 py-1 dark:bg-white/5"
-          >
-            {!isOnramp && token && (
-              <Image
-                src={`/logos/${String(token)?.toLowerCase()}-logo.svg`}
-                alt={`${token} logo`}
-                width={14}
-                height={14}
-              />
-            )}
-            <p className="whitespace-nowrap pr-4 font-medium">
-              {isOnramp
-                ? formatCurrency(Number(amount) || 0, currency, `en-${currency.slice(0, 2)}`)
-                : `${formatNumberWithCommas(amount)} ${token}`}
-            </p>
-          </AnimatedComponent>
-          <Image
-            src={getImageSrc()}
-            alt="Progress"
-            width={200}
-            height={200}
-            className="w-auto"
-          />
-          <AnimatedComponent
-            variant={slideInOut}
-            delay={0.4}
-            className="max-w-60 truncate whitespace-nowrap rounded-full bg-gray-50 px-3 py-1 dark:bg-white/5"
-          >
-            {isOnramp
-              ? (recipientWalletAddress ? `${recipientWalletAddress.slice(0, 6)}...${recipientWalletAddress.slice(-4)}` : "")
-              : formatRecipientNameFirstWordForPill(recipientName)}
-          </AnimatedComponent>
+  const networkName = selectedNetwork.chain.name;
+  const resolvedTxHash = `${
+    orderDetails?.status === "refunded" ? orderDetails?.txHash : createdHash
+  }`;
+  const tokenAmountLabel = `${formatNumberWithCommas(isOnramp ? fiat : amount)} ${token}`;
+  // Figma bsuccess: the Buy success title reads "{token} {amount} added" —
+  // token first, the one spot that differs from `tokenAmountLabel`'s order.
+  const addedAmountLabel = `${token} ${formatNumberWithCommas(fiat)}`;
+  const fiatAmountLabel = formatCurrency(
+    Number(isOnramp ? amount : fiat) || 0,
+    currency,
+    `en-${currency.slice(0, 2)}`,
+  );
+  const fundStatusLabel = isOnramp ? "Transferred" : "Deposited";
+
+  if (showSuccessVisual && isOnramp) {
+    return (
+      <div className="flex w-full flex-col items-center">
+        <ActionReceiptSuccess
+          variant="drawer"
+          title={`${addedAmountLabel} added`}
+          subtitle="Your money is in your balance and ready to use."
+          fundStatusLabel={fundStatusLabel}
+          timeSpentLabel={timeSpentLabel}
+          networkName={networkName}
+          txHash={resolvedTxHash}
+          secondaryActionLabel="Done"
+          onSecondaryAction={handleBackButtonClick}
+          primaryActionLabel="Earn"
+          onPrimaryAction={() => router.push("/earn")}
+        />
+      </div>
+    );
+  }
+
+  if (showSuccessVisual) {
+    // Sell success — Figma s42: title/subtitle, then the action buttons,
+    // then the beneficiaries checkbox, then the dashed-rule/details/
+    // dashed-rule block, then the share section. `ActionReceiptSuccess`'s
+    // own internal order (details, *then* buttons) matches Buy's bsuccess
+    // frame exactly — Buy keeps using it unchanged above; Sell's different
+    // order is built here from the same primitives instead of adding a
+    // layout-order flag to that shared component.
+    const rows = buildDefaultReceiptRows({
+      transactionStatusLabel: "Completed",
+      transactionStatusTone: "success",
+      fundStatusLabel,
+      timeSpentLabel,
+    });
+    return (
+      <div className="flex w-full flex-col items-center pt-5">
+        <SuccessCheckmark size={54} strokeWidth={2.7} />
+        <div className="mt-4 w-full space-y-1 text-center">
+          <p className={drawerReceiptTitleClasses}>Transaction successful</p>
+          <p className={classNames("text-sm", drawerSecondaryText)}>
+            Your transfer of {tokenAmountLabel} to {recipientName} has been
+            completed successfully.
+          </p>
         </div>
+
+        <div className="mt-5 flex w-full gap-3">
+          <ActionSubmitButton
+            label="Get receipt"
+            variant="secondary"
+            onClick={handleGetReceipt}
+            className="!min-h-[42px] flex-1"
+          />
+          <ActionSubmitButton
+            label="New payment"
+            onClick={handleBackButtonClick}
+            className="!min-h-[42px] flex-1"
+          />
+        </div>
+
+        {!isRecipientInBeneficiaries ? (
+          <div className="mt-5 flex w-full items-start gap-2 text-sm">
+            {isSavingRecipient ? (
+              <>
+                <ImSpinner className="mt-0.5 size-4 shrink-0 animate-spin text-text-body dark:text-white/80" />
+                <span className={drawerBodyText}>
+                  Saving to beneficiaries...
+                </span>
+              </>
+            ) : showSaveSuccess ? (
+              <>
+                <CheckmarkCircle01Icon className="mt-0.5 size-4 shrink-0 text-green-500" />
+                <span className="text-green-600 dark:text-green-400">
+                  Saved to beneficiaries!
+                </span>
+              </>
+            ) : (
+              <Checkbox
+                checked={addToBeneficiaries}
+                onChange={handleAddToBeneficiariesChange}
+                className="group flex cursor-pointer items-start gap-2 text-left outline-none"
+              >
+                <span className="group mt-0.5 block size-4 shrink-0 cursor-pointer rounded border-2 border-gray-300 bg-transparent data-[checked]:border-lavender-500 data-[checked]:bg-lavender-500 dark:border-white/30 dark:data-[checked]:border-lavender-500">
+                  <svg
+                    className="stroke-white/50 opacity-0 group-data-[checked]:opacity-100 dark:stroke-neutral-800"
+                    viewBox="0 0 14 14"
+                    fill="none"
+                  >
+                    <path
+                      d="M3 8L6 11L11 3.5"
+                      strokeWidth={2}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </span>
+                <span className={drawerBodyText}>
+                  Add{" "}
+                  {(recipientName ?? "").split(" ")[0].charAt(0).toUpperCase() +
+                    (recipientName ?? "")
+                      .toLowerCase()
+                      .split(" ")[0]
+                      .slice(1)}{" "}
+                  to beneficiaries
+                </span>
+              </Checkbox>
+            )}
+          </div>
+        ) : null}
+
+        <ReceiptDashedRule className="mt-5" />
+        <div className="mt-5 w-full">
+          <ReceiptMetaRows
+            rows={rows}
+            networkName={networkName}
+            txHash={resolvedTxHash}
+            layout="drawer"
+          />
+        </div>
+
+        {!isEmbed ? (
+          <div className="mt-5 w-full space-y-4">
+            <ReceiptDashedRule />
+            <p className={classNames("text-sm", drawerSecondaryText)}>
+              Help spread the word
+            </p>
+            <div className="relative flex items-center gap-3 overflow-hidden rounded-xl bg-gray-50 px-4 py-2 dark:bg-white/5">
+              <YellowHeart className="size-8 flex-shrink-0" />
+              <p className={classNames("text-sm", drawerSecondaryText)}>
+                Yay! I just swapped {token} for {currency} in {timeSpentLabel}{" "}
+                on noblocks.xyz
+              </p>
+              <QuotesBgIcon className="absolute -bottom-1 right-4 size-6" />
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3">
+              <a
+                aria-label="Share on Twitter"
+                rel="noopener noreferrer"
+                target="_blank"
+                href={`https://x.com/intent/tweet?text=I%20just%20swapped%20${token}%20for%20${currency}%20in%20${offRampTimeSpentLabel}%20on%20noblocks.xyz`}
+                className={`min-h-9 !rounded-full ${secondaryBtnClasses} flex gap-2 text-neutral-900 dark:text-white/80`}
+              >
+                {resolvedTheme === "dark" ? (
+                  <XIconDarkTheme className="size-5 text-text-secondary dark:text-white/50" />
+                ) : (
+                  <XIconLightTheme className="size-5 text-text-secondary dark:text-white/50" />
+                )}
+                X (Twitter)
+              </a>
+              <a
+                aria-label="Share on Warpcast"
+                rel="noopener noreferrer"
+                target="_blank"
+                href={`https://warpcast.com/~/compose?text=Yay%21%20I%20just%20swapped%20${token}%20for%20${currency}%20in%20${encodeURIComponent(offRampTimeSpentLabel)}%20on%20noblocks.xyz`}
+                className={`min-h-9 !rounded-full ${secondaryBtnClasses} flex gap-2 text-neutral-900 dark:text-white/80`}
+              >
+                {resolvedTheme === "dark" ? (
+                  <FarcasterIconDarkTheme className="size-5 text-text-secondary dark:text-white/50" />
+                ) : (
+                  <FarcasterIconLightTheme className="size-5 text-text-secondary dark:text-white/50" />
+                )}
+                Farcaster
+              </a>
+            </div>
+          </div>
+        ) : null}
+      </div>
+    );
+  }
+
+  if (transactionStatus === "refunded" || transactionStatus === "expired") {
+    return (
+      <ActionReceiptFailed
+        title={
+          transactionStatus === "expired"
+            ? isOnramp
+              ? "Order no longer active"
+              : "Order expired"
+            : undefined
+        }
+        body={getPaymentMessage()}
+        fundStatusLabel={fundStatusLabel}
+        timeSpentLabel={timeSpentLabel}
+        networkName={networkName}
+        txHash={resolvedTxHash}
+        onRetry={handleBackButtonClick}
+      />
+    );
+  }
+
+  if (isOnramp) {
+    // Order received a payment and is held for compliance review — not part
+    // of the normal 3-step watching UI Figma draws (b17/b19/b20), and not
+    // drawn by Figma at all; keep v1's existing copy, just hosted in the drawer.
+    if (transactionStatus === "pending" && isOnrampUnderReview(orderDetails)) {
+      return (
+        <div className="flex w-full flex-col gap-6">
+          <div>
+            <p className={drawerStepHeadingClasses}>Payment under review</p>
+            <p className={classNames("text-sm leading-5", drawerSecondaryText)}>
+              {getPaymentMessage()}
+            </p>
+          </div>
+          <ActionSubmitButton
+            label="I have sent the money"
+            disabled
+            onClick={() => {}}
+          />
+          <DrawerPoweredByFooter />
+        </div>
+      );
+    }
+
+    const steps: ActionProgressStep[] = [
+      {
+        id: "waiting",
+        label: "Waiting for your transfer",
+        state: transactionStatus === "pending" ? "active" : "done",
+      },
+      {
+        id: "received",
+        label: "Payment received",
+        state:
+          transactionStatus === "pending"
+            ? "pending"
+            : transactionStatus === "fulfilling"
+              ? "active"
+              : "done",
+      },
+      {
+        id: "adding",
+        label: `Adding ${tokenAmountLabel} to your balance`,
+        state: [
+          "fulfilled",
+          "validated",
+          "settling",
+          "settled",
+          "refunding",
+        ].includes(transactionStatus)
+          ? "active"
+          : "pending",
+      },
+    ];
+
+    return renderBuyWatchingCard(steps);
+  }
+
+  // Sell processing/indexing — Figma s41 (top-aligned, left-aligned content —
+  // unlike every other status screen here, this one isn't centred or
+  // center-text; it reads top-to-bottom like the Form/Review steps).
+  return (
+    <div className="flex w-full flex-col gap-4">
+      <div className="flex items-center gap-2">
+        <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-background-neutral px-2 py-1 text-sm font-medium text-text-body dark:bg-white/5 dark:text-white/80">
+          <Image
+            src={`/logos/${String(token)?.toLowerCase()}-logo.svg`}
+            alt={`${token} logo`}
+            width={14}
+            height={14}
+          />
+          {tokenAmountLabel}
+        </span>
+        <span
+          aria-hidden
+          className="h-px min-w-6 flex-1 border-t border-dashed border-[#b0e8be] dark:border-[#2a6b3c]"
+        />
+        <span className="size-1.5 shrink-0 rounded-full bg-[#39c65d]" />
+        <span className="shrink-0 rounded-full bg-[#f7f7f8] px-2 py-1 text-sm text-text-body dark:bg-white/5 dark:text-white/80">
+          {formatRecipientNameFirstWordForPill(recipientName)}
+        </span>
       </div>
 
-      <div className="flex flex-col items-start gap-4 sm:max-w-xs">
-        <StatusIndicator />
+      <div className="flex flex-col items-start gap-4">
+        <span className="inline-flex items-center gap-1 rounded-full bg-[#fef9e8] px-2 py-1 text-sm text-[#61500b] dark:bg-[#61500b]/20 dark:text-[#f2c71c]">
+          <ImSpinner className="size-4 animate-spin" />
+          indexing
+        </span>
 
-        <AnimatedComponent
-          variant={slideInOut}
-          delay={0.2}
-          className="text-xl font-medium text-neutral-900 dark:text-white/80"
-        >
-          {transactionStatus === "refunded"
-            ? "Oops! Transaction failed"
-            : transactionStatus === "expired"
-              ? "Payment window expired"
-              : !isOnramp
-                ? !["validated", "settling", "settled"].includes(
-                    transactionStatus,
-                  )
-                  ? "Processing payment..."
-                  : "Transaction successful"
-                : transactionStatus === "pending"
-                  ? isOnrampUnderReview(orderDetails)
-                    ? "Payment under review"
-                    : "Complete your payment"
-                  : transactionStatus === "settled" && isOnrampForwardingResolved
-                    ? "Transaction successful"
-                    : "Processing payment..."}
-        </AnimatedComponent>
+        <p className="font-general-sans text-xl font-medium leading-7 text-text-body dark:text-white/80">
+          Indexing by aggregator...
+        </p>
 
-        <div className="flex w-full items-center gap-2 text-neutral-900 dark:text-white/80 sm:hidden">
-          <AnimatedComponent
-            variant={slideInOut}
-            delay={0.2}
-            className="flex items-center gap-2 rounded-full bg-gray-50 px-2 py-1 dark:bg-white/5"
-          >
-            {!isOnramp && token && (
-              <Image
-                src={`/logos/${String(token)?.toLowerCase()}-logo.svg`}
-                alt={`${token} logo`}
-                width={14}
-                height={14}
-              />
-            )}
-            <p className="whitespace-nowrap pr-0.5 font-medium">
-              {isOnramp
-                ? formatCurrency(Number(amount) || 0, currency, `en-${currency.slice(0, 2)}`)
-                : `${amount} ${token}`}
-            </p>
-          </AnimatedComponent>
-          <Image
-            src={`/images/horizontal-stepper${resolvedTheme === "dark" ? "-dark" : ""}.svg`}
-            alt="Progress"
-            width={200}
-            height={200}
-            className="-mr-1.5 mt-1 size-auto"
-          />
-          <AnimatedComponent
-            variant={slideInOut}
-            delay={0.4}
-            className="max-w-28 truncate rounded-full bg-gray-50 px-3 py-1 dark:bg-white/5"
-          >
-            {isOnramp
-              ? (recipientWalletAddress ? `${recipientWalletAddress.slice(0, 6)}...${recipientWalletAddress.slice(-4)}` : "")
-              : formatRecipientNameFirstWordForPill(recipientName)}
-          </AnimatedComponent>
-        </div>
+        <ReceiptDashedRule />
 
-        <hr className="w-full border-dashed border-border-light dark:border-white/10 sm:hidden" />
-
-        <AnimatedComponent
-          variant={slideInOut}
-          delay={0.4}
-          className="text-sm leading-normal text-gray-500 dark:text-white/50"
-        >
-          {getPaymentMessage()}
-        </AnimatedComponent>
-
-        {/* Helper text for long-running transactions */}
-        <TransactionHelperText
-          isVisible={["fulfilling", "fulfilled", "refunding"].includes(
-            transactionStatus,
-          )}
-          title="Taking longer than expected?"
-          message="Your transaction is still processing. You can safely
-                  refresh or leave this page - your funds will either be
-                  settled or automatically refunded if the transaction
-                  fails."
-          showAfterMs={60000}
-          className="w-full space-y-4"
-        />
-
-        <AnimatePresence>
-          {[
-            "validated",
-            "settling",
-            "settled",
-            "refunded",
-            "expired",
-          ].includes(transactionStatus) && (
-              <>
-                {(showGetReceiptButton || showNewPaymentButton) &&
-                  (isEmbed ? (
-                    // Widget design: full-width buttons pinned as one group at
-                    // the END of the page (order-last), primary (New payment)
-                    // on top, sticky above the WidgetShell footer while the
-                    // content above scrolls. One sticky wrapper (not two
-                    // competing order-last children) so the stacking is
-                    // unambiguous; no AnimatedComponent since its transform
-                    // would hijack the position:sticky containing block.
-                    <div className="sticky bottom-0 z-10 order-last flex w-full flex-col gap-3 bg-white pb-1 pt-1 dark:bg-neutral-900">
-                      {showNewPaymentButton && (
-                        <button
-                          type="button"
-                          onClick={handleBackButtonClick}
-                          className={`w-full ${primaryBtnClasses}`}
-                        >
-                          {transactionStatus === "refunded" ||
-                          transactionStatus === "expired"
-                            ? "Retry transaction"
-                            : "New payment"}
-                        </button>
-                      )}
-                      {showGetReceiptButton && (
-                        <button
-                          type="button"
-                          onClick={handleGetReceipt}
-                          className={`w-full ${secondaryBtnClasses}`}
-                          disabled={isGettingReceipt}
-                        >
-                          {isGettingReceipt ? "Generating..." : "Get receipt"}
-                        </button>
-                      )}
-                    </div>
-                  ) : (
-                    <AnimatedComponent
-                      variant={slideInOut}
-                      delay={0.5}
-                      className="flex w-full flex-wrap gap-3 max-sm:*:flex-1"
-                    >
-                      {showGetReceiptButton && (
-                        <button
-                          type="button"
-                          onClick={handleGetReceipt}
-                          className={`w-fit ${secondaryBtnClasses}`}
-                          disabled={isGettingReceipt}
-                        >
-                          {isGettingReceipt ? "Generating..." : "Get receipt"}
-                        </button>
-                      )}
-                      {showNewPaymentButton && (
-                        <button
-                          type="button"
-                          onClick={handleBackButtonClick}
-                          className={`w-fit ${primaryBtnClasses}`}
-                        >
-                          {transactionStatus === "refunded" ||
-                          transactionStatus === "expired"
-                            ? "Retry transaction"
-                            : "New payment"}
-                        </button>
-                      )}
-                    </AnimatedComponent>
-                  ))}
-
-                {!isOnramp && ["validated", "settling", "settled"].includes(transactionStatus) &&
-                  !isRecipientInBeneficiaries && (
-                    <AnimatePresence mode="wait">
-                      {isSavingRecipient ? (
-                        <AnimatedComponent
-                          key="saving"
-                          variant={fadeUpAnimation}
-                          className="flex items-center gap-2"
-                        >
-                          <div className="mt-1 flex h-4 w-4 items-center justify-center">
-                            <ImSpinner className="h-4 w-4 animate-spin text-text-body dark:text-white/80" />
-                          </div>
-                          <span className="text-text-body dark:text-white/80">
-                            Saving to beneficiaries...
-                          </span>
-                        </AnimatedComponent>
-                      ) : showSaveSuccess ? (
-                        <AnimatedComponent
-                          key="success"
-                          variant={slideInOut}
-                          className="flex items-center gap-2"
-                        >
-                          <div className="mt-1 flex h-4 w-4 items-center justify-center">
-                            <CheckmarkCircle01Icon className="h-4 w-4 text-green-500" />
-                          </div>
-                          <span className="text-green-600 dark:text-green-400">
-                            Saved to beneficiaries!
-                          </span>
-                        </AnimatedComponent>
-                      ) : (
-                        <AnimatedComponent
-                          key="checkbox"
-                          variant={fadeUpAnimation}
-                          className="flex gap-2"
-                        >
-                          <Checkbox
-                            checked={addToBeneficiaries}
-                            onChange={handleAddToBeneficiariesChange}
-                            className="group mt-1 block size-4 flex-shrink-0 cursor-pointer rounded border-2 border-gray-300 bg-transparent data-[checked]:border-lavender-500 data-[checked]:bg-lavender-500 dark:border-white/30 dark:data-[checked]:border-lavender-500"
-                          >
-                            <svg
-                              className="stroke-white/50 opacity-0 group-data-[checked]:opacity-100 dark:stroke-neutral-800"
-                              viewBox="0 0 14 14"
-                              fill="none"
-                            >
-                              <title>
-                                {addToBeneficiaries
-                                  ? "Remove from beneficiaries"
-                                  : "Add to your beneficiaries"}
-                              </title>
-                              <path
-                                d="M3 8L6 11L11 3.5"
-                                strokeWidth={2}
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                              />
-                            </svg>
-                          </Checkbox>
-                          <label className="text-text-body dark:text-white/80">
-                            Add{" "}
-                            {(recipientName ?? "")
-                              .split(" ")[0]
-                              .charAt(0)
-                              .toUpperCase() +
-                              (recipientName ?? "")
-                                .toLowerCase()
-                                .split(" ")[0]
-                                .slice(1)}{" "}
-                            to beneficiaries
-                          </label>
-                        </AnimatedComponent>
-                      )}
-                    </AnimatePresence>
-                  )}
-              </>
-            )}
-        </AnimatePresence>
-
-        {showOrderMetaSection && (
-            <hr className="w-full border-dashed border-border-light dark:border-white/10" />
-          )}
-
-        <AnimatePresence>
-          {showOrderMetaSection && (
-              <AnimatedComponent
-                variant={{
-                  ...fadeInOut,
-                  animate: { opacity: 1, height: "auto" },
-                  initial: { opacity: 0, height: 0 },
-                  exit: { opacity: 0, height: 0 },
-                }}
-                delay={0.7}
-                className="flex w-full flex-col gap-4 text-gray-500 dark:text-white/50"
-              >
-                <div className="flex items-center justify-between gap-1">
-                  <p className="flex-1">Transaction status</p>
-                  <div className="flex flex-1 items-center gap-1">
-                    <p
-                      className={classNames(
-                        transactionStatus === "refunded"
-                          ? "text-red-600"
-                          : transactionStatus === "expired"
-                            ? "text-amber-600 dark:text-amber-500"
-                            : "text-green-600",
-                      )}
-                    >
-                      {transactionStatus === "refunded"
-                        ? "Failed"
-                        : transactionStatus === "expired"
-                          ? "Expired"
-                          : "Completed"}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center justify-between gap-1">
-                  <p className="flex-1">Time spent</p>
-                  <p className="flex-1">{timeSpentLabel}</p>
-                </div>
-                {!(
-                  isOnramp &&
-                  ["refunded", "expired"].includes(transactionStatus)
-                ) && (
-                  <div className="flex items-center justify-between gap-1">
-                    <p className="flex-1">Onchain receipt</p>
-                    <p className="flex-1">
-                      {transactionStatus === "expired" ? (
-                        <span className="text-text-secondary dark:text-white/40">
-                          Not available
-                        </span>
-                      ) : (
-                        <a
-                          href={getExplorerLink(
-                            selectedNetwork.chain.name,
-                            `${orderDetails?.status === "refunded" ? orderDetails?.txHash : createdHash}`,
-                          )}
-                          className="text-lavender-500 hover:underline dark:text-lavender-500"
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          View in explorer
-                        </a>
-                      )}
-                    </p>
-                  </div>
-                )}
-                {/* Leg 2: forward to an external wallet — show its own onchain receipt. */}
-                {isOnramp &&
-                  config.onrampChainedForwardingEnabled &&
-                  forwardingStatus === "completed" &&
-                  (forwardTxHash ?? storedForwardTxHash) && (
-                    <div className="flex items-center justify-between gap-1">
-                      <p className="flex-1">Transfer receipt</p>
-                      <p className="flex-1">
-                        <a
-                          href={getExplorerLink(
-                            selectedNetwork.chain.name,
-                            (forwardTxHash ?? storedForwardTxHash)!,
-                          )}
-                          className="text-lavender-500 hover:underline dark:text-lavender-500"
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          View in explorer
-                        </a>
-                      </p>
-                    </div>
-                  )}
-              </AnimatedComponent>
-            )}
-        </AnimatePresence>
-
-        <AnimatePresence>
-          {config.fantasyEnabled &&
-            !config.fantasyCampaignEnded &&
-            showSuccessVisual &&
-            !isFantasyBannerDismissed && (
-              <AnimatedComponent
-                variant={slideInOut}
-                delay={0.6}
-                className="flex w-full items-center gap-3 rounded-xl border border-border-light bg-gray-50 px-4 py-3 dark:border-white/10 dark:bg-white/5"
-              >
-                <p className="flex flex-1 items-center gap-2 text-sm text-text-body dark:text-white/80">
-                  <FootballIcon className="size-4 shrink-0 text-lavender-500" />
-                  You just transacted — join the Noblocks Play fantasy league
-                </p>
-                <a
-                  href="/play"
-                  className="whitespace-nowrap text-sm font-medium text-lavender-500 hover:underline dark:text-lavender-400"
-                >
-                  Join →
-                </a>
-                <button
-                  type="button"
-                  title="Dismiss"
-                  onClick={dismissFantasyBanner}
-                  className="rounded-lg p-1 transition-colors hover:bg-accent-gray dark:hover:bg-white/10"
-                >
-                  <Cancel01Icon className="size-4 text-outline-gray dark:text-white/50" />
-                </button>
-              </AnimatedComponent>
-            )}
-        </AnimatePresence>
-
-        <AnimatePresence>
-          {showSuccessVisual &&
-            // Widget design has no share section on the success screen.
-            !isEmbed && (
-              <AnimatedComponent
-                variant={slideInOut}
-                delay={0.8}
-                className="w-full space-y-4 text-gray-500 dark:text-white/50"
-              >
-                <hr className="w-full border-dashed border-border-light dark:border-white/10" />
-
-                <p>Help spread the word</p>
-
-                <div className="relative flex items-center gap-3 overflow-hidden rounded-xl bg-gray-50 px-4 py-2 dark:bg-white/5">
-                  <YellowHeart className="size-8 flex-shrink-0" />
-                  <p>
-                    Yay! I just swapped {isOnramp ? `${currency} for ${token}` : `${token} for ${currency}`} in{" "}
-                    {timeSpentLabel} on noblocks.xyz
-                  </p>
-                  <QuotesBgIcon className="absolute -bottom-1 right-4 size-6" />
-                </div>
-
-                <div className="flex flex-wrap items-center gap-3">
-                  <a
-                    aria-label="Share on Twitter"
-                    rel="noopener noreferrer"
-                    target="_blank"
-                    href={`https://x.com/intent/tweet?text=I%20just%20swapped%20${isOnramp ? `${currency}%20for%20${token}` : `${token}%20for%20${currency}`}%20in%20${isOnramp ? encodeURIComponent(onRampTimeSpentLabel) : offRampTimeSpentLabel}%20on%20noblocks.xyz`}
-                    className={`min-h-9 !rounded-full ${secondaryBtnClasses} flex gap-2 text-neutral-900 dark:text-white/80`}
-                  >
-                    {resolvedTheme === "dark" ? (
-                      <XIconDarkTheme className="size-5 text-text-secondary dark:text-white/50" />
-                    ) : (
-                      <XIconLightTheme className="size-5 text-text-secondary dark:text-white/50" />
-                    )}
-                    X (Twitter)
-                  </a>
-                  <a
-                    aria-label="Share on Warpcast"
-                    rel="noopener noreferrer"
-                    target="_blank"
-                    href={`https://warpcast.com/~/compose?text=Yay%21%20I%20just%20swapped%20${isOnramp ? `${currency}%20for%20${token}` : `${token}%20for%20${currency}`}%20in%20${isOnramp ? encodeURIComponent(onRampTimeSpentLabel) : encodeURIComponent(offRampTimeSpentLabel)}%20on%20noblocks.xyz`}
-                    className={`min-h-9 !rounded-full ${secondaryBtnClasses} flex gap-2 text-neutral-900 dark:text-white/80`}
-                  >
-                    {resolvedTheme === "dark" ? (
-                      <FarcasterIconDarkTheme className="size-5 text-text-secondary dark:text-white/50" />
-                    ) : (
-                      <FarcasterIconLightTheme className="size-5 text-text-secondary dark:text-white/50" />
-                    )}
-                    Farcaster
-                  </a>
-                </div>
-              </AnimatedComponent>
-            )}
-        </AnimatePresence>
+        <p className={classNames("text-sm", drawerSecondaryText)}>
+          Processing payment of{" "}
+          <span className="text-text-body dark:text-white/80">
+            {fiatAmountLabel}
+          </span>{" "}
+          to {recipientName}. Hang on, this will only take a few seconds
+        </p>
       </div>
     </div>
   );

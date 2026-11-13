@@ -3,6 +3,7 @@ import { ImSpinner } from "react-icons/im";
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  AlertCircleIcon,
   ArrowDown01Icon,
   Tick02Icon,
   InformationCircleIcon,
@@ -16,7 +17,18 @@ import { useOutsideClick } from "@/app/hooks";
 import { fetchAccountName } from "@/app/api/aggregator";
 import { usePrivy } from "@privy-io/react-auth";
 import { InputError } from "@/app/components/InputError";
-import { classNames, getOfframpAccountIdentifierPlaceholder, filterAndSortInstitutions, expandKesMpesaInstitutions, KES_MPESA_INSTITUTION_CODE, kesMpesaUiKey, getKesMpesaInstitutionLabel, isSameSavedRecipient, NGN_NUBAN_LENGTH, isUnresolvedAccountName } from "@/app/utils";
+import {
+  classNames,
+  getOfframpAccountIdentifierPlaceholder,
+  filterAndSortInstitutions,
+  expandKesMpesaInstitutions,
+  KES_MPESA_INSTITUTION_CODE,
+  kesMpesaUiKey,
+  getKesMpesaInstitutionLabel,
+  isSameSavedRecipient,
+  NGN_NUBAN_LENGTH,
+  isUnresolvedAccountName,
+} from "@/app/utils";
 import type { KesMpesaChannel } from "@/app/types";
 import {
   RecipientDetails,
@@ -143,7 +155,7 @@ export const RecipientDetailsForm = ({
       // Only Till and Paybill are real business rails.
       const channel: KesMpesaChannel | undefined =
         recipient.institutionCode === KES_MPESA_INSTITUTION_CODE
-          ? (recipient.channel || "Mobile")
+          ? recipient.channel || "Mobile"
           : recipient.channel;
       setSelectedInstitution({
         name:
@@ -152,9 +164,7 @@ export const RecipientDetailsForm = ({
             : recipient.institution,
         code: recipient.institutionCode,
         type: recipient.type,
-        ...(channel
-          ? { channel, uiKey: kesMpesaUiKey(channel) }
-          : {}),
+        ...(channel ? { channel, uiKey: kesMpesaUiKey(channel) } : {}),
       });
       setValue("institution", recipient.institutionCode, { shouldDirty: true });
       setValue("accountIdentifier", recipient.accountIdentifier, {
@@ -182,10 +192,10 @@ export const RecipientDetailsForm = ({
 
     try {
       // Find the recipient with ID from the saved recipients
-      const recipientWithId = savedRecipients.find(
-        (r) =>
+      const recipientWithId = savedRecipients.find((r) =>
           recipientToDeleteParam.type === "wallet"
-            ? r.type === "wallet" && r.walletAddress === recipientToDeleteParam.walletAddress
+          ? r.type === "wallet" &&
+            r.walletAddress === recipientToDeleteParam.walletAddress
             : r.type !== "wallet" &&
             isSameSavedRecipient(r, recipientToDeleteParam),
       );
@@ -218,7 +228,9 @@ export const RecipientDetailsForm = ({
         if (selectedRecipient) {
           if (
             recipientToDeleteParam.type === "wallet"
-              ? selectedRecipient.type === "wallet" && selectedRecipient.walletAddress === recipientToDeleteParam.walletAddress
+              ? selectedRecipient.type === "wallet" &&
+                selectedRecipient.walletAddress ===
+                  recipientToDeleteParam.walletAddress
               : selectedRecipient.type !== "wallet" &&
               isSameSavedRecipient(selectedRecipient, recipientToDeleteParam)
           ) {
@@ -411,7 +423,7 @@ export const RecipientDetailsForm = ({
       } catch (error) {
         if (requestId !== nameRequestIdRef.current) return;
         setIsRecipientNameEditable(false);
-        setRecipientNameError("No recipient account found.");
+        setRecipientNameError("No recipient account found");
         setIsFetchingRecipientName(false);
       }
     };
@@ -454,7 +466,9 @@ export const RecipientDetailsForm = ({
         }) ?? expanded.find((inst) => inst.code === institution);
       if (foundInstitution) {
         setSelectedInstitution(foundInstitution);
-        setValue("accountType", foundInstitution.type, { shouldValidate: true });
+        setValue("accountType", foundInstitution.type, {
+          shouldValidate: true,
+        });
         if (foundInstitution.channel && !kesChannel) {
           setValue("kesChannel", foundInstitution.channel, {
             shouldValidate: true,
@@ -545,11 +559,11 @@ export const RecipientDetailsForm = ({
   const formatNetworkName = (network?: string): string => {
     if (!network) return "";
     const networkMap: Record<string, string> = {
-      "bsc": "Binance Smartchain",
+      bsc: "Binance Smartchain",
       "arbitrum-one": "Arbitrum One",
-      "polygon": "Polygon",
-      "base": "Base",
-      "ethereum": "Ethereum",
+      polygon: "Polygon",
+      base: "Base",
+      ethereum: "Ethereum",
     };
     return networkMap[network.toLowerCase()] || network;
   };
@@ -602,7 +616,9 @@ export const RecipientDetailsForm = ({
   const recipientNameRegister = register("recipientName", {
     validate: (value) => {
       if (!isRecipientNameEditable) return true;
-      const name = String(value ?? "").replace(/\s+/g, " ").trim();
+      const name = String(value ?? "")
+        .replace(/\s+/g, " ")
+        .trim();
       if (!name) return "Recipient name is required";
       // Never let the sentinel through as if it were a real account holder.
       // Any other non-empty name is accepted — no minimum length, since a short
@@ -634,47 +650,44 @@ export const RecipientDetailsForm = ({
   return (
     <>
       <div className="space-y-4 rounded-2xl bg-white p-4 text-sm dark:bg-surface-canvas">
-        <div className="flex items-center justify-between">
-          <p className="text-base font-medium text-text-body dark:text-white">
+        <div className="flex items-center justify-between gap-3 whitespace-nowrap text-sm">
+          <p className="font-inter font-medium leading-6 text-text-body dark:text-white">
             Recipient
           </p>
-          {(showMyWalletButton || showSelectBeneficiaryButton) && (
-            <div className="flex items-center gap-3 font-medium">
-              {showMyWalletButton && (
-                <div className="flex items-center gap-2">
-                  <span
-                    className="font-mono text-xs text-text-disabled dark:text-white/45"
-                    aria-label={`Connected wallet starts with ${connectedWalletAddress!.slice(0, 5)}`}
-                  >
-                    {connectedWalletAddress!.slice(0, 5)}...
-                  </span>
-                  <button
-                    type="button"
-                    title="Fill with your connected wallet address"
-                    onClick={() =>
-                      setValue("walletAddress", connectedWalletAddress!, {
-                        shouldValidate: true,
-                        shouldDirty: true,
-                        shouldTouch: true,
-                      })
-                    }
-                    className="text-sm text-lavender-500 transition-colors hover:text-lavender-400 dark:text-lavender-500 dark:hover:text-lavender-400"
-                  >
-                    My wallet
-                  </button>
-                </div>
-              )}
-              {showSelectBeneficiaryButton && (
-                <button
-                  type="button"
-                  onClick={() => setIsModalOpen(true)}
-                  className="text-sm text-lavender-500 dark:text-lavender-500"
-                >
-                  Select beneficiary
-                </button>
-              )}
+          {/* Figma (Buy 13/14, Sell 23/31–39): Buy shows "0x7a3… My wallet",
+              Sell shows "Select beneficiary"; one action per mode, never wrapped. */}
+          {showMyWalletButton ? (
+            <div className="flex items-center gap-1 font-general-sans font-medium leading-5 tracking-[-0.14px]">
+              <span
+                className="text-right text-text-body dark:text-white/80"
+                aria-label={`Connected wallet starts with ${connectedWalletAddress!.slice(0, 5)}`}
+              >
+                {connectedWalletAddress!.slice(0, 5)}...
+              </span>
+              <button
+                type="button"
+                title="Fill with your connected wallet address"
+                onClick={() =>
+                  setValue("walletAddress", connectedWalletAddress!, {
+                    shouldValidate: true,
+                    shouldDirty: true,
+                    shouldTouch: true,
+                  })
+                }
+                className="text-lavender-500 transition-colors hover:text-lavender-400 dark:text-lavender-500 dark:hover:text-lavender-400"
+              >
+                My wallet
+              </button>
             </div>
-          )}
+          ) : showSelectBeneficiaryButton ? (
+            <button
+              type="button"
+              onClick={() => setIsModalOpen(true)}
+              className="font-general-sans font-medium leading-5 tracking-[-0.14px] text-lavender-500 dark:text-lavender-500"
+            >
+              Select beneficiary
+            </button>
+          ) : null}
         </div>
 
         {swapMode === "onramp" ? (
@@ -691,7 +704,7 @@ export const RecipientDetailsForm = ({
                   validateWalletAddress(value, networkName ?? ""),
               })}
               className={classNames(
-                "w-full rounded-xl border bg-transparent px-4 py-2.5 text-sm outline-none transition-all duration-300 placeholder:text-text-placeholder focus:outline-none dark:text-white/80 dark:placeholder:text-white/30",
+                "w-full overflow-hidden text-ellipsis rounded-xl border bg-transparent px-4 py-2.5 text-sm outline-none transition-all duration-300 placeholder:text-text-placeholder focus:outline-none dark:text-white/80 dark:placeholder:text-white/30",
                 errors.walletAddress
                   ? "border-input-destructive focus:border-gray-400 dark:border-input-destructive"
                   : "border-border-input dark:border-white/20 dark:focus:border-white/40 dark:focus:ring-offset-neutral-900",
@@ -705,24 +718,23 @@ export const RecipientDetailsForm = ({
               !isDestinationOwnWallet && (
                 <div className="flex items-center gap-2 rounded-xl bg-gray-50 px-3 py-2.5 text-xs font-normal leading-4 text-text-disabled dark:bg-white/5 dark:text-white/30">
                   <InformationCircleIcon className="size-4 flex-shrink-0" />
-                  <span>Funds will be routed through your Noblocks wallet.</span>
+                  <span>
+                    Funds will be routed through your Noblocks wallet.
+                  </span>
                 </div>
               )}
             {networkName && (
               <div className="flex items-center gap-2 text-xs text-text-disabled dark:text-white/30">
-                <div className="flex size-5 items-center justify-center">
+                <div className="flex size-4 items-center justify-center">
                   <Image
                     src={getNetworkImageUrl(selectedNetwork, isDark)}
                     alt={selectedNetwork.chain.name}
-                    width={20}
-                    height={20}
-                    className="size-5"
+                    width={16}
+                    height={16}
+                    className="size-4 rounded-full"
                   />
                 </div>
-                <span
-                  className="text-xs font-normal leading-4 tracking-normal"
-                  style={{ fontFamily: "Inter" }}
-                >
+                <span className="font-general-sans text-xs font-normal leading-4 tracking-normal">
                   You are on {formatNetworkName(networkName)} network
                 </span>
               </div>
@@ -731,12 +743,14 @@ export const RecipientDetailsForm = ({
         ) : (
           /* Bank/Mobile Money fields for offramp */
           <>
-            <div className="flex flex-col items-start gap-4 sm:flex-row">
+            <div className="flex flex-col items-start gap-4">
               {/* Bank */}
-              <div className="w-full flex-1 sm:w-1/2">
+              <div className="relative w-full flex-1">
                 <button
                   type="button"
-                  onClick={() => setIsSelectBankModalOpen(true)}
+                  data-select-bank-anchor
+                  aria-expanded={isSelectBankModalOpen}
+                  onClick={() => setIsSelectBankModalOpen((open) => !open)}
                   disabled={isFetchingInstitutions}
                   className="flex w-full items-center justify-between gap-2 rounded-xl border border-border-input px-4 py-2.5 text-left text-sm dark:border-white/20 dark:text-white/80"
                 >
@@ -744,7 +758,7 @@ export const RecipientDetailsForm = ({
                     <p className="truncate">{selectedInstitution.name}</p>
                   ) : (
                     <p className="text-text-placeholder dark:text-white/30">
-                      Select institution
+                      Select bank
                     </p>
                   )}
                   {isFetchingInstitutions ? (
@@ -753,15 +767,30 @@ export const RecipientDetailsForm = ({
                     <ArrowDown01Icon
                       className={classNames(
                         "size-5 flex-shrink-0 text-outline-gray transition-transform dark:text-white/50",
-                        isInstitutionsDropdownOpen ? "rotate-180" : "",
+                        isInstitutionsDropdownOpen || isSelectBankModalOpen
+                          ? "rotate-180"
+                          : "",
                       )}
                     />
                   )}
                 </button>
+                <SelectBankModal
+                  isOpen={isSelectBankModalOpen}
+                  onClose={() => setIsSelectBankModalOpen(false)}
+                  filteredInstitutions={filteredInstitutions}
+                  selectedInstitution={selectedInstitution}
+                  setSelectedInstitution={setSelectedInstitution}
+                  setValue={setValue}
+                  setIsManualEntry={setIsManualEntry}
+                  currency={currency}
+                  bankSearchTerm={bankSearchTerm}
+                  setBankSearchTerm={setBankSearchTerm}
+                  isFetchingInstitutions={isFetchingInstitutions}
+                />
               </div>
 
               {/* Account / phone / till / paybill reference (NGN NUBAN is 10 digits) */}
-              <div className="w-full flex-1 flex-shrink-0 sm:w-1/2">
+              <div className="w-full flex-1 flex-shrink-0">
                 <input
                   type="text"
                   inputMode={isKesPaybill ? "text" : "numeric"}
@@ -794,7 +823,10 @@ export const RecipientDetailsForm = ({
                   }}
                   className={classNames(
                     "w-full rounded-xl border bg-transparent px-4 py-2.5 text-base outline-none transition-all duration-300 placeholder:text-text-placeholder focus:outline-none dark:text-white/80 dark:placeholder:text-white/30 sm:text-sm",
-                    errors.accountIdentifier
+                    // AC10: the account field itself turns red when the aggregator
+                    // couldn't resolve a name for it, not only on client-side
+                    // format errors — matches Figma s34 (red border + red pill).
+                    errors.accountIdentifier || recipientNameError
                       ? "border-input-destructive focus:border-gray-400 dark:border-input-destructive"
                       : "border-border-input dark:border-white/20 dark:focus:border-white/40 dark:focus:ring-offset-neutral-900",
                   )}
@@ -836,12 +868,10 @@ export const RecipientDetailsForm = ({
             {/* Account details feedback */}
             <AnimatePresence mode="wait">
               {isFetchingRecipientName ? (
-                <div className="flex items-center gap-1 text-gray-400 dark:text-white/50">
-                  <AnimatedFeedbackItem className="animate-pulse">
-                    <ImSpinner className="size-4 animate-spin" />
-                    <p className="text-xs">Verifying account name...</p>
-                  </AnimatedFeedbackItem>
-                </div>
+                <div
+                  className="h-7 w-40 animate-pulse rounded-md bg-accent-gray dark:bg-white/10"
+                  aria-label="Verifying account name…"
+                />
               ) : isRecipientNameEditable ? (
                 <div className="w-full space-y-2">
                   <input
@@ -863,8 +893,8 @@ export const RecipientDetailsForm = ({
                     <InformationSquareIcon className="mt-0.5 size-5 shrink-0 text-warning-foreground dark:text-warning-text" />
                     <p className="min-w-0 flex-1 break-words text-xs font-light leading-snug text-warning-foreground dark:text-warning-text">
                       We couldn&apos;t confirm this account name. Make sure the
-                      recipient&apos;s account number is accurate before proceeding
-                      with your swap.{" "}
+                      recipient&apos;s account number is accurate before
+                      proceeding with your swap.{" "}
                       <button
                         type="button"
                         onClick={handleLearnMore}
@@ -903,7 +933,12 @@ export const RecipientDetailsForm = ({
                       <Tick02Icon className="text-lg text-green-700 dark:text-green-500 max-sm:hidden" />
                     </AnimatedFeedbackItem>
                   ) : recipientNameError ? (
-                    <InputError message={recipientNameError} />
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="rounded-lg bg-[#f53d6b]/10 px-2 py-1 text-sm text-text-accent-red dark:text-[#f53d6b]">
+                        {recipientNameError}
+                      </span>
+                      <AlertCircleIcon className="size-4 shrink-0 text-text-accent-red dark:text-[#f53d6b]" />
+                    </div>
                   ) : null}
                 </>
               )}
@@ -911,20 +946,6 @@ export const RecipientDetailsForm = ({
           </>
         )}
       </div>
-
-      <SelectBankModal
-        isOpen={isSelectBankModalOpen}
-        onClose={() => setIsSelectBankModalOpen(false)}
-        filteredInstitutions={filteredInstitutions}
-        selectedInstitution={selectedInstitution}
-        setSelectedInstitution={setSelectedInstitution}
-        setValue={setValue}
-        setIsManualEntry={setIsManualEntry}
-        currency={currency}
-        bankSearchTerm={bankSearchTerm}
-        setBankSearchTerm={setBankSearchTerm}
-        isFetchingInstitutions={isFetchingInstitutions}
-      />
 
       <SavedBeneficiariesModal
         isOpen={isModalOpen}
@@ -940,7 +961,6 @@ export const RecipientDetailsForm = ({
         isLoading={isLoadingRecipients}
         error={recipientsError}
         swapMode={swapMode}
-        networkName={networkName}
       />
     </>
   );

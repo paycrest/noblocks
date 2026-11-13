@@ -14,6 +14,7 @@ import {
 import { PiCheck } from "react-icons/pi";
 import { ActionDrawer } from "@/app/components/drawer";
 import { DepositDrawer } from "@/app/components/deposit/DepositDrawer";
+import { RampActionDrawer } from "@/app/components/ramp/RampActionDrawer";
 import { SwapForm, SWAP_COPY } from "@/app/components/swap/SwapForm";
 import { ReferralHubView } from "@/app/components/wallet-mobile-modal/ReferralHubView";
 import { CopyAddressWarningModal } from "@/app/components/CopyAddressWarningModal";
@@ -48,10 +49,7 @@ import {
   AddFundsSplitButton,
   walletHomePrimaryOnlyButtonClasses,
 } from "./AddFundsSplitButton";
-import {
-  AssetBucketListSkeleton,
-  AssetBucketRow,
-} from "./AssetBucketRow";
+import { AssetBucketListSkeleton, AssetBucketRow } from "./AssetBucketRow";
 
 const EXPLORE_BANNERS = {
   stocks: "/images/wallet-home/explore-stocks-banner.png",
@@ -293,20 +291,10 @@ function ExploreCards({ onInviteClick }: { onInviteClick?: () => void }) {
       <h2 className="text-lg font-semibold text-text-body dark:text-white">
         Explore
       </h2>
-      <div className="-mx-1 flex gap-3 overflow-x-auto px-1 pb-1 snap-x snap-mandatory">
+      <div className="-mx-1 flex snap-x snap-mandatory gap-3 overflow-x-auto px-1 pb-1">
         {cards}
       </div>
     </section>
-  );
-}
-
-function RampActionPlaceholder({ mode }: { mode: "buy" | "sell" }) {
-  return (
-    <p className="px-1 text-sm leading-relaxed text-text-secondary dark:text-white/60">
-      {mode === "buy"
-        ? "Buy stablecoins with local currency. Full onramp steps will appear here."
-        : "Sell crypto to your bank or mobile money. Full offramp steps will appear here."}
-    </p>
   );
 }
 
@@ -420,10 +408,6 @@ function WalletActionDrawerHost({
   const renderBody = () => {
     if (!activeAction) return null;
     switch (activeAction) {
-      case "buy":
-        return <RampActionPlaceholder mode="buy" />;
-      case "sell":
-        return <RampActionPlaceholder mode="sell" />;
       case "receive":
         return (
           <ReceiveDepositPanel
@@ -448,10 +432,16 @@ function WalletActionDrawerHost({
     }
   };
 
+  const isRampAction = activeAction === "buy" || activeAction === "sell";
+
   return (
     <>
+      <RampActionDrawer
+        activeAction={isRampAction ? activeAction : null}
+        onClose={onClose}
+      />
       <ActionDrawer
-        isOpen={activeAction != null}
+        isOpen={activeAction != null && !isRampAction}
         title={activeAction ? ACTION_TITLES[activeAction] : "Action"}
         subtitle={activeAction === "swap" ? SWAP_COPY.subtitle : undefined}
         onRequestClose={onClose}
@@ -579,9 +569,7 @@ export function WalletHomeContent() {
                 )}
                 totalUsd={data.buckets.earn.totalUsd}
                 icon={<Money03Icon className="size-5" />}
-                href={
-                  isEarnBucketReadOnly(flags) ? undefined : "/earn"
-                }
+                href={isEarnBucketReadOnly(flags) ? undefined : "/earn"}
                 readOnly={isEarnBucketReadOnly(flags)}
               />
             ) : null}
@@ -595,9 +583,7 @@ export function WalletHomeContent() {
                 )}
                 totalUsd={data.buckets.stocks.totalUsd}
                 icon={<MarketAnalysisIcon className="size-5" />}
-                href={
-                  isStocksBucketReadOnly(flags) ? undefined : "/stocks"
-                }
+                href={isStocksBucketReadOnly(flags) ? undefined : "/stocks"}
                 readOnly={isStocksBucketReadOnly(flags)}
               />
             ) : null}

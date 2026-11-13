@@ -7,6 +7,7 @@ import Image from "next/image";
 import Decimal from "decimal.js";
 import { ActionDrawer } from "@/app/components/drawer";
 import { DepositDrawer } from "@/app/components/deposit/DepositDrawer";
+import { RampActionDrawer } from "@/app/components/ramp/RampActionDrawer";
 import { TransferForm } from "@/app/components/TransferForm";
 import { SwapForm, SWAP_COPY } from "@/app/components/swap/SwapForm";
 import { CopyAddressWarningModal } from "@/app/components/CopyAddressWarningModal";
@@ -777,14 +778,6 @@ function TokenRowLink({
 
 // --- Tokens list page ---
 
-const ACTION_TITLES: Record<WalletHomeActionId, string> = {
-  buy: "Buy",
-  sell: "Sell",
-  receive: "Receive",
-  transfer: "Transfer",
-  swap: "Swap",
-};
-
 export function PortfolioError({ onRetry }: { onRetry: () => void }) {
   return (
     <div
@@ -807,16 +800,6 @@ export function PortfolioError({ onRetry }: { onRetry: () => void }) {
         Try again
       </button>
     </div>
-  );
-}
-
-function RampActionPlaceholder({ mode }: { mode: "buy" | "sell" }) {
-  return (
-    <p className="px-1 text-sm leading-relaxed text-text-secondary dark:text-white/60">
-      {mode === "buy"
-        ? "Buy stablecoins with local currency. Full onramp steps will appear here."
-        : "Sell crypto to your bank or mobile money. Full offramp steps will appear here."}
-    </p>
   );
 }
 
@@ -844,16 +827,12 @@ function TokensFundsDrawerHost({
   }
 
   return (
-    <ActionDrawer
-      isOpen={activeAction === "buy" || activeAction === "sell"}
-      title={activeAction ? ACTION_TITLES[activeAction] : "Action"}
-      onRequestClose={onClose}
-      bodyAlign="start"
-    >
-      {activeAction === "buy" || activeAction === "sell" ? (
-        <RampActionPlaceholder mode={activeAction} />
-      ) : null}
-    </ActionDrawer>
+    <RampActionDrawer
+      activeAction={
+        activeAction === "buy" || activeAction === "sell" ? activeAction : null
+      }
+      onClose={onClose}
+    />
   );
 }
 

@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { AnimatePresence } from "framer-motion";
-import { AnimatedComponent, fadeInOut } from "./";
+import { AnimatedComponent, fadeInOut } from "./AnimatedComponents";
 
 interface TransactionHelperTextProps {
   isVisible?: boolean;

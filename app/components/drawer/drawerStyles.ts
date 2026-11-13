@@ -24,7 +24,7 @@ export const drawerHeaderTitleClasses =
 
 /** Step headings: Inter Medium 16 / 28, text/body */
 export const drawerStepHeadingClasses =
-  "text-base font-medium leading-7 text-text-body dark:text-white/80";
+  "font-inter text-base font-medium leading-7 text-text-body dark:text-white/80";
 
 /** Review modal title: General Sans Semibold 14 / 28, text/primary */
 export const drawerModalTitleClasses =
@@ -32,7 +32,7 @@ export const drawerModalTitleClasses =
 
 /** Receipt titles: Medium 20 / 28, text/body */
 export const drawerReceiptTitleClasses =
-  "text-xl font-medium leading-7 text-text-body dark:text-white/80";
+  "font-inter text-xl font-medium leading-7 text-text-body dark:text-white/80";
 
 export const drawerSecondaryText =
   "font-normal text-sm leading-5 text-text-secondary dark:text-white/50";

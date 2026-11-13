@@ -230,6 +230,10 @@ export function useSwapButton({
     return hasRecipient;
   })();
 
+  // Buy (onramp) CTA reads "Buy" once an amount is entered (Figma b13/b14); the truly empty
+  // state (b01/b02/b12, amountSent still 0) reads the generic "Swap", same as Sell always does.
+  const swapModeLabel = isSwapped && amountSent > 0 ? "Buy" : "Swap";
+
   const buttonText = (() => {
     if (isInjectedAwaiting) return "Connect wallet";
     if (isInjectedConnecting) return "Connecting...";
@@ -250,23 +254,23 @@ export function useSwapButton({
       // Status not loaded yet: unknown, not unverified. Naming a verification step here would
       // greet a returning verified user as a newcomer; handleSwap resolves the real status.
       if (!hasLoadedStatus) {
-        return "Swap";
+        return swapModeLabel;
       }
       // Not on Tier 1 yet: start phone verification (not "Increase limit").
       if (kycTier < 1 || !isPhoneVerified) {
-        // Existing wallets show "Swap" (tapping still opens phone verification);
+        // Existing wallets show "Swap"/"Buy" (tapping still opens phone verification);
         // brand-new users get "Get started".
-        return hasPriorTransactionActivity ? "Swap" : "Get started";
+        return hasPriorTransactionActivity ? swapModeLabel : "Get started";
       }
-      // Max tier reached: there's no higher verification to do, so default to "Swap"
+      // Max tier reached: there's no higher verification to do, so default to "Swap"/"Buy"
       // (never "Verify to continue"). Any limit is enforced at order creation.
       if (kycTier >= 3) {
-        return "Swap";
+        return swapModeLabel;
       }
       return labelForNextTierVerification(kycTier);
     }
 
-    return "Swap";
+    return swapModeLabel;
   })();
 
   const buttonAction = (

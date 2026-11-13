@@ -45,6 +45,7 @@ jest.mock("@privy-io/react-auth", () => ({
 const mockRouterPush = jest.fn();
 jest.mock("next/navigation", () => ({
   useRouter: () => ({ push: mockRouterPush }),
+  useSearchParams: () => new URLSearchParams(),
 }));
 
 jest.mock("@/components/drawer", () => ({
@@ -76,6 +77,12 @@ jest.mock("@/components/TransferForm", () => ({
 
 jest.mock("@/components/swap/SwapForm", () => ({
   SwapForm: () => null,
+}));
+
+jest.mock("@/components/ramp/RampDrawerFlow", () => ({
+  RampDrawerFlow: ({ mode }: { mode: "onramp" | "offramp" }) => (
+    <div data-testid={`ramp-drawer-flow-${mode}`} />
+  ),
 }));
 
 jest.mock("@/components/wallet-mobile-modal/ReferralHubView", () => ({
@@ -147,9 +154,24 @@ const emptySummary: PortfolioSummary = {
   stale: false,
   asOf: "2026-11-05T12:00:00.000Z",
   buckets: {
-    tokens: { totalUsd: "0", stale: false, asOf: "2026-11-05T12:00:00.000Z", holdings: [] },
-    earn: { totalUsd: "0", stale: false, asOf: "2026-11-05T12:00:00.000Z", holdings: [] },
-    stocks: { totalUsd: "0", stale: false, asOf: "2026-11-05T12:00:00.000Z", holdings: [] },
+    tokens: {
+      totalUsd: "0",
+      stale: false,
+      asOf: "2026-11-05T12:00:00.000Z",
+      holdings: [],
+    },
+    earn: {
+      totalUsd: "0",
+      stale: false,
+      asOf: "2026-11-05T12:00:00.000Z",
+      holdings: [],
+    },
+    stocks: {
+      totalUsd: "0",
+      stale: false,
+      asOf: "2026-11-05T12:00:00.000Z",
+      holdings: [],
+    },
   },
 };
 
@@ -260,12 +282,12 @@ describe("portfolio display helpers", () => {
   });
 
   it("builds bucket subtitles", () => {
-    expect(
-      bucketSubtitle("tokens", emptySummary.buckets.tokens, "4.4%"),
-    ).toBe("No assets yet");
-    expect(
-      bucketSubtitle("tokens", loadedSummary.buckets.tokens, "4.4%"),
-    ).toBe("2 Assets");
+    expect(bucketSubtitle("tokens", emptySummary.buckets.tokens, "4.4%")).toBe(
+      "No assets yet",
+    );
+    expect(bucketSubtitle("tokens", loadedSummary.buckets.tokens, "4.4%")).toBe(
+      "2 Assets",
+    );
   });
 });
 
@@ -280,9 +302,9 @@ describe("home visibility flags", () => {
   };
 
   it("hides stocks explore when flag off", () => {
-    expect(
-      shouldShowStocksExploreCard({ ...allOn, stocks: false }),
-    ).toBe(false);
+    expect(shouldShowStocksExploreCard({ ...allOn, stocks: false })).toBe(
+      false,
+    );
   });
 
   it("shows stocks row when holdings exist and flag off", () => {
@@ -394,9 +416,7 @@ describe("WalletHomeContent", () => {
     render(<WalletHomeContent />);
     expect(screen.getByRole("alert")).toBeInTheDocument();
     expect(screen.queryByText("$0.00")).not.toBeInTheDocument();
-    expect(
-      document.querySelector(".divide-y"),
-    ).not.toBeInTheDocument();
+    expect(document.querySelector(".divide-y")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /Try again/i }));
     expect(refetch).toHaveBeenCalled();
   });
@@ -438,7 +458,9 @@ describe("WalletHomeContent", () => {
     });
 
     render(<WalletHomeContent />);
-    const earnRow = screen.getByText("Earn positions").closest("[data-readonly]");
+    const earnRow = screen
+      .getByText("Earn positions")
+      .closest("[data-readonly]");
     expect(earnRow).toHaveAttribute("data-readonly", "true");
     expect(screen.queryByText(/Earn up to/i)).not.toBeInTheDocument();
   });
@@ -469,7 +491,9 @@ describe("WalletHomeContent", () => {
     openReceiveFromHome();
 
     expect(screen.getByTestId("action-drawer")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Receive" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Receive" }),
+    ).toBeInTheDocument();
     expect(screen.getByText("0xabc123def456")).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: /Copy wallet address/i }),

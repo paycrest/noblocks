@@ -1,18 +1,16 @@
 "use client";
 import { useEffect, useState, useRef } from "react";
-import { Copy01Icon } from "hugeicons-react";
-import { PiCheck } from "react-icons/pi";
 import { ImSpinner } from "react-icons/im";
+import { Checkbox } from "@headlessui/react";
 import { useApiAuth } from "../hooks/useApiAuth";
 import {
     classNames,
     formatNumberWithCommas,
-    copyToClipboard,
     getCurrencySymbol,
     mapProviderAccountToInstructions,
     ONRAMP_CLIENT_PAYMENT_SESSION_MS,
 } from "../utils";
-import { secondaryBtnClasses } from "../components";
+import { secondaryBtnClasses } from "../components/Styles";
 import type { OnrampPaymentInstructions, TransactionPreviewProps } from "../types";
 import { useStep } from "../context";
 import {
@@ -20,6 +18,15 @@ import {
     isOnrampUnderReview,
     resolveOnrampOrderStatusFromV2Response,
 } from "../api/aggregator";
+import { renderBuyWatchingCard } from "./TransactionStatus";
+import { ActionSubmitButton, ReviewDetailCard } from "../components/drawer";
+import { DrawerPoweredByFooter } from "../components/drawer/DrawerPoweredByFooter";
+import {
+    drawerCheckboxControlClasses,
+    drawerSecondaryText,
+    drawerStepHeadingClasses,
+} from "../components/drawer/drawerStyles";
+import type { ActionProgressStep } from "../components/drawer/types";
 
 /** How often to check for the payment while the window is open, and after it closes. */
 const PAYMENT_POLL_MS = 3_000;
@@ -69,11 +76,17 @@ export const MakePayment = ({
     // says an order expired, so the page keeps checking.
     const [windowClosed, setWindowClosed] = useState(false);
     const [underReview, setUnderReview] = useState(false);
-    const [isAccountNumberCopied, setIsAccountNumberCopied] = useState(false);
-    const [isAmountCopied, setIsAmountCopied] = useState(false);
     const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
     /** Wall-clock deadline (ms) for the 30‑minute session; set when payment details first load. */
     const sessionDeadlineMsRef = useRef<number | null>(null);
+
+    // Figma b16→b17 (UI only): once the user self-attests, show the same
+    // "Watching for your transfer" card the Status step renders for real —
+    // the polling effect below is unchanged and still owns advancing past
+    // this screen (`setCurrentStep("status")`) the moment the backend
+    // actually confirms anything; this flag never gates or replaces that.
+    const [hasSelfAttested, setHasSelfAttested] = useState(false);
+    const [hasConfirmedSent, setHasConfirmedSent] = useState(false);
 
     useEffect(() => {
         sessionDeadlineMsRef.current = null;
@@ -274,10 +287,16 @@ export const MakePayment = ({
     const formattedAmount = paymentDetails
         ? `${currencySymbol}${formatNumberWithCommas(paymentDetails.amount)}`
         : "—";
+    // Figma b16: the Amount row inside the card reads the currency *code*
+    // ("NGN19,000"), not the symbol the checkbox copy below uses (AC4 still
+    // reads the order amount either way — both derive from `paymentDetails`).
+    const codeFormattedAmount = paymentDetails
+        ? `${paymentDetails.currency}${formatNumberWithCommas(paymentDetails.amount)}`
+        : "—";
 
     if (loadError) {
         return (
-            <div className="mx-auto grid max-w-[26.0625rem] gap-6 py-10 text-sm">
+            <div className="grid w-full gap-6 text-sm">
                 <div className="grid gap-4">
                     <h2 className="text-xl font-medium text-text-body dark:text-white/80">
                         Make payment
@@ -297,7 +316,7 @@ export const MakePayment = ({
 
     if (!paymentDetails) {
         return (
-            <div className="mx-auto flex min-h-[12rem] max-w-[26.0625rem] flex-col items-center justify-center gap-3 py-10 text-sm">
+            <div className="flex min-h-[12rem] w-full flex-col items-center justify-center gap-3 text-sm">
                 <ImSpinner className="animate-spin text-2xl text-lavender-500" />
                 <p className="text-text-secondary dark:text-white/50">Loading payment details…</p>
             </div>
@@ -306,7 +325,7 @@ export const MakePayment = ({
 
     if (underReview || windowClosed) {
         return (
-            <div className="mx-auto grid max-w-[26.0625rem] gap-6 py-10 text-sm">
+            <div className="grid w-full gap-6 text-sm">
                 <div className="grid gap-4 rounded-[20px] bg-background-neutral p-6 dark:bg-[#202121]">
                     <h2 className="text-xl font-medium text-text-body dark:text-white/80">
                         {underReview ? "Payment under review" : "Payment window closed"}
@@ -334,128 +353,79 @@ export const MakePayment = ({
         );
     }
 
+    if (hasConfirmedSent) {
+        const steps: ActionProgressStep[] = [
+            { id: "waiting", label: "Waiting for your transfer", state: "active" },
+            { id: "received", label: "Payment received", state: "pending" },
+            {
+                id: "adding",
+                label: `Adding ${formatNumberWithCommas(Number(formValues.amountReceived) || 0)} ${formValues.token} to your balance`,
+                state: "pending",
+            },
+        ];
+        return renderBuyWatchingCard(steps);
+    }
+
     return (
-        <div className="mx-auto grid max-w-[26.0625rem] gap-6 py-10 text-sm">
-            {/* Header */}
-            <div className="grid gap-4">
-                <h2 className="text-xl font-medium text-text-body dark:text-white/80">
-                    Make payment
-                </h2>
-                <p className="text-text-secondary dark:text-white/50">
-                    Use the payment details below to make payment
+        <div className="flex w-full flex-col gap-6 text-sm">
+            <div>
+                <p className={drawerStepHeadingClasses}>Make payment</p>
+                <p className={classNames("text-sm leading-5", drawerSecondaryText)}>
+                    Send {paymentDetails.currency} {formatNumberWithCommas(paymentDetails.amount)} to
+                    the account below
                 </p>
             </div>
 
-            {/* Account Details Card */}
-            <div className="grid gap-6 rounded-[20px] bg-background-neutral p-4 dark:bg-[#202121]">
-                <div className="grid gap-4">
-                    <h3 className="text-sm font-medium text-text-body dark:text-white/80">
-                        Account Details
-                    </h3>
+            <ReviewDetailCard
+                rows={[
+                    { label: "Provider", value: paymentDetails.provider },
+                    {
+                        label: "Account number",
+                        value: paymentDetails.accountNumber,
+                        copyValue: paymentDetails.accountNumber,
+                    },
+                    {
+                        label: "Amount",
+                        value: codeFormattedAmount,
+                        copyValue: paymentDetails.amount.toString(),
+                    },
+                ]}
+                expiresInLabel={timeRemaining}
+            />
 
-                    <p className="text-sm font-normal text-text-secondary dark:text-white/50">
-                        Send {formattedAmount} to the account below
-                    </p>
-                    <p className="text-sm font-normal text-text-secondary dark:text-white/50">
-                        Pay from a bank account in your own name. A payment from anyone
-                        else&apos;s account is sent back to it.
-                    </p>
-                </div>
+            <Checkbox
+                checked={hasSelfAttested}
+                onChange={setHasSelfAttested}
+                className="group flex cursor-pointer items-start gap-2 rounded-md text-left outline-none focus:outline-none data-[focus]:outline-none data-[focus-visible]:ring-2 data-[focus-visible]:ring-lavender-500 data-[focus-visible]:ring-offset-2 data-[focus-visible]:ring-offset-white dark:data-[focus-visible]:ring-offset-[#2b2b2b]"
+            >
+                <span className={drawerCheckboxControlClasses}>
+                    <svg
+                        className="size-3.5 text-white opacity-0 group-data-[checked]:opacity-100"
+                        viewBox="0 0 12 10"
+                        fill="none"
+                        aria-hidden
+                    >
+                        <path
+                            d="M1 5.5L4.5 9L11 1"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                        />
+                    </svg>
+                </span>
+                <span className={classNames("text-sm", drawerSecondaryText)}>
+                    I sent exactly {formattedAmount} from my own bank account to the
+                    account above.
+                </span>
+            </Checkbox>
 
-                {/* Fields Container */}
-                <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white dark:border-white/10 dark:bg-surface-canvas">
-                    {/* Provider */}
-                    <div className="grid gap-2 px-4 pb-4 pt-4">
-                        <label className="text-sm font-normal text-text-secondary dark:text-white/50">
-                            Provider Bank
-                        </label>
-                        <p className="text-sm font-medium text-text-body dark:text-white/80">
-                            {paymentDetails.provider}
-                        </p>
-                    </div>
-                    <div className="border-b border-gray-100 dark:border-white/10" />
+            <ActionSubmitButton
+                label="I have sent the money"
+                disabled={!hasSelfAttested}
+                onClick={() => setHasConfirmedSent(true)}
+            />
 
-                    {/* Account Number */}
-                    <div className="grid gap-2 px-4 py-4">
-                        <label className="text-sm font-normal text-text-secondary dark:text-white/50">
-                            Account number
-                        </label>
-                        <div className="flex items-center justify-between">
-                            <p className="text-sm font-medium text-text-body dark:text-white/80">
-                                {paymentDetails.accountNumber}
-                            </p>
-                            <button
-                                type="button"
-                                onClick={async () => {
-                                    const ok = await copyToClipboard(
-                                        paymentDetails.accountNumber,
-                                        "Account number",
-                                    );
-                                    if (!ok) return;
-                                    setIsAccountNumberCopied(true);
-                                    setTimeout(() => setIsAccountNumberCopied(false), 2000);
-                                }}
-                                className="flex items-center justify-center rounded-lg p-1.5 transition-colors hover:bg-gray-100 dark:hover:bg-white/10"
-                                title="Copy account number"
-                            >
-                                {isAccountNumberCopied ? (
-                                    <PiCheck className="size-4 text-icon-outline-secondary dark:text-white/50" />
-                                ) : (
-                                    <Copy01Icon className="size-4 text-icon-outline-secondary dark:text-white/50" />
-                                )}
-                            </button>
-                        </div>
-                    </div>
-                    <div className="border-b border-gray-100 dark:border-white/10" />
-
-                    {/* Amount */}
-                    <div className="grid gap-2 px-4 py-4">
-                        <label className="text-sm font-normal text-text-secondary dark:text-white/50">
-                            Amount
-                        </label>
-                        <div className="flex items-center justify-between">
-                            <p className="text-sm font-medium text-text-body dark:text-white/80">
-                                {formattedAmount}
-                            </p>
-                            <button
-                                type="button"
-                                onClick={async () => {
-                                    const ok = await copyToClipboard(
-                                        paymentDetails.amount.toString(),
-                                        "Amount",
-                                    );
-                                    if (!ok) return;
-                                    setIsAmountCopied(true);
-                                    setTimeout(() => setIsAmountCopied(false), 2000);
-                                }}
-                                className="flex items-center justify-center rounded-lg p-1.5 transition-colors hover:bg-gray-100 dark:hover:bg-white/10"
-                                title="Copy amount"
-                            >
-                                {isAmountCopied ? (
-                                    <PiCheck className="size-4 text-icon-outline-secondary dark:text-white/50" />
-                                ) : (
-                                    <Copy01Icon className="size-4 text-icon-outline-secondary dark:text-white/50" />
-                                )}
-                            </button>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Expiry Timer */}
-                <div>
-                    <span className="pr-2 text-sm font-normal text-text-secondary dark:text-white/50">
-                        This account is only for this payment. Expires in
-                    </span>
-                    <span className="rounded-full bg-gray-100 px-2 py-1 font-medium text-lavender-500 dark:bg-surface-canvas dark:text-lavender-500">
-                        {timeRemaining}
-                    </span>
-                </div>
-            </div>
-
-            <div className="flex items-center justify-center gap-2 rounded-xl border border-border-light bg-background-neutral px-4 py-3 text-text-secondary dark:border-white/10 dark:bg-white/5 dark:text-white/50">
-                <ImSpinner className="size-4 shrink-0 animate-spin text-lavender-500" />
-                <p className="text-sm">Checking for your payment automatically…</p>
-            </div>
+            <DrawerPoweredByFooter />
         </div>
     );
 };

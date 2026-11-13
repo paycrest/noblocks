@@ -20,10 +20,16 @@ import {
   getRpcUrl,
   isApiOfframpNetwork,
   normalizeNetworkName,
+  normalizeNetworkForRateFetch,
   shortenAddress,
+  isSolanaChain,
+  isEvmChain,
+  base64ToUint8Array,
+  uint8ArrayToBase64,
 } from "../utils";
+import { isValidSolanaAddress } from "../lib/validation";
 import { tokensEqual, toAggregatorToken } from "../lib/token-symbol";
-import { useNetwork, useTokens, useStarknet, useEmbed } from "../context";
+import { useNetwork, useTokens, useStarknet, useSolana, useEmbed } from "../context";
 import config, { getDelegationContractAddress } from "../lib/config";
 import { appendAttributionSuffix } from "../lib/baseBuilderCode";
 import { mapReportAndAct } from "../lib/toastMappedError";
@@ -38,6 +44,10 @@ import type {
 import { primaryBtnClasses, secondaryBtnClasses } from "../components/Styles";
 import { gatewayAbi } from "../api/abi";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
+import {
+  useSignTransaction as useSolanaSignTransaction,
+  useWallets as useSolanaWallets,
+} from "@privy-io/react-auth/solana";
 import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
 import {
   type BaseError,
@@ -105,6 +115,7 @@ import { RefundAccountSuccessModal } from "../components/RefundAccountSuccessMod
 import { PiCheckCircleFill } from "react-icons/pi";
 import { TbCircleDashed } from "react-icons/tb";
 import { useActualTheme } from "../hooks/useActualTheme";
+import { DEFAULT_SOLANA_USDC_MINT } from "../lib/solanaAta";
 import axios from "axios";
 
 type PendingDeposit = {
@@ -169,6 +180,9 @@ export const TransactionPreview = ({
     deployed: starknetDeployed,
     ensureWalletExists: ensureStarknetWallet,
   } = useStarknet();
+  const { address: solanaWalletAddress } = useSolana();
+  const { wallets: solanaWallets, ready: solanaWalletsReady } = useSolanaWallets();
+  const { signTransaction: signSolanaTransaction } = useSolanaSignTransaction();
   const shouldUseEOA = useShouldUseEOA();
   const { signDelegationAuthorization } = useDelegationContractAuth();
   const { embedCode } = useEmbed();
@@ -177,7 +191,7 @@ export const TransactionPreview = ({
   const { allTokens } = useTokens();
   const { setCurrentStep } = useStep();
   const { fetchTransactions } = useTransactions();
-  const { refreshBalance, smartWalletBalance, externalWalletBalance, injectedWalletBalance, starknetWalletBalance, tronWalletBalance } =
+  const { refreshBalance, smartWalletBalance, externalWalletBalance, injectedWalletBalance, starknetWalletBalance, tronWalletBalance, solanaWalletBalance } =
     useBalance();
 
   const {
@@ -406,6 +420,7 @@ export const TransactionPreview = ({
   const isTronSelected = selectedNetwork.chain.name === "Tron";
   // Sells here are created through the sender API and paid by a plain transfer (no Gateway call).
   const isApiOfframp = !isOnramp && isApiOfframpNetwork(selectedNetwork.chain);
+  const isSolanaSelected = isSolanaChain(selectedNetwork.chain);
 
   // Drives the approval-step copy for injected off-ramp only — that's the one flow that tells the
   // user up front how many wallet prompts to expect. Skipped for Starknet/Tron, whose chain objects
@@ -416,6 +431,7 @@ export const TransactionPreview = ({
       isOnramp ||
       isStarknetSelected ||
       isTronSelected ||
+      isSolanaSelected ||
       !injectedReady ||
       !offrampSpendReady
     ) {
@@ -460,9 +476,16 @@ export const TransactionPreview = ({
   // For Starknet, the middleware resolves x-wallet-address from the EVM embedded wallet.
   // Use the EVM address for backend API calls (precheck, save, fetchTransactions)
   // so auth passes, while activeWallet still holds the Starknet address for order creation.
-  const apiWalletAddress = isStarknetSelected && embeddedWallet
-    ? embeddedWallet.address
-    : activeWallet?.address;
+  // Middleware pins x-wallet-address to the Privy EVM embedded wallet (plan G9).
+  // Use that for backend API calls on non-EVM chains; activeWallet holds the chain signer.
+  const apiWalletAddress =
+    (isStarknetSelected || isSolanaSelected) && embeddedWallet
+      ? embeddedWallet.address
+      : activeWallet?.address;
+
+  const precheckNetworkSlug =
+    selectedNetwork.chain.network ||
+    normalizeNetworkForRateFetch(selectedNetwork.chain.name);
 
   // Identifies "the same sell" for resuming an unpaid sender-API order after Back.
   const depositFingerprint = JSON.stringify([
@@ -507,6 +530,8 @@ export const TransactionPreview = ({
       ? starknetWalletBalance
       : isTronSelected
         ? tronWalletBalance
+        : isSolanaSelected
+          ? solanaWalletBalance
         : shouldUseEOA
           ? externalWalletBalance
           : smartWalletBalance;
@@ -962,11 +987,14 @@ export const TransactionPreview = ({
           "Entry point": "Transaction preview",
           "Wallet type": "Injected wallet",
         });
-      } else if (shouldUseEOA && embeddedWallet) {
+      } else if (shouldUseEOA && embeddedWallet && isEvmChain(selectedNetwork.chain)) {
         // EIP-7702 + bundler (execute-sponsored): check delegationContractAddress, attach delegation with signature if needed
         const chain = selectedNetwork?.chain;
         if (!chain) throw new Error("Network not ready");
         const chainId = chain.id;
+        if (typeof chainId !== "number") {
+          throw new Error(`Unsupported network for EVM delegation: ${chain.name}`);
+        }
 
         const delegationContractAddress = getDelegationContractAddress(chainId);
         if (!delegationContractAddress || delegationContractAddress === "") {
@@ -1117,7 +1145,7 @@ export const TransactionPreview = ({
           setIsPollingOrderId(false);
         }
         return;
-      } else {
+      } else if (isEvmChain(selectedNetwork.chain)) {
         // Smart wallet (pre-migration)
         if (!client) {
           throw new Error("Smart wallet not found");
@@ -1195,6 +1223,10 @@ export const TransactionPreview = ({
             },
           ],
         });
+      } else {
+        throw new Error(
+          `Off-ramp is not supported for ${selectedNetwork.chain.name} in this wallet mode.`,
+        );
       }
 
       await getOrderId();
@@ -1298,6 +1330,7 @@ export const TransactionPreview = ({
             amountSent: Number(amountSent),
             amountReceived: Number(amountReceived),
             fee: Number(rate),
+            network: precheckNetworkSlug,
             recipient: {
               account_name: recipientName || walletAddress || "",
               institution: "Wallet",
@@ -1438,6 +1471,7 @@ export const TransactionPreview = ({
           amountSent: Number(amountSent),
           amountReceived: Number(amountReceived),
           fee: Number(rate),
+          network: precheckNetworkSlug,
           recipient: {
             account_name: recipientName,
             institution:

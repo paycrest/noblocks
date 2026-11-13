@@ -35,6 +35,7 @@ import {
   isReferralEnabled,
   isStarknetChain,
   isTronChain,
+  isSolanaChain,
 } from "../utils";
 import { useMarketLiquidity } from "../hooks/useMarketLiquidity";
 import {
@@ -224,6 +225,7 @@ export function MainPageContent() {
     injectedWalletBalance,
     starknetWalletBalance,
     tronWalletBalance,
+    solanaWalletBalance,
     isLoading: isBalanceLoading,
   } = useBalance();
   const shouldUseEOA = useShouldUseEOA();
@@ -321,6 +323,8 @@ export function MainPageContent() {
         ? starknetWalletBalance
         : isTronChain(selectedNetwork.chain)
           ? tronWalletBalance
+          : isSolanaChain(selectedNetwork.chain)
+            ? solanaWalletBalance
           : shouldUseEOA
             ? externalWalletBalance
             : smartWalletBalance;
@@ -341,6 +345,7 @@ export function MainPageContent() {
     selectedNetwork.chain,
     starknetWalletBalance,
     tronWalletBalance,
+    solanaWalletBalance,
     shouldUseEOA,
     externalWalletBalance,
     smartWalletBalance,

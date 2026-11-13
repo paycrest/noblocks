@@ -10,6 +10,7 @@ import {
   OnrampPendingNotificationDot,
   tokenBalanceRowVisible,
   handleNetworkSwitch,
+  isSolanaChain,
 } from "../utils";
 import { useBalance, useTransactions, useStep, useStarknet, useTron, useEmbed } from "../context";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
@@ -201,7 +202,8 @@ export const WalletDetails = () => {
 
   const activeWallet = isInjectedWallet
     ? { address: injectedAddress }
-    : selectedNetwork.chain.name === "Starknet" ||
+    : isSolanaChain(selectedNetwork.chain) ||
+      selectedNetwork.chain.name === "Starknet" ||
       selectedNetwork.chain.name === "Tron"
       ? hookWalletAddress
         ? { address: hookWalletAddress }
@@ -218,6 +220,8 @@ export const WalletDetails = () => {
       ? allBalances.starknetWallet
       : selectedNetwork.chain.name === "Tron"
         ? allBalances.tronWallet
+        : isSolanaChain(selectedNetwork.chain)
+          ? allBalances.solanaWallet
         : shouldUseEOA
           ? allBalances.externalWallet
           : allBalances.smartWallet;

@@ -20,7 +20,12 @@ const PRECACHE_ASSETS = [
   '/screenshots/mobile-narrow.png'
 ];
 
-// Routes that should always fetch from network first
+// Version poll must bypass the Cache API so deploy detection never sees a stale build id.
+const NETWORK_ONLY_ROUTES = [
+  /^\/api\/version$/,
+];
+
+// Routes that should always fetch from network first (successful responses may be cached)
 const NETWORK_FIRST_ROUTES = [
   /\/api\//,
   /\/_next\/static/,
@@ -81,6 +86,12 @@ self.addEventListener('fetch', event => {
             .then(response => response || caches.match(OFFLINE_URL));
         })
     );
+    return;
+  }
+
+  // Network-only: never read or write Cache API (update checks, etc.)
+  if (NETWORK_ONLY_ROUTES.some(pattern => pattern.test(url.pathname))) {
+    event.respondWith(fetch(request));
     return;
   }
 

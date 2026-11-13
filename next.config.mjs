@@ -1,10 +1,18 @@
 import path from "path";
 import { fileURLToPath } from "url";
 
+import { resolveBuildId } from "./app/lib/resolveBuildId.mjs";
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+const resolvedBuildId = resolveBuildId();
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  env: {
+    NEXT_PUBLIC_BUILD_ID: resolvedBuildId,
+  },
+  generateBuildId: async () => resolvedBuildId,
   outputFileTracingRoot: path.join(__dirname),
   // dapvatar assets are loaded via runtime path strings in /api/play/og — include
   // them explicitly so serverless bundles don't silently drop manager portraits.

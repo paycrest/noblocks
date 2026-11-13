@@ -35,6 +35,7 @@ import Link from "next/link";
 import { mapReportAndAct } from "@/app/lib/toastMappedError";
 import { format } from "date-fns";
 import { useCNGNRate, CNGN_CROSS_CHAIN_QUOTE_NETWORK } from "@/app/hooks/useCNGNRate";
+import { useRegisterAppUpdateBlockWhileMounted } from "@/app/context/AppUpdateBlockContext";
 
 const CONVERSION_FAILED_MESSAGE = "Please try again.";
 
@@ -58,6 +59,7 @@ export const BridgeForm: React.FC<BridgeFormProps> = ({
   setCurrentView,
   onBridgeSubmit,
 }) => {
+  useRegisterAppUpdateBlockWhileMounted();
   const { authenticated, getAccessToken } = usePrivy();
   const { wallets } = useWallets();
   const {

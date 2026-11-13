@@ -1,418 +1,58 @@
-# Tron Network Support
+# Tron Support
 
-Noblocks now supports deposits and withdrawals on the Tron blockchain, including TRX native tokens and TRC20 tokens (USDT, USDC, etc.). This integration enables users to leverage Tron's low fees and fast transaction speeds for onramp operations.
+Noblocks supports USDT on Tron for selling (off-ramp), buying (on-ramp) and withdrawals, from the user's Privy embedded Tron wallet. Tron is opt-in with `NEXT_PUBLIC_TRON_ENABLED`.
 
-## Overview
+## How it works
 
-Tron support includes:
-- **Native TRX deposits**: Send TRX directly to your Noblocks address
-- **TRC20 token deposits**: USDT(TRC20), USDC(TRC20), and other compatible tokens
-- **Gas sponsorship**: Built-in handling via sponsor wallet for certain operations
-- **Full wallet integration**: View balance, send transactions, manage keys
+The Paycrest aggregator reaches Tron only as a **bridged network**: a sell is a sender-API order whose deposit is a plain USDT transfer to the address the order returns, and a buy delivers to the user's Tron address through the bridge. Noblocks never calls a Tron Gateway contract.
 
-## Architecture
+### Wallet
 
-```
-┌─────────────────────────┐
-│   Noblocks Wallet UI    │ ← User interacts with TronWeb provider
-└─────────────────────────┘
-           ↓
-┌─────────────────────────┐
-│   TronWeb Provider      │ ← Browser TronLink or embedded wallet
-└─────────────────────────┘
-           ↓
-┌─────────────────────────┐
-│   Tron Blockchain       │ ← Mainnet endpoint (full node)
-└─────────────────────────┘
-```
+- `TronContext` (`app/context/TronContext.tsx`) reads the user's Privy Tron wallet (`chainType: "tron"`) and creates one through `/api/tron/create-wallet` when the user switches to Tron.
+- Balances come from TronGrid (`fetchTronBalance` in `app/utils.ts`).
+- Wallet export goes through Privy (`useHandleExportEmbeddedWallet`).
+
+### Sending (sells and withdrawals)
+
+All Tron transactions are built, signed and broadcast on the server (`app/lib/tron.ts`), over TronGrid's HTTP API. There is no TronWeb dependency.
+
+1. **Plan:** estimate the energy of the USDT `transfer` and compare it with the wallet's free energy, bandwidth and TRX balance.
+2. **Top-up:** embedded wallets hold USDT but no TRX. The Noblocks sponsor wallet sends exactly the TRX shortfall first and waits for it to confirm. Measured cost: ~6.4 TRX to an address that already holds USDT, ~13 TRX to a fresh one.
+3. **Sign:** the server signs the transfer's txID with Privy `raw_sign`, as the user (user signer from the session JWT). It then appends the recovery byte (`1b`/`1c`) that recovers the wallet's own address.
+4. **Broadcast:** `/wallet/broadcasttransaction`. A broadcast with no definite answer is an *unknown outcome*. The UI moves to the status page and never offers a retry that could pay twice.
+
+`/api/tron/transfer` exposes this for two cases, and the sponsor pays for nothing else:
+
+- **`deposit`:** pays a live sell order of the caller (initiated, nothing paid, inside its deposit window). It sends exactly the order's `amountToTransfer`, from its refund wallet to its deposit address.
+- **`withdrawal`:**
+  - It is sponsored at or above `TRON_WITHDRAW_MIN`, for up to `TRON_WITHDRAW_DAILY_SPONSORED` withdrawals per 24 hours. Past that, the wallet must hold its own TRX.
+  - The server records the transfer row itself, so the daily count cannot be dodged.
+
+### Sell fee
+
+Every sell deposit goes to a fresh address, so the sponsor burns the most TRX there. A Tron sell therefore carries a fixed `senderFee` paid by the customer in the same deposit (`transactionFeePayer: "customer"`):
+
+- **Quote:** worst-case energy at the live energy price, plus bandwidth, at the live TRX price (CoinGecko), plus `TRON_SELL_FEE_MARGIN`.
+- **Bounds:** clamped to `TRON_SELL_FEE_MIN_USD`–`TRON_SELL_FEE_MAX_USD`. `TRON_SELL_FEE_FALLBACK_USD` applies when a price is unavailable.
+- **Display:** shown in the preview's network-fee review before anything is sent.
+- **Payout:** paid out to Noblocks' fee address on the settlement network. The aggregator needs a SenderOrderToken with an EVM fee address for the settlement token; without it, orders are refused for a missing fee address.
+- **Turning it off:** `TRON_SELL_NETWORK_FEE=false` absorbs the cost instead.
+
+### Buying
+
+Buying uses the shared on-ramp route with the aggregator's network id `tron`. The aggregator refuses buys whose delivery cost (about 1.73 USDT per transfer into Tron) exceeds 10% of the amount, and its message is shown as returned.
 
 ## Configuration
 
-### Environment Variables
-
-```bash
-# Tron network RPC endpoints
-NEXT_PUBLIC_RPC_URL_TRON=https://api.trongrid.io
-NEXT_PUBLIC_RPC_URL_TRON_SHARD0=https://tron-rpc.com
-
-# Private key for deposit processing (server-side, keep secure)
-TRON_DEPOSIT_PRIVATE_KEY=0x...
-
-# Tron network configuration
-TRON_NETWORK_ID=0 (#41 = mainnet, #2 = testnet)
-TRON_CONTRACT_ADDRESS=0x...  # Gateway contract for Tron
-```
-
-### Prerequisites
-
-To run Tron locally:
-1. Install `tronweb` package: `pnpm add tronweb`
-2. Set up TronLink browser extension (optional, for injected provider)
-3. Configure Tron full node access via API provider (e.g., TronGrid)
-
-## Supported Tokens
-
-| Token | Type | Contract Address | Decimals | Notes |
-|-------|------|------------------|----------|-------|
-| TRX | Native | - | 6 | Base currency, required for bandwidth |
-| USDT | TRC20 | `TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t` | 6 | Most common stablecoin |
-| USDC | TRC20 | `TEkxiTehnzSmSe2XqrBj4w32RUN966rdz8` | 6 | Circle-backed stablecoin |
-| WBTC | TRC20 | `TKzxdSv2FZKQrEqkQPgzUUCERExsFsTsDe` | 8 | Wrapped Bitcoin |
-| WIN | TRC20 | `TWzh9MNsMsDgXkLiWANFKhZx9RxxEMyCqx` | 6 | TronPower token |
-
-*Note: Additional tokens can be added by registering their TRC20 contracts.*
-
-## Wallet Integration
-
-### Client-Side Setup
-
-```typescript
-import { useState, useEffect } from 'react';
-import { useTronWallet } from '@/hooks/useTronWallet';
-
-function TronWalletButton() {
-  const { isConnected, account, connect, disconnect } = useTronWallet();
-
-  return (
-    <div>
-      {isConnected ? (
-        <div className="flex items-center gap-2">
-          <span>{truncateAddress(account)}</span>
-          <button onClick={disconnect}>Disconnect</button>
-        </div>
-      ) : (
-        <button onClick={connect}>Connect Tron Wallet</button>
-      )}
-    </div>
-  );
-}
-```
-
-### useTronWallet Hook
-
-Key functionality provided by the Tron wallet hook:
-
-```typescript
-interface TronWalletContextType {
-  isConnected: boolean;
-  account: string | null;
-  balance: bigint;                    // In SUN (1 TRX = 1,000,000 SUN)
-  connect: () => Promise<void>;
-  disconnect: () => void;
-  signMessage: (message: string) => Promise<string>;
-  sendTransaction: (transaction: TRXTransfer) => Promise<string>;
-}
-```
-
-Implementation highlights:
-
-```typescript
-// Detect TronLink injection
-const detectTronProvider = (): TronExt | null => {
-  if (typeof window === 'undefined') return null;
-  return (window as any).tronWeb;
-};
-
-// Connect to wallet
-const connect = async (): Promise<void> => {
-  if (!window.tronWeb) {
-    throw new Error('TronLink not installed');
-  }
-
-  const accounts = await window.tronWeb.request({ method: 'tron_requestAccounts' });
-  setAccount(accounts[0]);
-
-  // Check balance
-  const balance = await window.tronWeb.trx.getBalance(accounts[0]);
-  setBalance(BigInt(balance.toString()));
-  setIsConnected(true);
-};
-
-// Sign message for KYC
-const signMessage = async (message: string): Promise<string> => {
-  if (!account || !window.tronWeb) {
-    throw new Error('Not connected');
-  }
-
-  const hexMessage = `0x${Buffer.from(message).toString('hex')}`;
-  return window.tronWeb.trx.sign(hexMessage, account);
-};
-```
-
-### Server-Side Integration
-
-Server handles deposit validation and balance tracking:
-
-```typescript
-// GET /api/v1/wallet/tron/address
-export async function GET(request: Request) {
-  const userId = getAuthUserId();
-  if (!userId) throw new UnauthorizedError();
-
-  const userWallet = await getUserWallet(userId, CHAIN_TRON);
-  return Response.json({ address: userWallet?.address });
-}
-
-// POST /api/v1/wallet/tron/deposit/callback
-export async function POST(request: Request) {
-  const { txHash, address, amount, token } = await request.json();
-
-  // Verify transaction on-chain
-  const tx = await tronWeb.trx.getTransaction(txHash);
-  if (!tx) throw new NotFoundError('Transaction not found');
-
-  // Validate sender matches user wallet
-  if (tx.raw_data.contract[0].parameter.value.to_address !== address) {
-    throw new ValidationError('Sender mismatch');
-  }
-
-  // Record deposit event
-  await recordDeposit({
-    chain: CHAIN_TRON,
-    txHash,
-    amount,
-    token,
-    status: 'CONFIRMED'
-  });
-
-  return Response.json({ success: true });
-}
-```
-
-## Deposit Flow
-
-### Step 1: Generate Address
-
-User clicks "Deposit" → System generates or retrieves Tron address:
-
-```typescript
-async function getOrGenerateDepositAddress(
-  userId: string,
-  chain: ChainId
-): Promise<string> {
-  let wallet = await getUserWallet(userId, chain);
-
-  if (!wallet) {
-    // Generate new address using TronWeb
-    const keyPair = tronWeb.q.crypto.generateKeyPair();
-    const address = tronWeb.address.fromPrivateKey(keyPair.privateKey);
-
-    wallet = await createUserWallet(userId, chain, {
-      address,
-      privateKeyEncrypted: encrypt(keyPair.privateKey)
-    });
-  }
-
-  return wallet.address;
-}
-```
-
-### Step 2: User Sends Funds
-
-User initiates transfer via TronLink:
-1. Selects amount and recipient (Noblocks address)
-2. Signs transaction in TronLink popup
-3. Transaction broadcast to Tron network
-
-Energy/Bandwidth consideration:
-- Native TRX transfers cost ~0.5 bandwidth + energy
-- TRC20 transfers require additional energy (~15,000-40,000)
-- Users need some TRX in wallet for initial transaction fees
-
-### Step 3: Confirmation
-
-System listens for incoming deposits:
-1. Poll TronGrid API or use webhook listener
-2. Confirm transaction has sufficient block confirmations (typically 19 blocks)
-3. Update order status to RECEIVED
-
-Example confirmation check:
-
-```typescript
-async function waitForConfirmation(txHash: string, minBlocks: number = 19) {
-  const startTime = Date.now();
-  const timeout = 5 * 60 * 1000; // 5 minutes
-
-  while (Date.now() - startTime < timeout) {
-    const tx = await tronWeb.trx.getTransactionInfo(txHash);
-
-    // Handle missing transaction case first
-    if (!tx) {
-      await sleep(3000); // Wait 3 seconds before retry
-      continue;
-    }
-
-    // Only access blockNumber if transaction exists and is confirmed
-    if (tx.confirmed && tx.blockNumber) {
-      const blockNum = tx.blockNumber;
-      const latest = await tronWeb.trx.getBlockLatestConfirmed();
-
-      if (latest.block_header.raw_data.number - blockNum >= minBlocks) {
-        return tx;
-      }
-    }
-
-    await sleep(3000); // Wait 3 seconds between checks
-  }
-
-  throw new TimeoutError('Transaction confirmation timeout');
-}
-```
-
-## Withdrawal Flow
-
-Tron withdrawals work through the same fulfillment pipeline as other chains:
-
-```typescript
-// Server processes withdrawal request
-async function processTronWithdrawal(order: Order): Promise<void> {
-  const destinationAddress = order.recipientAddress;
-  const amount = order.amount;
-  const tokenContractAddress = order.tokenAddress;
-
-  // Use treasury wallet to send TRC20 tokens
-  const treasuryPrivKey = getTreasuryPrivateKey(CHAIN_TRON);
-
-  // Set the treasury private key for signing
-  tronWeb.setPrivateKey(treasuryPrivKey);
-
-  // Get the TRC20 token contract instance
-  const contract = await tronWeb.contract().at(tokenContractAddress);
-
-  // Call the transfer function on the TRC20 contract
-  const result = await contract.transfer(destinationAddress, amount).send({
-    feeLimit: 100_000_000, // 100 TRX fee limit
-    shouldPollResponse: true
-  });
-
-  // Update order status
-  await updateOrderStatus(order.id, 'FULFILLED', { txHash: result });
-}
-```
-
-## Testing with Testnet
-
-Test Tron integration before mainnet deployment:
-
-```bash
-# Use Shasta testnet
-NEXT_PUBLIC_RPC_URL_TRON=https://shasta.trongrid.io
-
-# Get test TRX from faucet
-# Visit: https://shasta.tron.network/faucet
-```
-
-Testing checklist:
-- [ ] Connect to TronLink testnet
-- [ ] Receive test TRX deposits
-- [ ] Trigger refund flow
-- [ ] Validate error handling for invalid addresses
-- [ ] Monitor gas sponsorship limits
-
-## Security Considerations
-
-### Key Management
-
-- **Deposit private keys**: Encrypted at rest using AES-256-GCM
-- **Treasury keys**: Hardware security module (HSM) or vault service
-- **Never commit** private keys to version control
-
-```typescript
-// Encryption helper
-const crypto = require('crypto');
-const ALGORITHM = 'aes-256-gcm';
-
-function encrypt(text: string, key: Buffer): { cipher: string; iv: string; tag: string } {
-  const iv = crypto.randomBytes(16);
-  const cipher = crypto.createCipheriv(ALGORITHM, key, iv);
-
-  let encrypted = cipher.update(text, 'utf8', 'hex');
-  encrypted += cipher.final('hex');
-
-  return {
-    cipher: encrypted,
-    iv: iv.toString('hex'),
-    tag: cipher.getAuthTag().toString('hex')
-  };
-}
-```
-
-### Address Validation
-
-Validate all addresses before processing:
-
-```typescript
-function isValidTronAddress(address: string): boolean {
-  try {
-    return tronWeb.address.isBase58CheckAddress(address);
-  } catch {
-    return false;
-  }
-}
-
-function validateTRC20Transfer(params: {
-  from: string;
-  to: string;
-  amount: string;
-  contract: string;
-}): boolean {
-  return (
-    isValidTronAddress(params.from) &&
-    isValidTronAddress(params.to) &&
-    isPositiveInteger(params.amount) &&
-    isValidTRC20Contract(params.contract)
-  );
-}
-```
-
-### Rate Limiting
-
-Prevent abuse with per-address rate limits:
-
-```typescript
-const TRON_DEPOSIT_RATE_LIMIT = {
-  windowMs: 60 * 60 * 1000, // 1 hour
-  maxRequests: 50            // Max 50 deposits per hour per address
-};
-```
-
-## Troubleshooting
-
-### "Transaction pending but not confirmed"
-
-**Causes:**
-- Network congestion on Tron
-- Insufficient energy/bandwidth
-- Double-spend attempt detection
-
-**Solutions:**
-1. Wait for block confirmations (typically 3-5 blocks = 15-25 seconds)
-2. Check TronScan for transaction details
-3. Verify sender had sufficient resources
-
-### "Invalid TRC20 token"
-
-**Causes:**
-- Wrong contract address used
-- Token not registered in system
-- Decimals mismatch
-
-**Fix:**
-```typescript
-// Verify token registration
-const tokenConfig = TOKEN_CONFIGS.find(t => t.symbol.toUpperCase() === symbol);
-if (!tokenConfig) {
-  throw new Error(`Token ${symbol} not supported`);
-}
-```
-
-### "Insufficient bandwidth/energy"
-
-**Solutions:**
-- Users can stake TRX for bandwidth delegation
-- Ensure wallet has sufficient TRX for energy/bandwidth costs
-
-## Related Documentation
-
-- [Environment Variables](environment-variables.md) – Tron configuration options
-- [Wallet Integration](wallet-integration.md) – Multi-chain wallet patterns
+| Variable | Purpose |
+|---|---|
+| `NEXT_PUBLIC_TRON_ENABLED` | Show Tron in the network list |
+| `NEXT_PUBLIC_TRON_RPC_URL` | TronGrid endpoint (default `https://api.trongrid.io`) |
+| `NEXT_PUBLIC_TRONGRID_API_KEY` | Browser balance lookups (public; restrict by origin) |
+| `TRONGRID_API_KEY` | Server-side TronGrid key for sends |
+| `SPONSOR_TRON_WALLET_PRIVATE_KEY` | Sponsor wallet (hex private key), funded with TRX |
+| `TRON_SPONSOR_MAX_TOPUP_TRX` | Most TRX sent for one transfer (default 30) |
+| `TRON_SELL_NETWORK_FEE`, `TRON_SELL_FEE_*` | Sell fee on/off, bounds, fallback, margin |
+| `TRON_WITHDRAW_MIN`, `TRON_WITHDRAW_DAILY_SPONSORED` | Sponsored withdrawal limits |
+
+Keep the sponsor wallet funded, and alert on its TRX balance.

@@ -10,6 +10,7 @@ const STARKNET_PADDED =
 const mockGetSenderApiKey = jest.fn<string, []>(() => SENDER_API_KEY);
 const mockAxiosPost = jest.fn();
 const mockAxiosGet = jest.fn();
+const mockQuoteTronFee = jest.fn();
 const mockFetchTokens = jest.fn();
 const mockLinkedAddresses = jest.fn();
 const mockParseRecord = jest.fn();
@@ -35,6 +36,9 @@ jest.mock("axios", () => ({
     post: (...args: unknown[]) => mockAxiosPost(...args),
     get: (...args: unknown[]) => mockAxiosGet(...args),
   },
+}));
+jest.mock("../app/lib/tron", () => ({
+  quoteTronSellFeeUsd: () => mockQuoteTronFee(),
 }));
 jest.mock("../app/lib/aggregator-outbound-headers", () => ({
   buildAggregatorOutboundHeaders: async (
@@ -854,5 +858,51 @@ describe("fetchLiveDeposit", () => {
     await expect(fetchLiveDeposit("order-1", "Solana")).resolves.toMatchObject({ ok: false, status: 404 });
     mockAxiosGet.mockRejectedValue(new Error("ECONNRESET"));
     await expect(fetchLiveDeposit("order-1", "Solana")).resolves.toMatchObject({ ok: false, status: 502 });
+  });
+});
+
+describe("Tron sell fee", () => {
+  const TRON_DEPOSITOR = "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t";
+  const tronSell = () => {
+    const body = sellBody();
+    body.source = { ...body.source, network: "Tron", currency: "USDT", refundAddress: TRON_DEPOSITOR };
+    return body;
+  };
+
+  beforeEach(() => {
+    mockIsApiOfframpNetwork.mockReturnValue(true);
+    mockLinkedAddresses.mockResolvedValue([TRON_DEPOSITOR]);
+    mockFetchTokens.mockResolvedValue([
+      { symbol: "USDT", network: "tron", decimals: 6, contractAddress: TRON_DEPOSITOR },
+    ]);
+    mockQuoteTronFee.mockResolvedValue(4.646);
+  });
+  afterEach(() => {
+    delete process.env.TRON_SELL_NETWORK_FEE;
+  });
+
+  it("adds the quoted fee as a customer-paid sender fee", async () => {
+    await handleCreateOfframpOrder(makeRequest(), tronSell());
+    expect(postedBody()).toMatchObject({
+      senderFee: "4.65",
+      transactionFeePayer: "customer",
+      source: { network: "tron", refundAddress: TRON_DEPOSITOR },
+    });
+  });
+
+  it("charges nothing when TRON_SELL_NETWORK_FEE is false, and never on other networks", async () => {
+    process.env.TRON_SELL_NETWORK_FEE = "false";
+    await handleCreateOfframpOrder(makeRequest(), tronSell());
+    expect(postedBody()).not.toHaveProperty("senderFee");
+    expect(postedBody()).not.toHaveProperty("transactionFeePayer");
+
+    delete process.env.TRON_SELL_NETWORK_FEE;
+    mockLinkedAddresses.mockResolvedValue([STARKNET_PADDED]);
+    mockFetchTokens.mockResolvedValue([
+      { symbol: "USDC", network: "starknet", decimals: 6, contractAddress: "0x1" },
+    ]);
+    await handleCreateOfframpOrder(makeRequest(), sellBody());
+    expect(postedBody()).not.toHaveProperty("senderFee");
+    expect(mockQuoteTronFee).toHaveBeenCalledTimes(0);
   });
 });

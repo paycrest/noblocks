@@ -29,7 +29,7 @@ import {
 } from "../utils";
 import { isValidSolanaAddress } from "../lib/validation";
 import { tokensEqual, toAggregatorToken } from "../lib/token-symbol";
-import { useNetwork, useTokens, useStarknet, useSolana, useEmbed } from "../context";
+import { useNetwork, useTokens, useStarknet, useSolana, useTron, useEmbed } from "../context";
 import config, { getDelegationContractAddress } from "../lib/config";
 import { appendAttributionSuffix } from "../lib/baseBuilderCode";
 import { mapReportAndAct } from "../lib/toastMappedError";
@@ -151,19 +151,22 @@ function writePendingDeposit(value: StoredPendingDeposit | null) {
 }
 
 /**
- * Calls /api/solana/transfer. A `submit` that gets no definite answer (network failure, gateway
- * error, or the route saying the outcome is unknown) may still have been broadcast, so it is
- * reported as TransferOutcomeUnknownError and never offered as a plain retry.
+ * Calls a sponsored transfer route (/api/solana/transfer, /api/tron/transfer). A call that may
+ * broadcast and gets no definite answer (network failure, gateway error, or the route saying the
+ * outcome is unknown) may still have sent funds, so it is reported as TransferOutcomeUnknownError
+ * and never offered as a plain retry.
  */
-async function postSolanaTransfer<T>(
-  payload: { phase: "build" | "submit"; orderId: string; signedTransaction?: string },
+async function postSponsoredTransfer<T>(
+  url: "/api/solana/transfer" | "/api/tron/transfer",
+  payload: Record<string, unknown>,
   accessToken: string,
+  mayBroadcast: boolean,
 ): Promise<T> {
-  const isSubmit = payload.phase === "submit";
+  const isSubmit = mayBroadcast;
   let response: Response;
   let data: { error?: string; outcome?: string } & Record<string, unknown>;
   try {
-    response = await fetch("/api/solana/transfer", {
+    response = await fetch(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -180,7 +183,7 @@ async function postSolanaTransfer<T>(
     throw new TransferOutcomeUnknownError();
   }
   if (!response.ok) {
-    throw new Error(data.error || "Solana transfer failed");
+    throw new Error(data.error || "Transfer failed");
   }
   return data as T;
 }
@@ -216,6 +219,7 @@ export const TransactionPreview = ({
     ensureWalletExists: ensureStarknetWallet,
   } = useStarknet();
   const { address: solanaWalletAddress } = useSolana();
+  const { address: tronWalletAddress } = useTron();
   const { wallets: solanaWallets, ready: solanaWalletsReady } = useSolanaWallets();
   const { signTransaction: signSolanaTransaction } = useSolanaSignTransaction();
   const shouldUseEOA = useShouldUseEOA();
@@ -507,6 +511,8 @@ export const TransactionPreview = ({
       ? (starknetWalletAddress ? { address: starknetWalletAddress, type: "starknet" } : undefined)
       : isSolanaSelected
         ? (solanaWalletAddress ? { address: solanaWalletAddress, type: "solana" } : undefined)
+      : isTronSelected
+        ? (tronWalletAddress ? { address: tronWalletAddress, type: "tron" } : undefined)
       : shouldUseEOA
         ? (embeddedWallet ? { address: embeddedWallet.address, type: "eoa" } : undefined)
         : smartWallet);
@@ -517,7 +523,7 @@ export const TransactionPreview = ({
   // Middleware pins x-wallet-address to the Privy EVM embedded wallet (plan G9).
   // Use that for backend API calls on non-EVM chains; activeWallet holds the chain signer.
   const apiWalletAddress =
-    (isStarknetSelected || isSolanaSelected) && embeddedWallet
+    (isStarknetSelected || isSolanaSelected || isTronSelected) && embeddedWallet
       ? embeddedWallet.address
       : activeWallet?.address;
 
@@ -743,24 +749,42 @@ export const TransactionPreview = ({
       }
       const accessToken = await getAccessToken();
       if (!accessToken) throw new Error("Not authenticated");
-      const built = await postSolanaTransfer<{ transaction: string }>(
+      const built = await postSponsoredTransfer<{ transaction: string }>(
+        "/api/solana/transfer",
         { phase: "build", orderId: pending.orderId },
         accessToken,
+        false,
       );
       const { signedTransaction } = await signSolanaTransaction({
         transaction: base64ToUint8Array(built.transaction),
         wallet: solanaWallet,
         chain: "solana:mainnet-beta",
       });
-      const submitted = await postSolanaTransfer<{ transactionHash: string }>(
+      const submitted = await postSponsoredTransfer<{ transactionHash: string }>(
+        "/api/solana/transfer",
         {
           phase: "submit",
           orderId: pending.orderId,
           signedTransaction: uint8ArrayToBase64(signedTransaction),
         },
         accessToken,
+        true,
       );
       return submitted.transactionHash;
+    }
+    if (isTronSelected) {
+      // The server builds, signs (Privy, as the user) and broadcasts the USDT transfer for this
+      // order, topping up the TRX it burns from the Noblocks sponsor.
+      if (!tronWalletAddress) throw new Error("Tron wallet not ready");
+      const accessToken = await getAccessToken();
+      if (!accessToken) throw new Error("Not authenticated");
+      const sent = await postSponsoredTransfer<{ transactionHash: string }>(
+        "/api/tron/transfer",
+        { kind: "deposit", orderId: pending.orderId },
+        accessToken,
+        true,
+      );
+      return sent.transactionHash;
     }
     throw new Error(
       `Selling on ${selectedNetwork.chain.name} is not available yet.`,
@@ -873,7 +897,7 @@ export const TransactionPreview = ({
    * the user sees the fee and total before anything is sent.
    */
   const createApiOfframpOrder = async (auth: OrderAuth) => {
-    if (!isStarknetSelected && !isSolanaSelected) {
+    if (!isStarknetSelected && !isSolanaSelected && !isTronSelected) {
       // No wallet on this network can sign a transfer yet; refuse before an order exists.
       throw new Error(
         `Selling on ${selectedNetwork.chain.name} is not available yet.`,

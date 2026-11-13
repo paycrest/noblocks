@@ -435,7 +435,7 @@ export function MainPageContent() {
   );
 
   useEffect(
-    function enforceTronOfframpOnly() {
+    function enforceOfframpOnlyNetwork() {
       if (!networkSupportsOnramp(selectedNetwork.chain)) {
         setValue("swapMode", "offramp", { shouldDirty: true });
         setValue("isSwapped", false, { shouldDirty: true });

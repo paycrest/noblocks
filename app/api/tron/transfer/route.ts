@@ -16,14 +16,41 @@ import { supabaseAdmin } from "@/app/lib/supabase";
 import { fetchTokens } from "@/app/api/aggregator";
 import { getExplorerLink, normalizeNetworkName } from "@/app/utils";
 import {
+  claimSenderOrderDeposit,
+  releaseSenderOrderDeposit,
+} from "@/app/lib/swap-transaction-limit-server";
+import {
+  canReplaceTronDeposit,
   isTronSponsorConfigured,
   isValidTronBase58,
   sendTrc20WithSponsor,
+  type TransferClaim,
   TronOutcomeUnknownError,
   TronRejectedError,
 } from "@/app/lib/tron";
 
 const ROUTE = "/api/tron/transfer" as const;
+
+/** The order already has a deposit that may move funds (or it could not be checked). */
+class DepositClaimRefused extends Error {
+  constructor(
+    readonly status: 409 | 503,
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
+/** One deposit per order: the transfer's txID is claimed on the order's row before it is sent. */
+function orderDepositClaim(orderId: string): TransferClaim {
+  return {
+    take: async (txid) => {
+      const claim = await claimSenderOrderDeposit(orderId, txid, canReplaceTronDeposit);
+      if (!claim.ok) throw new DepositClaimRefused(claim.status, claim.error);
+    },
+    release: (txid) => releaseSenderOrderDeposit(orderId, txid),
+  };
+}
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 function envNumber(raw: string | undefined, fallback: number): number {
@@ -96,6 +123,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
     symbol: string;
     amountText: string;
     allowTopUp: boolean;
+    claim?: TransferClaim;
   };
 
   try {
@@ -115,6 +143,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
         symbol: deposit.token.symbol,
         amountText: deposit.amountToTransfer,
         allowTopUp: true,
+        claim: orderDepositClaim(orderId),
       };
     } else {
       const from = typeof body.from === "string" ? body.from.trim() : "";
@@ -173,6 +202,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
       amount: transfer.amount,
       allowTopUp: transfer.allowTopUp,
       signer: { walletId: wallet.id, userJwt, userId },
+      claim: transfer.claim,
     });
 
     if (kind === "withdrawal") {
@@ -200,6 +230,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
     });
     return NextResponse.json({ success: true, transactionHash: result.txid });
   } catch (error) {
+    if (error instanceof DepositClaimRefused) return fail(error.status, error.message);
     if (error instanceof TronRejectedError) return fail(400, error.message);
     if (error instanceof TronOutcomeUnknownError) {
       // It may still land: never offer a retry that could pay twice.

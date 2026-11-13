@@ -12,6 +12,7 @@ jest.mock("../app/lib/starknet", () => ({
 
 import {
   assertTxId,
+  canReplaceTronDeposit,
   completeTronSignature,
   encodeTransferParameter,
   evmToTronAddress,
@@ -145,6 +146,7 @@ describe("sendTrc20WithSponsor", () => {
   });
 
   beforeEach(async () => {
+    mockRawSign.mockReset();
     mockRawSign.mockResolvedValue(await compactSignature(userTx.txID, USER_KEY));
   });
 
@@ -247,6 +249,84 @@ describe("sendTrc20WithSponsor", () => {
     await expect(
       sendTrc20WithSponsor({ owner: USER, to: RECIPIENT, contract: USDT, amount: BigInt(1), signer }),
     ).rejects.toBeInstanceOf(TronOutcomeUnknownError);
+  });
+
+  describe("deposit claim", () => {
+    const funded = { "/wallet/getaccount": { address: USER, balance: 20_000_000 } };
+    const send = (claim: { take: jest.Mock; release: jest.Mock }) =>
+      sendTrc20WithSponsor({
+        owner: USER,
+        to: RECIPIENT,
+        contract: USDT,
+        amount: BigInt(1),
+        signer,
+        claim,
+      });
+    const claim = () => ({
+      take: jest.fn().mockResolvedValue(undefined),
+      release: jest.fn().mockResolvedValue(undefined),
+    });
+
+    it("claims the transfer's txID before the wallet signs it", async () => {
+      mockTronGrid(baseResponses(funded));
+      const c = claim();
+      c.take.mockImplementation(async () => expect(mockRawSign).not.toHaveBeenCalled());
+      await send(c);
+      expect(c.take).toHaveBeenCalledWith(userTx.txID);
+      expect(c.release).not.toHaveBeenCalled();
+    });
+
+    it("sends nothing when the order already has a live deposit", async () => {
+      mockTronGrid(baseResponses(funded));
+      const c = claim();
+      c.take.mockRejectedValue(new Error("already paid"));
+      await expect(send(c)).rejects.toThrow("already paid");
+      expect(mockRawSign).not.toHaveBeenCalled();
+      expect(calls.some((x) => x.path === "/wallet/broadcasttransaction")).toBe(false);
+    });
+
+    it("releases the claim when the chain rejects the transfer", async () => {
+      mockTronGrid(
+        baseResponses({
+          ...funded,
+          "/wallet/broadcasttransaction": { result: false, code: "SIGERROR" },
+        }),
+      );
+      const c = claim();
+      await expect(send(c)).rejects.toBeInstanceOf(TronRejectedError);
+      expect(c.release).toHaveBeenCalledWith(userTx.txID);
+    });
+
+    it("keeps the claim when the outcome is unknown", async () => {
+      mockTronGrid(
+        baseResponses({ ...funded, "/wallet/broadcasttransaction": new Error("socket hang up") }),
+      );
+      const c = claim();
+      await expect(send(c)).rejects.toBeInstanceOf(TronOutcomeUnknownError);
+      expect(c.release).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("canReplaceTronDeposit", () => {
+    const txid = "ab".repeat(32);
+
+    it("keeps a deposit that executed successfully", async () => {
+      mockTronGrid({ "/wallet/gettransactioninfobyid": { id: txid, receipt: { result: "SUCCESS" } } });
+      await expect(canReplaceTronDeposit(txid, new Date(0))).resolves.toBe(false);
+    });
+
+    it("replaces a deposit that executed and failed (no tokens moved)", async () => {
+      mockTronGrid({ "/wallet/gettransactioninfobyid": { id: txid, receipt: { result: "REVERT" } } });
+      await expect(canReplaceTronDeposit(txid, new Date())).resolves.toBe(true);
+    });
+
+    it("keeps an unseen deposit until it has surely expired", async () => {
+      mockTronGrid({ "/wallet/gettransactioninfobyid": {} });
+      await expect(canReplaceTronDeposit(txid, new Date())).resolves.toBe(false);
+      await expect(
+        canReplaceTronDeposit(txid, new Date(Date.now() - 3 * 60_000)),
+      ).resolves.toBe(true);
+    });
   });
 });
 

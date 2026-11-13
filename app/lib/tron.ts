@@ -370,6 +370,15 @@ export type SponsoredTransferResult = { txid: string; toppedUpSun: bigint };
  * `allowTopUp` is false. Throws TronRejectedError when nothing was sent and
  * TronOutcomeUnknownError when the transfer may have gone out.
  */
+/**
+ * Claims a transfer's txID before it is signed and broadcast (one deposit per order). `take`
+ * throws to stop the send; `release` runs when the transfer definitely did not execute.
+ */
+export type TransferClaim = {
+  take: (txid: string) => Promise<void>;
+  release: (txid: string) => Promise<void>;
+};
+
 export async function sendTrc20WithSponsor(params: {
   owner: string;
   to: string;
@@ -377,6 +386,7 @@ export async function sendTrc20WithSponsor(params: {
   amount: bigint;
   signer: { walletId: string; userJwt: string; userId: string };
   allowTopUp?: boolean;
+  claim?: TransferClaim;
 }): Promise<SponsoredTransferResult> {
   const plan = await planTrc20Transfer(params.owner, params.contract, params.to, params.amount);
 
@@ -421,9 +431,39 @@ export async function sendTrc20WithSponsor(params: {
       decodeTronMessage(built.result?.message) || "Could not prepare the Tron transfer",
     );
   }
-  const signed = await signWithPrivy(built.transaction, params.owner, params.signer);
-  const txid = await broadcast(signed);
+  const builtTxid = built.transaction.txID;
+  await params.claim?.take(builtTxid);
+  let txid: string;
+  try {
+    const signed = await signWithPrivy(built.transaction, params.owner, params.signer);
+    txid = await broadcast(signed);
+  } catch (error) {
+    // Signing failures and broadcast rejections leave nothing on chain.
+    if (!(error instanceof TronOutcomeUnknownError)) await params.claim?.release(builtTxid);
+    throw error;
+  }
   return { txid, toppedUpSun: plan.topUpSun };
+}
+
+/**
+ * A Tron transaction expires 60 seconds after it is built (TronGrid's default), so one the
+ * chain has not seen two minutes after it was claimed can no longer land.
+ */
+const UNSEEN_TX_EXPIRY_MS = 120_000;
+
+/**
+ * Whether a deposit claimed earlier under `txid` can be superseded: it executed and failed (no
+ * tokens moved), or the chain never saw it and it has expired. A transfer that succeeded or may
+ * still land cannot be.
+ */
+export async function canReplaceTronDeposit(txid: string, claimedAt: Date): Promise<boolean> {
+  if (!/^[0-9a-f]{64}$/i.test(txid)) return true;
+  const info = await tronPost<{ id?: string; receipt?: { result?: string } }>(
+    "/wallet/gettransactioninfobyid",
+    { value: txid },
+  );
+  if (info.id) return Boolean(info.receipt?.result) && info.receipt?.result !== "SUCCESS";
+  return Date.now() - claimedAt.getTime() > UNSEEN_TX_EXPIRY_MS;
 }
 
 // --- sell fee --------------------------------------------------------------------------------

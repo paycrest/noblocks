@@ -68,6 +68,7 @@ import {
   classNames,
   formatDecimalPrecision,
   getExplorerLink,
+  normalizeStarknetAddress,
 } from "@/app/utils";
 
 export const SWAP_COPY = {
@@ -112,6 +113,8 @@ export const SWAP_COPY = {
   quoteError: "We couldn't get a quote for this swap.",
   retry: "Retry",
   quoteExpired: "This quote has expired. Get a new quote to continue.",
+  quoteUsed:
+    "This quote was already used. Check the new quote and confirm again.",
   quoteChanged: "The swap details changed. Check them and try again.",
 } as const;
 
@@ -1318,6 +1321,12 @@ export const SwapForm: React.FC<SwapFormProps> = ({
     key: string;
     result: BridgeStatusResult | null;
   } | null>(null);
+  // Deposit addresses of NEAR quotes already passed to execute(). execute()
+  // reuses a quote's deposit address as-is and status is reported per deposit
+  // address, so a quote whose address is in here must never execute again.
+  const [spentDepositAddresses, setSpentDepositAddresses] = useState<string[]>(
+    [],
+  );
   const handleStatusResult = useCallback(
     (key: string, result: BridgeStatusResult | null) =>
       setStatusReport({ key, result }),
@@ -1439,6 +1448,40 @@ export const SwapForm: React.FC<SwapFormProps> = ({
     : (embeddedWallet?.address ?? "");
   const starknetAddress = starknet.address ?? "";
 
+  // useWalletAddress() follows the global network; the token page can run the
+  // swap on a different (auto-picked) network, so resolve the From network's
+  // own address the same way: injected EOA, Starknet wallet, or the EVM wallet.
+  const fromNetworkName = from?.network ?? null;
+  const globalNetworkName = selectedNetwork.chain.name;
+  const fromWalletAddress = useMemo((): string | undefined => {
+    if (!fromNetworkName) return undefined;
+    if (isInjectedWallet || fromNetworkName === globalNetworkName) {
+      return walletAddress;
+    }
+    if (fromNetworkName === "Starknet") {
+      if (!starknetAddress) return undefined;
+      try {
+        return normalizeStarknetAddress(starknetAddress) || starknetAddress;
+      } catch {
+        return undefined;
+      }
+    }
+    if (fromNetworkName === "Tron") return undefined;
+    // EVM From network: the global address is EVM too unless the global
+    // network is Starknet/Tron, in which case use the EVM wallet directly.
+    if (globalNetworkName === "Starknet" || globalNetworkName === "Tron") {
+      return evmAddress || undefined;
+    }
+    return walletAddress;
+  }, [
+    fromNetworkName,
+    globalNetworkName,
+    isInjectedWallet,
+    walletAddress,
+    starknetAddress,
+    evmAddress,
+  ]);
+
   const walletAdapter = useMemo(() => {
     if (
       isInjectedWallet &&
@@ -1496,6 +1539,18 @@ export const SwapForm: React.FC<SwapFormProps> = ({
     getInjectedToken:
       isInjectedWallet && injectedReady ? getInjectedTokenPassive : undefined,
   });
+
+  const quoteDepositAddress =
+    quote?.kind === "near-deposit" ? quote.depositAddress || null : null;
+  const isQuoteSpent =
+    !!quoteDepositAddress &&
+    spentDepositAddresses.includes(quoteDepositAddress);
+
+  // Back on the form with a spent quote: fetch a new one for the user to
+  // review and confirm. Never executed automatically.
+  useEffect(() => {
+    if (step === "form" && isQuoteSpent) void refetchQuote?.();
+  }, [step, isQuoteSpent, refetchQuote]);
 
   // Expiry is CTA-disable only (no countdown): flip isQuoteExpired when the
   // active quote's own deadline passes. A new quote re-arms it.
@@ -1610,16 +1665,17 @@ export const SwapForm: React.FC<SwapFormProps> = ({
     hasInsufficientBalance,
   });
 
-  const canConfirm = canSubmitSwap({
-    from,
-    to,
-    parsedAmount,
-    quote,
-    quoteLoading,
-    quoteError,
-    isQuoteExpired,
-    hasInsufficientBalance,
-  });
+  const canConfirm =
+    canSubmitSwap({
+      from,
+      to,
+      parsedAmount,
+      quote,
+      quoteLoading,
+      quoteError,
+      isQuoteExpired,
+      hasInsufficientBalance,
+    }) && !isQuoteSpent;
 
   const resetToForm = () => {
     setStep("form");
@@ -1683,6 +1739,13 @@ export const SwapForm: React.FC<SwapFormProps> = ({
 
   const handleConfirm = async () => {
     if (executeInFlightRef.current) return;
+    if (isQuoteSpent) {
+      // This quote's deposit address was already used by an earlier attempt:
+      // back to the form for a new quote (the effect above refetches it).
+      setIsFinalizing(false);
+      setStep("form");
+      return;
+    }
     const eligibility = checkCurrentEligibility();
     if (!quote || !from || !to || !eligibility.eligible) {
       // Eligibility changed since the CTA was enabled (e.g. quote expired,
@@ -1705,6 +1768,14 @@ export const SwapForm: React.FC<SwapFormProps> = ({
     }
     const fromWithAmount: BridgeLeg = { ...from, amount, rawAmount };
     executeInFlightRef.current = true;
+    // Spent from the moment execute() gets it, whether it succeeds, fails or
+    // is rejected — a broadcast can land even when execute() throws.
+    if (quoteDepositAddress) {
+      const spent = quoteDepositAddress;
+      setSpentDepositAddresses((prev) =>
+        prev.includes(spent) ? prev : [...prev, spent],
+      );
+    }
     setIsExecuting(true);
     // New attempt: drop any previous attempt's result so status polling and
     // the result screens only ever follow this attempt's reference.
@@ -1725,10 +1796,10 @@ export const SwapForm: React.FC<SwapFormProps> = ({
       const injectedToken = isInjectedWallet
         ? await getInjectedToken({ interactive: true })
         : null;
-      if ((accessToken || injectedToken) && walletAddress) {
+      if ((accessToken || injectedToken) && fromWalletAddress) {
         await saveTransaction(
           {
-            walletAddress,
+            walletAddress: fromWalletAddress,
             transactionType: "bridge",
             fromCurrency: from.token,
             toCurrency: to.token,
@@ -1809,9 +1880,11 @@ export const SwapForm: React.FC<SwapFormProps> = ({
   // (a refused Review confirm sets the same notice via formNotice).
   const visibleNotice =
     formNotice ??
-    (isQuoteExpired && !!quote && !quoteError && !hasInsufficientBalance
-      ? SWAP_COPY.quoteExpired
-      : null);
+    (isQuoteSpent && !quoteError
+      ? SWAP_COPY.quoteUsed
+      : isQuoteExpired && !!quote && !quoteError && !hasInsufficientBalance
+        ? SWAP_COPY.quoteExpired
+        : null);
 
   const formBody = (
     <div
@@ -1927,7 +2000,9 @@ export const SwapForm: React.FC<SwapFormProps> = ({
           role="status"
           message={visibleNotice}
           onRetry={
-            visibleNotice === SWAP_COPY.quoteExpired && refetchQuote
+            (visibleNotice === SWAP_COPY.quoteExpired ||
+              visibleNotice === SWAP_COPY.quoteUsed) &&
+            refetchQuote
               ? () => void refetchQuote()
               : undefined
           }

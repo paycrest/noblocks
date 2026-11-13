@@ -47,8 +47,12 @@ jest.mock("next/image", () => ({
   ),
 }));
 
+// Follows the global network in the real hook; tests set it per scenario.
+const mockWalletAddressValue: { current: string | undefined } = {
+  current: "0x1111111111111111111111111111111111111111",
+};
 jest.mock("../app/hooks/useWalletAddress", () => ({
-  useWalletAddress: () => "0x1111111111111111111111111111111111111111",
+  useWalletAddress: () => mockWalletAddressValue.current,
 }));
 
 const mockNetworkValue = {
@@ -1186,6 +1190,130 @@ describe("SwapForm — execution attempts", () => {
       await screen.findByTestId("swap-success-content"),
     ).toBeInTheDocument();
   });
+
+  it("never re-executes a quote whose deposit address was used, and gets a new quote first", async () => {
+    // execute() reuses a NEAR quote's deposit address, so a second execute of
+    // the same quote would return (and poll) the same reference as attempt A.
+    const quoteA = { ...QUOTE, depositAddress: "0xdepositA" } as BridgeQuote;
+    mockQuoteState.quote = quoteA;
+    mockExecute.mockResolvedValueOnce({
+      txHash: "0xaaa",
+      depositRefId: "0xdepositA",
+    });
+    const { rerender, onClose } = renderSwap(TOKEN_PAGE_PROPS);
+    fillTokenPage();
+    fireEvent.click(screen.getByTestId("swap-submit-cta"));
+    await waitFor(() => expect(mockStatusSetters.has("0xdepositA")).toBe(true));
+    expect(mockExecute).toHaveBeenCalledTimes(1);
+    expect(mockExecute.mock.calls[0][0]).toBe(quoteA);
+    expect(mockQuoteState.refetch).not.toHaveBeenCalled();
+
+    // Dismiss A's pending modal: back on the form, the spent quote is
+    // refetched and explained, never executed again.
+    fireEvent.click(screen.getByTestId("mock-modal-dismiss"));
+    expect(mockQuoteState.refetch).toHaveBeenCalled();
+    const notice = screen.getByTestId("swap-form-notice");
+    expect(notice).toHaveTextContent(SWAP_COPY.quoteUsed);
+    const cta = screen.getByTestId("swap-submit-cta");
+    expect(cta).toBeDisabled();
+    fireEvent.click(cta);
+    expect(mockExecute).toHaveBeenCalledTimes(1);
+    fireEvent.click(
+      within(notice).getByRole("button", { name: SWAP_COPY.retry }),
+    );
+    expect(mockExecute).toHaveBeenCalledTimes(1);
+
+    // A's SUCCESS arriving late is not shown.
+    act(() => mockStatusSetters.get("0xdepositA")?.({ status: "SUCCESS" }));
+    expect(
+      screen.queryByTestId("swap-success-content"),
+    ).not.toBeInTheDocument();
+
+    // The new quote arrives with its own deposit address; the user confirms
+    // again and only then does B execute — with the new quote.
+    const quoteB = {
+      ...QUOTE,
+      depositAddress: "0xdepositB",
+      amountOut: "99.4",
+    } as BridgeQuote;
+    mockQuoteState.quote = quoteB;
+    rerender(<SwapForm onClose={onClose} {...TOKEN_PAGE_PROPS} />);
+    expect(screen.queryByTestId("swap-form-notice")).not.toBeInTheDocument();
+    expect(mockExecute).toHaveBeenCalledTimes(1);
+    let resolveB: (v: {
+      txHash: string;
+      depositRefId: string;
+    }) => void = () => {};
+    mockExecute.mockImplementation(
+      () =>
+        new Promise((res) => {
+          resolveB = res;
+        }),
+    );
+    fireEvent.click(screen.getByTestId("swap-submit-cta"));
+    expect(mockExecute).toHaveBeenCalledTimes(2);
+    expect(mockExecute.mock.calls[1][0]).toBe(quoteB);
+    await act(async () => {
+      resolveB({ txHash: "0xbbb", depositRefId: "0xdepositB" });
+    });
+    await waitFor(() => expect(mockStatusSetters.has("0xdepositB")).toBe(true));
+    act(() => mockStatusSetters.get("0xdepositA")?.({ status: "SUCCESS" }));
+    expect(screen.getByTestId("swap-pending-content")).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("swap-success-content"),
+    ).not.toBeInTheDocument();
+  });
+});
+
+describe("SwapForm — From network wallet address", () => {
+  it.each([
+    ["the global Starknet address exists", "0x0123starknet"],
+    ["there is no Starknet address", undefined],
+  ])(
+    "saves an auto-picked Base swap with the Base wallet address when %s",
+    async (_label, globalAddress) => {
+      const originalNetwork = mockNetworkValue.selectedNetwork;
+      const originalAddress = mockWalletAddressValue.current;
+      try {
+        mockNetworkValue.selectedNetwork = {
+          chain: { name: "Starknet", id: 0 },
+          imageUrl: "/logos/starknet-logo.svg",
+        } as unknown as typeof originalNetwork;
+        mockWalletAddressValue.current = globalAddress;
+        mockQuoteState.quote = QUOTE;
+        mockExecute.mockResolvedValueOnce({
+          txHash: "0xaaa",
+          depositRefId: "ref-base",
+        });
+        const onBridgeSubmit = jest.fn();
+        renderSwap({ ...TOKEN_PAGE_PROPS, onBridgeSubmit });
+        // The token page auto-picked funded Base over the global Starknet.
+        expect(
+          within(screen.getByTestId("swap-from-card")).getByText(/578 USDT/),
+        ).toBeInTheDocument();
+        fillTokenPage();
+        fireEvent.click(screen.getByTestId("swap-submit-cta"));
+        await waitFor(() =>
+          expect(mockSaveTransaction).toHaveBeenCalledTimes(1),
+        );
+        expect(mockSaveTransaction.mock.calls[0][0]).toMatchObject({
+          walletAddress: "0x1111111111111111111111111111111111111111",
+          network: "Base",
+        });
+        await waitFor(() =>
+          expect(onBridgeSubmit).toHaveBeenCalledWith(
+            expect.objectContaining({
+              savedTxId: "saved-tx-1",
+              depositRefId: "ref-base",
+            }),
+          ),
+        );
+      } finally {
+        mockNetworkValue.selectedNetwork = originalNetwork;
+        mockWalletAddressValue.current = originalAddress;
+      }
+    },
+  );
 });
 
 describe("SwapForm — quote card copy and errors", () => {

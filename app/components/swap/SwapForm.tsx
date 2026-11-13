@@ -82,7 +82,7 @@ export const SWAP_COPY = {
   reviewTitle: "Review swap",
   youPay: "You pay",
   exchangeRate: "Exchange rate",
-  receiveAtLeast: "Receive at least",
+  estimatedReceive: "Estimated receive",
   fee: "Fee",
   fees: "Fees",
   warning:
@@ -108,6 +108,10 @@ export const SWAP_COPY = {
     "You can leave this screen, we will proceed to completing your swap",
   etaFallback: "Swap usually completes in 15 sec",
   noRail: "No swap route is available for this pair at this time.",
+  quoteError: "We couldn't get a quote for this swap.",
+  retry: "Retry",
+  quoteExpired: "This quote has expired. Get a new quote to continue.",
+  quoteChanged: "The swap details changed. Check them and try again.",
 } as const;
 
 /** Builds a same-network BridgeLeg from a chosen token symbol, mirroring
@@ -168,6 +172,82 @@ export function canSubmitSwap(params: {
     !quoteLoading &&
     !quoteError
   );
+}
+
+/** Reads the validity deadline (ms since epoch) a quote already carries:
+ * NEAR deposit quotes expose `deadline`, HyperFX intents expose `expiresAt`.
+ * LI.FI / Textile previews carry no deadline here — the quote hook refreshes
+ * them on its own interval — so they return null. UI read only. */
+export function getSwapQuoteDeadline(quote: BridgeQuote | null): number | null {
+  if (!quote) return null;
+  const value =
+    quote.kind === "near-deposit"
+      ? quote.deadline
+      : quote.kind === "hyperfx-intent"
+        ? quote.expiresAt
+        : null;
+  return typeof value === "number" && Number.isFinite(value) && value > 0
+    ? value
+    : null;
+}
+
+export function isSwapQuoteExpired(
+  quote: BridgeQuote | null,
+  now: number = Date.now(),
+): boolean {
+  const deadline = getSwapQuoteDeadline(quote);
+  return deadline != null && deadline <= now;
+}
+
+type SwapBalanceEntry = {
+  network: { chain: { name: string } };
+  balances: {
+    balances: Record<string, number>;
+    rawBalances?: Record<string, number>;
+  };
+};
+
+function balanceForSymbol(entry: SwapBalanceEntry, symbol: string): number {
+  const key = symbol.toUpperCase();
+  const value =
+    entry.balances.rawBalances?.[key] ??
+    entry.balances.rawBalances?.[symbol] ??
+    entry.balances.balances[key] ??
+    entry.balances.balances[symbol] ??
+    0;
+  return Number.isFinite(value) ? value : 0;
+}
+
+/** Token-page Swap has no network picker, so the network is locked. Prefer
+ * the network where the user actually holds the token (largest holding when
+ * it is spread across several; ties keep the current network). Returns null
+ * when no supported network holds a balance of it. */
+export function pickFundedSwapNetwork(
+  symbol: string | null | undefined,
+  balances: SwapBalanceEntry[],
+  allTokens: Record<string, Token[]>,
+  currentNetworkName: string | null,
+): string | null {
+  if (!symbol) return null;
+  let best: { name: string; amount: number } | null = null;
+  for (const entry of balances) {
+    const name = entry.network.chain.name;
+    if (!networks.some((n) => n.chain.name === name)) continue;
+    const token = (allTokens[name] ?? []).find((t) =>
+      tokensEqual(t.symbol, symbol),
+    );
+    if (!token) continue;
+    const amount = balanceForSymbol(entry, token.symbol);
+    if (amount <= 0) continue;
+    if (
+      !best ||
+      amount > best.amount ||
+      (amount === best.amount && name === currentNetworkName)
+    ) {
+      best = { name, amount };
+    }
+  }
+  return best?.name ?? null;
 }
 
 /** True only when a quote attempt actually ran and came back with no route —
@@ -535,7 +615,7 @@ export function SwapQuoteCard({
         </span>
       </div>
       <div className="flex items-center justify-between gap-3 whitespace-nowrap">
-        <span className={labelClasses}>{SWAP_COPY.receiveAtLeast}</span>
+        <span className={labelClasses}>{SWAP_COPY.estimatedReceive}</span>
         <span className="font-inter text-sm font-medium leading-5 tracking-[-0.14px] text-text-body dark:text-white/80">
           {receiveLabel}
         </span>
@@ -546,6 +626,38 @@ export function SwapQuoteCard({
           {feeLabel}
         </span>
       </div>
+    </div>
+  );
+}
+
+/** Same amber note as the "No swap route" message, with an optional retry. */
+function SwapNote({
+  message,
+  onRetry,
+  testId,
+  role,
+}: {
+  message: string;
+  onRetry?: () => void;
+  testId: string;
+  role: "alert" | "status";
+}) {
+  return (
+    <div
+      role={role}
+      data-testid={testId}
+      className="flex items-center justify-between gap-3 rounded-xl border border-amber-100 bg-amber-50 p-3 font-general-sans text-sm text-amber-700 dark:border-amber-900/30 dark:bg-amber-900/20 dark:text-amber-400"
+    >
+      <span>{message}</span>
+      {onRetry ? (
+        <button
+          type="button"
+          onClick={onRetry}
+          className="shrink-0 font-medium underline underline-offset-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-lavender-500"
+        >
+          {SWAP_COPY.retry}
+        </button>
+      ) : null}
     </div>
   );
 }
@@ -570,6 +682,7 @@ export function SwapTokenAmountPill({ symbol, amount }: TokenPillProps) {
       <span className="whitespace-nowrap px-1 font-inter text-sm font-medium leading-5 text-black dark:text-white">
         {formatTokenAmount(amount)}
       </span>
+      {symbol ? <span className="sr-only">{symbol}</span> : null}
     </div>
   );
 }
@@ -1138,6 +1251,12 @@ export const SwapForm: React.FC<SwapFormProps> = ({
   const [isFinalizing, setIsFinalizing] = useState(false);
   const [failureMessage, setFailureMessage] = useState<string | null>(null);
   const [isQuoteExpired, setIsQuoteExpired] = useState(false);
+  const [formNotice, setFormNotice] = useState<string | null>(null);
+  // In-flight guard for execute(): held until the promise settles, independent
+  // of which modal is showing or whether resetToForm() ran.
+  const executeInFlightRef = useRef(false);
+  const [isExecuting, setIsExecuting] = useState(false);
+  const networkAutoPickedRef = useRef(false);
   const [networkName, setNetworkName] = useState<string | null>(
     showNetworkPicker ? null : selectedNetwork.chain.name,
   );
@@ -1172,6 +1291,35 @@ export const SwapForm: React.FC<SwapFormProps> = ({
     if (!match) return;
     setFromSymbol(match.symbol);
   }, [preferredTokenSymbol, fromSymbol, networkName, allTokens]);
+
+  // Token page: the network is locked (no picker), so start on a network that
+  // actually holds the page's token instead of a possibly zero-balance global
+  // selection. Runs once, after balances load, before the user has started.
+  useEffect(() => {
+    if (showNetworkPicker || networkAutoPickedRef.current) return;
+    if (!preferredTokenSymbol || isBalanceLoading) return;
+    if (crossChainBalances.length === 0) return;
+    networkAutoPickedRef.current = true;
+    if (amount || toSymbol) return;
+    const funded = pickFundedSwapNetwork(
+      preferredTokenSymbol,
+      crossChainBalances,
+      allTokens,
+      networkName,
+    );
+    if (funded && funded !== networkName) {
+      setNetworkName(funded);
+    }
+  }, [
+    showNetworkPicker,
+    preferredTokenSymbol,
+    isBalanceLoading,
+    crossChainBalances,
+    allTokens,
+    networkName,
+    amount,
+    toSymbol,
+  ]);
 
   const from = useMemo(
     () => buildSwapLeg(networkName, fromSymbol, allTokens),
@@ -1285,6 +1433,7 @@ export const SwapForm: React.FC<SwapFormProps> = ({
     isLoading: quoteLoading,
     isFetched: quoteFetched,
     error: quoteError,
+    refetch: refetchQuote,
   } = useBridgeQuote({
     from,
     to,
@@ -1301,9 +1450,31 @@ export const SwapForm: React.FC<SwapFormProps> = ({
       isInjectedWallet && injectedReady ? getInjectedTokenPassive : undefined,
   });
 
+  // Expiry is CTA-disable only (no countdown): flip isQuoteExpired when the
+  // active quote's own deadline passes. A new quote re-arms it.
   useEffect(() => {
+    const deadline = getSwapQuoteDeadline(quote);
+    if (deadline == null) {
+      setIsQuoteExpired(false);
+      return;
+    }
+    const msLeft = deadline - Date.now();
+    if (msLeft <= 0) {
+      setIsQuoteExpired(true);
+      return;
+    }
     setIsQuoteExpired(false);
+    const timer = window.setTimeout(
+      () => setIsQuoteExpired(true),
+      Math.min(msLeft, 2_147_483_647),
+    );
+    return () => window.clearTimeout(timer);
   }, [quote]);
+
+  // Any edit or fresh quote supersedes a previous "details changed" notice.
+  useEffect(() => {
+    setFormNotice(null);
+  }, [quote, amount, fromSymbol, toSymbol, networkName]);
 
   const { execute } = useBridgeExecute({
     selectedNetwork: networkObj,
@@ -1335,7 +1506,8 @@ export const SwapForm: React.FC<SwapFormProps> = ({
     getInjectedToken:
       isInjectedWallet && injectedReady ? getInjectedTokenPassive : undefined,
   });
-  const liveStatus = bridgeStatus?.status;
+  // Only trust a status result for the current attempt's reference.
+  const liveStatus = resultInfo ? bridgeStatus?.status : undefined;
   const isDone = liveStatus === "SUCCESS";
   const isRefunded = liveStatus === "REFUNDED";
   const isStatusFailed = liveStatus === "FAILED";
@@ -1409,6 +1581,34 @@ export const SwapForm: React.FC<SwapFormProps> = ({
     setIsFinalizing(false);
   };
 
+  /** Re-validates eligibility at submit time, including the quote deadline
+   * (the expiry timer may not have fired yet). `notice` is the explanation to
+   * show on the form when an existing note doesn't already cover it. */
+  const checkCurrentEligibility = (): {
+    eligible: boolean;
+    expired: boolean;
+    notice: string | null;
+  } => {
+    const expiredNow = isQuoteExpired || isSwapQuoteExpired(quote);
+    const eligible = canSubmitSwap({
+      from,
+      to,
+      parsedAmount,
+      quote,
+      quoteLoading,
+      quoteError,
+      isQuoteExpired: expiredNow,
+      hasInsufficientBalance,
+    });
+    if (eligible) return { eligible, expired: false, notice: null };
+    if (expiredNow)
+      return { eligible, expired: true, notice: SWAP_COPY.quoteExpired };
+    // Insufficient balance and quote errors already have their own notes.
+    if (hasInsufficientBalance || quoteError)
+      return { eligible, expired: false, notice: null };
+    return { eligible, expired: false, notice: SWAP_COPY.quoteChanged };
+  };
+
   const handleNetworkSelect = (name: string) => {
     setNetworkName(name);
     const tokenList = allTokens[name] ?? [];
@@ -1436,7 +1636,17 @@ export const SwapForm: React.FC<SwapFormProps> = ({
   };
 
   const handleConfirm = async () => {
-    if (!quote || !from || !to) return;
+    if (executeInFlightRef.current) return;
+    const eligibility = checkCurrentEligibility();
+    if (!quote || !from || !to || !eligibility.eligible) {
+      // Eligibility changed since the CTA was enabled (e.g. quote expired,
+      // balance dropped): go back to the form and explain instead of executing.
+      if (eligibility.expired) setIsQuoteExpired(true);
+      setFormNotice(eligibility.notice);
+      setIsFinalizing(false);
+      setStep("form");
+      return;
+    }
     const rawAmount = toRawAmount(amount, from.decimals);
     if (
       !Number.isFinite(parsedAmount) ||
@@ -1448,6 +1658,14 @@ export const SwapForm: React.FC<SwapFormProps> = ({
       return;
     }
     const fromWithAmount: BridgeLeg = { ...from, amount, rawAmount };
+    executeInFlightRef.current = true;
+    setIsExecuting(true);
+    // New attempt: drop any previous attempt's result so status polling and
+    // the result screens only ever follow this attempt's reference.
+    setResultInfo(null);
+    setCompletedAt(null);
+    setTimeSpentSeconds(0);
+    setFormNotice(null);
     try {
       setIsFinalizing(true);
       startedAtRef.current = Date.now();
@@ -1515,11 +1733,14 @@ export const SwapForm: React.FC<SwapFormProps> = ({
       setIsFinalizing(false);
       refreshBalance();
       setStep("failed");
+    } finally {
+      executeInFlightRef.current = false;
+      setIsExecuting(false);
     }
   };
 
   const handleCtaClick = () => {
-    if (!canConfirm) return;
+    if (executeInFlightRef.current || !canConfirm) return;
     if (confirmBeforeSubmit) {
       setStep("review");
     } else {
@@ -1636,6 +1857,28 @@ export const SwapForm: React.FC<SwapFormProps> = ({
         </div>
       ) : null}
 
+      {quoteError && !hasInsufficientBalance ? (
+        <SwapNote
+          testId="swap-quote-error"
+          role="alert"
+          message={SWAP_COPY.quoteError}
+          onRetry={refetchQuote ? () => void refetchQuote() : undefined}
+        />
+      ) : null}
+
+      {formNotice ? (
+        <SwapNote
+          testId="swap-form-notice"
+          role="status"
+          message={formNotice}
+          onRetry={
+            formNotice === SWAP_COPY.quoteExpired && refetchQuote
+              ? () => void refetchQuote()
+              : undefined
+          }
+        />
+      ) : null}
+
       {showQuoteCard && quote && to ? (
         <SwapQuoteCard
           rateLabel={rateLabel ?? ""}
@@ -1653,14 +1896,15 @@ export const SwapForm: React.FC<SwapFormProps> = ({
         <button
           type="button"
           data-testid="swap-submit-cta"
-          disabled={!canConfirm}
+          disabled={!canConfirm || isExecuting}
+          aria-busy={isExecuting}
           onClick={handleCtaClick}
           className={classNames(
             "flex h-11 w-full items-center justify-center rounded-xl px-3 py-2.5 font-general-sans text-sm font-medium leading-5 tracking-[-0.14px] text-white transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-lavender-500",
             "bg-lavender-500 hover:bg-lavender-600 disabled:cursor-not-allowed disabled:bg-border-input disabled:text-white dark:disabled:bg-[#2e2e2e] dark:disabled:text-white/50",
           )}
         >
-          {ctaLabel}
+          {isExecuting ? "Swapping…" : ctaLabel}
         </button>
 
         {/* btmSec: two 4px-padded tags joined by a 0.3px fading rule. */}
@@ -1825,7 +2069,7 @@ export const SwapForm: React.FC<SwapFormProps> = ({
               ? `${bridgeFeeInReceivingToken(quote)} ${to?.token ?? ""}`
               : "—"
           }
-          isSubmitting={isFinalizing}
+          isSubmitting={isFinalizing || isExecuting}
         />
       </AnimatedModal>
 

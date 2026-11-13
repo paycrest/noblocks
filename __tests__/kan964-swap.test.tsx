@@ -123,19 +123,24 @@ const mockQuoteState: {
   isLoading: boolean;
   isFetched: boolean;
   error: unknown;
-} = { quote: null, isLoading: false, isFetched: false, error: null };
+  refetch: jest.Mock;
+} = { quote: null, isLoading: false, isFetched: false, error: null, refetch: jest.fn() };
 const mockStatusState: { result: { status: string; destinationTxHash?: string } | null } = {
   result: null,
 };
 const mockExecute = jest.fn();
 const mockUseBridgeQuote = jest.fn();
+const mockUseBridgeStatus = jest.fn();
 jest.mock("../app/hooks/bridge", () => ({
   useBridgeQuote: (params: unknown) => {
     mockUseBridgeQuote(params);
     return mockQuoteState;
   },
   useBridgeExecute: () => ({ execute: mockExecute }),
-  useBridgeStatus: () => mockStatusState,
+  useBridgeStatus: (params: unknown) => {
+    mockUseBridgeStatus(params);
+    return mockStatusState;
+  },
 }));
 
 jest.mock("../app/api/aggregator", () => ({
@@ -150,9 +155,19 @@ jest.mock("../app/lib/toastMappedError", () => ({
 
 jest.mock("../app/components/AnimatedComponents", () => ({
   __esModule: true,
-  AnimatedModal: ({ isOpen, children }: { isOpen: boolean; children: React.ReactNode }) =>
+  AnimatedModal: ({
+    isOpen,
+    onClose,
+    children,
+  }: {
+    isOpen: boolean;
+    onClose?: () => void;
+    children: React.ReactNode;
+  }) =>
     isOpen ? (
       <div role="dialog" aria-modal="true">
+        {/* Stand-in for Escape / scrim dismissal. */}
+        <button type="button" data-testid="mock-modal-dismiss" onClick={() => onClose?.()} />
         {children}
       </div>
     ) : null,
@@ -274,7 +289,11 @@ import {
   buildSwapLeg,
   canSubmitSwap,
   formatSwapRateLabel,
+  getSwapQuoteDeadline,
+  isSwapQuoteExpired,
   noSwapRailAvailable,
+  pickFundedSwapNetwork,
+  SwapTokenAmountPill,
 } from "../app/components/swap/SwapForm";
 import { TransferPendingModal } from "../app/components/transfer/TransferPendingModal";
 import { TRANSFER_COPY } from "../app/components/transfer/transferConfig";
@@ -352,6 +371,8 @@ beforeEach(() => {
   mockQuoteState.isLoading = false;
   mockQuoteState.isFetched = false;
   mockQuoteState.error = null;
+  mockQuoteState.refetch = jest.fn();
+  mockUseBridgeStatus.mockClear();
   mockStatusState.result = null;
   mockExecute.mockReset();
   mockUseBridgeQuote.mockClear();
@@ -807,5 +828,269 @@ describe("Swap entry points", () => {
       />,
     );
     expect(within(screen.getByTestId("action-drawer")).getByText(/Powered by/i)).toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// CodeRabbit review follow-ups
+// ---------------------------------------------------------------------------
+
+describe("quote deadline helpers", () => {
+  it("reads NEAR deadline and HyperFX expiresAt, and nothing for LI.FI", () => {
+    expect(getSwapQuoteDeadline({ ...QUOTE, deadline: 1234 } as BridgeQuote)).toBe(1234);
+    expect(
+      getSwapQuoteDeadline({ kind: "hyperfx-intent", expiresAt: 5678 } as unknown as BridgeQuote),
+    ).toBe(5678);
+    expect(getSwapQuoteDeadline({ kind: "lifi-tx" } as unknown as BridgeQuote)).toBeNull();
+    expect(getSwapQuoteDeadline(null)).toBeNull();
+    expect(isSwapQuoteExpired({ ...QUOTE, deadline: 1000 } as BridgeQuote, 1000)).toBe(true);
+    expect(isSwapQuoteExpired({ ...QUOTE, deadline: 1001 } as BridgeQuote, 1000)).toBe(false);
+  });
+});
+
+describe("SwapForm — quote expiry", () => {
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  it("disables the CTA once the active quote's deadline passes", () => {
+    jest.useFakeTimers();
+    mockQuoteState.quote = { ...QUOTE, deadline: Date.now() + 5_000 } as BridgeQuote;
+    renderSwap(TOKEN_PAGE_PROPS);
+    fillTokenPage();
+    expect(screen.getByTestId("swap-submit-cta")).toBeEnabled();
+    act(() => {
+      jest.advanceTimersByTime(5_001);
+    });
+    expect(screen.getByTestId("swap-submit-cta")).toBeDisabled();
+    // No countdown UI is rendered for expiry.
+    expect(screen.queryByText(/expires in/i)).not.toBeInTheDocument();
+  });
+
+  it("re-validates the deadline on Review confirm and refuses an expired quote", () => {
+    jest.useFakeTimers();
+    mockQuoteState.quote = { ...QUOTE, deadline: Date.now() + 5_000 } as BridgeQuote;
+    renderSwap(HOME_PROPS);
+    fillHome();
+    fireEvent.click(screen.getByTestId("swap-submit-cta"));
+    expect(screen.getByTestId("swap-review-content")).toBeInTheDocument();
+    // Clock passes the deadline before the expiry timer has fired.
+    jest.setSystemTime(Date.now() + 10_000);
+    fireEvent.click(screen.getByTestId("swap-review-confirm"));
+    expect(mockExecute).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("swap-review-content")).not.toBeInTheDocument();
+    expect(screen.getByTestId("swap-form-notice")).toHaveTextContent(SWAP_COPY.quoteExpired);
+    expect(screen.getByTestId("swap-submit-cta")).toBeDisabled();
+    fireEvent.click(
+      within(screen.getByTestId("swap-form-notice")).getByRole("button", { name: SWAP_COPY.retry }),
+    );
+    expect(mockQuoteState.refetch).toHaveBeenCalled();
+  });
+});
+
+describe("SwapForm — Review confirm eligibility", () => {
+  it("returns to the form instead of executing when the balance no longer covers the amount", () => {
+    mockQuoteState.quote = QUOTE;
+    const original = mockBalanceValue.crossChainBalances;
+    const { rerender, onClose } = renderSwap(HOME_PROPS);
+    fillHome();
+    fireEvent.click(screen.getByTestId("swap-submit-cta"));
+    expect(screen.getByTestId("swap-review-content")).toBeInTheDocument();
+    try {
+      mockBalanceValue.crossChainBalances = [
+        {
+          network: { chain: { name: "Base" } },
+          balances: { total: 10, balances: { USDT: 10, USDC: 0 }, rawBalances: { USDT: 10, USDC: 0 } },
+        },
+      ];
+      rerender(<SwapForm onClose={onClose} {...HOME_PROPS} />);
+      fireEvent.click(screen.getByTestId("swap-review-confirm"));
+      expect(mockExecute).not.toHaveBeenCalled();
+      expect(screen.queryByTestId("swap-review-content")).not.toBeInTheDocument();
+      expect(screen.getByText("Insufficient balance")).toBeInTheDocument();
+    } finally {
+      mockBalanceValue.crossChainBalances = original;
+    }
+  });
+});
+
+describe("SwapForm — execution attempts", () => {
+  it("blocks a second execute() while the first is still waiting, even after dismissing pending", async () => {
+    mockQuoteState.quote = QUOTE;
+    let resolveExecute: (v: { txHash: string; depositRefId: string }) => void = () => {};
+    mockExecute.mockImplementation(
+      () =>
+        new Promise((res) => {
+          resolveExecute = res;
+        }),
+    );
+    renderSwap(TOKEN_PAGE_PROPS);
+    fillTokenPage();
+    fireEvent.click(screen.getByTestId("swap-submit-cta"));
+    await screen.findByTestId("swap-pending-content");
+    // Escape / scrim on the pending modal → resetToForm().
+    fireEvent.click(screen.getByTestId("mock-modal-dismiss"));
+    expect(screen.queryByTestId("swap-pending-content")).not.toBeInTheDocument();
+    const cta = screen.getByTestId("swap-submit-cta");
+    expect(cta).toBeDisabled();
+    expect(cta).toHaveAttribute("aria-busy", "true");
+    fireEvent.click(cta);
+    expect(mockExecute).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      resolveExecute({ txHash: "0xabc", depositRefId: "ref-1" });
+    });
+    expect(mockExecute).toHaveBeenCalledTimes(1);
+  });
+
+  it("releases the guard when execute() rejects", async () => {
+    mockQuoteState.quote = QUOTE;
+    mockExecute.mockRejectedValueOnce(new Error("user rejected"));
+    renderSwap(TOKEN_PAGE_PROPS);
+    fillTokenPage();
+    fireEvent.click(screen.getByTestId("swap-submit-cta"));
+    const failed = await screen.findByTestId("swap-failed-content");
+    fireEvent.click(within(failed).getByRole("button", { name: SWAP_COPY.tryAgain }));
+    mockExecute.mockImplementation(() => new Promise(() => {}));
+    fireEvent.click(screen.getByTestId("swap-submit-cta"));
+    expect(mockExecute).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not show a previous attempt's result while the next attempt is pending", async () => {
+    mockQuoteState.quote = QUOTE;
+    mockExecute.mockResolvedValueOnce({ txHash: "0xaaa", depositRefId: "ref-A" });
+    const { rerender, onClose } = renderSwap(TOKEN_PAGE_PROPS);
+    fillTokenPage();
+    fireEvent.click(screen.getByTestId("swap-submit-cta"));
+    await waitFor(() =>
+      expect(mockUseBridgeStatus).toHaveBeenLastCalledWith(
+        expect.objectContaining({ refId: "ref-A", enabled: true }),
+      ),
+    );
+    // Dismiss A's pending modal while it is still processing.
+    fireEvent.click(screen.getByTestId("mock-modal-dismiss"));
+    // A's poll later reports SUCCESS…
+    mockStatusState.result = { status: "SUCCESS" };
+    // …while attempt B is waiting on its wallet signature.
+    mockExecute.mockImplementation(() => new Promise(() => {}));
+    rerender(<SwapForm onClose={onClose} {...TOKEN_PAGE_PROPS} />);
+    fireEvent.click(screen.getByTestId("swap-submit-cta"));
+    expect(mockExecute).toHaveBeenCalledTimes(2);
+    expect(await screen.findByTestId("swap-pending-content")).toBeInTheDocument();
+    expect(screen.queryByTestId("swap-success-content")).not.toBeInTheDocument();
+    expect(mockUseBridgeStatus).toHaveBeenLastCalledWith(
+      expect.objectContaining({ refId: null, enabled: false }),
+    );
+  });
+});
+
+describe("SwapForm — quote card copy and errors", () => {
+  it("labels the quote output as an estimate, not a minimum", () => {
+    mockQuoteState.quote = QUOTE;
+    mockQuoteState.isFetched = true;
+    renderSwap(HOME_PROPS);
+    fillHome();
+    const card = screen.getByTestId("swap-quote-card");
+    expect(within(card).getByText("Estimated receive")).toBeInTheDocument();
+    expect(within(card).queryByText(/Receive at least/i)).not.toBeInTheDocument();
+  });
+
+  it("explains a quote error and retries through the quote hook", () => {
+    mockQuoteState.error = new Error("quote failed");
+    mockQuoteState.isFetched = true;
+    renderSwap(HOME_PROPS);
+    fillHome();
+    expect(screen.getByTestId("swap-submit-cta")).toBeDisabled();
+    expect(screen.queryByTestId("swap-quote-card")).not.toBeInTheDocument();
+    expect(screen.queryByText(SWAP_COPY.noRail)).not.toBeInTheDocument();
+    const note = screen.getByTestId("swap-quote-error");
+    expect(note).toHaveTextContent(SWAP_COPY.quoteError);
+    fireEvent.click(within(note).getByRole("button", { name: SWAP_COPY.retry }));
+    expect(mockQuoteState.refetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the no-route message for an empty quote result", () => {
+    mockQuoteState.isFetched = true;
+    renderSwap(HOME_PROPS);
+    fillHome();
+    expect(screen.getByText(SWAP_COPY.noRail)).toBeInTheDocument();
+    expect(screen.queryByTestId("swap-quote-error")).not.toBeInTheDocument();
+  });
+});
+
+describe("SwapTokenAmountPill a11y", () => {
+  it("exposes the token symbol to assistive tech without changing the visible amount", () => {
+    const { container } = render(<SwapTokenAmountPill symbol="USDC" amount="99.5" />);
+    expect(screen.getByText("99.5")).toBeInTheDocument();
+    const hidden = screen.getByText("USDC");
+    expect(hidden).toHaveClass("sr-only");
+    expect(container.textContent).toBe("99.5USDC");
+  });
+});
+
+describe("token-page Swap network default", () => {
+  const allTokens = {
+    ...mockTokensValue.allTokens,
+    "Arbitrum One": [
+      {
+        name: "Tether USD",
+        symbol: "USDT",
+        decimals: 6,
+        address: "0xfd086bc7cd5c481dcc9c85ebe478a1c0b69fcbb9",
+        imageUrl: "/logos/usdt-logo.svg",
+      },
+    ],
+  } as unknown as Parameters<typeof pickFundedSwapNetwork>[2];
+  const bal = (name: string, usdt: number) => ({
+    network: { chain: { name } },
+    balances: { balances: { USDT: usdt }, rawBalances: { USDT: usdt } },
+  });
+
+  it("picks the funded network, the largest when spread, and keeps the current on ties", () => {
+    expect(pickFundedSwapNetwork("USDT", [bal("Base", 0), bal("Arbitrum One", 50)], allTokens, "Base")).toBe(
+      "Arbitrum One",
+    );
+    expect(pickFundedSwapNetwork("USDT", [bal("Base", 10), bal("Arbitrum One", 50)], allTokens, "Base")).toBe(
+      "Arbitrum One",
+    );
+    expect(pickFundedSwapNetwork("USDT", [bal("Arbitrum One", 50), bal("Base", 50)], allTokens, "Base")).toBe(
+      "Base",
+    );
+    expect(pickFundedSwapNetwork("USDT", [bal("Base", 0)], allTokens, "Base")).toBeNull();
+    expect(pickFundedSwapNetwork("DOGE", [bal("Base", 10)], allTokens, "Base")).toBeNull();
+  });
+
+  it("opens the token-page Swap on the network that actually holds the token", () => {
+    const originalBalances = mockBalanceValue.crossChainBalances;
+    const originalTokens = mockTokensValue.allTokens;
+    try {
+      mockBalanceValue.crossChainBalances = [
+        {
+          network: { chain: { name: "Base" } },
+          balances: { total: 0, balances: { USDT: 0, USDC: 0 }, rawBalances: { USDT: 0, USDC: 0 } },
+        },
+        {
+          network: { chain: { name: "Arbitrum One" } },
+          balances: { total: 900, balances: { USDT: 900 }, rawBalances: { USDT: 900 } },
+        } as unknown as (typeof originalBalances)[number],
+      ];
+      mockTokensValue.allTokens = {
+        ...originalTokens,
+        "Arbitrum One": [
+          ...((allTokens as Record<string, unknown[]>)["Arbitrum One"] as typeof originalTokens.Base),
+          { ...originalTokens.Base[1], address: "0xaf88d065e77c8cc2239327c5edb3a432268e5831" },
+        ],
+      } as typeof originalTokens;
+      renderSwap(TOKEN_PAGE_PROPS);
+      expect(screen.queryByTestId("swap-network-card")).not.toBeInTheDocument();
+      expect(within(screen.getByTestId("swap-from-card")).getByText(/900 USDT/)).toBeInTheDocument();
+      fillTokenPage();
+      const last = mockUseBridgeQuote.mock.calls.at(-1)?.[0] as { from: BridgeLeg; to: BridgeLeg };
+      expect(last.from).toMatchObject({ network: "Arbitrum One", token: "USDT" });
+      expect(last.to).toMatchObject({ network: "Arbitrum One", token: "USDC" });
+    } finally {
+      mockBalanceValue.crossChainBalances = originalBalances;
+      mockTokensValue.allTokens = originalTokens;
+    }
   });
 });

@@ -11,13 +11,13 @@ export function getAggregatorV1BaseUrl(): string {
   return v2 ? `${v2}/v1` : "";
 }
 
-/** Base origin for v2 routes, e.g. `https://staging-api.paycrest.io`. */
+/**
+ * Base origin for v2 routes, e.g. `https://staging-api.paycrest.io`. Reads the
+ * same variable as `config.aggregatorUrl` so rates, order creation and order
+ * reads always hit one aggregator.
+ */
 export function getAggregatorBaseUrlForV2(): string {
-  const raw = (
-    process.env.AGGREGATOR_URL ||
-    process.env.NEXT_PUBLIC_AGGREGATOR_URL ||
-    ""
-  ).trim();
+  const raw = (process.env.NEXT_PUBLIC_AGGREGATOR_URL || "").trim();
   if (!raw) return "";
   return raw.replace(/\/+$/, "").replace(/\/v1$/i, "");
 }

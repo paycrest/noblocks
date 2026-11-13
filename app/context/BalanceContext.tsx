@@ -186,10 +186,11 @@ type IdentityKeyInput = {
 
 function buildIdentityKey(o: IdentityKeyInput): string {
   const chain = o.selectedChainName;
+  // Solana is fetched from the Solana address even in injected mode, so it keys on that address.
+  if (o.isSolanaSelected) return `sol:${o.solanaAddress ?? ""}`;
   if (o.isInjectedWallet) return `inj:${o.injectedAddress ?? ""}:${chain}`;
   if (o.isStarknetSelected) return `stk:${o.starknetAddress ?? ""}`;
   if (o.isTronSelected) return `trx:${o.tronAddress ?? ""}`;
-  if (o.isSolanaSelected) return `sol:${o.solanaAddress ?? ""}`;
   return `evm:${o.smartAddr ?? ""}|${o.embeddedAddr ?? ""}:${chain}`;
 }
 
@@ -351,14 +352,6 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
       isSolanaSelected: selectedNetwork.chain.name === "Solana",
       selectedChainName: selectedNetwork.chain.name,
     });
-
-    if (
-      !bypassCache &&
-      lastFetchedKeyRef.current !== "" &&
-      lastFetchedKeyRef.current === fetchIdentityKey
-    ) {
-      return;
-    }
 
     const clearAllWalletBalances = () => {
       setSmartWalletBalance(null);
@@ -756,6 +749,8 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
       }
     } catch (error) {
       console.error("Error fetching balances:", error);
+      // A newer fetch owns the state now; a stale failure must not erase its balances.
+      if (!isCurrentFetch()) return;
       // Preserve crossChainBalances and smartWalletRemainingTotal so migration banner
       // and address don't flip to zero-balance UI when switching networks causes RPC errors
       clearPerNetworkBalances();

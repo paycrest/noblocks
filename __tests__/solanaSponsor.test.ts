@@ -46,9 +46,12 @@ function ata(walletOwner: PublicKey): PublicKey {
 }
 
 import {
+  broadcastSponsoredTransaction,
   buildSponsoredTokenTransfer,
+  canReplaceSolanaDeposit,
   ensureTokenAccount,
-  submitSponsoredTransaction,
+  isSolanaSponsorConfigured,
+  verifySponsoredTokenTransfer,
 } from "../app/lib/solanaSponsor";
 
 beforeAll(() => {
@@ -61,14 +64,29 @@ beforeEach(() => {
   mockGetSignatureStatus.mockResolvedValue({ value: { confirmationStatus: "confirmed", err: null } });
 });
 
+const TRANSFER = {
+  owner: owner.publicKey.toBase58(),
+  recipient: recipient.toBase58(),
+  mint: mint.toBase58(),
+  amount: BigInt(50_020_000),
+  decimals: 6,
+};
+
 async function buildTransfer() {
-  return buildSponsoredTokenTransfer({
-    owner: owner.publicKey.toBase58(),
-    recipient: recipient.toBase58(),
-    mint: mint.toBase58(),
-    amount: BigInt(50_020_000),
-    decimals: 6,
-  });
+  return buildSponsoredTokenTransfer(TRANSFER);
+}
+
+async function ownerSigned(): Promise<string> {
+  const tx = Transaction.from(Buffer.from((await buildTransfer()).transaction, "base64"));
+  tx.partialSign(owner);
+  return tx.serialize().toString("base64");
+}
+
+/** Raw SPL token account bytes (165) with the given `state` byte. */
+function tokenAccountData(state: number): Buffer {
+  const data = Buffer.alloc(165);
+  data[108] = state;
+  return data;
 }
 
 describe("buildSponsoredTokenTransfer", () => {
@@ -101,21 +119,29 @@ describe("buildSponsoredTokenTransfer", () => {
   });
 });
 
-describe("submitSponsoredTransaction", () => {
-  it("broadcasts a transaction the sponsor built once the owner has signed", async () => {
-    const tx = Transaction.from(Buffer.from((await buildTransfer()).transaction, "base64"));
-    tx.partialSign(owner);
-    await expect(
-      submitSponsoredTransaction(tx.serialize().toString("base64")),
-    ).resolves.toEqual({ kind: "sent", signature: "sig-1", confirmed: true });
+describe("verifySponsoredTokenTransfer", () => {
+  it("accepts the transfer built for the order once the owner has signed, and names it", async () => {
+    const signed = await ownerSigned();
+    const tx = Transaction.from(Buffer.from(signed, "base64"));
+    expect(verifySponsoredTokenTransfer(signed, TRANSFER)).toEqual({
+      ok: true,
+      signature: bs58.encode(tx.signature!),
+    });
   });
 
-  it("refuses a transaction still missing the owner's signature", async () => {
+  it("refuses a transfer still missing the owner's signature", async () => {
     const built = await buildTransfer();
-    await expect(submitSponsoredTransaction(built.transaction)).resolves.toMatchObject({
-      kind: "rejected",
+    expect(verifySponsoredTokenTransfer(built.transaction, TRANSFER)).toMatchObject({ ok: false });
+  });
+
+  it.each([
+    ["amount", { amount: BigInt(1) }],
+    ["recipient", { recipient: Keypair.generate().publicKey.toBase58() }],
+  ])("refuses a transfer built for a different %s (another order)", async (_label, change) => {
+    const signed = await ownerSigned();
+    expect(verifySponsoredTokenTransfer(signed, { ...TRANSFER, ...change })).toMatchObject({
+      ok: false,
     });
-    expect(mockSendRawTransaction).not.toHaveBeenCalled();
   });
 
   it("refuses a transaction whose fee payer is not the sponsor", async () => {
@@ -127,34 +153,81 @@ describe("submitSponsoredTransaction", () => {
       ...Transaction.from(Buffer.from((await buildTransfer()).transaction, "base64")).instructions,
     );
     tx.sign(owner);
-    await expect(
-      submitSponsoredTransaction(tx.serialize({ requireAllSignatures: false }).toString("base64")),
-    ).resolves.toMatchObject({ kind: "rejected" });
-    expect(mockSendRawTransaction).not.toHaveBeenCalled();
+    expect(
+      verifySponsoredTokenTransfer(
+        tx.serialize({ requireAllSignatures: false }).toString("base64"),
+        TRANSFER,
+      ),
+    ).toMatchObject({ ok: false });
+  });
+});
+
+describe("broadcastSponsoredTransaction", () => {
+  it("broadcasts and reports confirmation", async () => {
+    await expect(broadcastSponsoredTransaction(await ownerSigned())).resolves.toEqual({
+      kind: "sent",
+      signature: "sig-1",
+      confirmed: true,
+    });
   });
 
   it("reports a send that failed without a cluster answer as an unknown outcome", async () => {
-    const tx = Transaction.from(Buffer.from((await buildTransfer()).transaction, "base64"));
-    tx.partialSign(owner);
     mockSendRawTransaction.mockRejectedValue(new Error("fetch failed"));
-    await expect(
-      submitSponsoredTransaction(tx.serialize().toString("base64")),
-    ).resolves.toMatchObject({ kind: "unknown" });
+    await expect(broadcastSponsoredTransaction(await ownerSigned())).resolves.toMatchObject({
+      kind: "unknown",
+    });
   });
 
   it("reports a transaction that failed on chain as rejected (nothing moved)", async () => {
-    const tx = Transaction.from(Buffer.from((await buildTransfer()).transaction, "base64"));
-    tx.partialSign(owner);
     mockGetSignatureStatus.mockResolvedValue({ value: { err: { InstructionError: [1, "Custom"] } } });
+    await expect(broadcastSponsoredTransaction(await ownerSigned())).resolves.toMatchObject({
+      kind: "rejected",
+    });
+  });
+});
+
+describe("canReplaceSolanaDeposit", () => {
+  const signature = bs58.encode(Buffer.alloc(64, 7));
+
+  it("keeps a deposit that landed or is processing", async () => {
+    mockGetSignatureStatus.mockResolvedValue({ value: { confirmationStatus: "processed", err: null } });
+    await expect(canReplaceSolanaDeposit(signature, new Date(0))).resolves.toBe(false);
+  });
+
+  it("replaces a deposit that failed on chain", async () => {
+    mockGetSignatureStatus.mockResolvedValue({ value: { err: { InstructionError: [1, "Custom"] } } });
+    await expect(canReplaceSolanaDeposit(signature, new Date())).resolves.toBe(true);
+  });
+
+  it("keeps an unseen deposit until its blockhash has surely expired", async () => {
+    mockGetSignatureStatus.mockResolvedValue({ value: null });
+    await expect(canReplaceSolanaDeposit(signature, new Date())).resolves.toBe(false);
     await expect(
-      submitSponsoredTransaction(tx.serialize().toString("base64")),
-    ).resolves.toMatchObject({ kind: "rejected" });
+      canReplaceSolanaDeposit(signature, new Date(Date.now() - 3 * 60_000)),
+    ).resolves.toBe(true);
+  });
+});
+
+describe("sponsor key", () => {
+  it("falls back to the legacy variable when the primary one is empty", () => {
+    const primary = process.env.SPONSOR_SOLANA_WALLET_PRIVATE_KEY;
+    process.env.SPONSOR_SOLANA_WALLET_PRIVATE_KEY = "";
+    process.env.SPONSOR_SOLANA_WALLET_SECRET = primary;
+    try {
+      expect(isSolanaSponsorConfigured()).toBe(true);
+    } finally {
+      process.env.SPONSOR_SOLANA_WALLET_PRIVATE_KEY = primary;
+      delete process.env.SPONSOR_SOLANA_WALLET_SECRET;
+    }
   });
 });
 
 describe("ensureTokenAccount", () => {
   it("does nothing when the token account exists", async () => {
-    mockGetAccountInfo.mockResolvedValue({ data: Buffer.alloc(0) });
+    mockGetAccountInfo.mockResolvedValue({
+      owner: new PublicKey(TOKEN_PROGRAM),
+      data: tokenAccountData(1),
+    });
     await expect(ensureTokenAccount(owner.publicKey.toBase58(), mint.toBase58())).resolves.toBe(
       "exists",
     );
@@ -170,5 +243,16 @@ describe("ensureTokenAccount", () => {
     expect(sent.feePayer?.equals(sponsor.publicKey)).toBe(true);
     expect(sent.instructions).toHaveLength(1);
     expect(sent.instructions[0].keys[1].pubkey.equals(ata(owner.publicKey))).toBe(true);
+  });
+
+  it("initializes an address that only holds SOL (system-owned, not a token account)", async () => {
+    mockGetAccountInfo.mockResolvedValue({
+      owner: new PublicKey("11111111111111111111111111111111"),
+      data: Buffer.alloc(0),
+    });
+    await expect(ensureTokenAccount(owner.publicKey.toBase58(), mint.toBase58())).resolves.toBe(
+      "created",
+    );
+    expect(mockSendRawTransaction).toHaveBeenCalledTimes(1);
   });
 });

@@ -9,6 +9,7 @@ const STARKNET_PADDED =
 
 const mockGetSenderApiKey = jest.fn<string, []>(() => SENDER_API_KEY);
 const mockAxiosPost = jest.fn();
+const mockAxiosGet = jest.fn();
 const mockFetchTokens = jest.fn();
 const mockLinkedAddresses = jest.fn();
 const mockParseRecord = jest.fn();
@@ -17,6 +18,7 @@ const mockRecordRow = jest.fn();
 const mockIsApiOfframpNetwork = jest.fn();
 const mockLinkedEvmAddresses = jest.fn();
 const mockOrderRowLookup = jest.fn();
+const mockOrderRowUpdate = jest.fn();
 
 jest.mock("server-only", () => ({}));
 // jsdom has no Request, so next/server cannot load; the helpers only read status and json().
@@ -30,7 +32,10 @@ jest.mock("next/server", () => ({
 }));
 jest.mock("axios", () => ({
   __esModule: true,
-  default: { post: (...args: unknown[]) => mockAxiosPost(...args) },
+  default: {
+    post: (...args: unknown[]) => mockAxiosPost(...args),
+    get: (...args: unknown[]) => mockAxiosGet(...args),
+  },
 }));
 jest.mock("../app/lib/aggregator-outbound-headers", () => ({
   buildAggregatorOutboundHeaders: async (
@@ -66,6 +71,20 @@ jest.mock("../app/lib/supabase", () => ({
           }),
         }),
       }),
+      // Records the filters of an update; `.select()` or awaiting the chain runs it.
+      update: (values: Record<string, unknown>) => {
+        const filters: unknown[][] = [];
+        const run = () => mockOrderRowUpdate(values, filters);
+        const chain = {
+          eq: (column: string, value: unknown) => (filters.push(["eq", column, value]), chain),
+          is: (column: string, value: unknown) => (filters.push(["is", column, value]), chain),
+          in: (column: string, value: unknown) => (filters.push(["in", column, value]), chain),
+          select: () => run(),
+          then: (resolve: (v: unknown) => unknown, reject: (e: unknown) => unknown) =>
+            run().then(resolve, reject),
+        };
+        return chain;
+      },
     }),
   },
 }));
@@ -96,6 +115,7 @@ jest.mock("../app/utils", () => ({
 }));
 
 import {
+  fetchLiveDeposit,
   buildSenderOfframpOrderBody,
   handleCreateOfframpOrder,
   normalizeWalletAddress,
@@ -677,6 +697,126 @@ describe("sender order record helpers", () => {
   });
 });
 
+describe("rateAttemptTimeoutMs", () => {
+  const { rateAttemptTimeoutMs } = jest.requireActual(
+    "../app/lib/swap-transaction-limit-server",
+  ) as typeof import("../app/lib/swap-transaction-limit-server");
+
+  it("caps one request at 4s while plenty of budget remains", () => {
+    expect(rateAttemptTimeoutMs(15_000, 6)).toBe(4_000);
+  });
+
+  it("keeps 1s back for every fallback still to come", () => {
+    expect(rateAttemptTimeoutMs(5_000, 3)).toBe(2_000);
+    // Whatever the earlier requests took, each later one still gets its reserve.
+    let remaining = 15_000;
+    for (let after = 6; after >= 0; after--) {
+      const timeout = rateAttemptTimeoutMs(remaining, after);
+      expect(timeout).not.toBeNull();
+      expect(timeout!).toBeGreaterThanOrEqual(1_000);
+      remaining -= timeout!; // worst case: every request times out
+    }
+    expect(remaining).toBeGreaterThanOrEqual(0);
+  });
+
+  it("never runs past the deadline, and stops when the budget is spent", () => {
+    expect(rateAttemptTimeoutMs(800, 0)).toBe(800);
+    expect(rateAttemptTimeoutMs(200, 0)).toBeNull();
+  });
+});
+
+describe("sender order deposit claim", () => {
+  const actual = jest.requireActual(
+    "../app/lib/swap-transaction-limit-server",
+  ) as typeof import("../app/lib/swap-transaction-limit-server");
+  const CLAIMED_AT = "2026-11-13T10:00:00.000Z";
+  const canReplace = jest.fn();
+
+  function rowWith(txHash: string | null) {
+    mockOrderRowLookup.mockResolvedValue({
+      data: [{ id: "row-1", tx_hash: txHash, updated_at: CLAIMED_AT }],
+      error: null,
+    });
+  }
+
+  beforeEach(() => {
+    canReplace.mockReset();
+    mockOrderRowUpdate.mockResolvedValue({ data: [{ id: "row-1" }], error: null });
+  });
+
+  it("claims an unpaid order only while no other claim exists", async () => {
+    rowWith(null);
+    await expect(actual.claimSenderOrderDeposit("order-1", "sig-a", canReplace)).resolves.toEqual({
+      ok: true,
+    });
+    const [values, filters] = mockOrderRowUpdate.mock.calls[0];
+    expect(values).toMatchObject({ tx_hash: "sig-a" });
+    expect(filters).toEqual([
+      ["eq", "id", "row-1"],
+      ["is", "tx_hash", null],
+    ]);
+    expect(canReplace).not.toHaveBeenCalled();
+  });
+
+  it("lets the same transfer through again (a rebroadcast cannot pay twice)", async () => {
+    rowWith("sig-a");
+    await expect(actual.claimSenderOrderDeposit("order-1", "sig-a", canReplace)).resolves.toEqual({
+      ok: true,
+    });
+    expect(mockOrderRowUpdate).not.toHaveBeenCalled();
+  });
+
+  it("refuses a second transfer while the first can still move funds", async () => {
+    rowWith("sig-a");
+    canReplace.mockResolvedValue(false);
+    await expect(
+      actual.claimSenderOrderDeposit("order-1", "sig-b", canReplace),
+    ).resolves.toMatchObject({ ok: false, status: 409 });
+    expect(canReplace).toHaveBeenCalledWith("sig-a", new Date(CLAIMED_AT));
+    expect(mockOrderRowUpdate).not.toHaveBeenCalled();
+  });
+
+  it("replaces a claim that can no longer land, only if it is still the recorded one", async () => {
+    rowWith("sig-a");
+    canReplace.mockResolvedValue(true);
+    await expect(actual.claimSenderOrderDeposit("order-1", "sig-b", canReplace)).resolves.toEqual({
+      ok: true,
+    });
+    expect(mockOrderRowUpdate.mock.calls[0][1]).toEqual([
+      ["eq", "id", "row-1"],
+      ["eq", "tx_hash", "sig-a"],
+    ]);
+  });
+
+  it("refuses when a concurrent claim won the compare-and-set", async () => {
+    rowWith(null);
+    mockOrderRowUpdate.mockResolvedValue({ data: [], error: null });
+    await expect(
+      actual.claimSenderOrderDeposit("order-1", "sig-b", canReplace),
+    ).resolves.toMatchObject({ ok: false, status: 409 });
+  });
+
+  it("fails closed when the earlier transfer cannot be checked", async () => {
+    rowWith("sig-a");
+    canReplace.mockRejectedValue(new Error("rpc down"));
+    await expect(
+      actual.claimSenderOrderDeposit("order-1", "sig-b", canReplace),
+    ).resolves.toMatchObject({ ok: false, status: 503 });
+    expect(mockOrderRowUpdate).not.toHaveBeenCalled();
+  });
+
+  it("releases only its own claim", async () => {
+    await actual.releaseSenderOrderDeposit("order-1", "sig-a");
+    const [values, filters] = mockOrderRowUpdate.mock.calls[0];
+    expect(values).toEqual({ tx_hash: null });
+    expect(filters).toEqual([
+      ["eq", "order_id", "order-1"],
+      ["eq", "tx_hash", "sig-a"],
+      ["in", "transaction_type", ["onramp", "offramp"]],
+    ]);
+  });
+});
+
 describe("requestStarknetTransfer", () => {
   type TransferModule = typeof import("../app/hooks/useSmartWalletTransfer");
   let transferModule: TransferModule;
@@ -755,5 +895,99 @@ describe("requestStarknetTransfer", () => {
     respond(500, { error: "Transaction reverted on-chain" });
     const reverted = await transferModule.requestStarknetTransfer(args).catch((e) => e);
     expect(reverted).not.toBeInstanceOf(transferModule.TransferOutcomeUnknownError);
+  });
+});
+
+describe("fetchLiveDeposit", () => {
+  const SOLANA_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
+  const DEPOSITOR = "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM";
+  const RECEIVE = "7EcDhSYGxXyscszYEp35KHN8vvw3svAuLKTzXwCFLtV";
+  const liveOrder = (overrides: Record<string, unknown> = {}) => ({
+    status: 200,
+    data: {
+      status: "success",
+      data: {
+        id: "6f1c0a52-1d0e-4a57-9b53-6a0f6f3f4a11",
+        status: "initiated",
+        amountPaid: "0",
+        source: { type: "crypto", currency: "USDC", network: "solana", refundAddress: DEPOSITOR },
+        providerAccount: {
+          network: "solana",
+          receiveAddress: RECEIVE,
+          amountToTransfer: "50.02",
+          currency: "USDC",
+          validUntil: new Date(Date.now() + 10 * 60_000).toISOString(),
+        },
+        ...overrides,
+      },
+    },
+  });
+
+  beforeEach(() => {
+    mockAxiosGet.mockReset();
+    mockFetchTokens.mockResolvedValue([
+      { symbol: "USDC", network: "solana", decimals: 6, contractAddress: SOLANA_MINT },
+      { symbol: "USDC", network: "base", decimals: 6, contractAddress: "0x2" },
+    ]);
+  });
+
+  it("returns the deposit of a live order with the token from the aggregator list", async () => {
+    mockAxiosGet.mockResolvedValue(liveOrder());
+    await expect(fetchLiveDeposit("order-1", "Solana")).resolves.toEqual({
+      ok: true,
+      deposit: {
+        network: "Solana",
+        token: { symbol: "USDC", contractAddress: SOLANA_MINT, decimals: 6 },
+        depositorAddress: DEPOSITOR,
+        receiveAddress: RECEIVE,
+        amountToTransfer: "50.02",
+      },
+    });
+    const [url, options] = mockAxiosGet.mock.calls[0];
+    expect(url).toBe("https://aggregator.test/v2/sender/orders/order-1");
+    expect(options.headers["API-Key"]).toBe(SENDER_API_KEY);
+  });
+
+  it.each([
+    ["an order already paid into", { amountPaid: "50.02" }, 409],
+    ["an order past initiated", { status: "pending" }, 409],
+    [
+      "an order on another network",
+      { source: { type: "crypto", currency: "USDC", network: "base", refundAddress: DEPOSITOR } },
+      400,
+    ],
+  ])("refuses %s", async (_label, overrides, status) => {
+    mockAxiosGet.mockResolvedValue(liveOrder(overrides));
+    await expect(fetchLiveDeposit("order-1", "Solana")).resolves.toMatchObject({ ok: false, status });
+  });
+
+  it("refuses an order past its deposit window", async () => {
+    const expired = liveOrder();
+    (expired.data.data.providerAccount as { validUntil: string }).validUntil = new Date(
+      Date.now() - 1000,
+    ).toISOString();
+    mockAxiosGet.mockResolvedValue(expired);
+    await expect(fetchLiveDeposit("order-1", "Solana")).resolves.toMatchObject({
+      ok: false,
+      status: 409,
+    });
+  });
+
+  it("refuses an order without its deposit amount, and a token the list does not carry", async () => {
+    const noAmount = liveOrder();
+    delete (noAmount.data.data.providerAccount as { amountToTransfer?: string }).amountToTransfer;
+    mockAxiosGet.mockResolvedValue(noAmount);
+    await expect(fetchLiveDeposit("order-1", "Solana")).resolves.toMatchObject({ ok: false, status: 502 });
+
+    mockFetchTokens.mockResolvedValue([]);
+    mockAxiosGet.mockResolvedValue(liveOrder());
+    await expect(fetchLiveDeposit("order-1", "Solana")).resolves.toMatchObject({ ok: false, status: 400 });
+  });
+
+  it("answers 404 for an unknown order and 502 when the aggregator is unreachable", async () => {
+    mockAxiosGet.mockResolvedValue({ status: 404, data: { status: "error" } });
+    await expect(fetchLiveDeposit("order-1", "Solana")).resolves.toMatchObject({ ok: false, status: 404 });
+    mockAxiosGet.mockRejectedValue(new Error("ECONNRESET"));
+    await expect(fetchLiveDeposit("order-1", "Solana")).resolves.toMatchObject({ ok: false, status: 502 });
   });
 });

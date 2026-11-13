@@ -36,6 +36,8 @@ import {
   normalizeSavedRecipientChannel,
   isSameSavedRecipient,
   getRpcUrl,
+  isEvmChain,
+  isSolanaChain,
 } from "../utils";
 import {
   fetchOrderDetails,
@@ -128,6 +130,7 @@ export function TransactionStatus({
     injectedWalletBalance,
     starknetWalletBalance,
     tronWalletBalance,
+    solanaWalletBalance,
   } = useBalance();
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
   const { user, getAccessToken } = usePrivy();
@@ -319,8 +322,9 @@ export function TransactionStatus({
       setForwardingStatus("skipped");
       return;
     }
-    // EVM-only for now; Starknet forwarding isn't supported by this flow.
-    if (selectedNetwork.chain.name === "Starknet") {
+    // EVM-only: leg 2 reads an ERC-20 balance and sends an EVM transfer. Other networks are
+    // never routed through the Noblocks wallet (see TransactionPreview), so nothing to forward.
+    if (!isEvmChain(selectedNetwork.chain)) {
       forwardDoneRef.current = true;
       setForwardingStatus("skipped");
       return;
@@ -937,6 +941,8 @@ export function TransactionStatus({
             ? starknetWalletBalance?.balances[token] || 0
             : selectedNetwork.chain.name === "Tron"
               ? tronWalletBalance?.balances[token] || 0
+              : isSolanaChain(selectedNetwork.chain)
+                ? solanaWalletBalance?.balances[token] || 0
               : smartWalletBalance?.balances[token] || 0;
 
         const eventData = {

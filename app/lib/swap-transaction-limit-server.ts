@@ -6,6 +6,10 @@ import { collectLinkedEvmAddressesForPrivyUserId } from "@/app/lib/privy";
 import { monthlyLimitReachedMessage } from "@/app/lib/kyc-limit-copy";
 import { parseValidTransactionAmount, roundAmountForCurrency } from "@/app/utils";
 import type { V2FiatProviderAccountDTO } from "@/app/types";
+import {
+  getAggregatorBaseUrlForV2,
+  getAggregatorV1BaseUrl,
+} from "@/app/lib/aggregator-server-env";
 
 export type SwapLimitRpcBody = {
   transactionType: string;
@@ -88,6 +92,122 @@ export async function assertTransactionWalletAuthorized(
   return { ok: true };
 }
 
+/**
+ * NGN per 1 USDC from the aggregator (used for cNGN / fiat KYC limit math). Native networks only:
+ * a bridged network (Solana, Tron) is priced on its settlement network anyway.
+ */
+const KYC_RATE_NETWORK_FALLBACKS = [
+  "base",
+  "arbitrum-one",
+  "polygon",
+] as const;
+
+const RATE_FETCH_BUDGET_MS = 15_000;
+/** Longest any single rate request may take. */
+const RATE_FETCH_ATTEMPT_MS = 4_000;
+/** Time kept back for each fallback still to come, so slow early routes cannot starve them. */
+const RATE_FETCH_RESERVE_MS = 1_000;
+const RATE_FETCH_MIN_ATTEMPT_MS = 300;
+
+type RateAttempt = {
+  label: string;
+  url: string;
+  parse: (payload: { data?: unknown } | null) => number;
+};
+
+/**
+ * Timeout for the next rate request, or null when the budget is spent. Each attempt leaves
+ * `RATE_FETCH_RESERVE_MS` for every fallback after it and never runs past the deadline.
+ */
+export function rateAttemptTimeoutMs(remainingMs: number, attemptsAfter: number): number | null {
+  const timeout = Math.min(
+    RATE_FETCH_ATTEMPT_MS,
+    remainingMs - attemptsAfter * RATE_FETCH_RESERVE_MS,
+    remainingMs,
+  );
+  return timeout >= RATE_FETCH_MIN_ATTEMPT_MS ? timeout : null;
+}
+
+function normalizeRateNetworkSlug(network?: string | null): string | null {
+  const trimmed = String(network ?? "").trim().toLowerCase();
+  if (!trimmed) return null;
+  return trimmed.replace(/\s+/g, "-");
+}
+
+function parseV1RatePayload(payload: { data?: unknown } | null): number {
+  const rate = Number(payload?.data);
+  return Number.isFinite(rate) && rate > 0 ? rate : 0;
+}
+
+function parseV2SellRatePayload(payload: { data?: unknown } | null): number {
+  const sell = (payload?.data as { sell?: { rate?: unknown } } | undefined)
+    ?.sell;
+  const rate = Number(sell?.rate);
+  return Number.isFinite(rate) && rate > 0 ? rate : 0;
+}
+
+/**
+ * Resolves USDC/NGN for monthly limit checks. Staging requires a network slug
+ * (same as solanatool / UI v2 quotes); production v1 without network still works.
+ */
+export async function fetchCngnToUsdRate(
+  networkSlug?: string | null,
+): Promise<number> {
+  const v1Base = getAggregatorV1BaseUrl();
+  const origin = getAggregatorBaseUrlForV2();
+  if (!v1Base || !origin) {
+    console.warn(
+      "swap limit check: aggregator URL is not set; rate-dependent KYC checks may fail",
+    );
+    return 0;
+  }
+
+  const primary = normalizeRateNetworkSlug(networkSlug);
+  const networksToTry = [
+    ...(primary ? [primary] : []),
+    ...KYC_RATE_NETWORK_FALLBACKS.filter((slug) => slug !== primary),
+  ];
+  const attempts: RateAttempt[] = [
+    ...networksToTry.flatMap((network): RateAttempt[] => [
+      {
+        label: `v1 ${network}`,
+        url: `${v1Base}/rates/USDC/1/NGN?network=${encodeURIComponent(network)}`,
+        parse: parseV1RatePayload,
+      },
+      {
+        label: `v2 sell ${network}`,
+        url: `${origin}/v2/rates/${encodeURIComponent(network)}/USDC/1/NGN?side=sell`,
+        parse: parseV2SellRatePayload,
+      },
+    ]),
+    { label: "legacy v1", url: `${v1Base}/rates/USDC/1/NGN`, parse: parseV1RatePayload },
+  ];
+
+  const deadline = Date.now() + RATE_FETCH_BUDGET_MS;
+  for (let i = 0; i < attempts.length; i++) {
+    const timeoutMs = rateAttemptTimeoutMs(deadline - Date.now(), attempts.length - i - 1);
+    if (timeoutMs === null) break;
+    const { label, url, parse } = attempts[i];
+    try {
+      const rateRes = await fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
+      const rateData = (await rateRes.json().catch(() => null)) as
+        | { status?: string; data?: unknown }
+        | null;
+      if (rateRes.ok && rateData?.status === "success") {
+        const rate = parse(rateData);
+        if (rate > 0) return rate;
+      }
+    } catch (error) {
+      console.warn(`swap limit check: ${label} rate fetch failed:`, error);
+    }
+  }
+
+  console.warn(
+    "swap limit check: could not resolve USDC/NGN rate from aggregator",
+  );
+  return 0;
+}
+
 export type SwapLimitCheckResult =
   | { kind: "success"; id?: string; monthlyLimit: number; pooledWalletCount: number }
   | { kind: "rate_unavailable" }
@@ -137,22 +257,10 @@ export async function executeSwapTransactionLimitCheck(
   // Echoed back so the blocked-swap copy can name the wallets sharing the allowance.
   const pooledWalletCount = scope.wallets.length;
 
-  let cngnToUsdRate = 0;
-  try {
-    const aggregatorUrl = process.env.NEXT_PUBLIC_AGGREGATOR_URL;
-    if (aggregatorUrl) {
-      const rateRes = await fetch(`${aggregatorUrl}/rates/USDC/1/NGN`, {
-        signal: AbortSignal.timeout(5000),
-      });
-      if (rateRes.ok) {
-        const rateData = await rateRes.json();
-        const rate = Number(rateData?.data);
-        if (rate > 0) cngnToUsdRate = rate;
-      }
-    }
-  } catch {
-    // Rate unavailable — stored procedure will return rate_unavailable if cNGN is involved
-  }
+  const rateNetworkSlug = normalizeRateNetworkSlug(
+    typeof body.network === "string" ? body.network : null,
+  );
+  const cngnToUsdRate = await fetchCngnToUsdRate(rateNetworkSlug);
 
   const { data: rpcResult, error: rpcError } = await supabaseAdmin.rpc(
     "insert_swap_transaction_if_within_limit",
@@ -383,6 +491,90 @@ export async function findSenderOrderRowForWallet(
     return { ok: true, id: null };
   }
   return { ok: true, id: String(row.id) };
+}
+
+export type SenderDepositClaim =
+  | { ok: true }
+  | { ok: false; status: 409 | 503; error: string };
+
+/**
+ * Records `txHash` as the deposit of a sender order on its server-written row before the transfer
+ * is broadcast, so one order cannot be paid twice (two tabs, a double click, a retried build).
+ * The write is a compare-and-set on the previous value: of two racing claims only one wins.
+ *
+ * An earlier, different claim blocks the new one unless `canReplace(previousHash, claimedAt)`
+ * says it can no longer move funds (it failed, or expired without landing).
+ */
+export async function claimSenderOrderDeposit(
+  orderId: string,
+  txHash: string,
+  canReplace: (previousHash: string, claimedAt: Date) => Promise<boolean>,
+): Promise<SenderDepositClaim> {
+  const unavailable = {
+    ok: false as const,
+    status: 503 as const,
+    error: "Could not check this order's payment. Please try again.",
+  };
+  const { data, error } = await supabaseAdmin
+    .from("transactions")
+    .select("id, tx_hash, updated_at")
+    .eq("order_id", orderId)
+    .in("transaction_type", ["onramp", "offramp"])
+    .limit(1);
+  const row = data?.[0];
+  if (error || !row) {
+    if (error) console.error("Sender deposit claim lookup failed:", error);
+    return unavailable;
+  }
+
+  const previous = typeof row.tx_hash === "string" && row.tx_hash ? row.tx_hash : null;
+  if (previous === txHash) return { ok: true };
+  if (previous) {
+    let replaceable: boolean;
+    try {
+      replaceable = await canReplace(previous, new Date(row.updated_at));
+    } catch (checkError) {
+      console.error("Sender deposit claim: could not check the earlier payment:", checkError);
+      return unavailable;
+    }
+    if (!replaceable) {
+      return {
+        ok: false,
+        status: 409,
+        error: "A payment for this order was already sent. Check its status before paying again.",
+      };
+    }
+  }
+
+  let update = supabaseAdmin
+    .from("transactions")
+    .update({ tx_hash: txHash, updated_at: new Date().toISOString() })
+    .eq("id", row.id);
+  update = previous ? update.eq("tx_hash", previous) : update.is("tx_hash", null);
+  const { data: claimed, error: claimError } = await update.select("id");
+  if (claimError) {
+    console.error("Sender deposit claim failed:", claimError);
+    return unavailable;
+  }
+  if (!claimed?.length) {
+    return {
+      ok: false,
+      status: 409,
+      error: "A payment for this order is already in progress.",
+    };
+  }
+  return { ok: true };
+}
+
+/** Drops a claim whose transfer definitely did not execute, so the order can be paid again. */
+export async function releaseSenderOrderDeposit(orderId: string, txHash: string): Promise<void> {
+  const { error } = await supabaseAdmin
+    .from("transactions")
+    .update({ tx_hash: null })
+    .eq("order_id", orderId)
+    .eq("tx_hash", txHash)
+    .in("transaction_type", ["onramp", "offramp"]);
+  if (error) console.error("Sender deposit claim release failed:", error);
 }
 
 /** Normalize aggregator VA fields for JSONB storage (Activepieces pay-in emails). */
